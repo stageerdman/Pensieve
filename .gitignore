@@ -1,0 +1,23 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# AI Control bootstrap (never commit)
+INIT.md
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+src-tauri/target/
+
+# Logs
+*.log
+logs/
+
+# OS junk
+.DS_Store
+Thumbs.db

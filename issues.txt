@@ -1,0 +1,12 @@
+Pensieve — known issues & TODOs
+(one line per item; move resolved items out or mark done)
+
+NEXT STEPS (post-adopt, not yet done):
+- [ ] GitHub: init git, create repo, connect remote, first commit + push (needs `gh auth` + visibility choice).
+- [ ] First build update: create `updates/YYYY-MM-DD INITIAL-BUILD - OPEN/` with roadmap for v1
+      priority surface — smooth Notion-like writing saved as local .md, then audio, video, images.
+- [ ] design.md: establish the visual standard before building any screen (already drafted; refine with UX agents).
+- [ ] Fill Commands in CLAUDE.md once the Tauri app is scaffolded.
+
+OPEN ISSUES:
+- (none yet)
