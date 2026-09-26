@@ -16,12 +16,13 @@ Planned layout — created as the project grows, kept flat until it needs folder
 - Note vault (user data) lives outside the repo: `.md` notes + media on disk, indexed by SQLite.
 
 ## Commands
-_Placeholders until the first build scaffolds the app — update these then._
-- Run: `npm run tauri dev`
-- Test: `npm test`
-- Build/compile: `npm run tauri build`
+- Run (browser, fast iterate): `npm run dev` → http://localhost:5173
+- Run (native app): `npm run tauri dev`
+- Test: `npm test` (Vitest; `npm run test:watch` to watch)
+- Typecheck: `npx tsc --noEmit`
+- Build (web bundle): `npm run build` · Build (native `.app`): `npm run tauri build`
 - Deploy: n/a (local `.app`); future: notarize & distribute the build
-- Logs: query the central log store (see Debugging) — filtered results, never full dumps
+- Logs: query the central log store (`log.query({...})`, see Debugging) — filtered, never full dumps
 
 ## User Preferences
 - Build mode: **auto-build the full update without waiting** — run all phases end to end; only check in when genuine feedback is needed (a real decision, a blocker, or the update is done).
