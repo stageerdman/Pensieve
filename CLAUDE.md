@@ -24,8 +24,8 @@ _Placeholders until the first build scaffolds the app — update these then._
 - Logs: query the central log store (see Debugging) — filtered results, never full dumps
 
 ## User Preferences
-- Build mode: **wait for the user's command after each phase** _(default — tell me to switch to auto-build any time)_
-- Execution pacing: **phase by phase, report status and verify before moving on** _(default — adjust to taste)_
+- Build mode: **auto-build the full update without waiting** — run all phases end to end; only check in when genuine feedback is needed (a real decision, a blocker, or the update is done).
+- Execution pacing: **phase by phase internally** — commit + push and verify each phase, but keep moving through the whole update on my own.
 
 ## Core Principles
 1. **Modularity.** Plan modules ahead so any piece can be understood and fixed in isolation, with its own bounded context and small, explicit interfaces. Every logical UI element gets its own file; compile to a single file only when something must be posted somewhere. Keep cross-coupling low so a bug has one obvious home. (CODING.md, STRUCTURE.md)
