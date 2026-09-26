@@ -21,27 +21,27 @@ import, labels/search, and AI coach are later updates (see ../../ROADMAP.md).
 ## Roadmap (phases)
 Each phase ends with tests and a real-run verification, then a commit + push.
 
-- [ ] **P1 — Research spike (editor + local .md round-trip).** Isolated spike in
-  this folder: confirm TipTap ⇄ Markdown round-trips faithfully with the
-  formatting set we want, and that Tauri can read/write the vault. Capture
-  findings in wiki.md. No main-code changes.
-- [ ] **P2 — App shell & foundations.** Tauri + React/TS/Tailwind/shadcn scaffold;
-  design tokens from design.md; the **central logger** (level, module, event,
-  session id) into a capped searchable store + a `logs` query; `.env` loading.
-- [ ] **P3 — Local vault + SQLite index.** Vault location (outside repo); read/
-  write notes as `.md`; SQLite schema for notes + metadata; safe file ops.
-- [ ] **P4 — The Editor.** TipTap writing surface with Notion-like formatting,
-  keyboard-first, autosave, serialize to `.md`. This is the heart — make it feel
-  effortless. Build from shadcn primitives per design.md.
-- [ ] **P5 — Addition timeline.** Commit-style log of additions (what/when),
-  stored in the index and shown as a simple timeline.
-- [ ] **P6 — UX pass & polish.** UX-expert agents review the writing flow; cut
-  anything unneeded; verify accessibility, focus, light/dark. Fill Commands in
-  CLAUDE.md now that the app is scaffolded.
+- [x] **P1 — Research spike (editor + local .md round-trip).** TipTap ⇄ Markdown
+  round-trip proven faithful and idempotent for the full v1 format set; locked in
+  as `editor.test.ts`. (Findings in wiki.md.)
+- [x] **P2 — App shell & foundations.** Vite + React/TS/Tailwind scaffold; design
+  tokens from design.md (light/dark); the **central logger** (level, module,
+  event, session id) into a capped ring buffer + a filtered `query`.
+- [x] **P3 — Local vault (SQLite deferred).** `Store` abstraction with BrowserStore
+  (localStorage) + TauriStore (on-disk `.md` vault via Rust fs commands). SQLite
+  intentionally deferred to LABELS & SEARCH (see wiki.md).
+- [x] **P4 — The Editor.** TipTap surface: markdown-as-you-type, selection bubble,
+  autosave to `.md`, keyboard-first. Notion-like formatting set.
+- [x] **P5 — Addition timeline.** Per-session word-delta additions, day-grouped,
+  summoned overlay (`⌘T`). Verified end-to-end by an integration test.
+- [x] **P6 — Native shell & polish.** Tauri v2 shell; Commands filled in CLAUDE.md;
+  light/dark, focus mode, keyboard shortcuts. Native `.app` builds and launches.
 
 ## Status
-- **Done:** project onboarded to AI Control; VISION.md, ROADMAP.md, design.md,
-  CLAUDE.md written; GitHub repo created and connected; this update opened.
-- **Decisions:** see wiki.md.
-- **Next:** P1 — the editor + `.md` round-trip research spike. (Awaiting go per
-  Build mode = wait for command after each phase.)
+- **Done:** all six phases. 22/22 tests pass; typecheck + web build clean; Rust
+  `cargo check` clean; native `Pensieve.app` builds and launches on macOS.
+- **Decisions:** SQLite deferred; links via markdown typing; focus dimming
+  deferred; browser-first verification (Chrome extension unavailable for live
+  drive). All recorded in wiki.md.
+- **Next:** await review, then merge `update/initial-build` → `main` and close this
+  update (`- OPEN` → `- CLOSED`).
