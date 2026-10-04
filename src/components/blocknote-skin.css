@@ -24,6 +24,18 @@
   background: transparent;
 }
 
+/* The editor is one big contenteditable; the global accent :focus-visible outline
+   (index.css) would draw a box around the whole surface. Suppress it here — the
+   caret and block selection already signal focus. (Menus/buttons keep their own.) */
+.pensieve-editor .bn-editor:focus,
+.pensieve-editor .bn-editor:focus-visible,
+.pensieve-editor [contenteditable]:focus,
+.pensieve-editor [contenteditable]:focus-visible,
+.pensieve-editor .ProseMirror:focus,
+.pensieve-editor .ProseMirror:focus-visible {
+  outline: none;
+}
+
 /* Centre the writing column; let the drag-handle gutter live in the margin. */
 .pensieve-editor .bn-editor {
   max-width: 72ch;
