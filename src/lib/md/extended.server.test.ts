@@ -65,6 +65,60 @@ describe("BlockNote .md round-trip (extended standard)", () => {
     expect(await roundTrip(out)).toBe(out);
   });
 
+  it("round-trips a toggle (summary + body) losslessly as a toggleListItem", async () => {
+    const toggle = [
+      {
+        type: "toggleListItem",
+        content: [{ type: "text", text: "My summary", styles: {} }],
+        children: [
+          { type: "paragraph", content: [{ type: "text", text: "hidden body", styles: {} }] },
+          { type: "bulletListItem", content: [{ type: "text", text: "a point", styles: {} }] },
+        ],
+      },
+    ];
+    const md = await blocksToExtendedMd(editor, toggle);
+    expect(md).toContain("```pensieve:toggle");
+    const blocks = (await extendedMdToBlocks(editor, md)) as any[];
+    expect(blocks[0].type).toBe("toggleListItem");
+    expect(blocks[0].content[0].text).toBe("My summary");
+    expect(blocks[0].children.map((c: any) => c.type)).toEqual(["paragraph", "bulletListItem"]);
+    expect(blocks[0].children[0].content[0].text).toBe("hidden body");
+    // idempotent
+    expect(await roundTrip(md)).toBe(md);
+  });
+
+  it("preserves inline formatting inside a toggle summary", async () => {
+    const toggle = [
+      { type: "toggleListItem", content: [
+        { type: "text", text: "see ", styles: {} },
+        { type: "text", text: "this", styles: { bold: true } },
+      ], children: [] },
+    ];
+    const md = await blocksToExtendedMd(editor, toggle);
+    const blocks = (await extendedMdToBlocks(editor, md)) as any[];
+    const bold = blocks[0].content.find((c: any) => c.styles?.bold);
+    expect(bold?.text).toBe("this");
+  });
+
+  it("round-trips a tab-indented (non-list) child via pensieve:children", async () => {
+    const nested = [
+      { type: "paragraph", content: [{ type: "text", text: "parent", styles: {} }], children: [
+        { type: "paragraph", content: [{ type: "text", text: "indented child", styles: {} }] },
+      ]},
+    ];
+    const md = await blocksToExtendedMd(editor, nested);
+    expect(md).toContain("```pensieve:children");
+    const blocks = (await extendedMdToBlocks(editor, md)) as any[];
+    expect(blocks[0].content[0].text).toBe("parent");
+    expect(blocks[0].children[0].content[0].text).toBe("indented child");
+    expect(await roundTrip(md)).toBe(md);
+  });
+
+  it("leaves a plain document untouched (no pensieve fences for standard blocks)", async () => {
+    const md = await roundTrip("# T\n\ntext\n\n* a\n  * b\n\n> q\n");
+    expect(md).not.toContain("pensieve:");
+  });
+
   it("decodes a colour run into a styled run", async () => {
     const blocks = (await extendedMdToBlocks(editor, "a {bg:red}b{/} c\n")) as any[];
     const run = blocks[0].content.find((c: any) => c.styles?.backgroundColor === "red");

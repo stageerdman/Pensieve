@@ -108,11 +108,111 @@ export function mapBlocks(blocks: Block[], fn: (items: Inline[]) => Inline[]): B
   });
 }
 
+// ── Block-structure bridge ──────────────────────────────────────────────────
+// BlockNote's Markdown is lossy for two things standard Markdown can't express:
+//   • toggle list items  → it downgrades them to plain bullets, losing the toggle;
+//   • non-list nesting    → children of a paragraph/heading/quote/toggle are flattened.
+// We OWN the standard here too: such blocks are bridged into fenced `pensieve:*`
+// code blocks (which round-trip verbatim), then rebuilt on parse. Everything the
+// converter already handles losslessly (flat blocks, nested LISTS, quotes) is left
+// untouched, so the common case stays plain, portable Markdown.
+//
+//   ```pensieve:toggle          a toggle: first line = summary, rest = its body
+//   Summary text
+//   body markdown…
+//   ```
+//   ```pensieve:children        the indented children of the block just above
+//   child markdown…
+//   ```
+// Known limitation: a fenced code block nested *inside* a toggle/indent body would
+// collide with the outer fence; rare, and noted in issues.
+
+const LIST_TYPES = new Set(["bulletListItem", "numberedListItem", "checkListItem"]);
+
+function fence(language: string, text: string): Block {
+  return {
+    type: "codeBlock",
+    props: { language },
+    content: [{ type: "text", text, styles: {} }],
+  };
+}
+
+const textOf = (b: Block): string =>
+  (Array.isArray(b.content) && (b.content[0] as TextInline)?.text) || "";
+const langOf = (b: Block): string =>
+  (b.type === "codeBlock" && (b.props as { language?: string } | undefined)?.language) || "";
+
+/** Serialize a block's inline content to Markdown (bold/links/our sentinels), no
+ *  trailing newline — used for a toggle's one-line summary. */
+async function inlineToMd(editor: MdEditor, content: unknown): Promise<string> {
+  const items = encodeInline((Array.isArray(content) ? content : []) as Inline[]);
+  const md = await editor.blocksToMarkdownLossy([{ type: "paragraph", content: items }]);
+  return md.replace(/\n+$/, "");
+}
+
+/** Replace toggles / non-list nesting with `pensieve:*` fences the converter keeps. */
+async function encodeStructure(editor: MdEditor, blocks: Block[]): Promise<Block[]> {
+  const out: Block[] = [];
+  for (const b of blocks) {
+    const children = (Array.isArray(b.children) ? b.children : []) as Block[];
+    const isList = LIST_TYPES.has(b.type as string);
+    const allListChildren = children.length > 0 && children.every((c) => LIST_TYPES.has(c.type as string));
+
+    if (b.type === "toggleListItem") {
+      const summary = await inlineToMd(editor, b.content);
+      const body = children.length ? (await blocksToExtendedMd(editor, children)).replace(/\n+$/, "") : "";
+      out.push(fence("pensieve:toggle", body ? `${summary}\n${body}` : summary));
+    } else if (children.length && !(isList && allListChildren)) {
+      out.push({ ...b, children: undefined });
+      const body = (await blocksToExtendedMd(editor, children)).replace(/\n+$/, "");
+      out.push(fence("pensieve:children", body));
+    } else if (children.length) {
+      out.push({ ...b, children: await encodeStructure(editor, children) });
+    } else {
+      out.push(b);
+    }
+  }
+  return out;
+}
+
+/** Inverse of encodeStructure: rebuild toggles and attach `pensieve:children`. */
+async function reconstructStructure(editor: MdEditor, blocks: Block[]): Promise<Block[]> {
+  const out: Block[] = [];
+  for (const b of blocks) {
+    const lang = langOf(b);
+    if (lang === "pensieve:toggle") {
+      const text = textOf(b);
+      const nl = text.indexOf("\n");
+      const summary = nl === -1 ? text : text.slice(0, nl);
+      const body = nl === -1 ? "" : text.slice(nl + 1);
+      const parsedSummary = summary ? ((await editor.tryParseMarkdownToBlocks(summary)) as Block[]) : [];
+      const content = (parsedSummary[0]?.content as Inline[]) ?? [];
+      const children = body
+        ? await reconstructStructure(editor, (await editor.tryParseMarkdownToBlocks(body)) as Block[])
+        : [];
+      out.push({ type: "toggleListItem", props: {}, content, children });
+    } else if (lang === "pensieve:children") {
+      const kids = await reconstructStructure(editor, (await editor.tryParseMarkdownToBlocks(textOf(b))) as Block[]);
+      const prev = out[out.length - 1];
+      if (prev) prev.children = [ ...((prev.children as Block[]) ?? []), ...kids ];
+    } else {
+      const nb: Block = { ...b };
+      if (Array.isArray(b.children) && b.children.length) {
+        nb.children = await reconstructStructure(editor, b.children as Block[]);
+      }
+      out.push(nb);
+    }
+  }
+  return out;
+}
+
 export async function blocksToExtendedMd(editor: MdEditor, blocks: unknown[]): Promise<string> {
-  return editor.blocksToMarkdownLossy(mapBlocks(blocks as Block[], encodeInline));
+  const structural = await encodeStructure(editor, blocks as Block[]);
+  return editor.blocksToMarkdownLossy(mapBlocks(structural, encodeInline));
 }
 
 export async function extendedMdToBlocks(editor: MdEditor, markdown: string): Promise<unknown[]> {
-  const blocks = (await editor.tryParseMarkdownToBlocks(markdown)) as Block[];
-  return mapBlocks(blocks, decodeInline);
+  const raw = (await editor.tryParseMarkdownToBlocks(markdown)) as Block[];
+  const rebuilt = await reconstructStructure(editor, raw);
+  return mapBlocks(rebuilt, decodeInline);
 }
