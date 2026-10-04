@@ -2,18 +2,36 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Editor } from "./components/Editor";
 import { Sidebar } from "./components/Sidebar";
 import { TimelinePanel } from "./components/TimelinePanel";
+import { DetailsPanel } from "./components/DetailsPanel";
+import { OverflowMenu } from "./components/OverflowMenu";
+import { IconButton } from "./components/IconButton";
+import { Clock, PanelRight } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
 import { useNotes } from "./hooks/useNotes";
 import { useTheme } from "./hooks/useTheme";
 
 export default function App() {
-  const { notes, current, status, open, create, remove, change } = useNotes();
+  const { notes, current, status, open, create, remove, change, updateMeta } = useNotes();
   const { theme, toggle } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [timelineOpen, setTimelineOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const confirmTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  // The right dock holds one panel at a time — opening either closes the other.
+  const toggleTimeline = useCallback(() => {
+    if (!current) return;
+    setTimelineOpen((v) => !v);
+    setDetailsOpen(false);
+  }, [current]);
+
+  const toggleDetails = useCallback(() => {
+    if (!current) return;
+    setDetailsOpen((v) => !v);
+    setTimelineOpen(false);
+  }, [current]);
 
   const askDelete = useCallback(() => {
     if (!current) return;
@@ -32,6 +50,7 @@ export default function App() {
       if (!(e.metaKey || e.ctrlKey)) {
         if (e.key === "Escape") {
           setTimelineOpen(false);
+          setDetailsOpen(false);
           setFocusMode(false);
         }
         return;
@@ -40,16 +59,19 @@ export default function App() {
       if (k === "n") {
         e.preventDefault();
         void create();
-      } else if (k === "\\") {
+      } else if (e.code === "Backslash") {
+        // ⌘\ toggles the left sidebar; ⌘⇧\ toggles the right Details panel.
         e.preventDefault();
-        setSidebarOpen((v) => !v);
+        if (e.shiftKey) toggleDetails();
+        else setSidebarOpen((v) => !v);
       } else if (k === "t") {
         e.preventDefault();
-        if (current) setTimelineOpen((v) => !v);
+        toggleTimeline();
       } else if (k === ".") {
         e.preventDefault();
         setFocusMode((v) => !v);
       } else if (k === "l" && e.shiftKey) {
+        // Dev/keyboard theme toggle; the native macOS menu owns this in the app.
         e.preventDefault();
         toggle();
       } else if (e.key === "Backspace") {
@@ -61,7 +83,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [create, current, toggle, askDelete]);
+  }, [create, current, toggle, askDelete, toggleTimeline, toggleDetails]);
 
   const showChrome = !focusMode;
 
@@ -78,27 +100,30 @@ export default function App() {
 
       <main className="flex min-w-0 flex-1 flex-col">
         {showChrome && (
-          <header className="flex items-center justify-between border-b border-border px-4 py-2">
-            <span className="text-sm font-medium">Pensieve</span>
-            <div className="flex items-center gap-1 text-text-muted">
-              {current && (
-                <button
-                  className="rounded px-2 py-1 text-sm hover:bg-surface-raised hover:text-text"
-                  onClick={() => setTimelineOpen((v) => !v)}
-                  title="Timeline  ⌘T"
+          <header className="flex h-11 items-center justify-end px-3">
+            {current && (
+              <div className="flex items-center gap-0.5">
+                <OverflowMenu
+                  items={[
+                    {
+                      icon: <Clock size={16} />,
+                      label: "Timeline",
+                      shortcut: "⌘T",
+                      onSelect: toggleTimeline,
+                      active: timelineOpen,
+                    },
+                  ]}
+                />
+                <IconButton
+                  label="Note details"
+                  title="Note details  ⌘⇧\"
+                  active={detailsOpen}
+                  onClick={toggleDetails}
                 >
-                  Timeline
-                </button>
-              )}
-              <button
-                className="rounded px-2 py-1 text-sm hover:bg-surface-raised hover:text-text"
-                onClick={toggle}
-                title="Toggle theme  ⌘⇧L"
-                aria-label="Toggle theme"
-              >
-                {theme === "dark" ? "☀" : "☾"}
-              </button>
-            </div>
+                  <PanelRight />
+                </IconButton>
+              </div>
+            )}
           </header>
         )}
 
@@ -133,6 +158,16 @@ export default function App() {
               noteId={current.id}
               noteTitle={current.title}
               onClose={() => setTimelineOpen(false)}
+            />
+          )}
+
+          {showChrome && detailsOpen && current && (
+            <DetailsPanel
+              note={current}
+              notes={notes}
+              onClose={() => setDetailsOpen(false)}
+              onOpenNote={(id) => void open(id)}
+              updateMeta={updateMeta}
             />
           )}
         </div>
