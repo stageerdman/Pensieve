@@ -6,7 +6,7 @@
 //   timelines/<id>.json   TimelineEntry[]
 
 import { invoke } from "@tauri-apps/api/core";
-import type { Note, NoteMeta, Store, TimelineEntry } from "../types";
+import type { Category, Note, NoteMeta, Store, TimelineEntry } from "../types";
 import { titleFromMarkdown } from "../text";
 import { parseFrontmatter, composeFrontmatter } from "../md/frontmatter";
 import { log } from "../logger";
@@ -25,6 +25,10 @@ interface Meta {
   title: string;
   createdAt: number;
   updatedAt: number;
+  // Mirrored from the frontmatter for fast listing (whispering, filters). The
+  // .md frontmatter stays the source of truth.
+  categories?: Category[];
+  tags?: string[];
 }
 
 function newId(): string {
@@ -42,7 +46,14 @@ export class TauriStore implements Store {
       const raw = await readText(metaPath(id));
       if (!raw) continue;
       const m = JSON.parse(raw) as Meta;
-      metas.push({ id, title: m.title, createdAt: m.createdAt, updatedAt: m.updatedAt });
+      metas.push({
+        id,
+        title: m.title,
+        createdAt: m.createdAt,
+        updatedAt: m.updatedAt,
+        categories: m.categories ?? [],
+        tags: m.tags ?? [],
+      });
     }
     metas.sort((a, b) => b.updatedAt - a.updatedAt);
     return metas;
@@ -62,7 +73,7 @@ export class TauriStore implements Store {
       title: m.title,
       createdAt: m.createdAt,
       updatedAt: m.updatedAt,
-      category: fields.category,
+      categories: fields.categories,
       tags: fields.tags,
       links: fields.links,
     };
@@ -73,9 +84,11 @@ export class TauriStore implements Store {
       title: titleFromMarkdown(note.markdown),
       createdAt: note.createdAt,
       updatedAt: Date.now(),
+      categories: note.categories,
+      tags: note.tags,
     };
     const file = composeFrontmatter(
-      { category: note.category, tags: note.tags, links: note.links },
+      { categories: note.categories, tags: note.tags, links: note.links },
       note.markdown,
     );
     await writeText(notePath(note.id), file);
@@ -91,6 +104,7 @@ export class TauriStore implements Store {
       markdown: "",
       createdAt: now,
       updatedAt: now,
+      categories: [],
       tags: [],
       links: [],
     };

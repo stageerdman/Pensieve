@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { Note, NoteFields, NoteMeta } from "../lib/types";
 import { RightPanel } from "./RightPanel";
-import { CategorySelect } from "./CategorySelect";
+import { CategoryDropdown } from "./CategoryDropdown";
 import { TagEditor } from "./TagEditor";
 import { RelationshipList } from "./RelationshipList";
 
@@ -12,9 +12,10 @@ import { RelationshipList } from "./RelationshipList";
 interface DetailsPanelProps {
   note: Note;
   notes: NoteMeta[];
+  tagSuggestions: string[];
   onClose: () => void;
   onOpenNote: (id: string) => void;
-  updateMeta: (partial: Partial<NoteFields>) => void;
+  updateMeta: (partial: Partial<NoteFields> | ((note: Note) => Partial<NoteFields>)) => void;
 }
 
 function Section({ label, children }: { label: string; children: ReactNode }) {
@@ -28,15 +29,35 @@ function Section({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-export function DetailsPanel({ note, notes, onClose, onOpenNote, updateMeta }: DetailsPanelProps) {
+export function DetailsPanel({
+  note,
+  notes,
+  tagSuggestions,
+  onClose,
+  onOpenNote,
+  updateMeta,
+}: DetailsPanelProps) {
   return (
     <RightPanel title="Details" onClose={onClose}>
       <div className="space-y-6 pt-1">
         <Section label="Category">
-          <CategorySelect value={note.category} onChange={(category) => updateMeta({ category })} />
+          <CategoryDropdown
+            value={note.categories}
+            onToggle={(c) =>
+              updateMeta((n) => ({
+                categories: n.categories.includes(c)
+                  ? n.categories.filter((x) => x !== c)
+                  : [...n.categories, c],
+              }))
+            }
+          />
         </Section>
         <Section label="Tags">
-          <TagEditor tags={note.tags} onChange={(tags) => updateMeta({ tags })} />
+          <TagEditor
+            tags={note.tags}
+            suggestions={tagSuggestions}
+            onChange={(tags) => updateMeta({ tags })}
+          />
         </Section>
         <Section label="Relationships">
           <RelationshipList

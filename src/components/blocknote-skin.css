@@ -76,10 +76,3 @@
   font-family: var(--font-mono);
   font-size: 0.9em;
 }
-
-/* Our highlight convention (==text==) renders with the accent, not a loud red. */
-.pensieve-editor [data-background-color="red"] {
-  background-color: hsl(var(--accent) / 0.22) !important;
-  border-radius: 3px;
-  padding: 0 1px;
-}

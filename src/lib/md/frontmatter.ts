@@ -3,7 +3,7 @@
 // app lightweight. The body below the frontmatter is the Markdown source of truth.
 //
 //   ---
-//   category: Notes & Lessons
+//   categories: [Notes & Lessons, In my mind]
 //   tags: [goals, health]
 //   links: [mut123-abc, mut456-def]
 //   ---
@@ -28,9 +28,8 @@ function parseList(value: string): string[] {
     .filter(Boolean);
 }
 
-function asCategory(value: string): Category | undefined {
-  const v = value.trim().replace(/^["']|["']$/g, "");
-  return (CATEGORIES as readonly string[]).includes(v) ? (v as Category) : undefined;
+function toCategories(values: string[]): Category[] {
+  return values.filter((v) => (CATEGORIES as readonly string[]).includes(v)) as Category[];
 }
 
 /** Split raw file text into metadata fields + the Markdown body. */
@@ -38,13 +37,14 @@ export function parseFrontmatter(raw: string): { fields: NoteFields; body: strin
   const m = raw.match(FENCE);
   if (!m) return { fields: { ...EMPTY_FIELDS }, body: raw };
 
-  const fields: NoteFields = { ...EMPTY_FIELDS, tags: [], links: [] };
+  const fields: NoteFields = { categories: [], tags: [], links: [] };
   for (const line of m[1].split("\n")) {
     const idx = line.indexOf(":");
     if (idx === -1) continue;
     const key = line.slice(0, idx).trim();
     const value = line.slice(idx + 1).trim();
-    if (key === "category") fields.category = asCategory(value);
+    if (key === "categories") fields.categories = toCategories(parseList(value));
+    else if (key === "category") fields.categories = toCategories([value.replace(/^["']|["']$/g, "")]); // legacy single
     else if (key === "tags") fields.tags = parseList(value);
     else if (key === "links") fields.links = parseList(value);
   }
@@ -52,14 +52,14 @@ export function parseFrontmatter(raw: string): { fields: NoteFields; body: strin
 }
 
 function hasMeta(f: NoteFields): boolean {
-  return Boolean(f.category) || f.tags.length > 0 || f.links.length > 0;
+  return f.categories.length > 0 || f.tags.length > 0 || f.links.length > 0;
 }
 
 /** Compose metadata + body into file text. No metadata → body unchanged (plain). */
 export function composeFrontmatter(fields: NoteFields, body: string): string {
   if (!hasMeta(fields)) return body;
   const lines: string[] = ["---"];
-  if (fields.category) lines.push(`category: ${fields.category}`);
+  if (fields.categories.length) lines.push(`categories: [${fields.categories.join(", ")}]`);
   lines.push(`tags: [${fields.tags.join(", ")}]`);
   lines.push(`links: [${fields.links.join(", ")}]`);
   lines.push("---", "");

@@ -12,23 +12,27 @@ export interface NoteMeta {
   title: string; // derived from the first line
   createdAt: number;
   updatedAt: number;
-  category?: Category; // unset is a valid resting state
+  // Surfaced in listings for fast cross-note use (e.g. tag whispering). The .md
+  // frontmatter remains the source of truth.
+  categories?: Category[];
+  tags?: string[];
 }
 
 export interface Note extends NoteMeta {
   markdown: string; // the body only (no frontmatter) — what the editor edits
+  categories: Category[]; // multi-select; empty is a valid resting state
   tags: string[];
   links: string[]; // ids of related notes
 }
 
 /** The user-editable metadata carried in frontmatter. */
 export interface NoteFields {
-  category?: Category;
+  categories: Category[];
   tags: string[];
   links: string[];
 }
 
-export const EMPTY_FIELDS: NoteFields = { category: undefined, tags: [], links: [] };
+export const EMPTY_FIELDS: NoteFields = { categories: [], tags: [], links: [] };
 
 /** One "addition" — a writing session's worth of change (see timeline.ts). */
 export interface TimelineEntry {

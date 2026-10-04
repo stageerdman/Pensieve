@@ -125,6 +125,17 @@ Each phase ends with tests + a real-run check, then commit + push.
   then merge `update/notion-ux` → `main` and rename this folder `- CLOSED`.
   Smaller deferrals tracked in issues.txt.
 
+- [x] **P8 — Refinements (owner feedback).** Word/phrase-level colour + highlight
+  via the formatting menu (BlockNote `ColorStyleButton` added back); our extended
+  standard now encodes **text + background colour** losslessly as `{fg:.. bg:..}…{/}`
+  (replacing `==`). Tag input **whispers** existing tags (live set across notes; a
+  tag used nowhere stops being suggested). Category is now a **multi-select
+  dropdown** (`categories[]`, not a single value) — fixed a stale-value bug so rapid
+  toggles don't clobber (functional `updateMeta`). Relationships stay search-only
+  with recent-first defaults. Dropdown `Esc` no longer closes the whole panel.
+  Verified via Puppeteer: multi-category saves both, whisper suggests across notes,
+  colour round-trips to `{bg:yellow}…{/}`. 38/38 tests; `tsc` + web build clean.
+
 ## Status
 - **Done (P1–P6, P7 code):** all user-requested features built, committed, pushed
   on `update/notion-ux`. Draggable blocks, `/` slash menu, two-level `⌘A`, metadata

@@ -16,13 +16,14 @@ function newId(): string {
   );
 }
 
-// Normalise notes read from storage: older notes predate category/tags/links,
-// so fill sensible defaults (back-compat).
+// Normalise notes read from storage: older notes predate categories/tags/links
+// (and used a single `category`), so fill sensible defaults (back-compat).
 function readNote(id: string): Note | null {
   const raw = localStorage.getItem(NOTE_PREFIX + id);
   if (!raw) return null;
-  const n = JSON.parse(raw) as Partial<Note> & Note;
-  return { ...n, tags: n.tags ?? [], links: n.links ?? [] };
+  const n = JSON.parse(raw) as Partial<Note> & Note & { category?: Note["categories"][number] };
+  const categories = n.categories ?? (n.category ? [n.category] : []);
+  return { ...n, categories, tags: n.tags ?? [], links: n.links ?? [] };
 }
 
 export class BrowserStore implements Store {
@@ -31,13 +32,14 @@ export class BrowserStore implements Store {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (!key || !key.startsWith(NOTE_PREFIX)) continue;
-      const n = JSON.parse(localStorage.getItem(key)!) as Note;
+      const n = readNote(key.slice(NOTE_PREFIX.length))!;
       metas.push({
         id: n.id,
         title: n.title,
         createdAt: n.createdAt,
         updatedAt: n.updatedAt,
-        category: n.category,
+        categories: n.categories,
+        tags: n.tags,
       });
     }
     metas.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -66,6 +68,7 @@ export class BrowserStore implements Store {
       markdown: "",
       createdAt: now,
       updatedAt: now,
+      categories: [],
       tags: [],
       links: [],
     };

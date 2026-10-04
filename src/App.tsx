@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Editor } from "./components/Editor";
 import { Sidebar } from "./components/Sidebar";
 import { TimelinePanel } from "./components/TimelinePanel";
@@ -19,6 +19,13 @@ export default function App() {
   const [focusMode, setFocusMode] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const confirmTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  // Live set of tags in use across notes — the source for tag whispering. A tag
+  // no longer on any note simply stops appearing here.
+  const tagSuggestions = useMemo(
+    () => Array.from(new Set(notes.flatMap((n) => n.tags ?? []))).sort(),
+    [notes],
+  );
 
   // The right dock holds one panel at a time — opening either closes the other.
   const toggleTimeline = useCallback(() => {
@@ -165,6 +172,7 @@ export default function App() {
             <DetailsPanel
               note={current}
               notes={notes}
+              tagSuggestions={tagSuggestions}
               onClose={() => setDetailsOpen(false)}
               onOpenNote={(id) => void open(id)}
               updateMeta={updateMeta}

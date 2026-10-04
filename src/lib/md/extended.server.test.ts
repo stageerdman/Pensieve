@@ -15,7 +15,7 @@ beforeAll(() => {
 
 const SAMPLE = `# Title
 
-A paragraph with **bold**, *italic*, \`code\`, a [link](https://example.com), and ==a highlight==.
+A paragraph with **bold**, *italic*, \`code\`, a [link](https://example.com), and {bg:yellow}a highlight{/}.
 
 ## Lists
 
@@ -46,9 +46,9 @@ describe("BlockNote .md round-trip (extended standard)", () => {
     expect(twice).toBe(once);
   });
 
-  it("preserves our ==highlight== convention through a round-trip", async () => {
-    const out = await roundTrip("some ==important== words\n");
-    expect(out).toContain("==important==");
+  it("preserves our colour convention through a round-trip", async () => {
+    const out = await roundTrip("some {fg:red}important{/} words\n");
+    expect(out).toContain("{fg:red}important{/}");
     const twice = await roundTrip(out);
     expect(twice).toBe(out);
   });
@@ -59,8 +59,8 @@ describe("BlockNote .md round-trip (extended standard)", () => {
     expect(await roundTrip(once)).toBe(once);
   });
 
-  it("decodes a highlight into a styled run", async () => {
-    const blocks = (await extendedMdToBlocks(editor, "a ==b== c\n")) as any[];
+  it("decodes a colour run into a styled run", async () => {
+    const blocks = (await extendedMdToBlocks(editor, "a {bg:red}b{/} c\n")) as any[];
     const run = blocks[0].content.find((c: any) => c.styles?.backgroundColor === "red");
     expect(run?.text).toBe("b");
   });

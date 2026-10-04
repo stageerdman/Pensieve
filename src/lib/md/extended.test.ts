@@ -1,48 +1,60 @@
 import { describe, it, expect } from "vitest";
-import { encodeInline, decodeInline, mapBlocks, HIGHLIGHT } from "./extended";
+import { encodeInline, decodeInline, mapBlocks } from "./extended";
 
-// Pure unit tests for the extended-Markdown bridge — no BlockNote runtime needed.
-// (The full editor round-trip is covered by extended.server.test.ts.)
+// Pure unit tests for the extended-Markdown colour bridge — no BlockNote runtime
+// needed. (The full editor round-trip is covered by extended.server.test.ts.)
 
-const hl = (text: string) => ({ type: "text" as const, text, styles: { backgroundColor: HIGHLIGHT } });
-const plain = (text: string) => ({ type: "text" as const, text, styles: {} });
+const run = (text: string, styles: Record<string, unknown> = {}) => ({ type: "text" as const, text, styles });
 
-describe("extended-markdown highlight bridge", () => {
-  it("encodes a highlighted run to ==...== and drops the style", () => {
-    expect(encodeInline([hl("hi")])).toEqual([{ type: "text", text: "==hi==", styles: {} }]);
+describe("extended-markdown colour bridge", () => {
+  it("encodes a background colour to {bg:..}..{/} and drops the style", () => {
+    expect(encodeInline([run("hi", { backgroundColor: "yellow" })])).toEqual([
+      { type: "text", text: "{bg:yellow}hi{/}", styles: {} },
+    ]);
   });
 
-  it("leaves non-highlighted text untouched on encode", () => {
-    const input = [plain("hello"), { type: "text", text: "x", styles: { bold: true } }];
+  it("encodes a text colour to {fg:..}", () => {
+    expect(encodeInline([run("hi", { textColor: "red" })])[0]).toMatchObject({ text: "{fg:red}hi{/}" });
+  });
+
+  it("encodes both colours together, keeping other styles", () => {
+    const [out] = encodeInline([run("hi", { textColor: "red", backgroundColor: "yellow", bold: true })]) as any[];
+    expect(out.text).toBe("{fg:red bg:yellow}hi{/}");
+    expect(out.styles).toEqual({ bold: true });
+  });
+
+  it("ignores the 'default' colour", () => {
+    const input = [run("hi", { textColor: "default", backgroundColor: "default" })];
     expect(encodeInline(input)).toEqual(input);
   });
 
-  it("decodes ==...== back to a highlighted run", () => {
-    const [run] = decodeInline([plain("==hi==")]) as any[];
-    expect(run.styles.backgroundColor).toBe(HIGHLIGHT);
-    expect(run.text).toBe("hi");
+  it("decodes {bg:..}..{/} back to a styled run", () => {
+    const [r] = decodeInline([run("{bg:yellow}hi{/}")]) as any[];
+    expect(r.styles.backgroundColor).toBe("yellow");
+    expect(r.text).toBe("hi");
   });
 
-  it("splits mixed text, highlighting only the marked segment", () => {
-    const out = decodeInline([plain("a ==b== c")]) as any[];
+  it("splits mixed text, colouring only the marked segment", () => {
+    const out = decodeInline([run("a {fg:red}b{/} c")]) as any[];
     expect(out.map((r) => r.text)).toEqual(["a ", "b", " c"]);
-    expect(out[1].styles.backgroundColor).toBe(HIGHLIGHT);
-    expect(out[0].styles.backgroundColor).toBeUndefined();
+    expect(out[1].styles.textColor).toBe("red");
+    expect(out[0].styles.textColor).toBeUndefined();
   });
 
-  it("round-trips: decode(encode(highlight)) preserves text and style", () => {
-    const [run] = decodeInline(encodeInline([hl("keep me")])) as any[];
-    expect(run.text).toBe("keep me");
-    expect(run.styles.backgroundColor).toBe(HIGHLIGHT);
+  it("round-trips: decode(encode(colour)) preserves text and colours", () => {
+    const [r] = decodeInline(encodeInline([run("keep", { textColor: "blue", backgroundColor: "pink" })])) as any[];
+    expect(r.text).toBe("keep");
+    expect(r.styles.textColor).toBe("blue");
+    expect(r.styles.backgroundColor).toBe("pink");
   });
 
   it("recurses into nested block children", () => {
     const blocks = [
-      { type: "bulletListItem", content: [hl("top")], children: [{ type: "bulletListItem", content: [hl("nested")] }] },
+      { type: "bulletListItem", content: [run("top", { backgroundColor: "green" })], children: [{ type: "bulletListItem", content: [run("nested", { textColor: "blue" })] }] },
     ];
     const out = mapBlocks(blocks as any, encodeInline) as any[];
-    expect(out[0].content[0].text).toBe("==top==");
-    expect(out[0].children[0].content[0].text).toBe("==nested==");
+    expect(out[0].content[0].text).toBe("{bg:green}top{/}");
+    expect(out[0].children[0].content[0].text).toBe("{fg:blue}nested{/}");
   });
 
   it("passes through blocks whose content is not an inline array (e.g. tables)", () => {

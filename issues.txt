@@ -10,13 +10,13 @@ NOTION-UX — deferred polish (non-blocking, from ux-notion-chrome.md):
 - [ ] Editor side menu: show the drag handle only, drop the "+" (slash covers "add").
 - [ ] Slash menu: trim to supported blocks; drop the gray description subtext;
       review Toggle List (details) — confirm it round-trips to .md or remove it.
-- [ ] Highlight: add a toolbar/input-rule path so ==text== highlights live (today it
-      renders on reload; round-trips correctly either way).
 - [ ] Two-level ⌘A: one-time StatusWhisper hint ("Press ⌘A again to select the whole
       note"). Behaviour works; hint not yet added.
 - [ ] Bundle size: JS ~1.1 MB (~330 KB gz) from BlockNote+Mantine. Consider
       manualChunks / lazy-loading the editor if startup feels heavy.
 - [ ] "System" appearance: resolve once on select; live-follow OS theme changes TBD.
+- [ ] Colour palette: the toolbar exposes BlockNote's full palette; could trim to a
+      curated few if it feels like too much choice.
 
 OPEN ISSUES:
 - (none known)

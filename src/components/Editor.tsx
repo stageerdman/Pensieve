@@ -8,6 +8,7 @@ import {
   FormattingToolbarController,
   BlockTypeSelect,
   BasicTextStyleButton,
+  ColorStyleButton,
   CreateLinkButton,
 } from "@blocknote/react";
 import { AllSelection, TextSelection } from "@tiptap/pm/state";
@@ -106,8 +107,9 @@ export function Editor({ markdown, onChange, focusMode, theme }: EditorProps) {
   return (
     <div ref={wrapRef} className={"pensieve-editor" + (focusMode ? " focus-typewriter" : "")}>
       {/* Custom formatting toolbar: only styles our Markdown can represent, so the
-          .md stays lossless. Underline and text/background colour are intentionally
-          omitted (no Markdown equivalent) — highlights are authored with ==text==. */}
+          .md stays lossless. Text/highlight colour IS included — our extended
+          standard (lib/md/extended) round-trips colours losslessly. Underline is
+          omitted (no Markdown equivalent). */}
       <BlockNoteView editor={editor} theme={theme} onChange={handleChange} formattingToolbar={false}>
         <FormattingToolbarController
           formattingToolbar={() => (
@@ -117,6 +119,7 @@ export function Editor({ markdown, onChange, focusMode, theme }: EditorProps) {
               <BasicTextStyleButton basicTextStyle="italic" key="italic" />
               <BasicTextStyleButton basicTextStyle="strike" key="strike" />
               <BasicTextStyleButton basicTextStyle="code" key="code" />
+              <ColorStyleButton key="color" />
               <CreateLinkButton key="link" />
             </FormattingToolbar>
           )}

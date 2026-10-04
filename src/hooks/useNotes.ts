@@ -144,10 +144,13 @@ export function useNotes() {
   // Metadata edits are deliberate and infrequent, so no debounce — save at once
   // and refresh the list (so e.g. a new category shows up right away).
   const updateMeta = useCallback(
-    (partial: Partial<NoteFields>) => {
+    (partial: Partial<NoteFields> | ((note: Note) => Partial<NoteFields>)) => {
       const note = currentRef.current;
       if (!note) return;
-      const next = { ...note, ...partial };
+      // Functional form reads the latest note, so rapid toggles (e.g. multi-select
+      // category) don't clobber each other on a stale snapshot.
+      const p = typeof partial === "function" ? partial(note) : partial;
+      const next = { ...note, ...p };
       setCurrent(next);
       currentRef.current = next;
       void persist(next);
