@@ -10,7 +10,7 @@
   --bn-colors-tooltip-text: hsl(var(--text));
   --bn-colors-tooltip-background: hsl(var(--surface-raised));
   --bn-colors-hovered-text: hsl(var(--text));
-  --bn-colors-hovered-background: hsl(var(--surface));
+  --bn-colors-hovered-background: hsl(var(--surface-raised));
   --bn-colors-selected-text: hsl(var(--text));
   --bn-colors-selected-background: hsl(var(--accent) / 0.14);
   --bn-colors-disabled-text: hsl(var(--text-muted));
@@ -43,8 +43,8 @@
   padding-inline: 0;
   padding-block: 0; /* the app container owns vertical spacing — no low first line */
   color: hsl(var(--text));
-  font-size: 1.05rem;
-  line-height: 1.7;
+  font-size: calc(1rem * var(--font-scale)); /* Notion 16px base × Text Size */
+  line-height: 1.5;
 }
 
 /* Calm, quiet drag handle — muted until hovered. */
@@ -94,18 +94,19 @@
 
 /* Headings match the app's deliberate type scale (index.css), not BlockNote's. */
 .pensieve-editor h1.bn-inline-content {
-  font-size: 1.9rem;
+  font-size: 1.875em;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.3;
 }
 .pensieve-editor h2.bn-inline-content {
-  font-size: 1.5rem;
-  font-weight: 650;
-  line-height: 1.25;
+  font-size: 1.5em;
+  font-weight: 600;
+  line-height: 1.3;
 }
 .pensieve-editor h3.bn-inline-content {
-  font-size: 1.2rem;
+  font-size: 1.25em;
   font-weight: 600;
+  line-height: 1.3;
 }
 
 /* Inline code + code blocks match the app mono treatment. */

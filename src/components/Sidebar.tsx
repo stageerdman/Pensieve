@@ -33,8 +33,8 @@ export function Sidebar({
   const sections = arrange(notes, view, now);
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-border bg-surface">
-      <div className="flex items-center justify-between px-3 py-3">
+    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-border bg-surface-sunken">
+      <div className="flex items-center justify-between border-b border-border px-3 py-3">
         <SidebarCustomise state={state} onChange={onChangeState} />
         <button
           onClick={onNew}

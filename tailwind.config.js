@@ -8,6 +8,7 @@ export default {
     extend: {
       colors: {
         surface: "hsl(var(--surface) / <alpha-value>)",
+        "surface-sunken": "hsl(var(--surface-sunken) / <alpha-value>)",
         "surface-raised": "hsl(var(--surface-raised) / <alpha-value>)",
         text: "hsl(var(--text) / <alpha-value>)",
         "text-muted": "hsl(var(--text-muted) / <alpha-value>)",
