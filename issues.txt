@@ -9,13 +9,24 @@ NEXT STEPS (SIDEBAR-UX close-out):
 - [ ] Prune the stale `update/notion-ux` branch (folder already CLOSED; left over
       from the previous update).
 
+SIDEBAR-UX — done in follow-up (owner testing, 2026-10-04):
+- [x] Named saved views (switch / rename / Save as new / delete in the ⋯ popover).
+- [x] Preview strips code (fenced + inline) and sentinels; selectable 1/2/3 lines.
+- [x] Updated/Created × relative/date field toggles; dropped the "made" prefix.
+- [x] Removed the "Notes" header label; rows select-none; bigger pin hit area.
+- [x] ⋯ popover dividers/spacing between Sort / Group / Show.
+
 SIDEBAR-UX — deferred / intentionally cut (non-blocking):
-- [ ] Named saved views: ship was a single persisted view; the SidebarView type
-      carries id/name so wrapping it in { views[], activeId } + a "Save as view…"
-      affordance is purely additive when a second lens is a daily need.
-- [ ] Row density toggle (comfortable/compact) — cut from v1 to stay minimal.
+- [ ] Row density toggle (comfortable/compact) — cut to stay minimal.
 - [ ] Grouping by tag — cut (tags are many-per-note, make poor group keys).
-- [ ] Pin reorder (drag to arrange pinned notes) — not in v1.
+- [ ] Pin reorder (drag to arrange pinned notes) — not yet.
+
+EDITOR — extended .md (toggles & indentation now lossless):
+- [ ] Known limitation: a fenced CODE block placed *inside* a toggle or an indented
+      block collides with the outer `pensieve:*` fence. Rare; revisit with a longer
+      /unique fence delimiter if it bites.
+- [ ] Per-keystroke save now re-serialises nested bodies (extra converter calls).
+      Fine for personal-size notes; optimise if large toggle-heavy notes feel slow.
 
 NOTION-UX — deferred polish (non-blocking, from ux-notion-chrome.md):
 - [ ] Editor side menu: show the drag handle only, drop the "+" (slash covers "add").

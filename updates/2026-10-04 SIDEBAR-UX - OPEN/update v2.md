@@ -73,6 +73,19 @@ first-run exactly as it is: the capability is opt-in, defaults unchanged.
   Remaining: `tauri build`, docs, merge to main, push (GitHub was unreachable
   mid-session — retry).
 
+## Follow-up round (owner testing, 2026-10-04) — DONE
+Reopened after the first native test. Addressed:
+- Preview shows prose only (strips fenced + inline code and `{fg}`/`{@}` sentinels);
+  selectable 1/2/3 lines.
+- Field toggles split into Updated/Created × relative/date; "made" prefix dropped.
+- "Notes" header label removed; rows `select-none`; larger pin hit area.
+- Customise popover: dividers + spacing between Sort / Group / Show.
+- **Saved views** implemented (switch / rename / Save as new / delete) — persistence
+  moved to `{ views[], activeId }` with legacy migration.
+- **CRITICAL editor fix:** toggles & Tab-indentation were silently lost (BlockNote
+  Markdown is lossy for structure). Now bridged losslessly via `pensieve:toggle` /
+  `pensieve:children` fences; quotes & nested lists already worked. 73 tests pass.
+
 ## Notes for the owner (please eyeball in the native app)
 - The `⋯` next to "Notes" opens Customise: Sort (click the active key to flip
   ↑/↓), Group by (None / Date / Category), and per-row field toggles. Applies live.

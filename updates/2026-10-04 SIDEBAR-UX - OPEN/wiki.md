@@ -42,3 +42,25 @@ never opens the popover sees essentially today's sidebar; `⋯` is the only new 
 - **Three UX lenses in parallel converged** (controls / model / rows). Divergences
   (default grouping, density) were the orchestrator's call; defaulting to today's
   flat view honoured "Steve-Jobs strict" while shipping the full capability opt-in.
+
+## Follow-up from owner testing (2026-10-04)
+- **BlockNote Markdown is lossy for structure, not just inline colour.** It drops
+  toggle list items (→ bullets) and flattens non-list nesting (Tab-indent). The fix
+  mirrors the colour approach but at the BLOCK level: bridge the unrepresentable
+  cases into fenced `pensieve:toggle` / `pensieve:children` code blocks, which the
+  converter round-trips VERBATIM (verified: custom language + multiline body survive
+  `blocksToMarkdownLossy`→`tryParseMarkdownToBlocks`). Reconstruct on parse. Standard
+  docs never get a fence, so plain `.md` stays plain.
+  - Toggle body/summary are stored as real Markdown inside the fence (readable,
+    inline formatting preserved because we re-parse it ourselves on load) — NOT JSON.
+  - Lesson: when extending the standard, serialise inline via a throwaway paragraph
+    through the converter so bold/links/colour sentinels are handled in one place.
+  - Open edge: a code fence nested inside a toggle body collides with the outer
+    fence (documented in issues).
+- **Quote and nested lists already round-tripped** — confirmed via the app pipeline;
+  only toggles and non-list nesting were actually lost.
+- **Saved views shipped** after all (owner asked where they were): persistence moved
+  from a single `SidebarView` to `{ views[], activeId }` with legacy migration — the
+  additive upgrade the seam was designed for.
+- **Preview previews prose, not source**: strip fenced + inline code and our own
+  `{fg}`/`{@}` sentinels at excerpt time, so the sidebar never shows markup.
