@@ -16,11 +16,13 @@ function newId(): string {
   );
 }
 
-interface StoredNote extends Note {}
-
-function readNote(id: string): StoredNote | null {
+// Normalise notes read from storage: older notes predate category/tags/links,
+// so fill sensible defaults (back-compat).
+function readNote(id: string): Note | null {
   const raw = localStorage.getItem(NOTE_PREFIX + id);
-  return raw ? (JSON.parse(raw) as StoredNote) : null;
+  if (!raw) return null;
+  const n = JSON.parse(raw) as Partial<Note> & Note;
+  return { ...n, tags: n.tags ?? [], links: n.links ?? [] };
 }
 
 export class BrowserStore implements Store {
@@ -29,12 +31,13 @@ export class BrowserStore implements Store {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (!key || !key.startsWith(NOTE_PREFIX)) continue;
-      const n = JSON.parse(localStorage.getItem(key)!) as StoredNote;
+      const n = JSON.parse(localStorage.getItem(key)!) as Note;
       metas.push({
         id: n.id,
         title: n.title,
         createdAt: n.createdAt,
         updatedAt: n.updatedAt,
+        category: n.category,
       });
     }
     metas.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -63,6 +66,8 @@ export class BrowserStore implements Store {
       markdown: "",
       createdAt: now,
       updatedAt: now,
+      tags: [],
+      links: [],
     };
     localStorage.setItem(NOTE_PREFIX + note.id, JSON.stringify(note));
     log.info("store", "create", { id: note.id });

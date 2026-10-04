@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Note, NoteMeta } from "../lib/types";
+import type { Note, NoteFields, NoteMeta } from "../lib/types";
 import { getStore } from "../lib/store";
 import { wordCount } from "../lib/text";
 import { makeEntry, IDLE_MS } from "../lib/timeline";
@@ -140,6 +140,21 @@ export function useNotes() {
     [persist, closeSession, startSession],
   );
 
+  // Update a note's metadata (category / tags / links) and persist immediately.
+  // Metadata edits are deliberate and infrequent, so no debounce — save at once
+  // and refresh the list (so e.g. a new category shows up right away).
+  const updateMeta = useCallback(
+    (partial: Partial<NoteFields>) => {
+      const note = currentRef.current;
+      if (!note) return;
+      const next = { ...note, ...partial };
+      setCurrent(next);
+      currentRef.current = next;
+      void persist(next);
+    },
+    [persist],
+  );
+
   // Initial load: list notes and open the most recent (or create the first).
   useEffect(() => {
     (async () => {
@@ -160,5 +175,5 @@ export function useNotes() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [flushSave, closeSession]);
 
-  return { notes, current, status, open, create, remove, change };
+  return { notes, current, status, open, create, remove, change, updateMeta };
 }

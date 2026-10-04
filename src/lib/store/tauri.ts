@@ -1,13 +1,14 @@
 // Tauri storage adapter — the on-disk vault for the native .app. Same Store
 // interface as the browser adapter, so feature code never knows which is active.
 // Layout under <appData>/vault/:
-//   notes/<id>.md         the note content (source of truth)
-//   notes/<id>.meta.json  { title, createdAt, updatedAt }
+//   notes/<id>.md         frontmatter (category/tags/links) + Markdown body — truth
+//   notes/<id>.meta.json  { title, createdAt, updatedAt } — system fields, fast list
 //   timelines/<id>.json   TimelineEntry[]
 
 import { invoke } from "@tauri-apps/api/core";
 import type { Note, NoteMeta, Store, TimelineEntry } from "../types";
 import { titleFromMarkdown } from "../text";
+import { parseFrontmatter, composeFrontmatter } from "../md/frontmatter";
 import { log } from "../logger";
 
 const readText = (rel: string) => invoke<string | null>("read_text", { rel });
@@ -48,13 +49,23 @@ export class TauriStore implements Store {
   }
 
   async load(id: string): Promise<Note | null> {
-    const md = await readText(notePath(id));
-    if (md === null) return null;
+    const raw = await readText(notePath(id));
+    if (raw === null) return null;
+    const { fields, body } = parseFrontmatter(raw);
     const rawMeta = await readText(metaPath(id));
     const m: Meta = rawMeta
       ? (JSON.parse(rawMeta) as Meta)
-      : { title: titleFromMarkdown(md), createdAt: Date.now(), updatedAt: Date.now() };
-    return { id, markdown: md, title: m.title, createdAt: m.createdAt, updatedAt: m.updatedAt };
+      : { title: titleFromMarkdown(body), createdAt: Date.now(), updatedAt: Date.now() };
+    return {
+      id,
+      markdown: body,
+      title: m.title,
+      createdAt: m.createdAt,
+      updatedAt: m.updatedAt,
+      category: fields.category,
+      tags: fields.tags,
+      links: fields.links,
+    };
   }
 
   async save(note: Note): Promise<void> {
@@ -63,7 +74,11 @@ export class TauriStore implements Store {
       createdAt: note.createdAt,
       updatedAt: Date.now(),
     };
-    await writeText(notePath(note.id), note.markdown);
+    const file = composeFrontmatter(
+      { category: note.category, tags: note.tags, links: note.links },
+      note.markdown,
+    );
+    await writeText(notePath(note.id), file);
     await writeText(metaPath(note.id), JSON.stringify(meta));
     log.debug("store", "save", { id: note.id, title: meta.title });
   }
@@ -76,6 +91,8 @@ export class TauriStore implements Store {
       markdown: "",
       createdAt: now,
       updatedAt: now,
+      tags: [],
+      links: [],
     };
     await this.save(note);
     log.info("store", "create", { id: note.id });
