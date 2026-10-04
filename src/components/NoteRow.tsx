@@ -1,6 +1,9 @@
 import type { MouseEvent } from "react";
-import type { Category, NoteMeta } from "../lib/types";
+import type { NoteMeta } from "../lib/types";
 import type { PreviewLines, SidebarView } from "../lib/sidebar/view";
+import type { CategoryDef } from "../lib/categories/defs";
+import { colorOf } from "../lib/categories/defs";
+import { catFg } from "../lib/categories/palette";
 import { relativeTime, absoluteDate } from "../lib/sidebar/format";
 import { Pin } from "./icons";
 
@@ -14,17 +17,10 @@ interface NoteRowProps {
   view: SidebarView;
   active: boolean;
   now: number;
+  categoryDefs: CategoryDef[];
   onOpen: (id: string) => void;
   onTogglePin: (id: string) => void;
 }
-
-// Category → a small colour dot. Names are too long to print in a 232px row, so the
-// dot carries the label and the full names live in the row's hover tooltip.
-const DOT: Record<Category, string> = {
-  "Notes & Lessons": "bg-accent",
-  "In my mind": "bg-text-muted",
-  Execution: "bg-success",
-};
 
 const CLAMP: Record<PreviewLines, string> = {
   1: "line-clamp-1",
@@ -32,7 +28,7 @@ const CLAMP: Record<PreviewLines, string> = {
   3: "line-clamp-3",
 };
 
-export function NoteRow({ note, view, active, now, onOpen, onTogglePin }: NoteRowProps) {
+export function NoteRow({ note, view, active, now, categoryDefs, onOpen, onTogglePin }: NoteRowProps) {
   const f = view.fields;
   const cats = note.categories ?? [];
   const tags = note.tags ?? [];
@@ -75,7 +71,11 @@ export function NoteRow({ note, view, active, now, onOpen, onTogglePin }: NoteRo
         {showDots && (
           <span className="flex shrink-0 -space-x-0.5">
             {cats.slice(0, 2).map((c) => (
-              <span key={c} className={`h-1.5 w-1.5 rounded-full ${DOT[c]}`} />
+              <span
+                key={c}
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ background: catFg(colorOf(c, categoryDefs)) }}
+              />
             ))}
           </span>
         )}

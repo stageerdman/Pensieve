@@ -3,9 +3,10 @@
 // frontmatter in the .md file — see lib/md/frontmatter. Timeline entries are
 // disposable history kept beside the note.
 
-/** The fixed set of note categories (v1). Order is display order. */
-export const CATEGORIES = ["Notes & Lessons", "In my mind", "Execution"] as const;
-export type Category = (typeof CATEGORIES)[number];
+/** A category is referenced by NAME in frontmatter — that string is the truth.
+ *  The available categories and their colours are defined separately; see
+ *  lib/categories (CategoryDef, DEFAULT_CATEGORIES). */
+export type Category = string;
 
 export interface NoteMeta {
   id: string; // stable id (also the .md basename in the Tauri vault)

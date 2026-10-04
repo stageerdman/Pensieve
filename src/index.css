@@ -24,6 +24,18 @@
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
   --radius: 6px;
   --font-scale: 1; /* reading/writing text multiplier (native Appearance → Text Size) */
+
+  /* Category palette — soft tint (bg, for chips) + readable solid (fg, chip text +
+     dot). Resolved by colour KEY so categories stay theme-correct. Format: H S% L%. */
+  --cat-gray-bg: 220 14% 93%;   --cat-gray-fg: 220 9% 40%;
+  --cat-brown-bg: 25 30% 90%;   --cat-brown-fg: 25 40% 35%;
+  --cat-orange-bg: 24 85% 92%;  --cat-orange-fg: 24 75% 42%;
+  --cat-yellow-bg: 45 90% 88%;  --cat-yellow-fg: 42 70% 36%;
+  --cat-green-bg: 145 40% 90%;  --cat-green-fg: 145 55% 32%;
+  --cat-blue-bg: 212 70% 92%;   --cat-blue-fg: 212 70% 42%;
+  --cat-purple-bg: 270 50% 93%; --cat-purple-fg: 270 45% 50%;
+  --cat-pink-bg: 330 65% 93%;   --cat-pink-fg: 330 60% 48%;
+  --cat-red-bg: 0 75% 93%;      --cat-red-fg: 0 68% 48%;
 }
 
 .dark {
@@ -37,6 +49,16 @@
   --success: 150 28% 55%;
   --warn: 36 85% 58%;
   --danger: 0 68% 65%;
+
+  --cat-gray-bg: 220 10% 26%;   --cat-gray-fg: 220 10% 72%;
+  --cat-brown-bg: 25 20% 26%;   --cat-brown-fg: 25 35% 70%;
+  --cat-orange-bg: 24 40% 28%;  --cat-orange-fg: 24 85% 68%;
+  --cat-yellow-bg: 45 35% 26%;  --cat-yellow-fg: 45 80% 66%;
+  --cat-green-bg: 145 25% 24%;  --cat-green-fg: 145 50% 62%;
+  --cat-blue-bg: 212 35% 28%;   --cat-blue-fg: 212 70% 68%;
+  --cat-purple-bg: 270 25% 30%; --cat-purple-fg: 270 55% 74%;
+  --cat-pink-bg: 330 30% 30%;   --cat-pink-fg: 330 60% 74%;
+  --cat-red-bg: 0 35% 30%;      --cat-red-fg: 0 70% 70%;
 }
 
 html,

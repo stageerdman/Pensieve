@@ -23,9 +23,9 @@ describe("frontmatter", () => {
     expect(fields.categories).toEqual(["In my mind"]);
   });
 
-  it("ignores unknown category values", () => {
-    const { fields } = parseFrontmatter("---\ncategories: [Nonsense, Execution]\n---\nx");
-    expect(fields.categories).toEqual(["Execution"]);
+  it("keeps any category name (categories are user-defined, not a fixed set)", () => {
+    const { fields } = parseFrontmatter("---\ncategories: [health, Execution]\n---\nx");
+    expect(fields.categories).toEqual(["health", "Execution"]);
   });
 
   it("writes no frontmatter block when there is no metadata", () => {

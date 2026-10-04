@@ -3,7 +3,6 @@
 // Sidebar renders. No store, no DOM — so it is trivially unit-testable, which is
 // where the real correctness risk lives (stable sort, bucket boundaries, dedup).
 
-import { CATEGORIES } from "../types";
 import type { NoteMeta } from "../types";
 import { effectiveGroup, type SidebarView } from "./view";
 
@@ -80,7 +79,12 @@ function bucketBy(
 }
 
 /** Group already-sorted notes into ordered, non-empty sections for the given mode. */
-function group(notes: NoteMeta[], view: SidebarView, now: number): Section[] {
+function group(
+  notes: NoteMeta[],
+  view: SidebarView,
+  now: number,
+  categoryOrder: string[],
+): Section[] {
   const mode = effectiveGroup(view);
   if (mode === "none") {
     return notes.length ? [{ key: "all", label: null, notes }] : [];
@@ -91,9 +95,18 @@ function group(notes: NoteMeta[], view: SidebarView, now: number): Section[] {
     return bucketBy(notes, order, (n) => dateBucket(n, view, now));
   }
 
-  // category: declared category order, then a trailing Uncategorised. A note with
-  // several categories appears once, under its first (deterministic, no dup rows).
-  return bucketBy(notes, [...CATEGORIES, UNCATEGORISED], (n) => n.categories?.[0] ?? UNCATEGORISED);
+  // category: defined-category order first, then any in-use names not yet defined
+  // (so nothing is ever dropped), then a trailing Uncategorised. A note with several
+  // categories appears once, under its first (deterministic, no dup rows).
+  const labelOf = (n: NoteMeta) => n.categories?.[0] ?? UNCATEGORISED;
+  const order: string[] = [];
+  for (const name of categoryOrder) if (!order.includes(name)) order.push(name);
+  for (const n of notes) {
+    const l = labelOf(n);
+    if (l !== UNCATEGORISED && !order.includes(l)) order.push(l);
+  }
+  order.push(UNCATEGORISED);
+  return bucketBy(notes, order, labelOf);
 }
 
 /**
@@ -105,6 +118,7 @@ export function arrange(
   notes: NoteMeta[],
   view: SidebarView,
   now: number = Date.now(),
+  categoryOrder: string[] = [],
 ): Section[] {
   const pinned = sorted(notes.filter((n) => n.pinned), view);
   const rest = notes.filter((n) => !n.pinned);
@@ -119,6 +133,6 @@ export function arrange(
       notes: pinned,
     });
   }
-  sections.push(...group(sorted(rest, view), view, now));
+  sections.push(...group(sorted(rest, view), view, now, categoryOrder));
   return sections;
 }

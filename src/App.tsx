@@ -10,6 +10,7 @@ import { StatusWhisper } from "./components/StatusWhisper";
 import { useNotes } from "./hooks/useNotes";
 import { useTheme } from "./hooks/useTheme";
 import { useFontScale } from "./hooks/useFontScale";
+import { useCategoryDefs } from "./hooks/useCategoryDefs";
 import type { SidebarState } from "./lib/sidebar/view";
 import { loadState, saveState } from "./lib/sidebar/persist";
 
@@ -18,6 +19,7 @@ export default function App() {
     useNotes();
   const { theme, toggle } = useTheme();
   useFontScale();
+  const categories = useCategoryDefs();
   const [sidebarState, setSidebarState] = useState<SidebarState>(() => loadState());
   const changeSidebarState = useCallback((s: SidebarState) => {
     setSidebarState(s);
@@ -114,6 +116,7 @@ export default function App() {
         <Sidebar
           notes={notes}
           state={sidebarState}
+          categoryDefs={categories.defs}
           currentId={current?.id}
           onOpen={(id) => void open(id)}
           onNew={() => void create()}
@@ -199,6 +202,7 @@ export default function App() {
               note={current}
               notes={notes}
               tagSuggestions={tagSuggestions}
+              categories={categories}
               onClose={() => setDetailsOpen(false)}
               onOpenNote={(id) => void open(id)}
               updateMeta={updateMeta}

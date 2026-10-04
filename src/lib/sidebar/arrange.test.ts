@@ -99,7 +99,8 @@ describe("arrange — category grouping", () => {
       note({ id: "n", categories: ["Notes & Lessons", "Execution"] }),
       note({ id: "u", categories: [] }),
     ];
-    const sections = arrange(notes, view({ group: "category" }), NOW);
+    const order = ["Notes & Lessons", "In my mind", "Execution"];
+    const sections = arrange(notes, view({ group: "category" }), NOW, order);
     expect(sections.map((s) => s.label)).toEqual([
       "Notes & Lessons",
       "Execution",
@@ -108,6 +109,13 @@ describe("arrange — category grouping", () => {
     // the multi-category note lands only in its first category
     expect(sections[0].notes.map((n) => n.id)).toEqual(["n"]);
     expect(sections[1].notes.map((n) => n.id)).toEqual(["e"]);
+  });
+
+  it("never drops a note whose category is not in the provided order", () => {
+    const notes = [note({ id: "h", categories: ["health"] })];
+    const sections = arrange(notes, view({ group: "category" }), NOW, ["Execution"]);
+    expect(sections.map((s) => s.label)).toEqual(["health"]);
+    expect(sections[0].notes.map((n) => n.id)).toEqual(["h"]);
   });
 });
 

@@ -1,6 +1,9 @@
 import type { NoteMeta } from "../lib/types";
-import { activeView, type SidebarState } from "../lib/sidebar/view";
+import { activeView, effectiveGroup, type SidebarState } from "../lib/sidebar/view";
 import { arrange } from "../lib/sidebar/arrange";
+import type { CategoryDef } from "../lib/categories/defs";
+import { colorOf } from "../lib/categories/defs";
+import { catFg } from "../lib/categories/palette";
 import { NoteRow } from "./NoteRow";
 import { SidebarCustomise } from "./SidebarCustomise";
 
@@ -11,6 +14,7 @@ import { SidebarCustomise } from "./SidebarCustomise";
 interface SidebarProps {
   notes: NoteMeta[];
   state: SidebarState;
+  categoryDefs: CategoryDef[];
   currentId?: string;
   onOpen: (id: string) => void;
   onNew: () => void;
@@ -21,6 +25,7 @@ interface SidebarProps {
 export function Sidebar({
   notes,
   state,
+  categoryDefs,
   currentId,
   onOpen,
   onNew,
@@ -30,7 +35,8 @@ export function Sidebar({
   const view = activeView(state);
   // One "now" per render so every row's time and the date buckets agree.
   const now = Date.now();
-  const sections = arrange(notes, view, now);
+  const sections = arrange(notes, view, now, categoryDefs.map((d) => d.name));
+  const catHeaders = effectiveGroup(view) === "category";
 
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r border-border bg-surface-sunken">
@@ -50,26 +56,36 @@ export function Sidebar({
         {notes.length === 0 && (
           <p className="px-3 py-2 text-sm text-text-muted">No notes yet.</p>
         )}
-        {sections.map((section) => (
-          <div key={section.key}>
-            {section.label && (
-              <p className="px-3 pb-1 pt-3 text-[11px] font-medium uppercase tracking-wide text-text-muted/60">
-                {section.label}
-              </p>
-            )}
-            {section.notes.map((n) => (
-              <NoteRow
-                key={n.id}
-                note={n}
-                view={view}
-                active={n.id === currentId}
-                now={now}
-                onOpen={onOpen}
-                onTogglePin={onTogglePin}
-              />
-            ))}
-          </div>
-        ))}
+        {sections.map((section) => {
+          const showDot = catHeaders && !!section.label && section.label !== "Pinned";
+          return (
+            <div key={section.key}>
+              {section.label && (
+                <p className="flex items-center gap-1.5 px-3 pb-1 pt-3 text-[11px] font-medium uppercase tracking-wide text-text-muted/60">
+                  {showDot && (
+                    <span
+                      className="h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{ background: catFg(colorOf(section.label, categoryDefs)) }}
+                    />
+                  )}
+                  {section.label}
+                </p>
+              )}
+              {section.notes.map((n) => (
+                <NoteRow
+                  key={n.id}
+                  note={n}
+                  view={view}
+                  active={n.id === currentId}
+                  now={now}
+                  categoryDefs={categoryDefs}
+                  onOpen={onOpen}
+                  onTogglePin={onTogglePin}
+                />
+              ))}
+            </div>
+          );
+        })}
       </nav>
     </aside>
   );

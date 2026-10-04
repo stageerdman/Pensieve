@@ -13,7 +13,7 @@
 // A file with no frontmatter loads with empty defaults (back-compat), and a note
 // with no metadata is written WITHOUT a frontmatter block, so plain notes stay plain.
 
-import { CATEGORIES, EMPTY_FIELDS, type Category, type NoteFields } from "../types";
+import { EMPTY_FIELDS, type NoteFields } from "../types";
 
 // Matches the leading frontmatter block and the single blank line that separates
 // it from the body, so the captured body starts at the first real content line.
@@ -28,10 +28,6 @@ function parseList(value: string): string[] {
     .filter(Boolean);
 }
 
-function toCategories(values: string[]): Category[] {
-  return values.filter((v) => (CATEGORIES as readonly string[]).includes(v)) as Category[];
-}
-
 /** Split raw file text into metadata fields + the Markdown body. */
 export function parseFrontmatter(raw: string): { fields: NoteFields; body: string } {
   const m = raw.match(FENCE);
@@ -43,8 +39,11 @@ export function parseFrontmatter(raw: string): { fields: NoteFields; body: strin
     if (idx === -1) continue;
     const key = line.slice(0, idx).trim();
     const value = line.slice(idx + 1).trim();
-    if (key === "categories") fields.categories = toCategories(parseList(value));
-    else if (key === "category") fields.categories = toCategories([value.replace(/^["']|["']$/g, "")]); // legacy single
+    if (key === "categories") fields.categories = parseList(value);
+    else if (key === "category") {
+      const single = value.replace(/^["']|["']$/g, ""); // legacy single-category key
+      if (single) fields.categories = [single];
+    }
     else if (key === "tags") fields.tags = parseList(value);
     else if (key === "links") fields.links = parseList(value);
   }

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Note, NoteFields, NoteMeta } from "../lib/types";
+import type { CategoryApi } from "../hooks/useCategoryDefs";
 import { RightPanel } from "./RightPanel";
 import { CategoryDropdown } from "./CategoryDropdown";
 import { TagEditor } from "./TagEditor";
@@ -13,6 +14,7 @@ interface DetailsPanelProps {
   note: Note;
   notes: NoteMeta[];
   tagSuggestions: string[];
+  categories: CategoryApi;
   onClose: () => void;
   onOpenNote: (id: string) => void;
   updateMeta: (partial: Partial<NoteFields> | ((note: Note) => Partial<NoteFields>)) => void;
@@ -33,6 +35,7 @@ export function DetailsPanel({
   note,
   notes,
   tagSuggestions,
+  categories,
   onClose,
   onOpenNote,
   updateMeta,
@@ -43,6 +46,7 @@ export function DetailsPanel({
         <Section label="Category">
           <CategoryDropdown
             value={note.categories}
+            defs={categories.defs}
             onToggle={(c) =>
               updateMeta((n) => ({
                 categories: n.categories.includes(c)
@@ -50,6 +54,9 @@ export function DetailsPanel({
                   : [...n.categories, c],
               }))
             }
+            onAdd={categories.addCategory}
+            onSetColor={categories.setColor}
+            onRemove={categories.removeCategory}
           />
         </Section>
         <Section label="Tags">
