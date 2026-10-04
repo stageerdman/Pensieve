@@ -69,6 +69,29 @@
   pointer-events: auto;
 }
 
+/* Remove BlockNote's nested-block guide line — a 1px left border it draws on
+   indented blocks that reads as a stray quote bar when you Tab/nest. Indentation
+   stays (the nested group keeps its left margin); only the bar goes. */
+.pensieve-editor .bn-block-group .bn-block-outer::before {
+  border-left: none !important;
+}
+
+/* Notion-style nested ordered lists: sub-items show letters (a, b, c…) instead of
+   repeating numbers. BlockNote prints the index via a ::before; we override it with
+   a per-sublist CSS counter for anything nested one level or deeper. */
+.pensieve-editor .bn-block-group .bn-block-group {
+  counter-reset: olnest;
+}
+.pensieve-editor .bn-block-group .bn-block-group [data-content-type="numberedListItem"] {
+  counter-increment: olnest;
+}
+.pensieve-editor
+  .bn-block-group
+  .bn-block-group
+  [data-content-type="numberedListItem"]::before {
+  content: counter(olnest, lower-alpha) "." !important;
+}
+
 /* Headings match the app's deliberate type scale (index.css), not BlockNote's. */
 .pensieve-editor h1.bn-inline-content {
   font-size: 1.9rem;
