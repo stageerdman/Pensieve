@@ -5,7 +5,7 @@ import { TimelinePanel } from "./components/TimelinePanel";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { OverflowMenu } from "./components/OverflowMenu";
 import { IconButton } from "./components/IconButton";
-import { Clock, PanelRight } from "./components/icons";
+import { Clock, PanelRight, Trash } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
 import { useNotes } from "./hooks/useNotes";
 import { useTheme } from "./hooks/useTheme";
@@ -133,6 +133,12 @@ export default function App() {
                       shortcut: "⌘T",
                       onSelect: toggleTimeline,
                       active: timelineOpen,
+                    },
+                    {
+                      icon: <Trash size={16} />,
+                      label: "Delete note",
+                      shortcut: "⌘⌫",
+                      onSelect: askDelete,
                     },
                   ]}
                 />

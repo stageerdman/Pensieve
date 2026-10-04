@@ -114,6 +114,22 @@ describe("BlockNote .md round-trip (extended standard)", () => {
     expect(await roundTrip(md)).toBe(md);
   });
 
+  it("preserves blank lines (empty paragraphs) through a round-trip", async () => {
+    const blocks = [
+      { type: "paragraph", content: [{ type: "text", text: "first", styles: {} }] },
+      { type: "paragraph", content: [] },
+      { type: "paragraph", content: [] },
+      { type: "paragraph", content: [{ type: "text", text: "second", styles: {} }] },
+    ];
+    const md = await blocksToExtendedMd(editor, blocks);
+    const back = (await extendedMdToBlocks(editor, md)) as any[];
+    expect(back.map((b) => b.type)).toEqual(["paragraph", "paragraph", "paragraph", "paragraph"]);
+    expect(back[1].content).toEqual([]); // the blank line is a genuinely empty paragraph
+    expect(back[0].content[0].text).toBe("first");
+    expect(back[3].content[0].text).toBe("second");
+    expect(await roundTrip(md)).toBe(md); // idempotent
+  });
+
   it("leaves a plain document untouched (no pensieve fences for standard blocks)", async () => {
     const md = await roundTrip("# T\n\ntext\n\n* a\n  * b\n\n> q\n");
     expect(md).not.toContain("pensieve:");

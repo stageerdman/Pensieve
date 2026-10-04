@@ -129,6 +129,23 @@ export function mapBlocks(blocks: Block[], fn: (items: Inline[]) => Inline[]): B
 
 const LIST_TYPES = new Set(["bulletListItem", "numberedListItem", "checkListItem"]);
 
+// Empty paragraphs (blank lines the user adds for spacing) are dropped by Markdown —
+// consecutive blank lines collapse. We keep them by filling an empty paragraph with a
+// zero-width space, which survives the round-trip yet stays invisible in the .md.
+const ZWSP = "​";
+const ZWSP_RE = /​/g;
+
+function isBlankParagraph(b: Block): boolean {
+  if (b.type !== "paragraph") return false;
+  const c = b.content;
+  if (!Array.isArray(c) || c.length === 0) return true;
+  return (c as Inline[]).every((i) => isText(i) && i.text.replace(ZWSP_RE, "").trim() === "");
+}
+
+function blankParagraph(): Block {
+  return { type: "paragraph", content: [{ type: "text", text: ZWSP, styles: {} }] };
+}
+
 function fence(language: string, text: string): Block {
   return {
     type: "codeBlock",
@@ -168,6 +185,8 @@ async function encodeStructure(editor: MdEditor, blocks: Block[]): Promise<Block
       out.push(fence("pensieve:children", body));
     } else if (children.length) {
       out.push({ ...b, children: await encodeStructure(editor, children) });
+    } else if (isBlankParagraph(b)) {
+      out.push(blankParagraph()); // keep the blank line (ZWSP survives Markdown)
     } else {
       out.push(b);
     }
@@ -197,7 +216,9 @@ async function reconstructStructure(editor: MdEditor, blocks: Block[]): Promise<
       if (prev) prev.children = [ ...((prev.children as Block[]) ?? []), ...kids ];
     } else {
       const nb: Block = { ...b };
-      if (Array.isArray(b.children) && b.children.length) {
+      if (b.type === "paragraph" && textOf(b).replace(ZWSP_RE, "") === "") {
+        nb.content = []; // a ZWSP placeholder → restore the genuinely empty paragraph
+      } else if (Array.isArray(b.children) && b.children.length) {
         nb.children = await reconstructStructure(editor, b.children as Block[]);
       }
       out.push(nb);

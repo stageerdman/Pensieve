@@ -47,13 +47,26 @@
   line-height: 1.7;
 }
 
-/* Calm, quiet drag handle + "+" — muted until hovered. */
+/* Calm, quiet drag handle — muted until hovered. */
 .pensieve-editor .bn-side-menu button {
   color: hsl(var(--text-muted));
 }
 .pensieve-editor .bn-side-menu button:hover {
   color: hsl(var(--text));
   background: hsl(var(--surface-raised));
+}
+
+/* Only reveal the drag handle while the mouse is actually over the editor. Without
+   this, BlockNote keeps the handle visible after the cursor moves onto the notes
+   sidebar or a popover — it appeared to "shine" out in the left gutter. */
+.pensieve-editor .bn-side-menu {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.08s ease;
+}
+.pensieve-editor:hover .bn-side-menu {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* Headings match the app's deliberate type scale (index.css), not BlockNote's. */

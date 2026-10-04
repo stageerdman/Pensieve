@@ -31,7 +31,7 @@ export function excerptFromMarkdown(md: string, max = 140): string {
   let skippedTitle = false;
   let inFence = false; // inside a ``` code block — skipped entirely (previews = prose)
   for (const raw of lines) {
-    const line = raw.trim();
+    const line = raw.replace(/​/g, "").trim(); // drop blank-line placeholders (ZWSP)
     if (/^(```|~~~)/.test(line)) {
       inFence = !inFence;
       continue;

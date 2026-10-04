@@ -96,8 +96,10 @@ export function NoteRow({ note, view, active, now, onOpen, onTogglePin }: NoteRo
         </span>
       </span>
 
+      {/* No `block` on the preview: line-clamp needs display:-webkit-box, which
+          `block` would override (then the clamp is ignored and all lines show). */}
       {showPreview && (
-        <span className={`mt-1 block text-[13px] text-text-muted ${CLAMP[view.previewLines]}`}>
+        <span className={`mt-1 text-[13px] text-text-muted ${CLAMP[view.previewLines]}`}>
           {note.excerpt}
         </span>
       )}
