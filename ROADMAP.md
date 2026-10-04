@@ -7,10 +7,14 @@ when done. Order is priority order; later items may be re-sequenced as we learn.
 Legend: [ ] not started · [~] in progress · [x] done
 
 ## Now
-- [~] **INITIAL-BUILD** — the foundation + smooth writing.
-  Tauri + React/TS/Tailwind/shadcn app shell; central logger; local `.md` vault +
-  SQLite index; the TipTap editor with Notion-like formatting saving to `.md`;
+- [x] **INITIAL-BUILD** — the foundation + smooth writing.
+  Tauri + React/TS/Tailwind/shadcn app shell; central logger; local `.md` vault
+  (SQLite deferred); the TipTap editor with Notion-like formatting saving to `.md`;
   the commit-style addition timeline. Ships a real, usable writing app.
+- [~] **NOTION-UX** — the block experience. Draggable blocks, `/` slash menu,
+  two-level `⌘A`; per-note metadata (category / tags / relationships) as `.md`
+  frontmatter in a toggle-able right sidebar; ⋯ menu for Timeline; theme moves to
+  the native macOS menu. Keeps plain `.md` as the source of truth.
 
 ## Next (priority modalities)
 - [ ] **AUDIO** — record/import audio; local whisper.cpp transcript; transcript↔

@@ -43,5 +43,6 @@ Each phase ends with tests and a real-run verification, then a commit + push.
 - **Decisions:** SQLite deferred; links via markdown typing; focus dimming
   deferred; browser-first verification (Chrome extension unavailable for live
   drive). All recorded in wiki.md.
-- **Next:** await review, then merge `update/initial-build` → `main` and close this
-  update (`- OPEN` → `- CLOSED`).
+- **Next:** ✅ CLOSED 2026-10-04 — merged `update/initial-build` → `main`, branch
+  pruned, folder renamed `- CLOSED`. Follow-up work continues in the **NOTION-UX**
+  update (the Notion-like block experience).
