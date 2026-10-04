@@ -29,10 +29,9 @@ interface Meta {
   // .md frontmatter stays the source of truth.
   categories?: Category[];
   tags?: string[];
-  // Sidebar-only metadata, kept in the fast-list sidecar so listing never reads
-  // bodies (see lib/sidebar). The .meta.json is their home, not the .md.
+  // Pin state lives in the fast-list sidecar so setPinned can toggle it without
+  // rewriting the .md. (The preview excerpt is computed live in list(), not stored.)
   pinned?: boolean;
-  excerpt?: string;
 }
 
 function newId(): string {
@@ -50,6 +49,11 @@ export class TauriStore implements Store {
       const raw = await readText(metaPath(id));
       if (!raw) continue;
       const m = JSON.parse(raw) as Meta;
+      // Compute the preview excerpt fresh from the body so it always reflects the
+      // current stripping rules (stored excerpts could be stale). One extra small
+      // file read per note — fine at personal-vault scale.
+      const file = await readText(notePath(id));
+      const excerpt = file ? excerptFromMarkdown(parseFrontmatter(file).body) : "";
       metas.push({
         id,
         title: m.title,
@@ -58,7 +62,7 @@ export class TauriStore implements Store {
         categories: m.categories ?? [],
         tags: m.tags ?? [],
         pinned: m.pinned ?? false,
-        excerpt: m.excerpt ?? "",
+        excerpt,
       });
     }
     // Order is a view concern now (see lib/sidebar/arrange) — return unsorted.
@@ -94,7 +98,6 @@ export class TauriStore implements Store {
       categories: note.categories,
       tags: note.tags,
       pinned: note.pinned,
-      excerpt: excerptFromMarkdown(note.markdown),
     };
     const file = composeFrontmatter(
       { categories: note.categories, tags: note.tags, links: note.links },

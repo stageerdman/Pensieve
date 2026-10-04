@@ -113,7 +113,7 @@ export function SidebarCustomise({ state, onChange }: SidebarCustomiseProps) {
       </IconButton>
 
       {open && (
-        <div className="absolute left-0 top-9 z-20 w-64 rounded-lg border border-border bg-surface-raised p-2 shadow-lg">
+        <div className="absolute left-0 top-9 z-20 max-h-[75vh] w-64 overflow-y-auto overscroll-contain rounded-lg border border-border bg-surface-raised p-2 shadow-lg">
           <Group title="View">
             <input
               value={view.name}
