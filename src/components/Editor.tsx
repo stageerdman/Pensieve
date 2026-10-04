@@ -1,83 +1,59 @@
-import { useEditor, EditorContent, BubbleMenu } from "@tiptap/react";
-import { useEffect } from "react";
-import { editorExtensions } from "../lib/editor";
+import "@blocknote/core/fonts/inter.css";
+import "@blocknote/mantine/style.css";
+import "./blocknote-skin.css";
+import { BlockNoteView } from "@blocknote/mantine";
+import { useCreateBlockNote } from "@blocknote/react";
+import { useEffect, useRef } from "react";
+import { blocksToExtendedMd, extendedMdToBlocks } from "../lib/md/extended";
 
-// The writing surface. Markdown-as-you-type (StarterKit input rules) is the
-// primary path; a selection bubble covers select-then-style. No standing toolbar
-// (design.md). Content is Markdown in, Markdown out — the .md file is the truth.
+// The writing surface — a Notion-like BLOCK editor (BlockNote). Blocks are
+// draggable, "/" opens the slash menu, and a selection bubble covers inline
+// styling, all out of the box. Content is Markdown in, Markdown out through our
+// extended standard (lib/md/extended) — the `.md` file stays the source of truth.
+//
+// The parent remounts this per note (key={note.id}), so markdown is loaded once
+// on mount and we never fight an incoming prop mid-edit.
 
 interface EditorProps {
   markdown: string;
   onChange: (markdown: string) => void;
   focusMode: boolean;
+  theme: "light" | "dark";
 }
 
-export function Editor({ markdown, onChange, focusMode }: EditorProps) {
-  const editor = useEditor({
-    extensions: editorExtensions(),
-    content: markdown,
-    autofocus: "end",
-    editorProps: {
-      attributes: {
-        class:
-          "prose-editor outline-none min-h-[60vh] " +
-          (focusMode ? "focus-typewriter" : ""),
-      },
-    },
-    onUpdate: ({ editor }) => {
-      onChange(editor.storage.markdown.getMarkdown() as string);
-    },
-  });
+export function Editor({ markdown, onChange, focusMode, theme }: EditorProps) {
+  const editor = useCreateBlockNote();
+  const loading = useRef(true);
 
-  // Keep the paragraph-dimming class in sync with focus mode without remounting.
+  // Load the note's .md into blocks once, on mount. `loading` suppresses the
+  // onChange that the programmatic replace would otherwise fire (no false dirty).
   useEffect(() => {
-    if (!editor) return;
-    const el = editor.view.dom as HTMLElement;
-    el.classList.toggle("focus-typewriter", focusMode);
-  }, [editor, focusMode]);
+    let cancelled = false;
+    void (async () => {
+      const blocks = await extendedMdToBlocks(editor, markdown);
+      if (cancelled) return;
+      if (blocks.length) editor.replaceBlocks(editor.document, blocks as never);
+      loading.current = false;
+      try {
+        editor.focus();
+      } catch {
+        /* focus is best-effort */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  if (!editor) return null;
-
-  const btn =
-    "px-2 py-1 text-sm rounded hover:bg-surface text-text-muted hover:text-text";
+  const handleChange = async () => {
+    if (loading.current) return;
+    onChange(await blocksToExtendedMd(editor, editor.document));
+  };
 
   return (
-    <>
-      <BubbleMenu
-        editor={editor}
-        tippyOptions={{ duration: 120 }}
-        className="flex items-center gap-0.5 rounded-lg border border-border bg-surface-raised px-1 py-0.5 shadow-lg"
-      >
-        <button
-          className={btn}
-          aria-label="Bold"
-          onClick={() => editor.chain().focus().toggleBold().run()}
-        >
-          <strong>B</strong>
-        </button>
-        <button
-          className={btn}
-          aria-label="Italic"
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-        >
-          <em>i</em>
-        </button>
-        <button
-          className={btn}
-          aria-label="Inline code"
-          onClick={() => editor.chain().focus().toggleCode().run()}
-        >
-          {"</>"}
-        </button>
-        <button
-          className={btn}
-          aria-label="Strikethrough"
-          onClick={() => editor.chain().focus().toggleStrike().run()}
-        >
-          <s>S</s>
-        </button>
-      </BubbleMenu>
-      <EditorContent editor={editor} />
-    </>
+    <div className={"pensieve-editor" + (focusMode ? " focus-typewriter" : "")}>
+      <BlockNoteView editor={editor} theme={theme} onChange={handleChange} />
+    </div>
   );
 }

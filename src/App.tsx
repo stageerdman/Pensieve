@@ -105,9 +105,9 @@ export default function App() {
         <div className="flex min-h-0 flex-1">
           <section className="flex-1 overflow-y-auto">
             {current ? (
-              <div className="mx-auto w-full max-w-[68ch] px-8 py-10">
+              <div className="w-full px-6 py-10">
                 {confirmDelete && (
-                  <div className="mb-4 rounded border border-danger/40 bg-danger/10 px-3 py-1.5 text-sm text-danger">
+                  <div className="mx-auto mb-4 max-w-[72ch] rounded border border-danger/40 bg-danger/10 px-3 py-1.5 text-sm text-danger">
                     Press ⌘⌫ again to delete this note.
                   </div>
                 )}
@@ -116,6 +116,7 @@ export default function App() {
                   markdown={current.markdown}
                   onChange={change}
                   focusMode={focusMode}
+                  theme={theme}
                 />
               </div>
             ) : (

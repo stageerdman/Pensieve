@@ -80,14 +80,23 @@ Each phase ends with tests + a real-run check, then commit + push.
   — so `.md` stays truth. Owner chose **Path A (BlockNote)**, accept canonical
   dialect. (Path-B TipTap probe not needed.)
 
-- [ ] **P3 — Swap editor to BlockNote (the heart).** Replace the TipTap editor in
-  the main app with a BlockNote surface wired through our standard layer:
-  `.md → blocks` on load, `blocks → .md` on change (promote `spike/src/extended.ts`
-  into `src/lib/md/`). Drag handle, slash menu, block selection, formatting toolbar
-  come with BlockNote. Re-skin to design.md tokens (light/dark). Remove the old
-  TipTap editor + `tiptap-markdown`/`editor.test.ts` (superseded). Add two-level
-  `⌘A` (block → whole doc) if not already BlockNote-native. Tests: new round-trip +
-  `==highlight==` suite via `@blocknote/server-util`; slash inserts right block.
+- [x] **P3 — Swap editor to BlockNote (the heart).** DONE. `src/components/Editor.tsx`
+  now hosts BlockNote wired through `src/lib/md/extended.ts` (`.md → blocks` on
+  load, `blocks → .md` on change). Drag handle, slash menu, block selection and
+  formatting toolbar come with BlockNote; initial skin in `blocknote-skin.css`
+  (tokens, light/dark). Old TipTap editor + `tiptap-markdown` + `editor.test.ts`
+  removed; deps swapped (BlockNote 0.55 runs on TipTap **v3** — clean reinstall,
+  Mantine pinned v8). Tests: `src/lib/md/extended.test.ts` (pure bridge) +
+  `extended.server.test.ts` (real round-trip via `@blocknote/server-util`) — 29/29
+  green; typecheck + web build clean.
+  - **Verified:** logic end-to-end headless (idempotent `.md` round-trip, nested
+    lists, `==highlight==` preserved), typecheck, web build.
+  - **NOT yet verified:** live visual render / drag / slash in a browser — the
+    in-session Chrome extension can't load `localhost` here (server healthy on
+    curl). Needs an eyeball at http://localhost:5173 (owner, or next session).
+  - **Deferred to P7:** full skin polish per `ux-notion-chrome.md` (single drag
+    handle / no `+`, trimmed slash menu, remove bubble colour pickers), two-level
+    `⌘A`, and bundle code-splitting (current JS 1.08 MB / 329 KB gz).
 
 - [ ] **P4 — Note metadata model (frontmatter).** Extend `Note`/types with
   `category`, `tags[]`, `relationships[]`; parse/serialize **YAML frontmatter** in
