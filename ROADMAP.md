@@ -11,10 +11,15 @@ Legend: [ ] not started · [~] in progress · [x] done
   Tauri + React/TS/Tailwind/shadcn app shell; central logger; local `.md` vault
   (SQLite deferred); the TipTap editor with Notion-like formatting saving to `.md`;
   the commit-style addition timeline. Ships a real, usable writing app.
-- [~] **NOTION-UX** — the block experience. Draggable blocks, `/` slash menu,
-  two-level `⌘A`; per-note metadata (category / tags / relationships) as `.md`
-  frontmatter in a toggle-able right sidebar; ⋯ menu for Timeline; theme moves to
-  the native macOS menu. Keeps plain `.md` as the source of truth.
+- [x] **NOTION-UX** — the block experience. Draggable blocks, `/` slash menu,
+  two-level `⌘A`, inline colour/highlight on words, `@` note links; per-note
+  metadata (multi-category / tags-with-whispering / relationships) as `.md`
+  frontmatter in a toggle-able right sidebar; ⋯ menu for Timeline; theme in the
+  native macOS menu. Keeps plain `.md` as the source of truth (colours + links
+  round-trip via our own extended-Markdown standard).
+- [ ] **SIDEBAR-UX** — customise the notes sidebar: sort by updated/created/name,
+  configurable behaviour and visible fields. (Sorting lives here, not a one-off
+  setting.) See `updates/2026-10-04 SIDEBAR-UX - OPEN/`.
 
 ## Next (priority modalities)
 - [ ] **AUDIO** — record/import audio; local whisper.cpp transcript; transcript↔
@@ -25,8 +30,11 @@ Legend: [ ] not started · [~] in progress · [x] done
 - [ ] **IMAGES** — embed images freely; multiple media per note; light captions/labels.
 
 ## Then (organization & intelligence — desktop AI)
-- [ ] **LABELS & SEARCH** — auto-labeling on capture; fast local search across
-  notes + transcripts; browse by label / date / source.
+- [ ] **SEARCH** — a minimal but *smart* "super search": search by name / date /
+  tags / text-inside; typing a date phrase ("last month") or tag suggests a
+  selectable filter, stacking filters as you go. Likely where SQLite finally lands.
+  See `updates/2026-10-04 SEARCH - OPEN/`. (Deferred — not needed yet.)
+- [ ] **LABELS** — auto-labeling on capture; browse by label / date / source.
 - [ ] **AI COACH** — desktop-only, via Claude Code CLI: reads your thoughts,
   surfaces past lessons, connects entries to your goals. For organizing, planning,
   and reflection — not daily logging.

@@ -137,15 +137,14 @@ Each phase ends with tests + a real-run check, then commit + push.
   colour round-trips to `{bg:yellow}…{/}`. 38/38 tests; `tsc` + web build clean.
 
 ## Status
-- **Done (P1–P6, P7 code):** all user-requested features built, committed, pushed
-  on `update/notion-ux`. Draggable blocks, `/` slash menu, two-level `⌘A`, metadata
-  frontmatter + Details sidebar, ⋯ menu, theme in the native menu, no wordmark.
-  35/35 tests pass; typecheck + web build clean; `cargo check` clean; web UI
-  verified via Puppeteer screenshots.
-- **Blocking merge (owner / next session):** the native app itself is unverified
-  here — the in-session Chrome extension can't load `localhost`, and a native
-  window can't be driven headlessly. Run `npm run tauri dev` (or `tauri build`) and
-  confirm: the editor feel, the Appearance menu toggles theme, overall chrome. Then
-  merge `update/notion-ux` → `main`, prune, rename folder `- CLOSED`.
-- **Resolved decisions:** editor = BlockNote (A); no dialect normaliser; ⋯ menu +
-  meta sidebar scope = Timeline + category + tags + relationships (extend later).
+- ✅ **CLOSED 2026-10-04** — merged to `main` and built. Delivered the full
+  Notion-like block experience: draggable blocks, `/` slash menu, two-level `⌘A`,
+  inline colour/highlight on words (round-tripped as `{fg/bg}`), `@` note links
+  (`{@id|title}`), metadata frontmatter + Details sidebar (multi-category dropdown,
+  tag whispering, relationships), ⋯ menu, theme in the native macOS menu, no
+  wordmark, tighter top spacing. 41/41 tests; web UI verified via Puppeteer; native
+  `Pensieve.app` built + installed to /Applications.
+- **Follow-ups spun out:** sidebar customisation (sorting etc.) → **SIDEBAR-UX**
+  update; smart search → **SEARCH** update. Smaller polish tracked in issues.txt.
+- **Decisions:** editor = BlockNote; no dialect normaliser; colours + note links
+  owned by our extended-Markdown standard so `.md` stays the source of truth.
