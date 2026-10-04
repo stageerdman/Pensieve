@@ -9,10 +9,18 @@ import { Clock, PanelRight } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
 import { useNotes } from "./hooks/useNotes";
 import { useTheme } from "./hooks/useTheme";
+import type { SidebarView } from "./lib/sidebar/view";
+import { loadView, saveView } from "./lib/sidebar/persist";
 
 export default function App() {
-  const { notes, current, status, open, create, remove, change, updateMeta } = useNotes();
+  const { notes, current, status, open, create, remove, change, updateMeta, togglePin } =
+    useNotes();
   const { theme, toggle } = useTheme();
+  const [view, setView] = useState<SidebarView>(() => loadView());
+  const changeView = useCallback((v: SidebarView) => {
+    setView(v);
+    saveView(v);
+  }, []);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -66,6 +74,10 @@ export default function App() {
       if (k === "n") {
         e.preventDefault();
         void create();
+      } else if (k === "p") {
+        // ⌘P pins/unpins the open note (overrides the browser print dialog).
+        e.preventDefault();
+        if (current) void togglePin(current.id);
       } else if (e.code === "Backslash") {
         // ⌘\ toggles the left sidebar; ⌘⇧\ toggles the right Details panel.
         e.preventDefault();
@@ -90,7 +102,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [create, current, toggle, askDelete, toggleTimeline, toggleDetails]);
+  }, [create, current, toggle, askDelete, toggleTimeline, toggleDetails, togglePin]);
 
   const showChrome = !focusMode;
 
@@ -99,9 +111,12 @@ export default function App() {
       {showChrome && sidebarOpen && (
         <Sidebar
           notes={notes}
+          view={view}
           currentId={current?.id}
           onOpen={(id) => void open(id)}
           onNew={() => void create()}
+          onTogglePin={(id) => void togglePin(id)}
+          onChangeView={changeView}
         />
       )}
 
