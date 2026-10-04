@@ -5,7 +5,8 @@
 
 use std::fs;
 use std::path::PathBuf;
-use tauri::{AppHandle, Manager};
+use tauri::menu::{Menu, SubmenuBuilder};
+use tauri::{AppHandle, Emitter, Manager};
 
 fn vault_root(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
@@ -67,6 +68,19 @@ fn remove_path(app: AppHandle, rel: String) -> Result<(), String> {
     }
 }
 
+// The theme lives in the native menu bar (macOS), not in the app chrome. The
+// Appearance submenu emits a `set-theme` event the webview listens for (useTheme).
+fn build_menu(handle: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    let menu = Menu::default(handle)?;
+    let appearance = SubmenuBuilder::new(handle, "Appearance")
+        .text("theme-light", "Light")
+        .text("theme-dark", "Dark")
+        .text("theme-system", "System")
+        .build()?;
+    menu.append(&appearance)?;
+    Ok(menu)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -79,6 +93,18 @@ pub fn run() {
                 )?;
             }
             Ok(())
+        })
+        .menu(build_menu)
+        .on_menu_event(|app, event| {
+            let theme = match event.id().0.as_str() {
+                "theme-light" => Some("light"),
+                "theme-dark" => Some("dark"),
+                "theme-system" => Some("system"),
+                _ => None,
+            };
+            if let Some(theme) = theme {
+                let _ = app.emit("set-theme", theme);
+            }
         })
         .invoke_handler(tauri::generate_handler![
             read_text,
