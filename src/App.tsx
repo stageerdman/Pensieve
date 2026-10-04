@@ -9,6 +9,7 @@ import { Clock, PanelRight, Trash } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
 import { useNotes } from "./hooks/useNotes";
 import { useTheme } from "./hooks/useTheme";
+import { useFontScale } from "./hooks/useFontScale";
 import type { SidebarState } from "./lib/sidebar/view";
 import { loadState, saveState } from "./lib/sidebar/persist";
 
@@ -16,6 +17,7 @@ export default function App() {
   const { notes, current, status, open, create, remove, change, updateMeta, togglePin } =
     useNotes();
   const { theme, toggle } = useTheme();
+  useFontScale();
   const [sidebarState, setSidebarState] = useState<SidebarState>(() => loadState());
   const changeSidebarState = useCallback((s: SidebarState) => {
     setSidebarState(s);

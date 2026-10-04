@@ -76,6 +76,11 @@ fn build_menu(handle: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         .text("theme-light", "Light")
         .text("theme-dark", "Dark")
         .text("theme-system", "System")
+        .separator()
+        .text("font-small", "Text Size: Small")
+        .text("font-default", "Text Size: Default")
+        .text("font-large", "Text Size: Large")
+        .text("font-larger", "Text Size: Larger")
         .build()?;
     menu.append(&appearance)?;
     Ok(menu)
@@ -96,14 +101,15 @@ pub fn run() {
         })
         .menu(build_menu)
         .on_menu_event(|app, event| {
-            let theme = match event.id().0.as_str() {
-                "theme-light" => Some("light"),
-                "theme-dark" => Some("dark"),
-                "theme-system" => Some("system"),
-                _ => None,
-            };
-            if let Some(theme) = theme {
-                let _ = app.emit("set-theme", theme);
+            match event.id().0.as_str() {
+                "theme-light" => { let _ = app.emit("set-theme", "light"); }
+                "theme-dark" => { let _ = app.emit("set-theme", "dark"); }
+                "theme-system" => { let _ = app.emit("set-theme", "system"); }
+                "font-small" => { let _ = app.emit("set-font-scale", "0.9"); }
+                "font-default" => { let _ = app.emit("set-font-scale", "1"); }
+                "font-large" => { let _ = app.emit("set-font-scale", "1.15"); }
+                "font-larger" => { let _ = app.emit("set-font-scale", "1.3"); }
+                _ => {}
             }
         })
         .invoke_handler(tauri::generate_handler![

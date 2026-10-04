@@ -36,10 +36,6 @@ export function RelationshipList({ noteId, links, notes, onOpen, onChange }: Rel
 
   return (
     <div className="space-y-1">
-      {linked.length === 0 && !adding && (
-        <p className="text-sm text-text-muted">No links yet</p>
-      )}
-
       {linked.map((n) => (
         <div key={n.id} className="group flex items-center justify-between gap-2">
           <button
