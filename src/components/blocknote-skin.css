@@ -93,18 +93,20 @@
 }
 
 /* Headings match the app's deliberate type scale (index.css), not BlockNote's. */
+/* Absolute sizes × the Text-Size scale — NOT `em`, because BlockNote already sets a
+   font-size on the heading block and `em` would compound (making H1 enormous). */
 .pensieve-editor h1.bn-inline-content {
-  font-size: 1.875em;
+  font-size: calc(1.875rem * var(--font-scale));
   font-weight: 700;
   line-height: 1.3;
 }
 .pensieve-editor h2.bn-inline-content {
-  font-size: 1.5em;
+  font-size: calc(1.5rem * var(--font-scale));
   font-weight: 600;
   line-height: 1.3;
 }
 .pensieve-editor h3.bn-inline-content {
-  font-size: 1.25em;
+  font-size: calc(1.25rem * var(--font-scale));
   font-weight: 600;
   line-height: 1.3;
 }
