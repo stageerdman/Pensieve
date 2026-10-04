@@ -89,40 +89,52 @@ Each phase ends with tests + a real-run check, then commit + push.
   Mantine pinned v8). Tests: `src/lib/md/extended.test.ts` (pure bridge) +
   `extended.server.test.ts` (real round-trip via `@blocknote/server-util`) — 29/29
   green; typecheck + web build clean.
-  - **Verified:** logic end-to-end headless (idempotent `.md` round-trip, nested
-    lists, `==highlight==` preserved), typecheck, web build.
-  - **NOT yet verified:** live visual render / drag / slash in a browser — the
-    in-session Chrome extension can't load `localhost` here (server healthy on
-    curl). Needs an eyeball at http://localhost:5173 (owner, or next session).
-  - **Deferred to P7:** full skin polish per `ux-notion-chrome.md` (single drag
-    handle / no `+`, trimmed slash menu, remove bubble colour pickers), two-level
-    `⌘A`, and bundle code-splitting (current JS 1.08 MB / 329 KB gz).
+  - **Verified:** logic headless (idempotent `.md` round-trip, nested lists,
+    `==highlight==`), AND live render via Puppeteer screenshots (editor, themed
+    slash menu, dark skin). Fixed a focus-outline bug found that way.
+  - **Done in P7:** two-level `⌘A`, heading typography, Markdown-safe formatting
+    toolbar. **Still deferred:** single drag handle / no `+`, trimmed slash menu,
+    bundle code-splitting (JS ~1.1 MB / ~330 KB gz) — see issues.txt.
 
-- [ ] **P4 — Note metadata model (frontmatter).** Extend `Note`/types with
-  `category`, `tags[]`, `relationships[]`; parse/serialize **YAML frontmatter** in
-  both store adapters (browser + tauri) with the markdown body untouched as truth.
-  Default category = "Notes & Lessons"; missing frontmatter → defaults (back-compat).
-  Tests: frontmatter round-trip; legacy plain-`.md` still loads.
+- [x] **P4 — Note metadata model (frontmatter).** `types.ts` gains
+  `category`/`tags`/`links` + `CATEGORIES`; `lib/md/frontmatter.ts` (dependency-free)
+  parses/composes YAML frontmatter — no metadata → no block (plain notes stay
+  plain), missing/unknown → defaults. Tauri store writes frontmatter + body;
+  browser store carries the fields. `useNotes.updateMeta` persists edits. Tests:
+  frontmatter round-trip + back-compat.
 
-- [ ] **P5 — Right meta sidebar + chrome restructure.** Remove the "Pensieve" label
-  and inline theme button. Add a **⋯ menu** (Timeline inside it) and a
-  **right-sidebar toggle** icon beside it. Build the right sidebar (hidden by
-  default): category picker, tag editor, relationships list/linker. Timeline opens
-  from the ⋯ menu. UX agents review editor + sidebar + chrome in parallel.
+- [x] **P5 — Right meta sidebar + chrome restructure.** "Pensieve" label + inline
+  theme button removed; header is a right cluster: ⋯ `OverflowMenu` (Timeline) +
+  `PanelRight` Details toggle. Right dock is one slot (Timeline/Details mutually
+  exclusive, `Esc` closes). New modular components: `IconButton`, `OverflowMenu`,
+  `RightPanel`, `DetailsPanel`, `CategorySelect`, `TagEditor`, `RelationshipList`,
+  `icons`. Keyboard `⌘⇧\` for Details. Verified via Puppeteer (menu, panel,
+  category/tags; metadata persists). UX synthesised in `ux-notion-chrome.md`.
 
-- [ ] **P6 — Native macOS appearance menu (Tauri).** Add a native menu item
-  (Appearance: Light / Dark / System) that drives the webview theme via a Tauri
-  event; remove the in-app toggle; persist + follow system appearance by default.
-  Rust menu builds; event round-trips to `useTheme`.
+- [x] **P6 — Native macOS appearance menu (Tauri).** Appearance submenu
+  (Light/Dark/System) appended to the default menu; emits `set-theme`, `useTheme`
+  listens in the native app. In-app toggle gone; dev-only `⌘⇧L` kept for browser.
+  `cargo check` + `tsc` clean. **Runtime (menu click → theme) unverified** — needs
+  the native app.
 
-- [ ] **P7 — Polish, verify, merge, close.** design.md pass, a11y + keyboard check,
-  full test + typecheck + web build + `npm run tauri build`, real-run
-  verification. Merge `update/notion-ux` → `main`, rename this folder to `- CLOSED`.
+- [~] **P7 — Polish, verify, merge, close.** DONE: two-level `⌘A` (verified),
+  heading typography, Markdown-safe formatting toolbar (no colour/underline → `.md`
+  stays lossless), focus-outline fix. All 35 tests pass; `tsc` + web build clean;
+  live render verified via Puppeteer. REMAINING (owner/next session): run
+  `npm run tauri build` + eyeball the **native app** (menu theme, overall feel),
+  then merge `update/notion-ux` → `main` and rename this folder `- CLOSED`.
+  Smaller deferrals tracked in issues.txt.
 
 ## Status
-- **Done:** desk research (6 editors); P2 spike proving `.md`-truth works with
-  BlockNote and the owner's custom-standard idea (verified). Editor path decided:
-  **A — BlockNote**, accept canonical dialect.
-- **Next:** auto-build P1 → P7 per build mode (commit + push + verify each phase).
+- **Done (P1–P6, P7 code):** all user-requested features built, committed, pushed
+  on `update/notion-ux`. Draggable blocks, `/` slash menu, two-level `⌘A`, metadata
+  frontmatter + Details sidebar, ⋯ menu, theme in the native menu, no wordmark.
+  35/35 tests pass; typecheck + web build clean; `cargo check` clean; web UI
+  verified via Puppeteer screenshots.
+- **Blocking merge (owner / next session):** the native app itself is unverified
+  here — the in-session Chrome extension can't load `localhost`, and a native
+  window can't be driven headlessly. Run `npm run tauri dev` (or `tauri build`) and
+  confirm: the editor feel, the Appearance menu toggles theme, overall chrome. Then
+  merge `update/notion-ux` → `main`, prune, rename folder `- CLOSED`.
 - **Resolved decisions:** editor = BlockNote (A); no dialect normaliser; ⋯ menu +
   meta sidebar scope = Timeline + category + tags + relationships (extend later).

@@ -1,12 +1,22 @@
 Pensieve — known issues & TODOs
 (one line per item; move resolved items out or mark done)
 
-NEXT STEPS (post-adopt, not yet done):
-- [ ] GitHub: init git, create repo, connect remote, first commit + push (needs `gh auth` + visibility choice).
-- [ ] First build update: create `updates/YYYY-MM-DD INITIAL-BUILD - OPEN/` with roadmap for v1
-      priority surface — smooth Notion-like writing saved as local .md, then audio, video, images.
-- [ ] design.md: establish the visual standard before building any screen (already drafted; refine with UX agents).
-- [ ] Fill Commands in CLAUDE.md once the Tauri app is scaffolded.
+NEXT STEPS (NOTION-UX close-out):
+- [ ] Verify the NATIVE app (`npm run tauri dev`): editor feel, Appearance menu
+      toggles theme (Light/Dark/System), overall chrome. Then `npm run tauri build`.
+- [ ] Merge `update/notion-ux` → `main`, prune branch, rename update folder `- CLOSED`.
+
+NOTION-UX — deferred polish (non-blocking, from ux-notion-chrome.md):
+- [ ] Editor side menu: show the drag handle only, drop the "+" (slash covers "add").
+- [ ] Slash menu: trim to supported blocks; drop the gray description subtext;
+      review Toggle List (details) — confirm it round-trips to .md or remove it.
+- [ ] Highlight: add a toolbar/input-rule path so ==text== highlights live (today it
+      renders on reload; round-trips correctly either way).
+- [ ] Two-level ⌘A: one-time StatusWhisper hint ("Press ⌘A again to select the whole
+      note"). Behaviour works; hint not yet added.
+- [ ] Bundle size: JS ~1.1 MB (~330 KB gz) from BlockNote+Mantine. Consider
+      manualChunks / lazy-loading the editor if startup feels heavy.
+- [ ] "System" appearance: resolve once on select; live-follow OS theme changes TBD.
 
 OPEN ISSUES:
-- (none yet)
+- (none known)
