@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:build": "tauri build && bash scripts/install-app.sh"
   },
   "dependencies": {
     "@blocknote/core": "^0.55.0",

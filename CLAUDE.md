@@ -20,7 +20,10 @@ Planned layout — created as the project grows, kept flat until it needs folder
 - Run (native app): `npm run tauri dev`
 - Test: `npm test` (Vitest; `npm run test:watch` to watch)
 - Typecheck: `npx tsc --noEmit`
-- Build (web bundle): `npm run build` · Build (native `.app`): `npm run tauri build`
+- Build (web bundle): `npm run build` · Build (native `.app`): **`npm run tauri:build`**
+  — builds then installs the app to `/Applications` and removes the build-tree copy,
+  so there is only ever ONE `Pensieve.app` (never leave the raw `tauri build` bundle
+  around — Spotlight indexes it as a duplicate).
 - Deploy: n/a (local `.app`); future: notarize & distribute the build
 - Logs: query the central log store (`log.query({...})`, see Debugging) — filtered, never full dumps
 
