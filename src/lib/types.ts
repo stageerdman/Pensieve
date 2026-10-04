@@ -16,6 +16,10 @@ export interface NoteMeta {
   // frontmatter remains the source of truth.
   categories?: Category[];
   tags?: string[];
+  // Surfaced into the fast-list sidecar so the sidebar can render pin state and a
+  // preview without reading note bodies (see lib/sidebar). Not in .md frontmatter.
+  pinned?: boolean; // user-pinned to the top of the sidebar
+  excerpt?: string; // Markdown-stripped first ~140 chars of the body, for previews
 }
 
 export interface Note extends NoteMeta {
@@ -23,6 +27,7 @@ export interface Note extends NoteMeta {
   categories: Category[]; // multi-select; empty is a valid resting state
   tags: string[];
   links: string[]; // ids of related notes
+  pinned: boolean; // pinned to the top of the sidebar
 }
 
 /** The user-editable metadata carried in frontmatter. */

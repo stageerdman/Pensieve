@@ -10,7 +10,7 @@ describe("BrowserStore", () => {
 
   const tick = () => new Promise((r) => setTimeout(r, 2));
 
-  it("creates, loads, and lists notes newest-first", async () => {
+  it("creates, loads, and lists notes (order is a view concern, see sidebar/arrange)", async () => {
     const a = await store.create();
     const b = await store.create();
     await store.save({ ...a, markdown: "# Alpha\n\nbody" });
@@ -22,8 +22,15 @@ describe("BrowserStore", () => {
 
     const list = await store.list();
     expect(list).toHaveLength(2);
-    // b saved last → newest first
-    expect(list[0].id).toBe(b.id);
+    expect(list.map((n) => n.id).sort()).toEqual([a.id, b.id].sort());
+  });
+
+  it("surfaces pinned state and a body excerpt in the list", async () => {
+    const n = await store.create();
+    await store.save({ ...n, markdown: "# Title\n\nThe body preview text.", pinned: true });
+    const [meta] = await store.list();
+    expect(meta.pinned).toBe(true);
+    expect(meta.excerpt).toBe("The body preview text.");
   });
 
   it("derives the title from the first line on save", async () => {

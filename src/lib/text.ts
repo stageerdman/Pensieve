@@ -21,6 +21,38 @@ export function slugify(title: string): string {
   return s || "untitled";
 }
 
+/** A short plain-text preview of a note body for the sidebar: the first non-empty
+ *  lines with common Markdown marks stripped, whitespace collapsed, capped. Stored
+ *  on save so listing never has to parse bodies at render time. */
+export function excerptFromMarkdown(md: string, max = 140): string {
+  const title = titleFromMarkdown(md);
+  const lines = md.split("\n");
+  const parts: string[] = [];
+  let skippedTitle = false;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    const text = line
+      .replace(/^#{1,6}\s*/, "") // heading marks
+      .replace(/^[-*+]\s+/, "") // bullet marks
+      .replace(/^>\s*/, "") // blockquote
+      .replace(/^\d+\.\s+/, "") // ordered list
+      .replace(/[*_`~]/g, "") // inline emphasis/code marks
+      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1") // links/images → their text
+      .trim();
+    if (!text) continue;
+    // Drop the first content line if it is just the title (already shown on the row).
+    if (!skippedTitle && text === title) {
+      skippedTitle = true;
+      continue;
+    }
+    parts.push(text);
+    if (parts.join(" ").length >= max) break;
+  }
+  const out = parts.join(" ").replace(/\s+/g, " ").trim();
+  return out.length > max ? out.slice(0, max).trimEnd() + "…" : out;
+}
+
 /** Word count of the note's content, ignoring markdown punctuation noise. */
 export function wordCount(md: string): number {
   const words = md

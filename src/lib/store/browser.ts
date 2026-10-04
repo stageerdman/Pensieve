@@ -4,7 +4,7 @@
 // on-disk .md vault + sidecar timeline files.
 
 import type { Note, NoteMeta, Store, TimelineEntry } from "../types";
-import { titleFromMarkdown } from "../text";
+import { titleFromMarkdown, excerptFromMarkdown } from "../text";
 import { log } from "../logger";
 
 const NOTE_PREFIX = "pensieve:note:";
@@ -23,7 +23,13 @@ function readNote(id: string): Note | null {
   if (!raw) return null;
   const n = JSON.parse(raw) as Partial<Note> & Note & { category?: Note["categories"][number] };
   const categories = n.categories ?? (n.category ? [n.category] : []);
-  return { ...n, categories, tags: n.tags ?? [], links: n.links ?? [] };
+  return {
+    ...n,
+    categories,
+    tags: n.tags ?? [],
+    links: n.links ?? [],
+    pinned: n.pinned ?? false,
+  };
 }
 
 export class BrowserStore implements Store {
@@ -40,9 +46,11 @@ export class BrowserStore implements Store {
         updatedAt: n.updatedAt,
         categories: n.categories,
         tags: n.tags,
+        pinned: n.pinned,
+        excerpt: excerptFromMarkdown(n.markdown),
       });
     }
-    metas.sort((a, b) => b.updatedAt - a.updatedAt);
+    // Order is a view concern now (see lib/sidebar/arrange) — return unsorted.
     return metas;
   }
 
@@ -71,6 +79,7 @@ export class BrowserStore implements Store {
       categories: [],
       tags: [],
       links: [],
+      pinned: false,
     };
     localStorage.setItem(NOTE_PREFIX + note.id, JSON.stringify(note));
     log.info("store", "create", { id: note.id });

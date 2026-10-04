@@ -7,7 +7,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import type { Category, Note, NoteMeta, Store, TimelineEntry } from "../types";
-import { titleFromMarkdown } from "../text";
+import { titleFromMarkdown, excerptFromMarkdown } from "../text";
 import { parseFrontmatter, composeFrontmatter } from "../md/frontmatter";
 import { log } from "../logger";
 
@@ -29,6 +29,10 @@ interface Meta {
   // .md frontmatter stays the source of truth.
   categories?: Category[];
   tags?: string[];
+  // Sidebar-only metadata, kept in the fast-list sidecar so listing never reads
+  // bodies (see lib/sidebar). The .meta.json is their home, not the .md.
+  pinned?: boolean;
+  excerpt?: string;
 }
 
 function newId(): string {
@@ -53,9 +57,11 @@ export class TauriStore implements Store {
         updatedAt: m.updatedAt,
         categories: m.categories ?? [],
         tags: m.tags ?? [],
+        pinned: m.pinned ?? false,
+        excerpt: m.excerpt ?? "",
       });
     }
-    metas.sort((a, b) => b.updatedAt - a.updatedAt);
+    // Order is a view concern now (see lib/sidebar/arrange) — return unsorted.
     return metas;
   }
 
@@ -76,6 +82,7 @@ export class TauriStore implements Store {
       categories: fields.categories,
       tags: fields.tags,
       links: fields.links,
+      pinned: m.pinned ?? false,
     };
   }
 
@@ -86,6 +93,8 @@ export class TauriStore implements Store {
       updatedAt: Date.now(),
       categories: note.categories,
       tags: note.tags,
+      pinned: note.pinned,
+      excerpt: excerptFromMarkdown(note.markdown),
     };
     const file = composeFrontmatter(
       { categories: note.categories, tags: note.tags, links: note.links },
@@ -107,6 +116,7 @@ export class TauriStore implements Store {
       categories: [],
       tags: [],
       links: [],
+      pinned: false,
     };
     await this.save(note);
     log.info("store", "create", { id: note.id });
