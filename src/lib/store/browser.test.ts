@@ -39,6 +39,17 @@ describe("BrowserStore", () => {
     expect((await store.load(n.id))?.title).toBe("Deadlines");
   });
 
+  it("setPinned toggles pin state without changing updatedAt", async () => {
+    const n = await store.create();
+    await store.save({ ...n, markdown: "# Note" });
+    const before = (await store.load(n.id))!.updatedAt;
+    await tick();
+    await store.setPinned(n.id, true);
+    const after = await store.load(n.id);
+    expect(after?.pinned).toBe(true);
+    expect(after?.updatedAt).toBe(before); // pinning is not an edit
+  });
+
   it("removes notes and their timeline", async () => {
     const n = await store.create();
     await store.appendTimeline(n.id, { ts: 1, wordDelta: 5, created: true });

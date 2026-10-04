@@ -92,6 +92,14 @@ export class BrowserStore implements Store {
     log.info("store", "remove", { id });
   }
 
+  async setPinned(id: string, pinned: boolean): Promise<void> {
+    const note = readNote(id);
+    if (!note) return;
+    // Write pinned straight to storage — not via save() — so updatedAt is untouched.
+    localStorage.setItem(NOTE_PREFIX + id, JSON.stringify({ ...note, pinned }));
+    log.debug("store", "pin", { id, pinned });
+  }
+
   async loadTimeline(id: string): Promise<TimelineEntry[]> {
     const raw = localStorage.getItem(TIMELINE_PREFIX + id);
     return raw ? (JSON.parse(raw) as TimelineEntry[]) : [];

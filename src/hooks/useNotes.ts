@@ -158,6 +158,26 @@ export function useNotes() {
     [persist],
   );
 
+  // Pin/unpin any note (not only the open one). Goes through the dedicated store
+  // path so updatedAt is untouched, then refreshes the list so the Pinned band
+  // updates. The open note's own pinned flag is kept in sync if it's the target.
+  const togglePin = useCallback(
+    async (id: string) => {
+      const list = await store.list();
+      const meta = list.find((n) => n.id === id);
+      const next = !(meta?.pinned ?? false);
+      await store.setPinned(id, next);
+      if (currentRef.current?.id === id) {
+        const updated = { ...currentRef.current, pinned: next };
+        setCurrent(updated);
+        currentRef.current = updated;
+      }
+      await refresh();
+      log.debug("notes", "pin", { id, pinned: next });
+    },
+    [store, refresh],
+  );
+
   // Initial load: list notes and open the most recent (or create the first).
   useEffect(() => {
     (async () => {
@@ -178,5 +198,5 @@ export function useNotes() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [flushSave, closeSession]);
 
-  return { notes, current, status, open, create, remove, change, updateMeta };
+  return { notes, current, status, open, create, remove, change, updateMeta, togglePin };
 }

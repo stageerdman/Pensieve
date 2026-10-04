@@ -53,6 +53,9 @@ export interface Store {
   save(note: Note): Promise<void>;
   create(): Promise<Note>;
   remove(id: string): Promise<void>;
+  // Pin/unpin without touching the body or updatedAt — pinning is not an edit, so
+  // it must not reorder a list sorted by update time.
+  setPinned(id: string, pinned: boolean): Promise<void>;
   loadTimeline(id: string): Promise<TimelineEntry[]>;
   appendTimeline(id: string, entry: TimelineEntry): Promise<void>;
 }

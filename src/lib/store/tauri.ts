@@ -130,6 +130,16 @@ export class TauriStore implements Store {
     log.info("store", "remove", { id });
   }
 
+  async setPinned(id: string, pinned: boolean): Promise<void> {
+    // Pin state lives only in the sidecar — rewrite .meta.json, leave the .md and
+    // updatedAt untouched so pinning never reorders an update-sorted list.
+    const raw = await readText(metaPath(id));
+    if (!raw) return;
+    const m = JSON.parse(raw) as Meta;
+    await writeText(metaPath(id), JSON.stringify({ ...m, pinned }));
+    log.debug("store", "pin", { id, pinned });
+  }
+
   async loadTimeline(id: string): Promise<TimelineEntry[]> {
     const raw = await readText(timelinePath(id));
     return raw ? (JSON.parse(raw) as TimelineEntry[]) : [];
