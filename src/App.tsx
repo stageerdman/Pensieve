@@ -127,7 +127,7 @@ export default function App() {
 
       <main className="flex min-w-0 flex-1 flex-col">
         {showChrome && (
-          <header className="flex h-11 items-center justify-end border-b border-border px-3">
+          <header className="flex h-11 items-center justify-end border-b border-border bg-surface-sunken px-3">
             {current && (
               <div className="flex items-center gap-0.5">
                 <OverflowMenu
