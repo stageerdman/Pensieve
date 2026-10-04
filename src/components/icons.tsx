@@ -63,6 +63,18 @@ export const X = (p: IconProps) =>
     p,
   );
 
+export const Pin = ({ filled, ...p }: IconProps & { filled?: boolean }) =>
+  svg(
+    <path
+      d="M12 17v5M9 10.5V4h6v6.5l2 3.5H7l2-3.5Z"
+      fill={filled ? "currentColor" : "none"}
+    />,
+    p,
+  );
+
+export const ChevronDown = (p: IconProps) =>
+  svg(<polyline points="6 9 12 15 18 9" />, p);
+
 export const Plus = (p: IconProps) =>
   svg(
     <>

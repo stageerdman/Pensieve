@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { titleFromMarkdown, slugify, wordCount } from "./text";
+import { titleFromMarkdown, slugify, wordCount, excerptFromMarkdown } from "./text";
 
 describe("titleFromMarkdown", () => {
   it("uses the first non-empty line, stripping heading marks", () => {
@@ -20,6 +20,33 @@ describe("slugify", () => {
     expect(slugify("Morning Pages!")).toBe("morning-pages");
     expect(slugify("  spaced  out  ")).toBe("spaced-out");
     expect(slugify("")).toBe("untitled");
+  });
+});
+
+describe("excerptFromMarkdown", () => {
+  it("skips the title line and strips markdown from the preview", () => {
+    expect(excerptFromMarkdown("# My note\n\n- A **bold** point here")).toBe(
+      "A bold point here",
+    );
+  });
+  it("previews the body below the title line (no heading marks needed)", () => {
+    expect(excerptFromMarkdown("A plain title\nThe body continues here")).toBe(
+      "The body continues here",
+    );
+  });
+  it("renders link text, not the url", () => {
+    expect(excerptFromMarkdown("See [the docs](https://x.com) now")).toBe(
+      "See the docs now",
+    );
+  });
+  it("is empty for a title-only or empty note", () => {
+    expect(excerptFromMarkdown("# Only a title")).toBe("");
+    expect(excerptFromMarkdown("")).toBe("");
+  });
+  it("truncates with an ellipsis past the cap", () => {
+    const out = excerptFromMarkdown("intro\n" + "word ".repeat(80), 40);
+    expect(out.length).toBeLessThanOrEqual(41);
+    expect(out.endsWith("…")).toBe(true);
   });
 });
 
