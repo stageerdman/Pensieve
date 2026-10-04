@@ -17,9 +17,11 @@ Legend: [ ] not started · [~] in progress · [x] done
   frontmatter in a toggle-able right sidebar; ⋯ menu for Timeline; theme in the
   native macOS menu. Keeps plain `.md` as the source of truth (colours + links
   round-trip via our own extended-Markdown standard).
-- [ ] **SIDEBAR-UX** — customise the notes sidebar: sort by updated/created/name,
-  configurable behaviour and visible fields. (Sorting lives here, not a one-off
-  setting.) See `updates/2026-10-04 SIDEBAR-UX - OPEN/`.
+- [x] **SIDEBAR-UX** — customisable notes sidebar: sort (updated/created/name,
+  asc/desc), grouping (flat/date/category), per-row field toggles (relative +
+  absolute times, category dots, tags, preview), and pinning — all from one `⋯`
+  "Customise" popover; config persisted as a single view (named views seam left
+  open). See `updates/2026-10-04 SIDEBAR-UX - CLOSED/`.
 
 ## Next (priority modalities)
 - [ ] **AUDIO** — record/import audio; local whisper.cpp transcript; transcript↔

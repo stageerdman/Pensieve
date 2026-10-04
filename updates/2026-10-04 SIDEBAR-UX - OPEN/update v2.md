@@ -60,4 +60,22 @@ first-run exactly as it is: the capability is opt-in, defaults unchanged.
 
 ## Live status
 - [x] Planning + UX synthesis.
-- [ ] P1 · [ ] P2 · [ ] P3 · [ ] P4 · [ ] P5
+- [x] **P1** — core model + pure arrange layer + stores (sort removed; pinned/
+  excerpt surfaced). Tests green.
+- [x] **P2** — pinning data path (`Store.setPinned`, `useNotes.togglePin`; no
+  updatedAt bump). Tests green.
+- [x] **P3+P4** — Sidebar rebuilt (sections + NoteRow), `⋯` Customise popover,
+  `SidebarView` persistence, `⌘P` pin shortcut. `tsc` clean, 67 tests pass,
+  `npm run build` OK.
+- [~] **P5** — close-out. `npm test`/`tsc`/`build` ✅. **Browser visual check
+  skipped: the Claude-in-Chrome extension was disconnected this session** — logic
+  is covered by unit tests + a clean native build; owner verifies the `.app`.
+  Remaining: `tauri build`, docs, merge to main, push (GitHub was unreachable
+  mid-session — retry).
+
+## Notes for the owner (please eyeball in the native app)
+- The `⋯` next to "Notes" opens Customise: Sort (click the active key to flip
+  ↑/↓), Group by (None / Date / Category), and per-row field toggles. Applies live.
+- Hover a row → a pin appears at the right; click to pin (or `⌘P` on the open
+  note). Pinned notes rise into a "Pinned" band at the top.
+- Defaults are unchanged from before (flat, newest-updated first, relative time).

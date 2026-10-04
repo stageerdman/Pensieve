@@ -30,4 +30,15 @@
 never opens the popover sees essentially today's sidebar; `⋯` is the only new pixel.
 
 ## Lessons
-- (add as we build)
+- **Pinning must not be an "edit".** Routing pin through `store.save()` would bump
+  `updatedAt` and reorder an update-sorted list on every pin. A dedicated
+  `setPinned` writes only the sidecar — body and `updatedAt` untouched.
+- **One "now" per render.** The sidebar computes `now` once and threads it into
+  both `arrange` (date buckets) and every row's time formatting, so a bucket header
+  and its rows can never disagree about "today".
+- **Row restraint via collapse, not growth.** With many field toggles on, rows cap
+  at ≤2 sub-lines and one printed timestamp (others in the hover tooltip) rather
+  than growing unbounded — keeps the list scannable (design.md).
+- **Three UX lenses in parallel converged** (controls / model / rows). Divergences
+  (default grouping, density) were the orchestrator's call; defaulting to today's
+  flat view honoured "Steve-Jobs strict" while shipping the full capability opt-in.

@@ -1,10 +1,21 @@
 Pensieve — known issues & TODOs
 (one line per item; move resolved items out or mark done)
 
-NEXT STEPS (NOTION-UX close-out):
-- [ ] Verify the NATIVE app (`npm run tauri dev`): editor feel, Appearance menu
-      toggles theme (Light/Dark/System), overall chrome. Then `npm run tauri build`.
-- [ ] Merge `update/notion-ux` → `main`, prune branch, rename update folder `- CLOSED`.
+NEXT STEPS (SIDEBAR-UX close-out):
+- [ ] Verify the NATIVE app (`npm run tauri dev`): the "..." Customise popover
+      (sort / group / field toggles apply live), hover-to-pin + ⌘P, the Pinned
+      band, date & category grouping. Browser visual check was skipped this
+      session (Claude-in-Chrome extension was disconnected).
+- [ ] Prune the stale `update/notion-ux` branch (folder already CLOSED; left over
+      from the previous update).
+
+SIDEBAR-UX — deferred / intentionally cut (non-blocking):
+- [ ] Named saved views: ship was a single persisted view; the SidebarView type
+      carries id/name so wrapping it in { views[], activeId } + a "Save as view…"
+      affordance is purely additive when a second lens is a daily need.
+- [ ] Row density toggle (comfortable/compact) — cut from v1 to stay minimal.
+- [ ] Grouping by tag — cut (tags are many-per-note, make poor group keys).
+- [ ] Pin reorder (drag to arrange pinned notes) — not in v1.
 
 NOTION-UX — deferred polish (non-blocking, from ux-notion-chrome.md):
 - [ ] Editor side menu: show the drag handle only, drop the "+" (slash covers "add").
