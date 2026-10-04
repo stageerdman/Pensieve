@@ -12,6 +12,9 @@ import {
   BasicTextStyleButton,
   ColorStyleButton,
   CreateLinkButton,
+  SideMenuController,
+  SideMenu,
+  DragHandleButton,
 } from "@blocknote/react";
 import { AllSelection, TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
@@ -128,7 +131,22 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
           .md stays lossless. Text/highlight colour IS included — our extended
           standard (lib/md/extended) round-trips colours losslessly. Underline is
           omitted (no Markdown equivalent). */}
-      <BlockNoteView editor={editor} theme={theme} onChange={handleChange} formattingToolbar={false}>
+      <BlockNoteView
+        editor={editor}
+        theme={theme}
+        onChange={handleChange}
+        formattingToolbar={false}
+        sideMenu={false}
+      >
+        {/* Block side menu reduced to the drag handle only — no "+" add button
+            (the "/" slash menu already covers adding blocks). Calmer left gutter. */}
+        <SideMenuController
+          sideMenu={(props) => (
+            <SideMenu {...props}>
+              <DragHandleButton {...props} />
+            </SideMenu>
+          )}
+        />
         <FormattingToolbarController
           formattingToolbar={() => (
             <FormattingToolbar>

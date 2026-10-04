@@ -29,7 +29,7 @@ EDITOR — extended .md (toggles & indentation now lossless):
       Fine for personal-size notes; optimise if large toggle-heavy notes feel slow.
 
 NOTION-UX — deferred polish (non-blocking, from ux-notion-chrome.md):
-- [ ] Editor side menu: show the drag handle only, drop the "+" (slash covers "add").
+- [x] Editor side menu: drag handle only, "+" dropped (slash covers "add"). 2026-10-04.
 - [ ] Slash menu: trim to supported blocks; drop the gray description subtext;
       review Toggle List (details) — confirm it round-trips to .md or remove it.
 - [ ] Two-level ⌘A: one-time StatusWhisper hint ("Press ⌘A again to select the whole
