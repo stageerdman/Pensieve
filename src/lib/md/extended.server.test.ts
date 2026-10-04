@@ -59,6 +59,12 @@ describe("BlockNote .md round-trip (extended standard)", () => {
     expect(await roundTrip(once)).toBe(once);
   });
 
+  it("preserves a note link {@id|title} through a round-trip", async () => {
+    const out = await roundTrip("see {@abc123|My Goals} here\n");
+    expect(out).toContain("{@abc123|My Goals}");
+    expect(await roundTrip(out)).toBe(out);
+  });
+
   it("decodes a colour run into a styled run", async () => {
     const blocks = (await extendedMdToBlocks(editor, "a {bg:red}b{/} c\n")) as any[];
     const run = blocks[0].content.find((c: any) => c.styles?.backgroundColor === "red");

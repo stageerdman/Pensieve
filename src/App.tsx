@@ -137,7 +137,7 @@ export default function App() {
         <div className="flex min-h-0 flex-1">
           <section className="flex-1 overflow-y-auto">
             {current ? (
-              <div className="w-full px-6 py-10">
+              <div className="w-full px-6 pt-4 pb-16">
                 {confirmDelete && (
                   <div className="mx-auto mb-4 max-w-[72ch] rounded border border-danger/40 bg-danger/10 px-3 py-1.5 text-sm text-danger">
                     Press ⌘⌫ again to delete this note.
@@ -149,6 +149,9 @@ export default function App() {
                   onChange={change}
                   focusMode={focusMode}
                   theme={theme}
+                  selfId={current.id}
+                  notes={notes}
+                  onOpenNote={(id) => void open(id)}
                 />
               </div>
             ) : (

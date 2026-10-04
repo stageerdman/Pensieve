@@ -41,6 +41,7 @@
   max-width: 72ch;
   margin: 0 auto;
   padding-inline: 0;
+  padding-block: 0; /* the app container owns vertical spacing — no low first line */
   color: hsl(var(--text));
   font-size: 1.05rem;
   line-height: 1.7;
@@ -75,4 +76,15 @@
 .pensieve-editor code {
   font-family: var(--font-mono);
   font-size: 0.9em;
+}
+
+/* Note links (@-mentions) — accent, clickable. */
+.pensieve-editor .note-link {
+  color: hsl(var(--accent));
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+.pensieve-editor .note-link:hover {
+  background: hsl(var(--accent) / 0.12);
 }

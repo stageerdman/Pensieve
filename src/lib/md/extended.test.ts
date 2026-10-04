@@ -57,6 +57,22 @@ describe("extended-markdown colour bridge", () => {
     expect(out[0].children[0].content[0].text).toBe("{fg:blue}nested{/}");
   });
 
+  it("encodes a note link to {@id|title} and decodes it back", () => {
+    const link = { type: "noteLink", props: { noteId: "abc123", title: "My Note" } };
+    const [enc] = encodeInline([link as any]) as any[];
+    expect(enc).toEqual({ type: "text", text: "{@abc123|My Note}", styles: {} });
+    const [dec] = decodeInline([enc]) as any[];
+    expect(dec).toEqual({ type: "noteLink", props: { noteId: "abc123", title: "My Note" } });
+  });
+
+  it("decodes a note link embedded in surrounding text", () => {
+    const out = decodeInline([run("see {@id1|Goals} today")]) as any[];
+    expect(out.map((r) => r.type)).toEqual(["text", "noteLink", "text"]);
+    expect(out[1].props).toEqual({ noteId: "id1", title: "Goals" });
+    expect(out[0].text).toBe("see ");
+    expect(out[2].text).toBe(" today");
+  });
+
   it("passes through blocks whose content is not an inline array (e.g. tables)", () => {
     const blocks = [{ type: "table", content: { type: "tableContent", rows: [] } }];
     expect(mapBlocks(blocks as any, encodeInline)).toEqual(blocks);

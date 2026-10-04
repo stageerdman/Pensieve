@@ -2,10 +2,12 @@ import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import "./blocknote-skin.css";
 import { BlockNoteView } from "@blocknote/mantine";
+import { BlockNoteSchema, defaultInlineContentSpecs } from "@blocknote/core";
 import {
   useCreateBlockNote,
   FormattingToolbar,
   FormattingToolbarController,
+  SuggestionMenuController,
   BlockTypeSelect,
   BasicTextStyleButton,
   ColorStyleButton,
@@ -15,6 +17,14 @@ import { AllSelection, TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { useEffect, useRef } from "react";
 import { blocksToExtendedMd, extendedMdToBlocks } from "../lib/md/extended";
+import { NoteLink, setNoteLinkOpen } from "./noteLink";
+import type { NoteMeta } from "../lib/types";
+
+// Editor schema = the default blocks/styles + our custom "noteLink" inline content
+// (inserted via the "@" menu, round-tripped through lib/md/extended).
+const schema = BlockNoteSchema.create({
+  inlineContentSpecs: { ...defaultInlineContentSpecs, noteLink: NoteLink },
+});
 
 // Two-level ⌘A: the first press selects the current block's text; the next selects
 // the whole document. We handle both levels explicitly (rather than defer to the
@@ -52,12 +62,20 @@ interface EditorProps {
   onChange: (markdown: string) => void;
   focusMode: boolean;
   theme: "light" | "dark";
+  selfId: string; // the current note — excluded from the "@" menu (no self-links)
+  notes: NoteMeta[]; // for the "@" note-link menu
+  onOpenNote: (id: string) => void; // clicking a note link opens it
 }
 
-export function Editor({ markdown, onChange, focusMode, theme }: EditorProps) {
-  const editor = useCreateBlockNote();
+export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, onOpenNote }: EditorProps) {
+  const editor = useCreateBlockNote({ schema });
   const loading = useRef(true);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
+
+  // Wire note-link clicks to open the note (the inline spec's render is module-level).
+  useEffect(() => setNoteLinkOpen(onOpenNote), [onOpenNote]);
 
   // Two-level ⌘A. Attached to the wrapper (capture phase) so we read the live
   // ProseMirror view at event time — it is reliably mounted by then.
@@ -123,6 +141,25 @@ export function Editor({ markdown, onChange, focusMode, theme }: EditorProps) {
               <CreateLinkButton key="link" />
             </FormattingToolbar>
           )}
+        />
+        {/* "@" opens a menu to link an existing note (recent-first; filters by title). */}
+        <SuggestionMenuController
+          triggerCharacter="@"
+          getItems={async (query) => {
+            const q = query.toLowerCase();
+            return notesRef.current
+              .filter((n) => n.id !== selfId && (n.title || "Untitled").toLowerCase().includes(q))
+              .slice(0, 8)
+              .map((n) => ({
+                title: n.title || "Untitled",
+                onItemClick: () => {
+                  editor.insertInlineContent([
+                    { type: "noteLink", props: { noteId: n.id, title: n.title || "Untitled" } },
+                    " ",
+                  ]);
+                },
+              }));
+          }}
         />
       </BlockNoteView>
     </div>

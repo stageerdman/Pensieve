@@ -7,10 +7,11 @@
 // coloured runs are bridged at the BLOCK level, around BlockNote's converter, so
 // the `.md` string stays lossless.
 //
-// v1 standard — inline colour runs (text colour and/or highlight/background):
+// v1 standard — inline colour runs and note links:
 //   {fg:red}text{/}            red text
 //   {bg:yellow}text{/}         yellow highlight
 //   {fg:red bg:yellow}text{/}  both
+//   {@noteId|Title}            a link to another note (the "@" menu)
 // Colour names are BlockNote's palette names. "default" is never written.
 
 /** The two BlockNote converter methods we depend on (client editor or server-util).
@@ -26,7 +27,11 @@ interface TextInline {
   text: string;
   styles?: Record<string, unknown> & { textColor?: string; backgroundColor?: string };
 }
-type Inline = TextInline | { type: string; [k: string]: unknown };
+interface NoteLinkInline {
+  type: "noteLink";
+  props?: { noteId?: string; title?: string };
+}
+type Inline = TextInline | NoteLinkInline | { type: string; [k: string]: unknown };
 interface Block {
   content?: unknown;
   children?: Block[];
@@ -39,9 +44,14 @@ function isText(i: Inline): i is TextInline {
 
 const colorOf = (v?: string) => (v && v !== "default" ? v : null);
 
-/** blocks -> md: wrap coloured runs in {fg:.. bg:..}…{/}, dropping the colour styles. */
+/** blocks -> md: note links become {@id|title}; coloured runs become {fg:.. bg:..}…{/}. */
 export function encodeInline(items: Inline[]): Inline[] {
   return items.map((it) => {
+    if (it?.type === "noteLink") {
+      const { noteId = "", title = "" } = (it as NoteLinkInline).props ?? {};
+      const safeTitle = String(title).replace(/[{}|]/g, "");
+      return { type: "text", text: `{@${noteId}|${safeTitle}}`, styles: {} };
+    }
     if (!isText(it) || !it.styles) return it;
     const fg = colorOf(it.styles.textColor);
     const bg = colorOf(it.styles.backgroundColor);
@@ -52,31 +62,36 @@ export function encodeInline(items: Inline[]): Inline[] {
   });
 }
 
-const RUN = /\{((?:fg:[\w-]+)?(?:\s)?(?:bg:[\w-]+)?)\}([\s\S]*?)\{\/\}/g;
+// Either a colour run ({fg/bg}…{/}) or a note link ({@id|title}).
+const TOKEN = /\{((?:fg:[\w-]+)?(?:\s)?(?:bg:[\w-]+)?)\}([\s\S]*?)\{\/\}|\{@([^|{}]*)\|([^{}]*)\}/g;
 
-/** md -> blocks: turn {fg:.. bg:..}…{/} runs back into colour-styled text. */
+/** md -> blocks: turn colour runs back into styled text and {@id|title} into note links. */
 export function decodeInline(items: Inline[]): Inline[] {
   const out: Inline[] = [];
   for (const it of items) {
-    if (!isText(it) || !/\{(?:fg|bg):/.test(it.text)) {
+    if (!isText(it) || !/\{(?:fg:|bg:|@)/.test(it.text)) {
       out.push(it);
       continue;
     }
     const text = it.text;
     let last = 0;
     let matched = false;
-    for (let m = RUN.exec(text); m !== null; m = RUN.exec(text)) {
+    for (let m = TOKEN.exec(text); m !== null; m = TOKEN.exec(text)) {
       matched = true;
       if (m.index > last) out.push({ ...it, text: text.slice(last, m.index) });
-      const styles = { ...(it.styles ?? {}) };
-      const fg = m[1].match(/fg:([\w-]+)/);
-      const bg = m[1].match(/bg:([\w-]+)/);
-      if (fg) styles.textColor = fg[1];
-      if (bg) styles.backgroundColor = bg[1];
-      out.push({ ...it, text: m[2], styles });
+      if (m[3] !== undefined) {
+        out.push({ type: "noteLink", props: { noteId: m[3], title: m[4] ?? "" } });
+      } else {
+        const styles = { ...(it.styles ?? {}) };
+        const fg = m[1].match(/fg:([\w-]+)/);
+        const bg = m[1].match(/bg:([\w-]+)/);
+        if (fg) styles.textColor = fg[1];
+        if (bg) styles.backgroundColor = bg[1];
+        out.push({ ...it, text: m[2], styles });
+      }
       last = m.index + m[0].length;
     }
-    RUN.lastIndex = 0;
+    TOKEN.lastIndex = 0;
     if (!matched) out.push(it);
     else if (last < text.length) out.push({ ...it, text: text.slice(last) });
   }
