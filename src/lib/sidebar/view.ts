@@ -1,10 +1,6 @@
 // The sidebar "view" — how the notes list is ordered, divided, and what each row
-// shows. One active view is persisted per device (see persist.ts). It is pure
-// configuration; the actual ordering/grouping happens in arrange.ts.
-//
-// The shape deliberately carries `id`/`name` so that a future "named saved views"
-// feature is a purely additive change (wrap the single view in { views[], activeId }
-// and add a switcher) — no field changes, no data migration.
+// shows. The app keeps a small collection of named views and one active id, so the
+// owner can save several lenses and switch between them.
 
 /** How the list is ordered. Keys map directly onto NoteMeta fields. */
 export type SortKey = "updatedAt" | "createdAt" | "title";
@@ -20,13 +16,17 @@ export type GroupMode =
 /** Which per-note fields render under the title. Pure display toggles; the title
  *  itself is always shown and is not a field here. */
 export interface SidebarFields {
-  relativeTime: boolean; // "2h ago"
+  relativeUpdated: boolean; // "2h ago" (from updatedAt)
+  relativeCreated: boolean; // "3d ago" (from createdAt)
   updatedAbs: boolean; // "Oct 3"
-  createdAbs: boolean; // "made Sep 28"
+  createdAbs: boolean; // "Sep 28"
   category: boolean; // category colour dot(s)
   tags: boolean; // tag chips
-  preview: boolean; // first line of the body (from NoteMeta.excerpt)
+  preview: boolean; // first lines of the body (from NoteMeta.excerpt)
 }
+
+/** How many lines the preview snippet may occupy. */
+export type PreviewLines = 1 | 2 | 3;
 
 /** A complete sidebar configuration. One of these is always active. */
 export interface SidebarView {
@@ -36,10 +36,17 @@ export interface SidebarView {
   sortDir: SortDir;
   group: GroupMode;
   fields: SidebarFields;
+  previewLines: PreviewLines;
 }
 
-/** The calm default — deliberately equal to the pre-SIDEBAR-UX behaviour: a flat
- *  list, newest-updated first, showing only the relative time under the title. */
+/** The persisted state: the set of saved views and which one is active. */
+export interface SidebarState {
+  views: SidebarView[];
+  activeId: string;
+}
+
+/** The calm default — a flat list, newest-updated first, showing only the relative
+ *  update time under the title. */
 export const DEFAULT_VIEW: SidebarView = {
   id: "default",
   name: "Notes",
@@ -47,20 +54,33 @@ export const DEFAULT_VIEW: SidebarView = {
   sortDir: "desc",
   group: "none",
   fields: {
-    relativeTime: true,
+    relativeUpdated: true,
+    relativeCreated: false,
     updatedAbs: false,
     createdAbs: false,
     category: false,
     tags: false,
     preview: false,
   },
+  previewLines: 2,
+};
+
+export const DEFAULT_STATE: SidebarState = {
+  views: [DEFAULT_VIEW],
+  activeId: "default",
 };
 
 /** The grouping actually used for rendering. Sorting by name inside date buckets
- *  reads as broken ("why is Apple above Banana under Today?"), so name-sort +
- *  date-grouping collapses to a flat A–Z list. The stored `group` is left intact
- *  so switching back to a date sort restores the buckets. */
+ *  reads as broken, so name-sort + date-grouping collapses to a flat A–Z list. The
+ *  stored `group` is left intact so switching back to a date sort restores buckets. */
 export function effectiveGroup(view: SidebarView): GroupMode {
   if (view.sortKey === "title" && view.group === "date") return "none";
   return view.group;
+}
+
+/** The active view from a state (falls back to the first view, then the default). */
+export function activeView(state: SidebarState): SidebarView {
+  return (
+    state.views.find((v) => v.id === state.activeId) ?? state.views[0] ?? DEFAULT_VIEW
+  );
 }

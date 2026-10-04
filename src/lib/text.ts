@@ -29,16 +29,25 @@ export function excerptFromMarkdown(md: string, max = 140): string {
   const lines = md.split("\n");
   const parts: string[] = [];
   let skippedTitle = false;
+  let inFence = false; // inside a ``` code block — skipped entirely (previews = prose)
   for (const raw of lines) {
     const line = raw.trim();
+    if (/^(```|~~~)/.test(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
     if (!line) continue;
     const text = line
       .replace(/^#{1,6}\s*/, "") // heading marks
       .replace(/^[-*+]\s+/, "") // bullet marks
       .replace(/^>\s*/, "") // blockquote
       .replace(/^\d+\.\s+/, "") // ordered list
-      .replace(/[*_`~]/g, "") // inline emphasis/code marks
+      .replace(/`([^`]*)`/g, "$1") // inline code → its text, no backticks
+      .replace(/[*_`~]/g, "") // remaining emphasis/code marks
       .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1") // links/images → their text
+      .replace(/\{(?:fg|bg):[^}]*\}|\{\/\}/g, "") // our colour sentinels
+      .replace(/\{@[^|}]*\|([^}]*)\}/g, "$1") // note links → their title
       .trim();
     if (!text) continue;
     // Drop the first content line if it is just the title (already shown on the row).

@@ -9,17 +9,17 @@ import { Clock, PanelRight } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
 import { useNotes } from "./hooks/useNotes";
 import { useTheme } from "./hooks/useTheme";
-import type { SidebarView } from "./lib/sidebar/view";
-import { loadView, saveView } from "./lib/sidebar/persist";
+import type { SidebarState } from "./lib/sidebar/view";
+import { loadState, saveState } from "./lib/sidebar/persist";
 
 export default function App() {
   const { notes, current, status, open, create, remove, change, updateMeta, togglePin } =
     useNotes();
   const { theme, toggle } = useTheme();
-  const [view, setView] = useState<SidebarView>(() => loadView());
-  const changeView = useCallback((v: SidebarView) => {
-    setView(v);
-    saveView(v);
+  const [sidebarState, setSidebarState] = useState<SidebarState>(() => loadState());
+  const changeSidebarState = useCallback((s: SidebarState) => {
+    setSidebarState(s);
+    saveState(s);
   }, []);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [timelineOpen, setTimelineOpen] = useState(false);
@@ -111,12 +111,12 @@ export default function App() {
       {showChrome && sidebarOpen && (
         <Sidebar
           notes={notes}
-          view={view}
+          state={sidebarState}
           currentId={current?.id}
           onOpen={(id) => void open(id)}
           onNew={() => void create()}
           onTogglePin={(id) => void togglePin(id)}
-          onChangeView={changeView}
+          onChangeState={changeSidebarState}
         />
       )}
 

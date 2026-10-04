@@ -1,6 +1,5 @@
-import { useMemo } from "react";
 import type { NoteMeta } from "../lib/types";
-import type { SidebarView } from "../lib/sidebar/view";
+import { activeView, type SidebarState } from "../lib/sidebar/view";
 import { arrange } from "../lib/sidebar/arrange";
 import { NoteRow } from "./NoteRow";
 import { SidebarCustomise } from "./SidebarCustomise";
@@ -11,35 +10,32 @@ import { SidebarCustomise } from "./SidebarCustomise";
 
 interface SidebarProps {
   notes: NoteMeta[];
-  view: SidebarView;
+  state: SidebarState;
   currentId?: string;
   onOpen: (id: string) => void;
   onNew: () => void;
   onTogglePin: (id: string) => void;
-  onChangeView: (view: SidebarView) => void;
+  onChangeState: (state: SidebarState) => void;
 }
 
 export function Sidebar({
   notes,
-  view,
+  state,
   currentId,
   onOpen,
   onNew,
   onTogglePin,
-  onChangeView,
+  onChangeState,
 }: SidebarProps) {
-  // One "now" per render so every row's relative/absolute time and the date buckets
-  // agree with each other.
+  const view = activeView(state);
+  // One "now" per render so every row's time and the date buckets agree.
   const now = Date.now();
-  const sections = useMemo(() => arrange(notes, view, now), [notes, view, now]);
+  const sections = arrange(notes, view, now);
 
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r border-border bg-surface">
-      <div className="flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-1">
-          <span className="text-sm font-medium text-text-muted">{view.name}</span>
-          <SidebarCustomise view={view} onChange={onChangeView} />
-        </div>
+      <div className="flex items-center justify-between px-3 py-3">
+        <SidebarCustomise state={state} onChange={onChangeState} />
         <button
           onClick={onNew}
           aria-label="New note"

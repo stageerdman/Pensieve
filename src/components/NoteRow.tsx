@@ -1,6 +1,6 @@
 import type { MouseEvent } from "react";
 import type { Category, NoteMeta } from "../lib/types";
-import type { SidebarView } from "../lib/sidebar/view";
+import type { PreviewLines, SidebarView } from "../lib/sidebar/view";
 import { relativeTime, absoluteDate } from "../lib/sidebar/format";
 import { Pin } from "./icons";
 
@@ -19,12 +19,17 @@ interface NoteRowProps {
 }
 
 // Category → a small colour dot. Names are too long to print in a 232px row, so the
-// dot carries the label and the full names live in the row's hover tooltip. Dots are
-// content labels (like photo colours), not chrome, so a few hues are fine here.
+// dot carries the label and the full names live in the row's hover tooltip.
 const DOT: Record<Category, string> = {
   "Notes & Lessons": "bg-accent",
   "In my mind": "bg-text-muted",
   Execution: "bg-success",
+};
+
+const CLAMP: Record<PreviewLines, string> = {
+  1: "line-clamp-1",
+  2: "line-clamp-2",
+  3: "line-clamp-3",
 };
 
 export function NoteRow({ note, view, active, now, onOpen, onTogglePin }: NoteRowProps) {
@@ -33,12 +38,13 @@ export function NoteRow({ note, view, active, now, onOpen, onTogglePin }: NoteRo
   const tags = note.tags ?? [];
   const showDots = f.category && cats.length > 0;
 
-  // The enabled timestamps, in priority order, rendered inline (relative plain,
-  // absolutes in mono). The hover tooltip always carries the full detail.
+  // The enabled timestamps, rendered inline (relative plain, absolute mono). The
+  // hover tooltip always carries the full detail.
   const times: { text: string; mono: boolean }[] = [];
-  if (f.relativeTime) times.push({ text: relativeTime(note.updatedAt, now), mono: false });
+  if (f.relativeUpdated) times.push({ text: relativeTime(note.updatedAt, now), mono: false });
+  if (f.relativeCreated) times.push({ text: relativeTime(note.createdAt, now), mono: false });
   if (f.updatedAbs) times.push({ text: absoluteDate(note.updatedAt, now), mono: true });
-  if (f.createdAbs) times.push({ text: `made ${absoluteDate(note.createdAt, now)}`, mono: true });
+  if (f.createdAbs) times.push({ text: absoluteDate(note.createdAt, now), mono: true });
 
   const showPreview = f.preview && !!note.excerpt;
   const showTags = f.tags && tags.length > 0;
@@ -62,7 +68,7 @@ export function NoteRow({ note, view, active, now, onOpen, onTogglePin }: NoteRo
       onClick={() => onOpen(note.id)}
       aria-current={active ? "true" : undefined}
       title={tooltip}
-      className="group relative block w-full rounded-md px-3 py-2 text-left hover:bg-surface-raised aria-[current=true]:bg-surface-raised aria-[current=true]:before:absolute aria-[current=true]:before:inset-y-1 aria-[current=true]:before:left-0 aria-[current=true]:before:w-0.5 aria-[current=true]:before:rounded-full aria-[current=true]:before:bg-accent"
+      className="group relative block w-full select-none rounded-md px-3 py-2 text-left hover:bg-surface-raised aria-[current=true]:bg-surface-raised aria-[current=true]:before:absolute aria-[current=true]:before:inset-y-1 aria-[current=true]:before:left-0 aria-[current=true]:before:w-0.5 aria-[current=true]:before:rounded-full aria-[current=true]:before:bg-accent"
     >
       {/* Title line: category dots · title · pin */}
       <span className="flex items-center gap-1.5">
@@ -76,12 +82,13 @@ export function NoteRow({ note, view, active, now, onOpen, onTogglePin }: NoteRo
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-text">
           {note.title || "Untitled"}
         </span>
+        {/* Generous hit area (-m-1 p-1) so the pin is easy to click. */}
         <span
           role="button"
           aria-label={note.pinned ? "Unpin note" : "Pin note"}
           onClick={pin}
           className={
-            "shrink-0 text-text-muted/60 hover:text-text " +
+            "-m-1 shrink-0 rounded p-1 text-text-muted/60 hover:bg-surface hover:text-text " +
             (note.pinned ? "opacity-100" : "opacity-0 group-hover:opacity-100")
           }
         >
@@ -90,7 +97,7 @@ export function NoteRow({ note, view, active, now, onOpen, onTogglePin }: NoteRo
       </span>
 
       {showPreview && (
-        <span className="mt-1 block truncate text-[13px] text-text-muted">
+        <span className={`mt-1 block text-[13px] text-text-muted ${CLAMP[view.previewLines]}`}>
           {note.excerpt}
         </span>
       )}
