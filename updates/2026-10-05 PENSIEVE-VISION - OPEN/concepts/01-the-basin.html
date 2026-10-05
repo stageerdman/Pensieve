@@ -1,0 +1,583 @@
+<!--
+  THE BASIN — a Pensieve vision concept (01)
+  Concept: the app taken literally as Dumbledore's Pensieve — a dark stone chamber
+  with a glowing silver basin whose surface is a living pool of memory-mist. You
+  POUR a thought in (it spirals down as a silver wisp), BROWSE drifting memory-
+  strands on the surface (hover to glimpse, click to DIVE into the full memory),
+  and ORGANISE by runes on the rim (categories) and depth (time: recent near the
+  surface, older deeper). All visuals are CSS + inline SVG + <canvas>; no assets.
+-->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Basin — a Pensieve concept</title>
+<style>
+  :root{
+    --ink:#070a0f;
+    --ink-2:#0c111a;
+    --stone:#1a202b;
+    --stone-hi:#2a3342;
+    --silver:#d8e6f2;
+    --silver-soft:#9fb4c7;
+    --silver-dim:#64748b;
+    --glow:#bfe3ff;
+    --glow-warm:#eaf4ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(120% 90% at 50% -10%, #11202e 0%, transparent 60%),
+      radial-gradient(90% 70% at 50% 120%, #0b1420 0%, transparent 55%),
+      linear-gradient(180deg,#05070b 0%, #090d14 45%, #05070b 100%);
+    color:var(--silver);
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,"Georgia",serif;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+    min-height:100%;
+  }
+  /* stone chamber walls */
+  .chamber{
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:
+      radial-gradient(60% 50% at 50% 42%, rgba(60,90,120,0.10), transparent 70%),
+      repeating-linear-gradient(115deg, rgba(255,255,255,0.012) 0 2px, transparent 2px 7px),
+      repeating-linear-gradient(-70deg, rgba(0,0,0,0.25) 0 3px, transparent 3px 11px);
+    mask:radial-gradient(130% 110% at 50% 45%, transparent 38%, #000 78%);
+  }
+  .vignette{position:fixed; inset:0; z-index:40; pointer-events:none;
+    box-shadow:inset 0 0 220px 60px rgba(0,0,0,0.85), inset 0 0 60px 10px rgba(0,0,0,0.6);}
+  .dust{position:fixed; inset:0; z-index:38; pointer-events:none; opacity:.5;}
+
+  .stage{position:relative; z-index:10; min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+    padding:clamp(16px,4vh,48px) 16px 40px;}
+
+  header.title{text-align:center; margin-bottom:clamp(4px,2vh,22px); user-select:none;}
+  header.title h1{
+    font-weight:500; letter-spacing:.42em; text-indent:.42em;
+    font-size:clamp(15px,2.4vw,22px); color:var(--silver-soft);
+    text-transform:uppercase;
+  }
+  header.title p{margin-top:8px; font-size:12.5px; letter-spacing:.08em;
+    color:var(--silver-dim); font-style:italic;}
+
+  /* ---- the basin ---- */
+  .basin-wrap{position:relative; width:min(86vw,560px); aspect-ratio:1/1;
+    margin:clamp(4px,2vh,14px) auto; }
+  .rim{
+    position:absolute; inset:0; border-radius:50%;
+    background:
+      conic-gradient(from 0deg, #3a4556, #1c2431, #45536a, #1a212c, #394655, #1c2431, #3a4556);
+    box-shadow:
+      0 30px 90px -20px rgba(0,0,0,0.9),
+      inset 0 0 40px rgba(0,0,0,0.6);
+    padding:clamp(14px,3.5vw,26px);
+  }
+  .rim::after{content:""; position:absolute; inset:0; border-radius:50%;
+    box-shadow:inset 0 2px 6px rgba(255,255,255,0.10), inset 0 -8px 20px rgba(0,0,0,0.7);
+    pointer-events:none;}
+  .bowl{
+    position:relative; width:100%; height:100%; border-radius:50%;
+    overflow:hidden; cursor:pointer;
+    background:radial-gradient(60% 60% at 50% 42%, #16222f, #0a131d 70%, #060b12);
+    box-shadow:inset 0 10px 40px rgba(0,0,0,0.85), inset 0 -4px 30px rgba(120,170,210,0.08);
+  }
+  #pool{position:absolute; inset:0; width:100%; height:100%; display:block;}
+  .surface-sheen{position:absolute; inset:0; border-radius:50%; pointer-events:none;
+    background:radial-gradient(40% 26% at 42% 30%, rgba(234,244,255,0.22), transparent 60%);
+    mix-blend-mode:screen;}
+
+  /* floating memory labels on the surface */
+  .wisp-label{
+    position:absolute; transform:translate(-50%,-50%);
+    pointer-events:auto; cursor:pointer; text-align:center;
+    opacity:0; transition:opacity .5s ease; will-change:transform,opacity;
+  }
+  .wisp-label.show{opacity:1;}
+  .wisp-dot{width:9px;height:9px;border-radius:50%;margin:0 auto 6px;
+    background:radial-gradient(circle,#eaf4ff,#8fc6ff 55%, rgba(143,198,255,0) 72%);
+    box-shadow:0 0 14px 3px rgba(160,210,255,0.55);}
+  .wisp-cap{display:none; font-size:11.5px; letter-spacing:.04em; color:var(--silver);
+    max-width:150px; line-height:1.3; text-shadow:0 1px 10px rgba(0,0,0,0.9);}
+  .wisp-label:hover{opacity:1 !important;}
+  .wisp-label:hover .wisp-cap{display:block;}
+  .wisp-label:hover .wisp-dot{box-shadow:0 0 22px 6px rgba(190,230,255,0.85);}
+  .wisp-sub{display:block; font-size:9.5px; color:var(--silver-dim); font-style:italic; margin-top:2px;}
+
+  /* rune ring (categories) */
+  .runes{position:absolute; inset:-3%; pointer-events:none;}
+  .rune{position:absolute; transform:translate(-50%,-50%);
+    width:30px;height:30px; border-radius:50%; display:grid; place-items:center;
+    color:var(--silver-dim); font-size:15px; pointer-events:auto; cursor:pointer;
+    border:1px solid rgba(159,180,199,0.12); background:rgba(10,16,24,0.5);
+    transition:.3s; user-select:none;}
+  .rune:hover,.rune.active{color:var(--glow-warm); border-color:rgba(190,230,255,0.6);
+    box-shadow:0 0 16px rgba(160,210,255,0.5); transform:translate(-50%,-50%) scale(1.12);}
+  .rune .tip{position:absolute; top:-26px; font-size:9.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--silver-soft); opacity:0; white-space:nowrap;
+    transition:.3s; pointer-events:none;}
+  .rune:hover .tip{opacity:1;}
+
+  /* depth gauge */
+  .depth{position:absolute; right:-6px; top:8%; height:84%; width:2px;
+    background:linear-gradient(#bfe3ff55, #bfe3ff08); border-radius:2px; pointer-events:none;}
+  .depth span{position:absolute; right:10px; font-size:9px; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--silver-dim); white-space:nowrap;}
+  .depth .top{top:-4px} .depth .bot{bottom:-4px}
+  @media(max-width:620px){.depth{display:none}}
+
+  /* ---- pour-in composer ---- */
+  .compose{width:min(92vw,520px); margin:clamp(10px,3vh,26px) auto 0; text-align:center;}
+  .compose .field{
+    position:relative; display:flex; align-items:center; gap:10px;
+    background:linear-gradient(180deg, rgba(20,28,38,0.9), rgba(10,15,22,0.9));
+    border:1px solid rgba(159,180,199,0.18); border-radius:40px;
+    padding:12px 12px 12px 22px;
+    box-shadow:0 10px 40px -12px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+  .compose .field:focus-within{border-color:rgba(190,230,255,0.5);
+    box-shadow:0 0 0 3px rgba(160,210,255,0.08), 0 14px 46px -12px rgba(0,0,0,0.85);}
+  .compose input{flex:1; background:transparent; border:0; outline:0;
+    color:var(--silver); font-family:inherit; font-size:15px; letter-spacing:.01em;}
+  .compose input::placeholder{color:var(--silver-dim); font-style:italic;}
+  .pour-btn{
+    flex:none; border:0; cursor:pointer; color:var(--ink);
+    font-family:inherit; font-weight:600; font-size:13px; letter-spacing:.1em;
+    text-transform:uppercase;
+    padding:10px 20px; border-radius:30px;
+    background:radial-gradient(120% 120% at 30% 20%, #eaf4ff, #9fd0ff 60%, #6aa9e0);
+    box-shadow:0 0 22px rgba(160,210,255,0.5);
+    transition:.2s;
+  }
+  .pour-btn:hover{transform:translateY(-1px); box-shadow:0 0 30px rgba(190,230,255,0.75);}
+  .pour-btn:active{transform:translateY(0);}
+  .compose .hint{margin-top:12px; font-size:11px; color:var(--silver-dim);
+    letter-spacing:.06em; font-style:italic;}
+
+  /* ---- dive view (immersive memory) ---- */
+  .dive{position:fixed; inset:0; z-index:60; display:none;
+    align-items:center; justify-content:center; padding:24px;
+    background:radial-gradient(90% 90% at 50% 45%, rgba(8,14,22,0.75), rgba(3,5,9,0.96));
+    backdrop-filter:blur(4px); opacity:0; transition:opacity .6s ease;}
+  .dive.open{display:flex; opacity:1;}
+  .dive-card{position:relative; width:min(92vw,660px); max-height:86vh; overflow:auto;
+    border-radius:20px; padding:clamp(24px,4vw,46px);
+    background:linear-gradient(180deg, rgba(20,29,40,0.92), rgba(9,14,21,0.96));
+    border:1px solid rgba(190,230,255,0.22);
+    box-shadow:0 40px 120px -20px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.06),
+      0 0 70px rgba(120,170,210,0.15);
+    transform:translateY(16px) scale(.98); transition:transform .6s cubic-bezier(.2,.8,.2,1);}
+  .dive.open .dive-card{transform:none;}
+  .dive-card .meta{display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center;
+    font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--silver-dim);
+    margin-bottom:18px;}
+  .dive-card .cat{color:var(--glow); border:1px solid rgba(190,230,255,0.3);
+    padding:3px 10px; border-radius:20px;}
+  .dive-card h2{font-weight:500; font-size:clamp(22px,3.6vw,30px); line-height:1.2;
+    color:var(--glow-warm); margin-bottom:16px; letter-spacing:.01em;}
+  .dive-card .body{font-size:15.5px; line-height:1.72; color:var(--silver-soft);}
+  .dive-card .body p{margin-bottom:14px;}
+  .dive-card .body em{color:var(--silver);}
+  .dive-coach{margin-top:22px; padding:16px 18px; border-radius:14px;
+    background:linear-gradient(180deg, rgba(120,170,210,0.10), rgba(120,170,210,0.03));
+    border:1px solid rgba(190,230,255,0.16); font-size:13.5px; line-height:1.6;
+    color:var(--silver-soft);}
+  .dive-coach b{color:var(--glow); font-weight:600; letter-spacing:.06em;
+    font-size:10.5px; text-transform:uppercase; display:block; margin-bottom:6px;}
+  .surface-btn{margin-top:26px; display:inline-flex; align-items:center; gap:8px;
+    background:transparent; border:1px solid rgba(159,180,199,0.3); color:var(--silver);
+    font-family:inherit; font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    padding:10px 20px; border-radius:30px; cursor:pointer; transition:.25s;}
+  .surface-btn:hover{border-color:rgba(190,230,255,0.6); color:var(--glow-warm);
+    box-shadow:0 0 18px rgba(160,210,255,0.4);}
+
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}
+</style>
+
+<div class="chamber"></div>
+<canvas class="dust"></canvas>
+
+<div class="stage">
+  <header class="title">
+    <h1>The Pensieve</h1>
+    <p>Lean in. Pour a thought, or dive into one that drifts by.</p>
+  </header>
+
+  <div class="basin-wrap">
+    <div class="rim">
+      <div class="bowl" id="bowl">
+        <canvas id="pool"></canvas>
+        <div class="surface-sheen"></div>
+        <!-- memory labels injected here -->
+      </div>
+    </div>
+
+    <div class="runes" id="runes"></div>
+
+    <div class="depth">
+      <span class="top">surface · today</span>
+      <span class="bot">depths · years past</span>
+    </div>
+  </div>
+
+  <div class="compose">
+    <form class="field" id="pourForm" autocomplete="off">
+      <input id="pourInput" type="text" placeholder="Draw a thought to the surface…" aria-label="Pour a thought into the Pensieve" />
+      <button class="pour-btn" type="submit">Pour in</button>
+    </form>
+    <p class="hint">Hover a drifting wisp to glimpse it · click to dive in</p>
+  </div>
+</div>
+
+<!-- Dive-in view -->
+<div class="dive" id="dive" role="dialog" aria-modal="true" aria-labelledby="diveTitle">
+  <div class="dive-card">
+    <div class="meta">
+      <span class="cat" id="diveCat">Reflection</span>
+      <span id="diveDate">—</span>
+      <span id="diveDepth">—</span>
+    </div>
+    <h2 id="diveTitle">—</h2>
+    <div class="body" id="diveBody"></div>
+    <div class="dive-coach" id="diveCoach"><b>The basin whispers</b><span id="diveCoachText"></span></div>
+    <button class="surface-btn" id="surfaceBtn">↑ Rise to the surface</button>
+  </div>
+</div>
+
+<div class="vignette"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- sample memories ----------
+  // depth 0 = surface/recent, 1 = deepest/oldest
+  var MEMORIES = [
+    { title:"The harbour at first light",
+      cat:"Moments", rune:"✶", date:"Today · 06:12", depth:0.08,
+      body:"<p>Walked down before anyone was awake. The water was flat as glass and the whole sky was poured out across it — pink going to a cold clean blue. I stood there longer than I meant to.</p><p>I keep forgetting that <em>mornings belong to me</em> if I just claim them.</p>",
+      coach:"You note the same thing in March and in June: the days you win start before 7. Worth protecting." },
+    { title:"What I actually want from this year",
+      cat:"Goals", rune:"◆", date:"3 days ago", depth:0.18,
+      body:"<p>Not more output. <em>Fewer, deeper things.</em> One piece of work I'd sign my name to. Being someone my friends can call at 2am. Getting strong enough to trust my own body again.</p><p>Everything else is noise dressed up as ambition.</p>",
+      coach:"This echoes three past entries. The pattern across all of them: you thrive on depth, not volume." },
+    { title:"The argument I didn't need to win",
+      cat:"Lessons", rune:"❉", date:"2 weeks ago", depth:0.34,
+      body:"<p>I was right and it cost me the evening. Being right is cheap. I'd trade every won argument for the version of me that just asks a question instead.</p>",
+      coach:"You've logged 'being right cost me' four times. Maybe the lesson is ready to become a habit." },
+    { title:"Grandfather's workshop",
+      cat:"Memories", rune:"❧", date:"Last month", depth:0.55,
+      body:"<p>The smell of cut pine and machine oil. He never explained — he just handed you the tool and let you ruin a few things first. I think that's how I learned anything that stuck.</p><p>I want to make things with my hands again.</p>",
+      coach:"A recurring thread: the work that satisfies you is tactile and slow. Noted for your winter goals." },
+    { title:"The idea on the train",
+      cat:"Sparks", rune:"✦", date:"6 weeks ago", depth:0.68,
+      body:"<p>A journal that doesn't just store what you say but <em>remembers it back to you</em> at the right moment. Not a vault — a mirror. Scribbled it on a receipt so I wouldn't lose it.</p>",
+      coach:"This spark predates the goal you set last week. Your instincts were already pointing here." },
+    { title:"When I almost quit",
+      cat:"Lessons", rune:"❉", date:"Early this year", depth:0.82,
+      body:"<p>Month four, nothing working, convinced I'd wasted a year. I stayed one more week on a coin-flip. That week everything turned. I never want to forget how close the edge felt — or how ordinary the saving grace was.</p>",
+      coach:"You return to this memory whenever you doubt. It may be your most useful one." },
+    { title:"The promise by the lake",
+      cat:"Moments", rune:"✶", date:"Years past", depth:0.93,
+      body:"<p>We said we'd come back every year. We didn't, of course. But I can still feel the cold stone and hear exactly what was said. Some promises matter more as memories than as plans.</p>",
+      coach:"The oldest strand still glowing. Some memories are kept not to act on, but to be whole." }
+  ];
+
+  var CATS = [
+    {name:"All", rune:"◉"},
+    {name:"Moments", rune:"✶"},
+    {name:"Goals", rune:"◆"},
+    {name:"Lessons", rune:"❉"},
+    {name:"Memories", rune:"❧"},
+    {name:"Sparks", rune:"✦"}
+  ];
+
+  // ---------- canvas pool (swirling mist) ----------
+  var bowl = document.getElementById("bowl");
+  var pool = document.getElementById("pool");
+  var pctx = pool.getContext("2d");
+  var W=0,H=0,CX=0,CY=0,R=0,DPR=Math.min(window.devicePixelRatio||1,2);
+
+  function sizePool(){
+    var r = bowl.getBoundingClientRect();
+    W=r.width; H=r.height;
+    pool.width = W*DPR; pool.height = H*DPR;
+    pctx.setTransform(DPR,0,0,DPR,0,0);
+    CX=W/2; CY=H/2; R=Math.min(W,H)/2;
+  }
+
+  // mist blobs rotating in the pool
+  var blobs=[];
+  function initBlobs(){
+    blobs=[];
+    for(var i=0;i<22;i++){
+      blobs.push({
+        ang:Math.random()*Math.PI*2,
+        rad:Math.random()*0.8,
+        spin:(0.08+Math.random()*0.16)*(Math.random()<0.5?1:1),
+        size:30+Math.random()*90,
+        drift:Math.random()*Math.PI*2,
+        alpha:0.05+Math.random()*0.12
+      });
+    }
+  }
+
+  // transient wisps (poured thoughts + dive ripples)
+  var wisps=[];
+  function pourWisp(){
+    wisps.push({t:0, life:2.2, type:"pour", x:CX, y:-R*0.2});
+  }
+  function riseWisp(x,y){
+    wisps.push({t:0, life:1.4, type:"rise", x:x, y:y});
+  }
+
+  var t0=performance.now();
+  function drawPool(now){
+    var dt=(now-(drawPool._l||now))/1000; drawPool._l=now;
+    var time=(now-t0)/1000;
+    pctx.clearRect(0,0,W,H);
+
+    // base glow
+    var g=pctx.createRadialGradient(CX,CY*0.9,R*0.1,CX,CY,R);
+    g.addColorStop(0,"rgba(150,200,240,0.16)");
+    g.addColorStop(0.5,"rgba(90,140,185,0.07)");
+    g.addColorStop(1,"rgba(10,18,28,0)");
+    pctx.fillStyle=g; pctx.beginPath(); pctx.arc(CX,CY,R,0,7); pctx.fill();
+
+    pctx.save();
+    pctx.beginPath(); pctx.arc(CX,CY,R*0.99,0,7); pctx.clip();
+    pctx.globalCompositeOperation="screen";
+
+    // swirling mist
+    for(var i=0;i<blobs.length;i++){
+      var b=blobs[i];
+      b.ang += b.spin*dt*(1-b.rad*0.4);
+      var wobble = Math.sin(time*0.6 + b.drift)*0.06;
+      var rr=(b.rad+wobble)*R*0.92;
+      var x=CX+Math.cos(b.ang)*rr;
+      var y=CY+Math.sin(b.ang)*rr*0.98;
+      var bg=pctx.createRadialGradient(x,y,0,x,y,b.size);
+      var a=b.alpha*(0.7+0.3*Math.sin(time*0.8+b.drift));
+      bg.addColorStop(0,"rgba(205,230,255,"+a+")");
+      bg.addColorStop(0.5,"rgba(140,185,225,"+(a*0.4)+")");
+      bg.addColorStop(1,"rgba(120,170,210,0)");
+      pctx.fillStyle=bg;
+      pctx.beginPath(); pctx.arc(x,y,b.size,0,7); pctx.fill();
+    }
+
+    // thin silver filament swirl lines
+    pctx.globalCompositeOperation="screen";
+    for(var k=0;k<3;k++){
+      pctx.beginPath();
+      for(var s=0;s<=60;s++){
+        var th=s/60*Math.PI*2;
+        var spiral=R*0.85*(s/60)*0.9;
+        var ox=Math.cos(th*2 + time*0.5 + k*2)*spiral;
+        var oy=Math.sin(th*2 + time*0.5 + k*2)*spiral*0.98;
+        var px=CX+ox, py=CY+oy;
+        if(s===0)pctx.moveTo(px,py); else pctx.lineTo(px,py);
+      }
+      pctx.strokeStyle="rgba(190,225,255,0.05)";
+      pctx.lineWidth=1.2; pctx.stroke();
+    }
+
+    // transient wisps
+    for(var w=wisps.length-1; w>=0; w--){
+      var p=wisps[w]; p.t+=dt;
+      var f=p.t/p.life;
+      if(f>=1){ wisps.splice(w,1); continue; }
+      if(p.type==="pour"){
+        // spiral down into centre
+        var turns=3.2, spin=f*turns*Math.PI*2;
+        var rad=(1-f)*R*0.55;
+        var yx=CX+Math.cos(spin)*rad;
+        var yy=(-R*0.2)+(CY+ Math.sin(spin)*rad*0.6 - (-R*0.2))*f;
+        for(var tr=0;tr<10;tr++){
+          var tf=f - tr*0.012; if(tf<0)continue;
+          var sp=tf*turns*Math.PI*2, rd=(1-tf)*R*0.55;
+          var tx=CX+Math.cos(sp)*rd, ty=(-R*0.2)+(CY+Math.sin(sp)*rd*0.6-(-R*0.2))*tf;
+          var ta=(1-f)*(1-tr/10)*0.9;
+          pctx.fillStyle="rgba(230,244,255,"+ta+")";
+          pctx.beginPath(); pctx.arc(tx,ty,3.4-tr*0.22,0,7); pctx.fill();
+        }
+        // landing bloom
+        if(f>0.82){
+          var bl=(f-0.82)/0.18;
+          pctx.strokeStyle="rgba(200,230,255,"+(0.5*(1-bl))+")";
+          pctx.lineWidth=2;
+          pctx.beginPath(); pctx.arc(CX,CY,bl*R*0.5,0,7); pctx.stroke();
+        }
+      } else { // rise ripple at dive point
+        pctx.strokeStyle="rgba(200,230,255,"+(0.5*(1-f))+")";
+        pctx.lineWidth=2;
+        pctx.beginPath(); pctx.arc(p.x,p.y,f*R*0.6,0,7); pctx.stroke();
+      }
+    }
+
+    pctx.restore();
+    requestAnimationFrame(drawPool);
+  }
+
+  // ---------- floating memory labels ----------
+  var labels=[];
+  function buildLabels(){
+    // remove old
+    labels.forEach(function(l){ if(l.el) l.el.remove(); });
+    labels=[];
+    var filtered = MEMORIES;
+    MEMORIES.forEach(function(m,i){
+      var el=document.createElement("div");
+      el.className="wisp-label";
+      el.innerHTML='<div class="wisp-dot"></div><div class="wisp-cap">'+m.title+
+        '<span class="wisp-sub">'+m.cat+' · '+m.date+'</span></div>';
+      bowl.appendChild(el);
+      labels.push({
+        el:el, mem:m,
+        ang:Math.random()*Math.PI*2,
+        // depth → radius-ish vertical: deeper memories sit lower & dimmer
+        baseR: 0.28 + m.depth*0.5,
+        speed:(0.03+Math.random()*0.04)*(Math.random()<0.5?1:-1),
+        depth:m.depth,
+        phase:Math.random()*Math.PI*2
+      });
+      el.addEventListener("click", function(){ openDive(m, el); });
+    });
+  }
+
+  function layoutLabels(now){
+    var time=now/1000;
+    labels.forEach(function(l){
+      l.ang += l.speed*0.016;
+      var wob=Math.sin(time*0.5+l.phase)*0.04;
+      var rr=(l.baseR+wob);
+      // vertical bias: deeper = toward bottom of bowl
+      var x=CX + Math.cos(l.ang)*rr*R*0.82;
+      var y=CY + Math.sin(l.ang)*rr*R*0.5 + l.depth*R*0.28;
+      l.el.style.left=x+"px";
+      l.el.style.top=y+"px";
+      // dimmer & smaller with depth
+      var op = (1-l.depth*0.6);
+      l.el.style.opacity = l.hidden ? 0 : op;
+      l.el.querySelector(".wisp-dot").style.transform="scale("+(1-l.depth*0.45)+")";
+    });
+    requestAnimationFrame(layoutLabels);
+  }
+
+  // reveal labels after mount
+  function revealLabels(){
+    labels.forEach(function(l,i){
+      setTimeout(function(){ l.el.classList.add("show"); }, 300+i*160);
+    });
+  }
+
+  // ---------- runes (categories) ----------
+  var activeCat="All";
+  function buildRunes(){
+    var ring=document.getElementById("runes");
+    ring.innerHTML="";
+    var rect=bowl.getBoundingClientRect();
+    CATS.forEach(function(c,i){
+      var el=document.createElement("div");
+      el.className="rune"+(c.name===activeCat?" active":"");
+      el.innerHTML=c.rune+'<span class="tip">'+c.name+'</span>';
+      var ang=(i/CATS.length)*Math.PI*2 - Math.PI/2;
+      el.style.left=(50+Math.cos(ang)*52)+"%";
+      el.style.top=(50+Math.sin(ang)*52)+"%";
+      el.addEventListener("click", function(){
+        activeCat=c.name; buildRunes(); filterByCat();
+      });
+      ring.appendChild(el);
+    });
+  }
+  function filterByCat(){
+    labels.forEach(function(l){
+      l.hidden = (activeCat!=="All" && l.mem.cat!==activeCat);
+      l.el.style.pointerEvents = l.hidden ? "none":"auto";
+    });
+  }
+
+  // ---------- pour (capture) ----------
+  var form=document.getElementById("pourForm");
+  var input=document.getElementById("pourInput");
+  form.addEventListener("submit", function(e){
+    e.preventDefault();
+    var v=input.value.trim();
+    if(!v) { input.focus(); return; }
+    pourWisp();
+    // add as a new surface memory after it settles
+    var m={ title:v, cat:activeCat==="All"?"Moments":activeCat, rune:"✶",
+      date:"Just now", depth:0.04,
+      body:"<p>"+v.replace(/</g,"&lt;")+"</p>",
+      coach:"A fresh strand. In time the basin will surface what it connects to." };
+    MEMORIES.unshift(m);
+    input.value="";
+    setTimeout(function(){ buildLabels(); filterByCat(); revealLabels(); }, 1400);
+  });
+
+  // ---------- dive view ----------
+  var dive=document.getElementById("dive");
+  function openDive(m, el){
+    if(el){ var r=bowl.getBoundingClientRect(), er=el.getBoundingClientRect();
+      riseWisp(er.left-r.left+er.width/2, er.top-r.top+er.height/2); }
+    document.getElementById("diveCat").textContent=m.cat;
+    document.getElementById("diveDate").textContent=m.date;
+    var dpct=Math.round(m.depth*100);
+    document.getElementById("diveDepth").textContent = m.depth<0.15? "near the surface" : (m.depth>0.75?"deep · "+dpct+"% down":dpct+"% down");
+    document.getElementById("diveTitle").textContent=m.title;
+    document.getElementById("diveBody").innerHTML=m.body;
+    document.getElementById("diveCoachText").textContent=" "+m.coach;
+    dive.classList.add("open");
+  }
+  function closeDive(){ dive.classList.remove("open"); }
+  document.getElementById("surfaceBtn").addEventListener("click", closeDive);
+  dive.addEventListener("click", function(e){ if(e.target===dive) closeDive(); });
+  document.addEventListener("keydown", function(e){ if(e.key==="Escape") closeDive(); });
+
+  // clicking the empty pool focuses the composer (pour ritual)
+  bowl.addEventListener("click", function(e){
+    if(e.target===bowl || e.target.id==="pool"){ input.focus(); }
+  });
+
+  // ---------- ambient dust ----------
+  var dust=document.querySelector(".dust");
+  var dctx=dust.getContext("2d");
+  var motes=[];
+  function sizeDust(){
+    dust.width=innerWidth*DPR; dust.height=innerHeight*DPR;
+    dctx.setTransform(DPR,0,0,DPR,0,0);
+    motes=[];
+    for(var i=0;i<60;i++){
+      motes.push({x:Math.random()*innerWidth,y:Math.random()*innerHeight,
+        r:Math.random()*1.4+0.3, s:Math.random()*0.3+0.05, a:Math.random()*0.4+0.1,
+        d:Math.random()*Math.PI*2});
+    }
+  }
+  function drawDust(now){
+    dctx.clearRect(0,0,innerWidth,innerHeight);
+    for(var i=0;i<motes.length;i++){
+      var m=motes[i];
+      m.y-=m.s; m.x+=Math.sin(now/2000+m.d)*0.2;
+      if(m.y<-5){m.y=innerHeight+5; m.x=Math.random()*innerWidth;}
+      dctx.fillStyle="rgba(190,225,255,"+(m.a*(0.5+0.5*Math.sin(now/1000+m.d)))+")";
+      dctx.beginPath(); dctx.arc(m.x,m.y,m.r,0,7); dctx.fill();
+    }
+    requestAnimationFrame(drawDust);
+  }
+
+  // ---------- boot ----------
+  function boot(){
+    sizePool(); initBlobs(); buildLabels(); buildRunes(); filterByCat();
+    sizeDust();
+    requestAnimationFrame(drawPool);
+    requestAnimationFrame(layoutLabels);
+    requestAnimationFrame(drawDust);
+    setTimeout(revealLabels, 400);
+  }
+  var rt;
+  window.addEventListener("resize", function(){
+    clearTimeout(rt);
+    rt=setTimeout(function(){ sizePool(); buildRunes(); sizeDust(); }, 150);
+  });
+  boot();
+})();
+</script>
