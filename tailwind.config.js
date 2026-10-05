@@ -14,6 +14,7 @@ export default {
         "text-muted": "hsl(var(--text-muted) / <alpha-value>)",
         border: "hsl(var(--border) / <alpha-value>)",
         accent: "hsl(var(--accent) / <alpha-value>)",
+        "accent-glow": "hsl(var(--accent-glow) / <alpha-value>)",
         success: "hsl(var(--success) / <alpha-value>)",
         warn: "hsl(var(--warn) / <alpha-value>)",
         danger: "hsl(var(--danger) / <alpha-value>)",

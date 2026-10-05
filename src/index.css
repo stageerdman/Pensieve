@@ -9,13 +9,17 @@
    LIGHTER than both. Same token, direction inverts per theme. */
 :root {
   color-scheme: light; /* native controls (date picker, scrollbars) follow the theme */
-  --surface: 0 0% 100%; /* main / editor page — #ffffff */
-  --surface-sunken: 40 14% 96%; /* sidebar — warm grey ~#f7f6f3 */
-  --surface-raised: 40 10% 93%; /* hover / menus / code */
-  --text: 45 8% 20%; /* warm near-black rgb(55,53,47) */
-  --text-muted: 45 4% 46%;
-  --border: 40 8% 91%;
-  --accent: 210 77% 49%; /* Notion blue #2383e2, nudged for AA on white */
+  /* Magical blue nudge (see UX.md): same Notion restraint, hue pulled toward the
+     pensieve-silver blue so the chrome feels cool and calm. Body text stays as dark
+     and legible as before (AA+), only a touch deeper and bluer. */
+  --surface: 210 30% 99%; /* main / editor page — whisper of cool-white #fbfcfe */
+  --surface-sunken: 214 20% 96%; /* sidebar — faint cool grey */
+  --surface-raised: 214 16% 94%; /* hover / menus / code */
+  --text: 218 16% 19%; /* near-black, slate-blue cast (~13.5:1 on surface) */
+  --text-muted: 218 9% 45%;
+  --border: 214 15% 90%;
+  --accent: 216 83% 49%; /* magical blue by hue+sat; L held dark so links/focus stay AA */
+  --accent-glow: 216 90% 60%; /* ambient halos only (focus/hover), never text */
   --success: 150 30% 40%;
   --warn: 32 80% 45%;
   --danger: 0 72% 58%;
@@ -41,13 +45,17 @@
 
 .dark {
   color-scheme: dark;
-  --surface: 0 0% 10%; /* #191919 main */
-  --surface-sunken: 0 0% 13%; /* #202020 sidebar */
-  --surface-raised: 0 0% 17%; /* hover / menus / code */
-  --text: 0 0% 82%;
-  --text-muted: 0 0% 55%;
-  --border: 0 0% 20%;
-  --accent: 203 53% 56%; /* #529cca */
+  /* The "deep blue-black stone" of the Basin. Felt, not theatrical: saturation is
+     kept modest so content stays the colour on screen. Text nudged a touch brighter
+     to stay crisp on the darker surface. */
+  --surface: 222 24% 11%; /* deep blue-black stone (~#141a24) */
+  --surface-sunken: 222 22% 13%; /* sidebar — one notch up, same family */
+  --surface-raised: 222 18% 17%; /* hover / menus / code */
+  --text: 216 18% 84%;
+  --text-muted: 218 12% 60%;
+  --border: 222 16% 21%;
+  --accent: 215 85% 74%; /* magical blue #8fb6ff register — glows on the stone, AA for links */
+  --accent-glow: 218 100% 72%; /* ambient halos only (focus/hover), never text */
   --success: 150 28% 55%;
   --warn: 36 85% 58%;
   --danger: 0 68% 65%;
