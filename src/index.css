@@ -215,35 +215,43 @@ body {
 
 /* (1) FOCUS BACKDROP — the rest of the app recedes: blurred + a radial vignette that
    is clear at the centre (where the memory sits) and darkens/cools toward the edges. */
+/* The mask lives on the PARENT and the backdrop-filter on the CHILD: WebKit refuses to
+   composite a backdrop-filter and a mask on the same element (that's why an edge-masked
+   blur showed nothing), but a parent mask reliably clips a child's backdrop-filter. The
+   clear core stays sharp; blur + a cool vignette ramp in across most of the frame. */
 .focus-backdrop {
   position: fixed;
   inset: 0;
   z-index: 30;
   pointer-events: none;
-  backdrop-filter: blur(12px) saturate(104%);
-  -webkit-backdrop-filter: blur(12px) saturate(104%);
-  background: radial-gradient(
-    120% 108% at 50% 46%,
-    transparent 0%,
-    transparent 26%,
-    hsl(216 34% 22% / 0.14) 62%,
-    hsl(216 40% 16% / 0.28) 100%
-  );
-  /* The focus reaches well toward the centre: only a smallish core stays fully clear,
-     then blur + a cool vignette ramp in across most of the frame toward the edges. */
-  -webkit-mask: radial-gradient(118% 108% at 50% 46%, transparent 22%, black 76%);
-  mask: radial-gradient(118% 108% at 50% 46%, transparent 22%, black 76%);
+  -webkit-mask-image: radial-gradient(120% 110% at 50% 46%, transparent 20%, black 72%);
+  mask-image: radial-gradient(120% 110% at 50% 46%, transparent 20%, black 72%);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
   animation: focus-backdrop-in 220ms ease-out both;
 }
-.dark .focus-backdrop {
-  backdrop-filter: blur(13px) saturate(104%);
-  -webkit-backdrop-filter: blur(13px) saturate(104%);
+.focus-backdrop-fx {
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(14px) saturate(104%);
+  -webkit-backdrop-filter: blur(14px) saturate(104%);
   background: radial-gradient(
     120% 108% at 50% 46%,
     transparent 0%,
     transparent 24%,
-    hsl(222 42% 6% / 0.4) 60%,
-    hsl(222 48% 3% / 0.62) 100%
+    hsl(216 34% 22% / 0.16) 60%,
+    hsl(216 40% 16% / 0.3) 100%
+  );
+}
+.dark .focus-backdrop-fx {
+  backdrop-filter: blur(15px) saturate(104%);
+  -webkit-backdrop-filter: blur(15px) saturate(104%);
+  background: radial-gradient(
+    120% 108% at 50% 46%,
+    transparent 0%,
+    transparent 22%,
+    hsl(222 42% 6% / 0.42) 58%,
+    hsl(222 48% 3% / 0.64) 100%
   );
 }
 @keyframes focus-backdrop-in {
@@ -299,21 +307,12 @@ body {
 }
 .dark .portal-water { opacity: 0.14; }
 
-/* (4) HEAT-HAZE SWAY — a ripple of hot air that passes by only now and then. Mostly
-   dead still; once per long cycle a gentle, subtle warp drifts through, then calm again.
-   Transform-only (GPU), tiny amplitude so the text never visibly distorts. */
-@keyframes memory-sway {
-  0%, 34% { transform: none; }
-  43% { transform: translate3d(0.5px, -0.4px, 0) skewX(0.28deg) skewY(-0.12deg); }
-  52% { transform: translate3d(-0.4px, 0.4px, 0) skewX(-0.24deg) skewY(0.14deg); }
-  61% { transform: translate3d(0.3px, 0.2px, 0) skewX(0.16deg) skewY(-0.08deg); }
-  70%, 100% { transform: none; }
-}
-.memory-sway {
-  animation: memory-sway 17s ease-in-out infinite;
-  transform-origin: 50% 45%;
-  will-change: transform;
-  backface-visibility: hidden;
+/* (4) HEAT-HAZE RIPPLE — a subtle, CONSTANT liquid warp, like a gentle "Minecraft
+   nausea": the memory ripples as if seen through slowly moving water. A real SVG
+   displacement (the filter + its traveling turbulence are defined inline in the portal);
+   this just applies it. Reduced-motion drops the filter entirely (see below). */
+.memory-ripple {
+  filter: url(#memory-ripple);
 }
 
 /* enter + swap crossfade (transform/opacity only — no blur() to re-rasterize) */
@@ -334,10 +333,9 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .portal-halo,
   .portal-water,
-  .memory-sway,
   .portal-enter,
   .well-focus { animation: none !important; }
   .portal-halo { opacity: 0.6; }
   .portal-water { opacity: 0.08; transform: none; }
-  .memory-sway { transform: none; }
+  .memory-ripple { filter: none; } /* no liquid warp when motion is reduced */
 }
