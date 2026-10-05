@@ -8,6 +8,7 @@
    sidebar, so hovers read as a subtle grey overlay (Notion-style); in dark it is
    LIGHTER than both. Same token, direction inverts per theme. */
 :root {
+  color-scheme: light; /* native controls (date picker, scrollbars) follow the theme */
   --surface: 0 0% 100%; /* main / editor page — #ffffff */
   --surface-sunken: 40 14% 96%; /* sidebar — warm grey ~#f7f6f3 */
   --surface-raised: 40 10% 93%; /* hover / menus / code */
@@ -39,6 +40,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --surface: 0 0% 10%; /* #191919 main */
   --surface-sunken: 0 0% 13%; /* #202020 sidebar */
   --surface-raised: 0 0% 17%; /* hover / menus / code */

@@ -158,6 +158,20 @@ export function useNotes() {
     [persist],
   );
 
+  // Set the open note's creation date (e.g. a thought actually had earlier, logged
+  // now). Persists immediately; the store keeps createdAt as a system field.
+  const setCreatedAt = useCallback(
+    (ts: number) => {
+      const note = currentRef.current;
+      if (!note) return;
+      const next = { ...note, createdAt: ts };
+      setCurrent(next);
+      currentRef.current = next;
+      void persist(next);
+    },
+    [persist],
+  );
+
   // Pin/unpin any note (not only the open one). Goes through the dedicated store
   // path so updatedAt is untouched, then refreshes the list so the Pinned band
   // updates. The open note's own pinned flag is kept in sync if it's the target.
@@ -198,5 +212,5 @@ export function useNotes() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [flushSave, closeSession]);
 
-  return { notes, current, status, open, create, remove, change, updateMeta, togglePin };
+  return { notes, current, status, open, create, remove, change, updateMeta, togglePin, setCreatedAt };
 }

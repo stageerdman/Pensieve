@@ -15,7 +15,7 @@ import type { SidebarState } from "./lib/sidebar/view";
 import { loadState, saveState } from "./lib/sidebar/persist";
 
 export default function App() {
-  const { notes, current, status, open, create, remove, change, updateMeta, togglePin } =
+  const { notes, current, status, open, create, remove, change, updateMeta, togglePin, setCreatedAt } =
     useNotes();
   const { theme, toggle } = useTheme();
   useFontScale();
@@ -214,6 +214,7 @@ export default function App() {
               onClose={() => setDetailsOpen(false)}
               onOpenNote={(id) => void open(id)}
               updateMeta={updateMeta}
+              onSetCreatedAt={setCreatedAt}
             />
           )}
         </div>
