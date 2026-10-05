@@ -1,0 +1,907 @@
+<!--
+  PENSIEVE — CONCEPT 03: "THE MEMORY CONSTELLATION"
+  A navigable thought-space you drift through. Each memory is a luminous orb/star suspended in deep
+  ink; faint silver threads are the note-links between them; constellations are clusters/categories.
+  Brighter & larger = more recent / more revisited. Capture births a new star that drifts into place
+  and threads to kin. Selecting a star expands it into a readable memory while related stars ignite
+  along their threads (the coach surfacing past lessons). An era dial shifts the depth of field across years.
+  One self-contained file: all visuals are canvas + CSS, system fonts, no external assets. Vision concept, not production code.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Pensieve — The Memory Constellation</title>
+<style>
+  :root{
+    --ink-0:#05070d;      /* deepest space */
+    --ink-1:#0a0e18;
+    --ink-2:#111726;
+    --silver:#d9e2f1;
+    --silver-dim:#8a97b0;
+    --silver-faint:#4a5570;
+    --thread:#6f86b8;
+    --glow:#aebfe6;
+    --warm:#f3e7c9;       /* recent/revisited warmth */
+    --accent:#9fd8ff;
+    --panel:rgba(14,19,32,.72);
+    --panel-brd:rgba(170,190,230,.14);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--ink-0);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--silver);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+  #stage{position:fixed;inset:0}
+  canvas{position:absolute;inset:0;display:block;width:100%;height:100%;cursor:grab}
+  canvas.dragging{cursor:grabbing}
+  canvas.aiming{cursor:crosshair}
+
+  /* ---------- Top bar ---------- */
+  .topbar{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:16px;
+    padding:16px 22px;pointer-events:none;
+    background:linear-gradient(to bottom,rgba(5,7,13,.75),rgba(5,7,13,0));}
+  .brand{display:flex;align-items:center;gap:11px;pointer-events:auto}
+  .brand .mark{width:26px;height:26px;position:relative;filter:drop-shadow(0 0 6px rgba(174,191,230,.55))}
+  .brand .mark i{position:absolute;border-radius:50%;background:var(--silver)}
+  .brand h1{font-size:15px;font-weight:600;letter-spacing:.14em;margin:0;text-transform:uppercase;
+    color:var(--silver)}
+  .brand h1 span{color:var(--silver-dim);font-weight:400}
+  .tag{font-size:11px;color:var(--silver-faint);letter-spacing:.08em;margin-left:2px}
+  .spacer{flex:1}
+  .search{pointer-events:auto;display:flex;align-items:center;gap:8px;
+    background:var(--panel);border:1px solid var(--panel-brd);border-radius:999px;
+    padding:8px 15px;backdrop-filter:blur(14px);min-width:0;max-width:300px;flex:0 1 300px}
+  .search svg{flex:none;opacity:.6}
+  .search input{background:none;border:none;outline:none;color:var(--silver);font-size:13px;width:100%;
+    font-family:inherit}
+  .search input::placeholder{color:var(--silver-faint)}
+
+  /* ---------- Hint ---------- */
+  .hint{position:fixed;left:50%;top:74px;transform:translateX(-50%);z-index:15;
+    font-size:12px;color:var(--silver-faint);letter-spacing:.05em;pointer-events:none;
+    text-align:center;transition:opacity .8s;max-width:92vw}
+  .hint b{color:var(--silver-dim);font-weight:500}
+
+  /* ---------- Era dial (bottom) ---------- */
+  .eradock{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:20;
+    display:flex;flex-direction:column;align-items:center;gap:9px;pointer-events:none;width:min(680px,90vw)}
+  .eralabel{font-size:12px;letter-spacing:.22em;color:var(--silver-dim);text-transform:uppercase;
+    display:flex;align-items:baseline;gap:9px}
+  .eralabel b{color:var(--warm);font-weight:600;font-size:15px;letter-spacing:.14em;
+    text-shadow:0 0 12px rgba(243,231,201,.35)}
+  .eratrack{pointer-events:auto;position:relative;width:100%;height:30px;display:flex;align-items:center}
+  .eratrack .rail{position:absolute;left:0;right:0;height:2px;
+    background:linear-gradient(to right,rgba(170,190,230,.08),rgba(170,190,230,.4),rgba(170,190,230,.08));
+    border-radius:2px}
+  .eratrack input{-webkit-appearance:none;appearance:none;width:100%;background:none;margin:0;position:relative}
+  .eratrack input::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#fff,var(--warm) 55%,#b99 120%);
+    box-shadow:0 0 14px rgba(243,231,201,.75),0 0 3px #fff;cursor:pointer;border:none}
+  .eratrack input::-moz-range-thumb{width:16px;height:16px;border-radius:50%;border:none;
+    background:radial-gradient(circle at 35% 30%,#fff,var(--warm) 55%,#b99 120%);
+    box-shadow:0 0 14px rgba(243,231,201,.75);cursor:pointer}
+  .erayears{display:flex;justify-content:space-between;width:100%;font-size:10px;color:var(--silver-faint);
+    letter-spacing:.1em;margin-top:-3px}
+
+  /* ---------- Right controls ---------- */
+  .tools{position:fixed;right:22px;bottom:26px;z-index:20;display:flex;flex-direction:column;gap:10px}
+  .btn{pointer-events:auto;display:flex;align-items:center;justify-content:center;gap:8px;
+    background:var(--panel);border:1px solid var(--panel-brd);color:var(--silver);
+    backdrop-filter:blur(14px);cursor:pointer;font-family:inherit;transition:.22s;border-radius:14px}
+  .btn:hover{border-color:rgba(170,190,230,.4);background:rgba(22,30,48,.82);
+    box-shadow:0 0 22px rgba(120,150,220,.18)}
+  .btn.icon{width:46px;height:46px;border-radius:50%}
+  .btn.capture{padding:13px 20px;font-size:13px;font-weight:600;letter-spacing:.04em;
+    background:linear-gradient(140deg,rgba(60,80,130,.6),rgba(30,44,78,.7));
+    border-color:rgba(170,195,255,.35)}
+  .btn.capture:hover{box-shadow:0 0 30px rgba(130,165,255,.35)}
+  .btn.capture .plus{font-size:17px;line-height:1;margin-top:-1px}
+  .btn svg{display:block}
+
+  .legend{position:fixed;left:22px;bottom:26px;z-index:18;pointer-events:none;
+    font-size:11px;color:var(--silver-faint);line-height:1.9;letter-spacing:.03em}
+  .legend .row{display:flex;align-items:center;gap:8px}
+  .legend .dot{width:9px;height:9px;border-radius:50%;flex:none}
+
+  /* ---------- Reading panel ---------- */
+  .reader{position:fixed;top:0;right:0;height:100%;width:min(420px,92vw);z-index:30;
+    background:linear-gradient(200deg,rgba(18,25,42,.93),rgba(8,11,20,.95));
+    border-left:1px solid var(--panel-brd);backdrop-filter:blur(22px);
+    transform:translateX(104%);transition:transform .5s cubic-bezier(.22,.9,.3,1);
+    display:flex;flex-direction:column;box-shadow:-30px 0 80px rgba(0,0,0,.5)}
+  .reader.open{transform:translateX(0)}
+  .reader .rhead{padding:26px 28px 14px;position:relative}
+  .reader .close{position:absolute;top:20px;right:22px;width:30px;height:30px;border-radius:50%;
+    border:1px solid var(--panel-brd);background:rgba(255,255,255,.03);color:var(--silver-dim);
+    cursor:pointer;font-size:15px;line-height:1;transition:.2s}
+  .reader .close:hover{color:var(--silver);border-color:rgba(170,190,230,.4)}
+  .reader .cluster-chip{display:inline-flex;align-items:center;gap:7px;font-size:11px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--silver-dim);margin-bottom:12px}
+  .reader .cluster-chip .dot{width:8px;height:8px;border-radius:50%}
+  .reader h2{margin:0 0 8px;font-size:23px;line-height:1.25;font-weight:600;letter-spacing:.01em;
+    color:#f2f5fb;max-width:92%}
+  .reader .meta{font-size:11.5px;color:var(--silver-faint);letter-spacing:.04em;display:flex;gap:14px}
+  .reader .meta span{display:inline-flex;align-items:center;gap:5px}
+  .reader .body{padding:6px 28px 20px;overflow-y:auto;flex:1;font-size:14.5px;line-height:1.72;
+    color:#c7d0e2;letter-spacing:.005em}
+  .reader .body p{margin:0 0 15px}
+  .reader .body .pull{color:var(--warm);font-style:italic;border-left:2px solid rgba(243,231,201,.4);
+    padding-left:14px;margin:18px 0}
+  .reader .related{padding:16px 28px 26px;border-top:1px solid var(--panel-brd)}
+  .reader .related h3{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--silver-dim);
+    margin:0 0 14px;display:flex;align-items:center;gap:9px}
+  .reader .related h3 .ln{flex:1;height:1px;background:linear-gradient(to right,rgba(170,190,230,.25),transparent)}
+  .reader .relitem{display:flex;align-items:flex-start;gap:12px;padding:10px 10px;border-radius:12px;
+    cursor:pointer;transition:.2s;margin:0 -10px}
+  .reader .relitem:hover{background:rgba(120,150,220,.1)}
+  .reader .relitem .rorb{width:11px;height:11px;border-radius:50%;margin-top:4px;flex:none;
+    box-shadow:0 0 10px currentColor}
+  .reader .relitem .rt{font-size:13.5px;color:var(--silver);line-height:1.35}
+  .reader .relitem .rs{font-size:11px;color:var(--silver-faint);margin-top:2px}
+  .reader .coach{margin:4px 28px 18px;padding:14px 16px;border-radius:14px;
+    background:linear-gradient(140deg,rgba(243,231,201,.08),rgba(120,150,220,.06));
+    border:1px solid rgba(243,231,201,.16);font-size:13px;line-height:1.6;color:#e6ddc6}
+  .reader .coach b{color:var(--warm);font-weight:600;letter-spacing:.06em;font-size:11px;
+    text-transform:uppercase;display:block;margin-bottom:5px;letter-spacing:.14em}
+
+  /* ---------- Capture composer ---------- */
+  .composer{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.94);z-index:40;
+    width:min(460px,92vw);background:linear-gradient(200deg,rgba(20,28,48,.96),rgba(9,13,24,.97));
+    border:1px solid rgba(170,195,255,.28);border-radius:22px;padding:24px;opacity:0;pointer-events:none;
+    transition:.3s cubic-bezier(.22,.9,.3,1);box-shadow:0 30px 90px rgba(0,0,0,.6),0 0 60px rgba(90,120,200,.22)}
+  .composer.open{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+  .composer .ctitle{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--silver-dim);
+    margin-bottom:14px;display:flex;align-items:center;gap:9px}
+  .composer .ctitle .spark{width:9px;height:9px;border-radius:50%;
+    background:radial-gradient(circle,#fff,var(--warm));box-shadow:0 0 12px var(--warm)}
+  .composer textarea{width:100%;min-height:92px;resize:none;background:rgba(0,0,0,.25);
+    border:1px solid var(--panel-brd);border-radius:14px;color:#eef2f9;font-family:inherit;
+    font-size:15px;line-height:1.6;padding:14px;outline:none}
+  .composer textarea::placeholder{color:var(--silver-faint)}
+  .composer .crow{display:flex;align-items:center;gap:10px;margin-top:14px}
+  .composer .chips{display:flex;gap:7px;flex-wrap:wrap;flex:1}
+  .composer .chip{font-size:11px;padding:5px 11px;border-radius:999px;cursor:pointer;
+    border:1px solid var(--panel-brd);color:var(--silver-dim);transition:.18s;letter-spacing:.04em}
+  .composer .chip.on{color:var(--ink-0);font-weight:600;border-color:transparent}
+  .composer .cmodes{display:flex;gap:6px;margin-top:14px}
+  .composer .mode{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 6px;
+    border-radius:12px;border:1px solid var(--panel-brd);color:var(--silver-faint);font-size:10px;
+    letter-spacing:.05em;cursor:pointer;transition:.18s}
+  .composer .mode:hover{color:var(--silver-dim);border-color:rgba(170,190,230,.3)}
+  .composer .mode svg{opacity:.8}
+  .composer .cfoot{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+  .composer .ghost{background:none;border:none;color:var(--silver-faint);cursor:pointer;font-family:inherit;
+    font-size:13px;padding:10px 12px}
+  .composer .ghost:hover{color:var(--silver-dim)}
+  .composer .cast{background:linear-gradient(140deg,#5a74c2,#2e3f68);border:1px solid rgba(170,195,255,.4);
+    color:#fff;border-radius:12px;padding:11px 20px;font-size:13px;font-weight:600;cursor:pointer;
+    font-family:inherit;letter-spacing:.03em;transition:.2s}
+  .composer .cast:hover{box-shadow:0 0 26px rgba(130,165,255,.5)}
+  .scrim{position:fixed;inset:0;z-index:35;background:rgba(3,5,10,.55);opacity:0;pointer-events:none;
+    transition:.3s;backdrop-filter:blur(2px)}
+  .scrim.open{opacity:1;pointer-events:auto}
+
+  @media (max-width:560px){
+    .search{display:none}
+    .tag{display:none}
+    .reader{width:100%}
+    .legend{display:none}
+  }
+</style>
+
+<div id="stage">
+  <canvas id="sky"></canvas>
+</div>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="mark" id="brandMark"></div>
+    <div>
+      <h1>Pensieve <span>·</span></h1>
+    </div>
+    <span class="tag">the memory constellation</span>
+  </div>
+  <div class="spacer"></div>
+  <label class="search">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8a97b0" stroke-width="2">
+      <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input id="search" placeholder="Search your memories…" spellcheck="false">
+  </label>
+</div>
+
+<div class="hint" id="hint">
+  <b>Drag</b> to drift through the field · <b>scroll</b> to zoom · <b>click a star</b> to open a memory · <b>＋</b> to capture a new thought
+</div>
+
+<!-- Era dial -->
+<div class="eradock">
+  <div class="eralabel">Depth of field · <b id="eraVal">All years</b></div>
+  <div class="eratrack">
+    <div class="rail"></div>
+    <input id="era" type="range" min="0" max="5" step="1" value="0">
+  </div>
+  <div class="erayears">
+    <span>All</span><span>2021</span><span>2022</span><span>2023</span><span>2024</span><span>2025</span>
+  </div>
+</div>
+
+<!-- Tools -->
+<div class="tools">
+  <button class="btn icon" id="zoomIn" title="Zoom in">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+  <button class="btn icon" id="zoomOut" title="Zoom out">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg>
+  </button>
+  <button class="btn icon" id="recenter" title="Recenter the field">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+  </button>
+  <button class="btn capture" id="capture"><span class="plus">＋</span> Capture a thought</button>
+</div>
+
+<div class="legend">
+  <div class="row"><span class="dot" style="background:var(--warm);box-shadow:0 0 8px var(--warm)"></span> recent / often revisited</div>
+  <div class="row"><span class="dot" style="background:var(--thread)"></span> older, deeper memory</div>
+  <div class="row"><span class="dot" style="width:14px;height:1px;border-radius:0;background:var(--silver-faint)"></span> silver thread = linked note</div>
+</div>
+
+<!-- Reading panel -->
+<div class="reader" id="reader">
+  <div class="rhead">
+    <button class="close" id="readerClose">✕</button>
+    <div class="cluster-chip" id="rCluster"><span class="dot"></span><span class="ctxt"></span></div>
+    <h2 id="rTitle"></h2>
+    <div class="meta">
+      <span id="rDate">◷</span>
+      <span id="rRevisits"></span>
+    </div>
+  </div>
+  <div class="body" id="rBody"></div>
+  <div class="coach" id="rCoach"><b>Pensieve surfaces</b><span id="rCoachTxt"></span></div>
+  <div class="related">
+    <h3>Threads to related memories <span class="ln"></span></h3>
+    <div id="rRelated"></div>
+  </div>
+</div>
+
+<!-- Capture composer -->
+<div class="scrim" id="scrim"></div>
+<div class="composer" id="composer">
+  <div class="ctitle"><span class="spark"></span> A new star is born</div>
+  <textarea id="cText" placeholder="What are you thinking? Let it fall into the constellation…"></textarea>
+  <div class="cmodes">
+    <div class="mode"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h16v12H5l-1 4z"/></svg>Text</div>
+    <div class="mode"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M3 17l5-4 4 3 3-3 6 5"/></svg>Image</div>
+    <div class="mode"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>Voice</div>
+    <div class="mode"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6h11v12H4z"/><path d="M15 10l5-3v10l-5-3z"/></svg>Video</div>
+  </div>
+  <div class="crow">
+    <div class="chips" id="cChips"></div>
+  </div>
+  <div class="cfoot">
+    <button class="ghost" id="cCancel">Cancel</button>
+    <button class="cast" id="cCast">Release into the field ✦</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const cv = document.getElementById('sky');
+  const ctx = cv.getContext('2d');
+  let W=0,H=0,DPR=Math.min(window.devicePixelRatio||1,2);
+
+  // ---------- Clusters (categories / constellations) ----------
+  const clusters = [
+    {id:'work',    name:'Craft & Work',     color:'#9fd8ff', cx:-620, cy:-180},
+    {id:'life',    name:'Life & People',    color:'#f3b8d4', cx: 560, cy:-240},
+    {id:'ideas',   name:'Ideas & Sparks',   color:'#c6b4ff', cx: 180, cy: 360},
+    {id:'body',    name:'Body & Health',    color:'#8ff0c6', cx:-520, cy: 380},
+    {id:'learn',   name:'Lessons Learned',  color:'#f3e7c9', cx:  40, cy:-480},
+  ];
+  const clusterById = Object.fromEntries(clusters.map(c=>[c.id,c]));
+
+  // ---------- Sample memories (stars) ----------
+  // revisits + year drive brightness/size; year drives depth-of-field
+  const seedMemories = [
+    {id:1, cl:'learn', t:"The lesson I keep relearning about rest", year:2025, rev:9,
+      body:["I notice it every quarter: the weeks I protect two full rest days are the weeks I ship my best work. The instinct under pressure is to burn the weekend — and it always costs more than it saves.",
+            "PULL::Rest is not the reward for the work. It is part of the work.",
+            "Writing it here so future-me stops re-deriving it from exhaustion."],
+      coach:"You wrote almost the same realisation in 2023 and 2024. This is a recurring lesson — maybe it is time to design a rule, not a reminder.",
+      links:[2,7,11]},
+    {id:2, cl:'work', t:"Pensieve should feel weightless", year:2025, rev:7,
+      body:["Everything about capture must be instant. If I hesitate because the tool is heavy, the thought is already gone.",
+            "The whole point is that a memory enters frictionlessly and finds its place on its own.",
+            "PULL::Speed is the feature. Everything else is decoration."],
+      coach:"This connects to your note on rest — both are really about removing friction between intention and action.",
+      links:[1,5,9]},
+    {id:3, cl:'life', t:"Coffee with Dad, the long version", year:2024, rev:5,
+      body:["He told the story about the move again, but slower this time, and I finally heard the part he always skips — how frightened he actually was.",
+            "I want to remember his exact phrasing before it softens in my memory."],
+      coach:"Three memories in 'Life & People' cluster around your father. There may be a story worth assembling.",
+      links:[8,12]},
+    {id:4, cl:'ideas', t:"What if notes could find each other?", year:2024, rev:8,
+      body:["The spark for the constellation view: memories shouldn't live in folders, they should live in relationships.",
+            "PULL::Let the links be the structure. Let meaning be the map.",
+            "A thought is only as useful as the other thoughts it can reach."],
+      coach:"This idea seeded the view you are looking at right now. You have returned to it 8 times.",
+      links:[2,6,10]},
+    {id:5, cl:'work', t:"Local-first, always", year:2025, rev:6,
+      body:["The data is mine. It lives on my disk, in plain files I can read in fifty years. The cloud is a convenience, never a dependency.",
+            "If the company behind the tool disappears, my memories must not."],
+      coach:"A principle you keep applying across decisions — it may belong in your values note.",
+      links:[2,9]},
+    {id:6, cl:'ideas', t:"The coach should whisper, not nag", year:2024, rev:4,
+      body:["AI reflection is powerful but it has to earn trust. It should surface a pattern quietly, when I ask, and let me disagree.",
+            "PULL::A good coach notices. A bad one interrupts."],
+      coach:"Related to your note on weightlessness — restraint is a design value for you.",
+      links:[4,2]},
+    {id:7, cl:'body', t:"Sleep is the whole game", year:2024, rev:6,
+      body:["Tracked it for three months. Every good month started the night before. Obvious, but I needed the data to believe it.",
+            "Protecting the last hour before bed changed everything."],
+      coach:"Overlaps with your recurring lesson on rest — the body cluster and lessons cluster keep meeting here.",
+      links:[1,11]},
+    {id:8, cl:'life', t:"Grandmother's handwriting", year:2023, rev:5,
+      body:["Scanned the last of her letters today. The way she looped her g's — I'd forgotten.",
+            "Some memories are not words. The original matters as much as the transcript."],
+      coach:"This is why Pensieve keeps the original media, not just the text.",
+      links:[3,5]},
+    {id:9, cl:'work', t:"One obvious home for every bug", year:2025, rev:3,
+      body:["Modularity isn't architecture astronautics — it's so that when something breaks, there is exactly one place to look.",
+            "PULL::Low coupling is a kindness to future-me at 2am."],
+      coach:"Echoes your weightlessness note — both are about reducing cognitive load.",
+      links:[2,5]},
+    {id:10, cl:'ideas', t:"Memories as a night sky", year:2023, rev:7,
+      body:["Daydream on the train: what if opening the app felt like looking up? Not a list — a sky you drift through.",
+            "The bright ones are what you return to. The faint ones are still there, waiting."],
+      coach:"The oldest ancestor of today's constellation view. Two years of this idea brightening.",
+      links:[4,6]},
+    {id:11, cl:'body', t:"Walk before deciding", year:2025, rev:4,
+      body:["Every hard decision got clearer on a walk. The motion does something the desk can't.",
+            "PULL::When stuck, change the altitude of the problem by changing your own."],
+      coach:"Pairs with sleep and rest — your body cluster is quietly a decision-making cluster.",
+      links:[1,7]},
+    {id:12, cl:'life', t:"The kitchen at midnight", year:2022, rev:3,
+      body:["We talked until the kettle went cold twice. I don't remember the words, only that it mattered.",
+            "Capturing the feeling, even without the transcript."],
+      coach:"Part of your deepest, oldest memories — faint now, but still threaded to family.",
+      links:[3,8]},
+    {id:13, cl:'learn', t:"Say the hard thing kindly, early", year:2023, rev:4,
+      body:["The feedback I delayed always got harder to give and worse to receive. Early and warm beats late and polished.",
+            "PULL::Candor is a gift with a short shelf life."],
+      coach:"A lesson that recurs in your work notes too.",
+      links:[1,9]},
+    {id:14, cl:'ideas', t:"Transcribe everything, trust nothing yet", year:2025, rev:2,
+      body:["Whisper gives me a first draft of every voice note. Good enough to search, not good enough to quote.",
+            "The transcript is a map to the audio, not a replacement for it."],
+      coach:"Connects your ideas and craft clusters — tools that assist without overwriting.",
+      links:[4,8]},
+  ];
+
+  // ---------- Build node objects ----------
+  let nextId = 100;
+  function layoutNode(m){
+    const c = clusterById[m.cl];
+    const ang = Math.random()*Math.PI*2;
+    const spread = 90 + Math.random()*170;
+    return {
+      ...m,
+      x: c.cx + Math.cos(ang)*spread,
+      y: c.cy + Math.sin(ang)*spread,
+      // drift
+      ph: Math.random()*Math.PI*2, pa: 6+Math.random()*10, ps:.2+Math.random()*.4,
+      // visual
+      born: 1,            // birth animation progress (1 = settled)
+      pulse: Math.random()*Math.PI*2,
+      color: c.color,
+      cluster: c,
+    };
+  }
+  let nodes = seedMemories.map(layoutNode);
+  function byId(id){return nodes.find(n=>n.id===id);}
+
+  // radius based on revisits + recency
+  function baseRadius(n){ return 4 + Math.min(n.rev,10)*0.9; }
+  // brightness 0..1 by recency + revisits
+  function brightness(n){
+    const recency = (n.year-2021)/4;          // 0..1
+    return Math.max(.28, Math.min(1, recency*0.55 + (n.rev/10)*0.55));
+  }
+  // warmth toward --warm for recent/revisited
+  function nodeColor(n){
+    const b = brightness(n);
+    // blend cluster color toward warm by brightness
+    const warm=[243,231,201];
+    const cc = hexToRgb(n.color);
+    const t = (b-0.3)/0.7; const k=Math.max(0,Math.min(1,t))*0.55;
+    return `rgb(${lerp(cc[0],warm[0],k)|0},${lerp(cc[1],warm[1],k)|0},${lerp(cc[2],warm[2],k)|0})`;
+  }
+  function lerp(a,b,t){return a+(b-a)*t;}
+  function hexToRgb(h){h=h.replace('#','');return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
+
+  // ---------- Build thread list ----------
+  function allThreads(){
+    const seen=new Set(), out=[];
+    nodes.forEach(n=>{(n.links||[]).forEach(l=>{
+      const key = n.id<l? n.id+'-'+l : l+'-'+n.id;
+      if(seen.has(key))return; seen.add(key);
+      const b=byId(l); if(b) out.push([n,b]);
+    });});
+    return out;
+  }
+
+  // ---------- Camera ----------
+  const cam = {x:0,y:0,z:0.78,tz:0.78, tx:0,ty:0};
+  let era = 0; // 0=all,1..5 => 2021..2025
+  function eraYear(){return era===0?null:2020+era;}
+
+  function resize(){
+    W=cv.clientWidth; H=cv.clientHeight;
+    cv.width=W*DPR; cv.height=H*DPR;
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  window.addEventListener('resize',resize);
+
+  function worldToScreen(x,y){
+    return {x:(x-cam.x)*cam.z + W/2, y:(y-cam.y)*cam.z + H/2};
+  }
+  function screenToWorld(sx,sy){
+    return {x:(sx-W/2)/cam.z + cam.x, y:(sy-H/2)/cam.z + cam.y};
+  }
+
+  // depth-of-field factor: how "in focus" a node is for current era
+  function focusOf(n){
+    const y=eraYear();
+    if(y===null) return 1;
+    const d=Math.abs(n.year-y);
+    return d===0?1 : d===1?0.45 : 0.14;
+  }
+
+  // ---------- Interaction state ----------
+  let selected=null;      // selected node
+  let hover=null;
+  let relatedSet=new Set();
+  let aiming=false;       // capture placement mode
+  let bgStars=[];
+
+  function makeBgStars(){
+    bgStars=[];
+    for(let i=0;i<220;i++){
+      bgStars.push({x:(Math.random()-.5)*2600,y:(Math.random()-.5)*2600,
+        r:Math.random()*1.3+.2,tw:Math.random()*Math.PI*2,sp:.5+Math.random()*1.5,
+        depth:.3+Math.random()*.7});
+    }
+  }
+
+  // ---------- Render ----------
+  let t0=performance.now();
+  function frame(now){
+    const dt=(now-t0)/1000; t0=now;
+    const T=now/1000;
+
+    // camera easing
+    cam.z += (cam.tz-cam.z)*Math.min(1,dt*6);
+    cam.x += (cam.tx-cam.x)*Math.min(1,dt*5);
+    cam.y += (cam.ty-cam.y)*Math.min(1,dt*5);
+
+    ctx.clearRect(0,0,W,H);
+    // vignette space background
+    const g=ctx.createRadialGradient(W/2,H*0.42,0,W/2,H/2,Math.max(W,H)*0.85);
+    g.addColorStop(0,'#0b1120'); g.addColorStop(0.55,'#070a13'); g.addColorStop(1,'#04060b');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+    // ---- parallax background stars ----
+    for(const s of bgStars){
+      const px=( s.x - cam.x*s.depth )*cam.z*0.5 + W/2;
+      const py=( s.y - cam.y*s.depth )*cam.z*0.5 + H/2;
+      if(px<-20||px>W+20||py<-20||py>H+20) continue;
+      const tw=0.4+0.6*Math.abs(Math.sin(T*s.sp+s.tw));
+      ctx.globalAlpha=tw*0.5*s.depth;
+      ctx.fillStyle='#aebfe6';
+      ctx.beginPath();ctx.arc(px,py,s.r,0,6.283);ctx.fill();
+    }
+    ctx.globalAlpha=1;
+
+    // ---- update drift ----
+    for(const n of nodes){
+      n.ph += dt*n.ps;
+      if(n.born<1) n.born=Math.min(1,n.born+dt*0.9);
+      n.pulse += dt*1.5;
+    }
+
+    // ---- threads ----
+    const threads=allThreads();
+    ctx.lineCap='round';
+    for(const [a,b] of threads){
+      const pa=nodePos(a), pb=nodePos(b);
+      const sa=worldToScreen(pa.x,pa.y), sb=worldToScreen(pb.x,pb.y);
+      const fa=focusOf(a), fb=focusOf(b);
+      const f=(fa+fb)/2;
+      const lit = selected && (relatedSet.has(a.id)&&relatedSet.has(b.id) || (a===selected||b===selected)&&(relatedSet.has(a.id)||relatedSet.has(b.id)||a===selected||b===selected) );
+      const isSelThread = selected && (a===selected||b===selected) && (relatedSet.has(a.id)||relatedSet.has(b.id)||a.id===selected.id||b.id===selected.id);
+      let alpha = 0.10*f;
+      let col='111,134,184';
+      let w=0.6;
+      if(selected){
+        if(a===selected||b===selected){
+          // thread from selected to a related node: ignite
+          alpha=0.55*f; col='214,224,245'; w=1.4;
+          // animated flow handled below
+        } else if(relatedSet.has(a.id)&&relatedSet.has(b.id)){
+          alpha=0.2*f;
+        } else {
+          alpha=0.04*f;
+        }
+      }
+      ctx.strokeStyle=`rgba(${col},${alpha})`;
+      ctx.lineWidth=w;
+      // slight curve
+      const mx=(sa.x+sb.x)/2, my=(sa.y+sb.y)/2;
+      const dx=sb.x-sa.x, dy=sb.y-sa.y;
+      const curve=Math.hypot(dx,dy)*0.08;
+      const cxp=mx - dy/Math.hypot(dx,dy)*curve, cyp=my + dx/Math.hypot(dx,dy)*curve;
+      ctx.beginPath();ctx.moveTo(sa.x,sa.y);ctx.quadraticCurveTo(cxp,cyp,sb.x,sb.y);ctx.stroke();
+
+      // flowing light pulse along ignited threads
+      if(selected && (a===selected||b===selected)){
+        const flow=(T*0.5)%1;
+        for(let k=0;k<2;k++){
+          const tt=(flow+k*0.5)%1;
+          // quadratic bezier point
+          const u=1-tt;
+          const bx=u*u*sa.x+2*u*tt*cxp+tt*tt*sb.x;
+          const by=u*u*sa.y+2*u*tt*cyp+tt*tt*sb.y;
+          ctx.globalAlpha=(1-Math.abs(tt-0.5)*2)*0.9*f;
+          ctx.fillStyle='#eef4ff';
+          ctx.beginPath();ctx.arc(bx,by,1.8,0,6.283);ctx.fill();
+        }
+        ctx.globalAlpha=1;
+      }
+    }
+
+    // ---- nodes ----
+    hoverCandidate=null;
+    for(const n of nodes){
+      const p=nodePos(n);
+      const s=worldToScreen(p.x,p.y);
+      const f=focusOf(n);
+      if(s.x<-80||s.x>W+80||s.y<-80||s.y>H+80) {n._sx=s.x;n._sy=s.y;n._sr=0;continue;}
+      const b=brightness(n);
+      let r=baseRadius(n)*cam.z*(0.6+b*0.7)*n.born;
+      const col=nodeColor(n);
+      const isSel = selected===n;
+      const isRel = selected && relatedSet.has(n.id) && !isSel;
+      const dim = selected && !isSel && !isRel;
+
+      let a = f*(0.55+b*0.45);
+      if(dim) a*=0.3;
+      if(isRel) a=Math.min(1,a*1.5);
+
+      // pulsing glow
+      const pulse=1+Math.sin(n.pulse)*0.08;
+      const glowR=r*(3.4+b*2.2)*pulse*(isSel?1.5:isRel?1.25:1);
+
+      // outer glow
+      const gg=ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,glowR);
+      gg.addColorStop(0,rgbaFrom(col,0.55*a));
+      gg.addColorStop(0.4,rgbaFrom(col,0.16*a));
+      gg.addColorStop(1,rgbaFrom(col,0));
+      ctx.fillStyle=gg;
+      ctx.beginPath();ctx.arc(s.x,s.y,glowR,0,6.283);ctx.fill();
+
+      // core
+      ctx.globalAlpha=Math.min(1,a+0.2);
+      const core=ctx.createRadialGradient(s.x-r*0.3,s.y-r*0.3,0,s.x,s.y,r*1.1);
+      core.addColorStop(0,'#ffffff');
+      core.addColorStop(0.5,col);
+      core.addColorStop(1,rgbaFrom(col,0.5));
+      ctx.fillStyle=core;
+      ctx.beginPath();ctx.arc(s.x,s.y,r,0,6.283);ctx.fill();
+
+      // selection ring
+      if(isSel){
+        ctx.globalAlpha=0.9;
+        ctx.strokeStyle='rgba(243,231,201,0.8)';
+        ctx.lineWidth=1.3;
+        ctx.beginPath();ctx.arc(s.x,s.y,r+7+Math.sin(T*2)*2,0,6.283);ctx.stroke();
+      }
+      ctx.globalAlpha=1;
+
+      n._sx=s.x;n._sy=s.y;n._sr=Math.max(r,9);
+
+      // labels: show for big/bright, hovered, selected, related
+      const showLabel = (isSel||isRel||hover===n || (b>0.62 && cam.z>0.6)) && f>0.25;
+      if(showLabel){
+        const la=(isSel?1:isRel?0.95:hover===n?1:Math.min(1,(b-0.5)))*f;
+        ctx.globalAlpha=Math.max(0,la);
+        ctx.font=`${isSel?600:500} ${Math.max(11,12*Math.min(1.3,cam.z))}px -apple-system,Segoe UI,Roboto,sans-serif`;
+        ctx.textAlign='center'; ctx.textBaseline='top';
+        ctx.fillStyle=isSel?'#f4f7fd':'rgba(217,226,241,0.92)';
+        ctx.shadowColor='rgba(0,0,0,0.9)';ctx.shadowBlur=6;
+        wrapText(n.t, s.x, s.y+r+7, 150, 15);
+        ctx.shadowBlur=0;
+        ctx.globalAlpha=1;
+      }
+    }
+
+    // ---- cluster labels (faint, large scale) ----
+    if(cam.z<1.0){
+      for(const c of clusters){
+        const s=worldToScreen(c.cx,c.cy);
+        const vis=(1.0-cam.z)/0.5;
+        ctx.globalAlpha=Math.max(0,Math.min(0.5,vis))*(eraYear()?0.5:1);
+        ctx.font='600 13px -apple-system,Segoe UI,sans-serif';
+        ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillStyle=c.color;
+        ctx.shadowColor='rgba(0,0,0,0.8)';ctx.shadowBlur=8;
+        ctx.fillText(c.name.toUpperCase(), s.x, s.y);
+        ctx.shadowBlur=0;ctx.globalAlpha=1;
+      }
+    }
+
+    // aiming ghost star
+    if(aiming){
+      const m=lastMouse;
+      const pulse=1+Math.sin(T*4)*0.2;
+      const gg=ctx.createRadialGradient(m.x,m.y,0,m.x,m.y,40*pulse);
+      gg.addColorStop(0,'rgba(243,231,201,0.5)');gg.addColorStop(1,'rgba(243,231,201,0)');
+      ctx.fillStyle=gg;ctx.beginPath();ctx.arc(m.x,m.y,40*pulse,0,6.283);ctx.fill();
+      ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(m.x,m.y,4,0,6.283);ctx.fill();
+      ctx.globalAlpha=0.85;ctx.fillStyle='#f3e7c9';ctx.font='500 12px -apple-system,sans-serif';
+      ctx.textAlign='center';ctx.fillText('click to place your new memory', m.x, m.y+54);
+      ctx.globalAlpha=1;
+    }
+
+    // birth animation flares
+    for(const n of nodes){ if(n._flare!==undefined){
+      n._flare-=dt*1.2;
+      if(n._flare<=0){delete n._flare;continue;}
+      const p=nodePos(n),s=worldToScreen(p.x,p.y);
+      const rr=(1-n._flare)*90;
+      ctx.globalAlpha=n._flare*0.6;
+      ctx.strokeStyle='rgba(243,231,201,'+n._flare+')';
+      ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.arc(s.x,s.y,rr,0,6.283);ctx.stroke();
+      ctx.globalAlpha=1;
+    }}
+
+    requestAnimationFrame(frame);
+  }
+
+  function nodePos(n){
+    return {x:n.x+Math.cos(n.ph)*n.pa, y:n.y+Math.sin(n.ph*1.1)*n.pa};
+  }
+  function rgbaFrom(rgbstr,a){
+    const m=rgbstr.match(/\d+/g);
+    return `rgba(${m[0]},${m[1]},${m[2]},${a})`;
+  }
+  function wrapText(text,x,y,maxw,lh){
+    const words=text.split(' ');let line='';let yy=y;let lines=[];
+    for(const w of words){
+      const test=line?line+' '+w:w;
+      if(ctx.measureText(test).width>maxw && line){lines.push(line);line=w;}
+      else line=test;
+    }
+    if(line)lines.push(line);
+    lines=lines.slice(0,2);
+    for(const l of lines){ctx.fillText(l,x,yy);yy+=lh;}
+  }
+
+  // ---------- Hover detection ----------
+  let hoverCandidate=null, lastMouse={x:0,y:0};
+  function hitTest(sx,sy){
+    let best=null,bd=1e9;
+    for(const n of nodes){
+      if(!n._sr)continue;
+      const d=Math.hypot(sx-n._sx,sy-n._sy);
+      if(d<n._sr+8 && d<bd){bd=d;best=n;}
+    }
+    return best;
+  }
+
+  // ---------- Pan / zoom ----------
+  let dragging=false, moved=false, last={x:0,y:0};
+  cv.addEventListener('pointerdown',e=>{
+    if(aiming) return;
+    dragging=true;moved=false;last={x:e.clientX,y:e.clientY};
+    cv.setPointerCapture(e.pointerId);cv.classList.add('dragging');
+  });
+  cv.addEventListener('pointermove',e=>{
+    const r=cv.getBoundingClientRect();
+    lastMouse={x:e.clientX-r.left,y:e.clientY-r.top};
+    if(dragging){
+      const dx=e.clientX-last.x,dy=e.clientY-last.y;
+      if(Math.abs(dx)+Math.abs(dy)>3)moved=true;
+      cam.tx-=dx/cam.z; cam.ty-=dy/cam.z;
+      cam.x-=dx/cam.z; cam.y-=dy/cam.z;
+      last={x:e.clientX,y:e.clientY};
+    } else if(!aiming){
+      const h=hitTest(lastMouse.x,lastMouse.y);
+      hover=h; cv.style.cursor=h?'pointer':'grab';
+    }
+  });
+  cv.addEventListener('pointerup',e=>{
+    cv.classList.remove('dragging');
+    if(aiming){ placeNewStar(lastMouse.x,lastMouse.y); return; }
+    dragging=false;
+    if(!moved){
+      const h=hitTest(lastMouse.x,lastMouse.y);
+      if(h) openMemory(h); else closeReader();
+    }
+  });
+  cv.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const r=cv.getBoundingClientRect();
+    const mx=e.clientX-r.left,my=e.clientY-r.top;
+    const before=screenToWorld(mx,my);
+    const f=Math.exp(-e.deltaY*0.0012);
+    cam.tz=Math.max(0.3,Math.min(2.6,cam.tz*f));
+    cam.z=Math.max(0.3,Math.min(2.6,cam.z*f));
+    const after=screenToWorld(mx,my);
+    cam.x+=before.x-after.x; cam.y+=before.y-after.y;
+    cam.tx=cam.x; cam.ty=cam.y;
+  },{passive:false});
+
+  // ---------- Reading panel ----------
+  const reader=document.getElementById('reader');
+  function openMemory(n){
+    selected=n; n.rev++; // revisiting brightens it
+    relatedSet=new Set((n.links||[]));
+    relatedSet.add(n.id);
+    // center camera gently on node
+    const p=nodePos(n);
+    cam.tx=p.x+ (reader.offsetWidth? (reader.offsetWidth*0.5)/cam.z *0 : 0);
+    cam.ty=p.y;
+    // offset so star isn't hidden under panel
+    cam.tx=p.x - (Math.min(420,W*0.92))/2/cam.z + 60;
+    cam.tz=Math.max(cam.tz,0.95);
+
+    document.getElementById('rTitle').textContent=n.t;
+    const chip=document.getElementById('rCluster');
+    chip.querySelector('.dot').style.background=n.cluster.color;
+    chip.querySelector('.dot').style.boxShadow='0 0 8px '+n.cluster.color;
+    chip.querySelector('.ctxt').textContent=n.cluster.name;
+    document.getElementById('rDate').textContent='◷  '+n.year;
+    document.getElementById('rRevisits').textContent='✦  revisited '+n.rev+'×';
+    const body=document.getElementById('rBody'); body.innerHTML='';
+    (n.body||[]).forEach(par=>{
+      const p=document.createElement('p');
+      if(par.startsWith('PULL::')){p.className='pull';p.textContent=par.slice(6);}
+      else p.textContent=par;
+      body.appendChild(p);
+    });
+    document.getElementById('rCoachTxt').textContent=' '+(n.coach||'');
+    const rel=document.getElementById('rRelated'); rel.innerHTML='';
+    (n.links||[]).forEach(lid=>{
+      const ln=byId(lid); if(!ln)return;
+      const div=document.createElement('div');div.className='relitem';
+      div.innerHTML=`<div class="rorb" style="color:${ln.cluster.color};background:${ln.cluster.color}"></div>
+        <div><div class="rt">${ln.t}</div><div class="rs">${ln.cluster.name} · ${ln.year} · revisited ${ln.rev}×</div></div>`;
+      div.onclick=()=>openMemory(ln);
+      rel.appendChild(div);
+    });
+    reader.classList.add('open');
+    hideHint();
+  }
+  function closeReader(){ selected=null; relatedSet=new Set(); reader.classList.remove('open'); }
+  document.getElementById('readerClose').onclick=closeReader;
+
+  // ---------- Capture composer ----------
+  const composer=document.getElementById('composer'), scrim=document.getElementById('scrim');
+  const chipWrap=document.getElementById('cChips');
+  let chosenCluster='ideas';
+  function buildChips(){
+    chipWrap.innerHTML='';
+    clusters.forEach(c=>{
+      const el=document.createElement('div');el.className='chip'+(c.id===chosenCluster?' on':'');
+      el.textContent=c.name;
+      el.style.background = c.id===chosenCluster? c.color : 'transparent';
+      el.onclick=()=>{chosenCluster=c.id;buildChips();};
+      chipWrap.appendChild(el);
+    });
+  }
+  buildChips();
+  function openComposer(){ composer.classList.add('open');scrim.classList.add('open');
+    document.getElementById('cText').focus(); hideHint();}
+  function closeComposer(){ composer.classList.remove('open');scrim.classList.remove('open');
+    document.getElementById('cText').value=''; }
+  document.getElementById('capture').onclick=openComposer;
+  document.getElementById('cCancel').onclick=closeComposer;
+  scrim.onclick=closeComposer;
+
+  document.getElementById('cCast').onclick=()=>{
+    const txt=document.getElementById('cText').value.trim() || 'A fleeting thought, captured';
+    closeComposer();
+    // enter aiming mode so the user places the star (capture = new star born)
+    pendingCapture={txt, cl:chosenCluster};
+    aiming=true; cv.classList.add('aiming');
+    showHintText('A star is forming — click anywhere to let it fall into place ✦');
+  };
+
+  let pendingCapture=null;
+  function placeNewStar(sx,sy){
+    aiming=false; cv.classList.remove('aiming');
+    const w=screenToWorld(sx,sy);
+    const c=clusterById[pendingCapture.cl];
+    // find nearest existing kin to thread to (within cluster + a couple global)
+    const candidates=nodes.map(n=>({n,d:Math.hypot(n.x-w.x,n.y-w.y)})).sort((a,b)=>a.d-b.d);
+    const links=[];
+    for(const {n} of candidates){ if(n.cl===pendingCapture.cl){links.push(n.id); if(links.length>=2)break;} }
+    if(candidates[0]&&!links.includes(candidates[0].n.id))links.unshift(candidates[0].n.id);
+    const node={
+      id:nextId++, cl:pendingCapture.cl, t:pendingCapture.txt, year:2025, rev:1,
+      body:[pendingCapture.txt,"Captured just now. Pensieve will transcribe, label, and thread it to the memories it belongs with."],
+      coach:"Freshly captured — as you revisit it, it will brighten and new threads may form.",
+      links:links.slice(0,3),
+      x:w.x,y:w.y, ph:Math.random()*6.28, pa:6+Math.random()*8, ps:.2+Math.random()*.3,
+      born:0, pulse:0, color:c.color, cluster:c, _flare:1
+    };
+    // make the kin link back
+    node.links.forEach(lid=>{const ln=byId(lid); if(ln && !ln.links.includes(node.id)) ln.links.push(node.id);});
+    nodes.push(node);
+    // fly camera to it and open
+    cam.tx=w.x;cam.ty=w.y;cam.tz=Math.max(cam.tz,1.0);
+    pendingCapture=null;
+    setTimeout(()=>openMemory(node),420);
+    showHintText('A new star is born, threaded to its kin ✦', true);
+  }
+
+  // ---------- Era dial ----------
+  const eraInput=document.getElementById('era'), eraVal=document.getElementById('eraVal');
+  eraInput.addEventListener('input',()=>{
+    era=+eraInput.value;
+    eraVal.textContent = era===0?'All years':(2020+era);
+  });
+
+  // ---------- Search (dim non-matches by selecting match set as related) ----------
+  const search=document.getElementById('search');
+  search.addEventListener('input',()=>{
+    const q=search.value.trim().toLowerCase();
+    if(!q){ if(selected) {} else {selected=null;relatedSet=new Set();} return; }
+    const matches=nodes.filter(n=>n.t.toLowerCase().includes(q)||(n.body||[]).join(' ').toLowerCase().includes(q));
+    if(matches.length){
+      // highlight matches using the relatedSet + a pseudo-selected to dim others
+      selected=matches[0];
+      relatedSet=new Set(matches.map(m=>m.id));
+      // frame them
+      let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+      matches.forEach(m=>{minx=Math.min(minx,m.x);maxx=Math.max(maxx,m.x);miny=Math.min(miny,m.y);maxy=Math.max(maxy,m.y);});
+      cam.tx=(minx+maxx)/2;cam.ty=(miny+maxy)/2;
+    }
+  });
+  search.addEventListener('keydown',e=>{ if(e.key==='Enter'){const m=byId([...relatedSet][0]); if(m)openMemory(m);} });
+
+  // ---------- Controls ----------
+  document.getElementById('zoomIn').onclick=()=>cam.tz=Math.min(2.6,cam.tz*1.3);
+  document.getElementById('zoomOut').onclick=()=>cam.tz=Math.max(0.3,cam.tz/1.3);
+  document.getElementById('recenter').onclick=()=>{cam.tx=0;cam.ty=0;cam.tz=0.78;closeReader();};
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){ if(aiming){aiming=false;cv.classList.remove('aiming');} closeComposer();closeReader();}
+  });
+
+  // ---------- Hints ----------
+  const hintEl=document.getElementById('hint');
+  let hintTimer;
+  function hideHint(){hintEl.style.opacity='0';}
+  function showHintText(txt,autohide){
+    hintEl.innerHTML=txt; hintEl.style.opacity='1';
+    clearTimeout(hintTimer);
+    if(autohide)hintTimer=setTimeout(()=>hintEl.style.opacity='0',3200);
+  }
+  setTimeout(()=>{ if(hintEl.style.opacity!=='0') hintEl.style.opacity='0.0'; },9000);
+
+  // ---------- Brand mark (constellation glyph) ----------
+  (function(){
+    const m=document.getElementById('brandMark');
+    const pts=[[4,6],[13,3],[20,10],[16,20],[7,16]];
+    pts.forEach(p=>{const i=document.createElement('i');
+      i.style.width=i.style.height=(2.4+Math.random()*1.6)+'px';
+      i.style.left=p[0]+'px';i.style.top=p[1]+'px';
+      i.style.boxShadow='0 0 5px rgba(174,191,230,.9)';
+      m.appendChild(i);});
+  })();
+
+  // ---------- Init ----------
+  function init(){ resize(); makeBgStars(); requestAnimationFrame(frame); }
+  init();
+})();
+</script>

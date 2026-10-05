@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pensieve — Vision Concepts</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    color: #e9edf2;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, rgba(150,180,220,.18), transparent 60%),
+      radial-gradient(800px 500px at 80% 110%, rgba(120,150,200,.12), transparent 60%),
+      #0b0d12;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 72px 24px 96px; }
+  header { text-align: center; margin-bottom: 48px; }
+  h1 { font-weight: 300; font-size: clamp(28px, 5vw, 44px); letter-spacing: .02em; margin: 0 0 10px; }
+  h1 b { font-weight: 600; background: linear-gradient(180deg,#f3f7fb,#aebfd4); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { color: #93a0b4; font-size: 15px; max-width: 60ch; margin: 0 auto; line-height: 1.6; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+  @media (max-width: 680px) { .grid { grid-template-columns: 1fr; } }
+  a.card {
+    display: block; text-decoration: none; color: inherit;
+    border: 1px solid rgba(160,180,210,.14); border-radius: 14px;
+    background: linear-gradient(180deg, rgba(30,36,46,.75), rgba(18,22,30,.75));
+    padding: 22px 22px 20px; transition: border-color .2s, transform .2s, box-shadow .2s;
+  }
+  a.card:hover { border-color: rgba(180,205,240,.45); transform: translateY(-3px); box-shadow: 0 16px 40px -20px rgba(120,160,220,.5); }
+  .n { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #7e8ca2; }
+  .t { font-size: 20px; font-weight: 600; margin: 6px 0 8px; }
+  .d { font-size: 14px; line-height: 1.6; color: #aab6c8; }
+  .open { margin-top: 14px; font-size: 13px; color: #cfe0f5; }
+  footer { margin-top: 44px; text-align: center; color: #6b788c; font-size: 12.5px; line-height: 1.7; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>The <b>Pensieve</b>, reimagined</h1>
+      <p class="sub">Four concept directions for what capturing and revisiting memories could look and feel like if the app truly became the Pensieve. Each opens as a live, interactive mockup.</p>
+    </header>
+    <div class="grid">
+      <a class="card" href="01-the-basin.html">
+        <div class="n">Concept 01</div>
+        <div class="t">The Basin</div>
+        <div class="d">A stone chamber with a living silver pool. Pour a thought in and watch it spiral down; browse memory-wisps drifting on the surface (time as depth) and dive into one for an immersive read.</div>
+        <div class="open">Open →</div>
+      </a>
+      <a class="card" href="02-strands-and-vials.html">
+        <div class="n">Concept 02</div>
+        <div class="t">Strands &amp; Vials</div>
+        <div class="d">Dumbledore's memory cabinet: thoughts become coiling silver strands sealed in labelled vials on lit shelves. Uncork one and the strand unspools into the memory. Search & category shelves.</div>
+        <div class="open">Open →</div>
+      </a>
+      <a class="card" href="03-constellation.html">
+        <div class="n">Concept 03</div>
+        <div class="t">The Memory Constellation</div>
+        <div class="d">A star-field of memories you drift through; note-links are glowing threads, the ones you revisit shine brightest. Click a star to read it and ignite its connections. An era dial pulls focus across the years.</div>
+        <div class="open">Open →</div>
+      </a>
+      <a class="card" href="04-everyday-pensieve.html">
+        <div class="n">Concept 04</div>
+        <div class="t">Everyday Pensieve</div>
+        <div class="d">The pragmatic one: a fast, calm daily app that keeps the Pensieve soul as atmosphere. A "pour a thought" bar, a shimmering memory stream, an AI coach that resurfaces the past, and a focus "dive" reader.</div>
+        <div class="open">Open →</div>
+      </a>
+    </div>
+    <footer>
+      Interactive concepts · self-contained, offline · a vision exploration, not the shipping UI.<br/>
+      Pensieve — the ultimate tool for thinkers.
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,618 @@
+<!--
+  PENSIEVE — CONCEPT 02: "STRANDS & VIALS" (the memory cabinet)
+  Vision mockup, not production code. One self-contained .html (inline CSS/JS, no assets/CDNs).
+  Metaphor: memories are silvery strands captured into labelled crystal vials on softly-lit shelves.
+  CAPTURE = draw a strand (type a thought → it coils into a fresh, auto-labelled vial).
+  BROWSE = shelves grouped by category/date; search filters; hover shimmers a vial's label.
+  READ = uncork a vial → the strand unspools into a calm, readable memory view.
+  All visuals are CSS + inline SVG + <canvas>; Pensieve-silver on deep stone/ink darks.
+-->
+<title>Pensieve — Memory Cabinet</title>
+<style>
+  :root{
+    --ink:#0a0c12; --ink2:#0e1118; --stone:#12151e; --stone2:#171b26;
+    --edge:#232a3a; --edge2:#2e3650;
+    --silver:#dfe7f2; --silver-dim:#9aa6bd; --silver-faint:#5b657e;
+    --glow:#bcd3ff; --glow2:#8fb6ff;
+    --accent:#cfe0ff;
+    --shadow:0 24px 60px -24px rgba(0,0,0,.8);
+    --r:16px;
+    font-synthesis:none;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; overflow-x:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--silver);
+    background:
+      radial-gradient(1200px 700px at 18% -8%, #1a2032 0%, rgba(26,32,50,0) 60%),
+      radial-gradient(1000px 800px at 108% 20%, #141a2b 0%, rgba(20,26,43,0) 55%),
+      linear-gradient(180deg,#0b0e16 0%, #080a10 100%);
+    -webkit-font-smoothing:antialiased;
+  }
+  /* drifting dust motes behind everything */
+  #motes{position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.55}
+
+  .wrap{position:relative; z-index:1; max-width:1240px; margin:0 auto; padding:26px 26px 80px}
+
+  /* ---------- header ---------- */
+  header.top{display:flex; align-items:center; gap:20px; flex-wrap:wrap; margin-bottom:22px}
+  .brand{display:flex; align-items:center; gap:14px; min-width:0}
+  .sigil{width:46px;height:46px;flex:0 0 auto; filter:drop-shadow(0 0 10px rgba(143,182,255,.35))}
+  .brand h1{font-size:19px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; margin:0; color:var(--silver)}
+  .brand p{margin:2px 0 0; font-size:12.5px; color:var(--silver-faint); letter-spacing:.03em}
+
+  .search{margin-left:auto; position:relative; flex:1 1 320px; max-width:460px; min-width:220px}
+  .search svg{position:absolute; left:14px; top:50%; transform:translateY(-50%); width:16px;height:16px; color:var(--silver-faint)}
+  .search input{
+    width:100%; padding:12px 14px 12px 40px; border-radius:12px;
+    background:rgba(255,255,255,.035); border:1px solid var(--edge);
+    color:var(--silver); font-size:14px; outline:none; letter-spacing:.01em;
+    transition:border-color .2s, box-shadow .2s, background .2s;
+  }
+  .search input::placeholder{color:var(--silver-faint)}
+  .search input:focus{border-color:var(--edge2); box-shadow:0 0 0 4px rgba(143,182,255,.08); background:rgba(255,255,255,.05)}
+
+  /* ---------- capture (draw a strand) ---------- */
+  .capture{
+    position:relative; margin:0 0 28px; border-radius:var(--r);
+    background:linear-gradient(180deg, rgba(23,27,38,.9), rgba(14,17,24,.9));
+    border:1px solid var(--edge); box-shadow:var(--shadow); overflow:hidden;
+  }
+  .capture::before{content:""; position:absolute; inset:0;
+    background:radial-gradient(600px 160px at 20% 0%, rgba(143,182,255,.10), transparent 70%); pointer-events:none}
+  .capture .row{display:flex; align-items:stretch; gap:0}
+  .capture label.lab{position:absolute; top:12px; left:18px; font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:var(--silver-faint)}
+  .capture textarea{
+    flex:1; resize:none; border:0; outline:0; background:transparent; color:var(--silver);
+    font-size:17px; line-height:1.55; padding:34px 18px 18px; min-height:92px; font-family:inherit;
+  }
+  .capture textarea::placeholder{color:var(--silver-faint)}
+  .capture .cap-side{display:flex; flex-direction:column; align-items:flex-end; justify-content:space-between; padding:14px 16px; gap:10px; min-width:168px}
+  .draw-canvas{position:absolute; right:150px; bottom:0; width:260px; height:120px; pointer-events:none; opacity:.9}
+  .btn{
+    appearance:none; cursor:pointer; border:1px solid var(--edge2);
+    background:linear-gradient(180deg, rgba(143,182,255,.18), rgba(143,182,255,.06));
+    color:var(--accent); font-size:13.5px; font-weight:600; letter-spacing:.02em;
+    padding:11px 18px; border-radius:11px; transition:transform .12s, box-shadow .2s, border-color .2s;
+    box-shadow:0 0 0 0 rgba(143,182,255,0);
+  }
+  .btn:hover{transform:translateY(-1px); border-color:#4a5a86; box-shadow:0 10px 26px -12px rgba(143,182,255,.5)}
+  .btn:active{transform:translateY(0)}
+  .hint{font-size:11px; color:var(--silver-faint); text-align:right; line-height:1.4}
+
+  /* ---------- filter chips ---------- */
+  .filters{display:flex; gap:9px; flex-wrap:wrap; align-items:center; margin:0 2px 20px}
+  .chip{
+    cursor:pointer; user-select:none; font-size:12.5px; letter-spacing:.02em;
+    padding:7px 13px; border-radius:999px; border:1px solid var(--edge);
+    background:rgba(255,255,255,.02); color:var(--silver-dim); transition:all .18s;
+    display:inline-flex; align-items:center; gap:7px;
+  }
+  .chip .dot{width:7px;height:7px;border-radius:50%; background:var(--c,#8fb6ff); box-shadow:0 0 8px var(--c,#8fb6ff)}
+  .chip:hover{border-color:var(--edge2); color:var(--silver)}
+  .chip.on{background:rgba(143,182,255,.12); border-color:#45527c; color:var(--silver)}
+  .count{margin-left:auto; font-size:12px; color:var(--silver-faint); letter-spacing:.04em}
+
+  /* ---------- cabinet / shelves ---------- */
+  .cabinet{display:flex; flex-direction:column; gap:30px}
+  .shelf{position:relative}
+  .shelf h2{
+    font-size:12px; font-weight:600; letter-spacing:.2em; text-transform:uppercase;
+    color:var(--silver-dim); margin:0 0 14px; display:flex; align-items:baseline; gap:10px;
+  }
+  .shelf h2 .n{font-size:11px; color:var(--silver-faint); letter-spacing:.05em; font-weight:500}
+  .rack{
+    position:relative; display:grid; gap:14px;
+    grid-template-columns:repeat(auto-fill, minmax(118px, 1fr));
+    padding:18px 16px 0; border-radius:14px;
+    background:linear-gradient(180deg, rgba(255,255,255,.015), rgba(255,255,255,0));
+  }
+  /* the physical shelf plank */
+  .rack::after{
+    content:""; position:absolute; left:6px; right:6px; bottom:-3px; height:14px; border-radius:3px;
+    background:linear-gradient(180deg,#1b2130,#0c0f17);
+    box-shadow:0 10px 26px -10px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.05);
+  }
+
+  /* ---------- a vial ---------- */
+  .vial{
+    position:relative; display:flex; flex-direction:column; align-items:center;
+    padding:6px 4px 20px; cursor:pointer; outline:none;
+    animation:rise .5s cubic-bezier(.2,.8,.2,1) both;
+  }
+  @keyframes rise{from{opacity:0; transform:translateY(14px)} to{opacity:1; transform:none}}
+  .vial .glass{position:relative; width:72px; height:118px}
+  .vial svg{display:block; width:100%; height:100%; overflow:visible}
+  .vial .label{
+    margin-top:9px; font-size:11px; line-height:1.3; text-align:center; color:var(--silver-dim);
+    max-width:112px; letter-spacing:.01em; transition:color .2s;
+  }
+  .vial .meta{font-size:9.5px; color:var(--silver-faint); margin-top:3px; letter-spacing:.06em; text-transform:uppercase}
+  .vial:hover .label,.vial:focus .label{color:var(--silver)}
+  .vial .halo{
+    position:absolute; left:50%; top:46px; width:120px; height:120px; translate:-50% 0;
+    border-radius:50%; pointer-events:none; opacity:0; transition:opacity .35s;
+    background:radial-gradient(circle, rgba(143,182,255,.28), transparent 62%);
+  }
+  .vial:hover .halo,.vial:focus .halo{opacity:1}
+  /* shimmer sweep on hover */
+  .shimmer{pointer-events:none; mix-blend-mode:screen; opacity:0}
+  .vial:hover .shimmer,.vial:focus .shimmer{opacity:1; animation:sweep 1.6s linear infinite}
+  @keyframes sweep{0%{transform:translateY(60px)} 100%{transform:translateY(-60px)}}
+  /* gentle idle bob of the strand */
+  .strand-grp{transform-origin:center; animation:bob 6s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0)} 50%{transform:translateY(-2.5px)}}
+  .vial .tag{
+    position:absolute; top:2px; right:10px; font-size:8px; letter-spacing:.08em;
+    color:#0a0c12; background:var(--c,#8fb6ff); padding:1px 5px; border-radius:6px; font-weight:700; opacity:.9;
+    text-transform:uppercase;
+  }
+  .vial.dim{opacity:.16; filter:grayscale(.5)}
+  .vial.hide{display:none}
+
+  .empty{padding:40px 10px; text-align:center; color:var(--silver-faint); font-size:13.5px}
+
+  /* ---------- memory view (uncork → unspool → read) ---------- */
+  .scrim{
+    position:fixed; inset:0; z-index:40; display:none; align-items:center; justify-content:center;
+    padding:30px; background:radial-gradient(900px 600px at 50% 30%, rgba(12,16,26,.55), rgba(5,7,11,.86));
+    backdrop-filter:blur(7px); -webkit-backdrop-filter:blur(7px);
+  }
+  .scrim.open{display:flex; animation:fade .3s ease both}
+  @keyframes fade{from{opacity:0} to{opacity:1}}
+  .memory{
+    position:relative; width:min(680px, 94vw); max-height:88vh; overflow:auto;
+    border-radius:20px; background:linear-gradient(180deg, rgba(22,26,37,.98), rgba(12,15,22,.98));
+    border:1px solid var(--edge2); box-shadow:0 40px 120px -30px rgba(0,0,0,.9);
+    animation:lift .45s cubic-bezier(.2,.8,.2,1) both;
+  }
+  @keyframes lift{from{opacity:0; transform:translateY(22px) scale(.98)} to{opacity:1; transform:none}}
+  .memory .unspool{display:block; width:100%; height:92px; background:radial-gradient(400px 90px at 50% -10%, rgba(143,182,255,.14), transparent 70%)}
+  .memory .m-body{padding:4px 34px 30px}
+  .memory .m-tag{display:inline-flex; align-items:center; gap:7px; font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--silver-dim)}
+  .memory .m-tag .dot{width:8px;height:8px;border-radius:50%; background:var(--c,#8fb6ff); box-shadow:0 0 10px var(--c,#8fb6ff)}
+  .memory h3{font-size:24px; font-weight:600; letter-spacing:-.01em; margin:12px 0 6px; color:#eef3fb}
+  .memory .m-date{font-size:12.5px; color:var(--silver-faint); letter-spacing:.05em; margin-bottom:20px}
+  .memory .m-text{font-size:16.5px; line-height:1.72; color:#cdd6e6; white-space:pre-wrap;
+    opacity:0; animation:reveal .9s ease .25s both}
+  @keyframes reveal{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none}}
+  .memory .m-foot{display:flex; gap:18px; margin-top:24px; padding-top:18px; border-top:1px solid var(--edge); font-size:12.5px; color:var(--silver-faint)}
+  .memory .m-foot b{color:var(--silver-dim); font-weight:600}
+  .x{position:absolute; top:14px; right:16px; width:34px;height:34px; border-radius:10px; cursor:pointer;
+    display:grid; place-items:center; color:var(--silver-dim); border:1px solid var(--edge); background:rgba(255,255,255,.03); transition:all .18s}
+  .x:hover{color:var(--silver); border-color:var(--edge2); background:rgba(255,255,255,.07)}
+
+  /* toast when a new strand is captured */
+  .toast{position:fixed; left:50%; bottom:30px; translate:-50% 0; z-index:60;
+    background:rgba(20,25,36,.96); border:1px solid var(--edge2); color:var(--silver);
+    padding:12px 18px; border-radius:12px; font-size:13.5px; box-shadow:var(--shadow);
+    display:flex; align-items:center; gap:10px; opacity:0; pointer-events:none; transition:opacity .3s, transform .3s; transform:translate(-50%,10px)}
+  .toast.show{opacity:1; transform:translate(-50%,0)}
+  .toast .dot{width:8px;height:8px;border-radius:50%; background:var(--glow2); box-shadow:0 0 10px var(--glow2)}
+
+  .foot{margin-top:46px; text-align:center; color:var(--silver-faint); font-size:11.5px; letter-spacing:.06em}
+  @media (max-width:620px){
+    .capture .row{flex-direction:column}
+    .capture .cap-side{flex-direction:row; align-items:center; min-width:0; width:100%; border-top:1px solid var(--edge)}
+    .draw-canvas{display:none}
+    .capture textarea{padding-bottom:6px}
+  }
+</style>
+
+<canvas id="motes"></canvas>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg class="sigil" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+        <defs>
+          <radialGradient id="bowl" cx="50%" cy="40%" r="60%">
+            <stop offset="0%" stop-color="#eaf1ff"/><stop offset="55%" stop-color="#8fb6ff"/><stop offset="100%" stop-color="#2a3550"/>
+          </radialGradient>
+        </defs>
+        <ellipse cx="24" cy="26" rx="18" ry="8" fill="none" stroke="#4a5a86" stroke-width="1.4"/>
+        <ellipse cx="24" cy="25" rx="14" ry="5.5" fill="url(#bowl)" opacity="0.85"/>
+        <path d="M24 25 C 20 18, 30 14, 26 8 C 24 11, 22 9, 24 6" stroke="#dfe7f2" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.9"/>
+        <circle cx="26" cy="7" r="1.3" fill="#eaf1ff"/>
+      </svg>
+      <div>
+        <h1>Pensieve</h1>
+        <p>Your memory cabinet · 248 strands kept</p>
+      </div>
+    </div>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="search" type="text" placeholder="Search the cabinet…  (try: grief, sea, idea)" aria-label="Search memories"/>
+    </div>
+  </header>
+
+  <!-- CAPTURE: draw a strand -->
+  <section class="capture">
+    <label class="lab">Draw a strand</label>
+    <div class="row">
+      <textarea id="capture" placeholder="Pull a thought from your mind…  it will coil into a fresh vial, labelled for you."></textarea>
+      <canvas class="draw-canvas" id="drawCanvas" width="520" height="240" aria-hidden="true"></canvas>
+      <div class="cap-side">
+        <div class="hint">⌘⏎ to keep<br/>auto-labelled on arrival</div>
+        <button class="btn" id="captureBtn">Keep strand →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- FILTERS -->
+  <div class="filters" id="filters">
+    <span class="chip on" data-cat="all">All shelves</span>
+    <span class="chip" data-cat="Reflections" style="--c:#8fb6ff"><span class="dot"></span>Reflections</span>
+    <span class="chip" data-cat="Ideas" style="--c:#8fe6c6"><span class="dot"></span>Ideas</span>
+    <span class="chip" data-cat="People" style="--c:#e6a6ff"><span class="dot"></span>People</span>
+    <span class="chip" data-cat="Dreams" style="--c:#ffcf8f"><span class="dot"></span>Dreams</span>
+    <span class="chip" data-cat="Lessons" style="--c:#ff9fb0"><span class="dot"></span>Lessons</span>
+    <span class="count" id="count"></span>
+  </div>
+
+  <!-- CABINET -->
+  <main class="cabinet" id="cabinet"></main>
+
+  <div class="foot">Concept 02 · “Strands & Vials” — a magical-concepts exploration of the Pensieve metaphor. Not production.</div>
+</div>
+
+<!-- MEMORY VIEW -->
+<div class="scrim" id="scrim" role="dialog" aria-modal="true" aria-label="Memory">
+  <div class="memory" id="memory">
+    <div class="x" id="closeBtn" title="Cork the vial (Esc)">✕</div>
+    <canvas class="unspool" id="unspool" width="1360" height="184" aria-hidden="true"></canvas>
+    <div class="m-body">
+      <span class="m-tag"><span class="dot"></span><span id="mCat"></span></span>
+      <h3 id="mTitle"></h3>
+      <div class="m-date" id="mDate"></div>
+      <div class="m-text" id="mText"></div>
+      <div class="m-foot">
+        <span><b id="mWords"></b> words</span>
+        <span>kept to <b>·local vault</b></span>
+        <span id="mSurface"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script>
+"use strict";
+/* ---------- palette per category ---------- */
+const CAT = {
+  Reflections:{c:"#8fb6ff"}, Ideas:{c:"#8fe6c6"}, People:{c:"#e6a6ff"},
+  Dreams:{c:"#ffcf8f"}, Lessons:{c:"#ff9fb0"}
+};
+
+/* ---------- sample memories ---------- */
+let MEMS = [
+  {t:"The tide remembers everything", c:"Reflections", d:"Today, 07:12",
+   x:"Walked the cold beach before anyone woke. The tide had rubbed the sand smooth again — every footprint from yesterday gone, and somehow that was a relief, not a loss. Maybe memory works the same way: not a ledger to keep perfect, but a shore that keeps offering a clean place to begin.", s:"Voice · 2m note"},
+  {t:"A quieter capture flow", c:"Ideas", d:"Today, 09:40",
+   x:"What if logging a thought felt like drawing a silver strand — no forms, no fields, just the thought leaving your head and settling somewhere safe and labelled? The friction of journaling is the blank page staring back. Remove the page.", s:"Typed"},
+  {t:"Grandad's workshop smell", c:"People", d:"Yesterday",
+   x:"Sawdust, machine oil, and the particular cold of the concrete floor. He never said much, but he'd hand me the plane and watch. I understand now that was the whole lesson: here, try, I'm not going anywhere.", s:"Photo + note"},
+  {t:"The staircase that kept climbing", c:"Dreams", d:"Mon",
+   x:"A library where the staircase folded back on itself forever. Every landing had a door with my own handwriting on it. I never opened one. Woke up certain I'd left something important behind a door I'd already passed.", s:"Voice · 40s"},
+  {t:"Ship the embarrassing version", c:"Lessons", d:"Mon",
+   x:"Every project I'm proud of started as something I was faintly ashamed to show. The shame is the tax on caring. Pay it early and cheap, or pay it late and expensive. Done quietly beats perfect in theory.", s:"Typed"},
+  {t:"Rain on the studio skylight", c:"Reflections", d:"Sun",
+   x:"Worked all afternoon to the sound of rain overhead. Nothing profound happened. But I want to remember ordinary contentment too — not only the hard days and the breakthroughs. The average day is the life.", s:"Typed"},
+  {t:"Coach, not critic", c:"Ideas", d:"Sun",
+   x:"The AI shouldn't grade my journaling. It should notice patterns I'm too close to see — 'you write about the sea when you're overwhelmed' — and ask one good question. A coach that has read everything and roots for you.", s:"Typed"},
+  {t:"Mira's advice about saying no", c:"People", d:"Fri",
+   x:"'Every yes is a no to something you haven't met yet.' She said it over terrible coffee and I've thought about it every week since. Protect the calendar like it's the one non-renewable resource. It is.", s:"Voice · 1m"},
+  {t:"Flying the long way home", c:"Dreams", d:"Thu",
+   x:"Could fly, but only slowly, and only if I stopped trying hard. The moment I strained I sank. Woke up with the odd conviction that this is true about most things worth doing.", s:"Voice · 55s"},
+  {t:"Measure the week, not the day", c:"Lessons", d:"Thu",
+   x:"A single bad day told me nothing except that I was tired. Zoomed out to the week and the real signal appeared. Resolution matters: too fine and it's all noise; too coarse and you miss the turn.", s:"Typed"},
+  {t:"What the archive is for", c:"Reflections", d:"Wed",
+   x:"Not nostalgia. It's so the future version of me isn't starting from zero — so the lessons I paid for stay paid. A pensieve to pour the overflow into, and trust it will be there, labelled, when I come back.", s:"Typed"},
+  {t:"Handwriting, transcribed", c:"Ideas", d:"Wed",
+   x:"Keep the original page — the crossings-out, the pressure of the pen — AND a clean transcript so the AI can read it. Never make me choose between the artefact and the searchable text. Hold both.", s:"Handwriting · scan"}
+];
+
+/* ---------- build a vial SVG ---------- */
+function vialSVG(color){
+  const uid = "g"+Math.random().toString(36).slice(2,8);
+  return `
+  <svg viewBox="0 0 72 118" aria-hidden="true">
+    <defs>
+      <linearGradient id="${uid}glass" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="rgba(255,255,255,.22)"/>
+        <stop offset=".5" stop-color="rgba(255,255,255,.05)"/>
+        <stop offset="1" stop-color="rgba(255,255,255,.12)"/>
+      </linearGradient>
+      <radialGradient id="${uid}liq" cx="50%" cy="34%" r="70%">
+        <stop offset="0" stop-color="#ffffff"/>
+        <stop offset="45%" stop-color="${color}"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity=".25"/>
+      </radialGradient>
+      <linearGradient id="${uid}sh" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="rgba(255,255,255,0)"/>
+        <stop offset=".5" stop-color="rgba(255,255,255,.55)"/>
+        <stop offset="1" stop-color="rgba(255,255,255,0)"/>
+      </linearGradient>
+      <clipPath id="${uid}body"><path d="M24 28 h24 v40 a24 26 0 0 1 -24 26 a24 26 0 0 1 -24 -26 v-40 z" transform="translate(12,0)"/></clipPath>
+    </defs>
+
+    <!-- cork -->
+    <rect x="27" y="4" width="18" height="12" rx="3" fill="#6b5a44" stroke="#3e3122" stroke-width="1"/>
+    <rect x="28.5" y="6" width="15" height="3" rx="1.5" fill="rgba(255,255,255,.16)"/>
+    <!-- neck -->
+    <rect x="29" y="14" width="14" height="14" fill="url(#${uid}glass)" stroke="rgba(190,211,255,.35)" stroke-width="1"/>
+    <!-- body -->
+    <path d="M24 28 h24 v40 a24 26 0 0 1 -24 26 a24 26 0 0 1 -24 -26 v-40 z" transform="translate(12,0)"
+          fill="url(#${uid}glass)" stroke="rgba(190,211,255,.4)" stroke-width="1.2"/>
+
+    <!-- strand inside (idle bob) -->
+    <g class="strand-grp" clip-path="url(#${uid}body)">
+      <path d="M36 40 C 28 48, 44 54, 34 62 C 26 68, 44 72, 36 82"
+            fill="none" stroke="url(#${uid}liq)" stroke-width="3.4" stroke-linecap="round" opacity=".95"/>
+      <path d="M36 44 C 30 50, 42 56, 35 64 C 29 70, 42 74, 36 80"
+            fill="none" stroke="#ffffff" stroke-width="1" stroke-linecap="round" opacity=".55"/>
+      <circle cx="36" cy="84" r="9" fill="url(#${uid}liq)" opacity=".7"/>
+    </g>
+
+    <!-- glass highlight -->
+    <rect x="18" y="34" width="4" height="46" rx="2" fill="url(#${uid}sh)" opacity=".5"/>
+    <!-- shimmer sweep -->
+    <rect class="shimmer" x="12" y="30" width="48" height="12" fill="url(#${uid}sh)"/>
+  </svg>`;
+}
+
+/* ---------- render the cabinet grouped by category ---------- */
+const cabinet = document.getElementById('cabinet');
+let activeCat = "all";
+let query = "";
+
+function groupByCat(list){
+  const order = ["Reflections","Ideas","People","Dreams","Lessons"];
+  const g = {};
+  list.forEach(m=>{ (g[m.c]=g[m.c]||[]).push(m); });
+  return order.filter(k=>g[k]).map(k=>({cat:k, items:g[k]}));
+}
+
+function render(){
+  const q = query.trim().toLowerCase();
+  const visible = MEMS.filter(m=>{
+    const okCat = activeCat==="all" || m.c===activeCat;
+    const okQ = !q || (m.t+" "+m.x+" "+m.c).toLowerCase().includes(q);
+    return okCat && okQ;
+  });
+
+  document.getElementById('count').textContent =
+    visible.length + (visible.length===1?" strand":" strands") + (q?` matching “${query.trim()}”`:"");
+
+  cabinet.innerHTML = "";
+  if(!visible.length){
+    cabinet.innerHTML = `<div class="empty">No strands on these shelves yet. Try another word — or draw a new one above.</div>`;
+    return;
+  }
+  groupByCat(visible).forEach(group=>{
+    const shelf = document.createElement('section');
+    shelf.className="shelf";
+    const color = CAT[group.cat].c;
+    shelf.innerHTML = `<h2 style="color:${color}">${group.cat} <span class="n">— ${group.items.length}</span></h2>`;
+    const rack = document.createElement('div');
+    rack.className="rack";
+    group.items.forEach(m=>{
+      const idx = MEMS.indexOf(m);
+      const v = document.createElement('div');
+      v.className="vial"; v.tabIndex=0; v.setAttribute('role','button');
+      v.setAttribute('aria-label', m.t+", "+m.c+", "+m.d);
+      v.style.setProperty('--c', color);
+      v.innerHTML = `
+        <div class="tag" style="--c:${color}">${m.c.slice(0,4)}</div>
+        <div class="halo"></div>
+        <div class="glass">${vialSVG(color)}</div>
+        <div class="label">${m.t}</div>
+        <div class="meta">${m.d}</div>`;
+      const open = ()=>openMemory(idx);
+      v.addEventListener('click', open);
+      v.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault(); open();} });
+      rack.appendChild(v);
+    });
+    shelf.appendChild(rack);
+    cabinet.appendChild(shelf);
+  });
+}
+
+/* ---------- filters ---------- */
+document.getElementById('filters').addEventListener('click', e=>{
+  const chip = e.target.closest('.chip'); if(!chip) return;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));
+  chip.classList.add('on');
+  activeCat = chip.dataset.cat;
+  render();
+});
+
+/* ---------- search ---------- */
+document.getElementById('search').addEventListener('input', e=>{
+  query = e.target.value; render();
+});
+
+/* ---------- memory view: uncork → unspool → read ---------- */
+const scrim = document.getElementById('scrim');
+let unspoolAnim = null;
+function openMemory(idx){
+  const m = MEMS[idx]; const color = CAT[m.c].c;
+  document.getElementById('mCat').textContent = m.c;
+  document.querySelector('#memory .m-tag .dot').style.setProperty('--c',color);
+  document.querySelector('#memory').style.setProperty('--c',color);
+  document.getElementById('mTitle').textContent = m.t;
+  document.getElementById('mDate').textContent = m.d;
+  const txt = document.getElementById('mText');
+  txt.textContent = m.x;
+  txt.style.animation='none'; void txt.offsetWidth; txt.style.animation='';
+  document.getElementById('mWords').textContent = m.x.split(/\s+/).length;
+  document.getElementById('mSurface').innerHTML = "captured via <b>"+m.s+"</b>";
+  scrim.classList.add('open');
+  document.getElementById('memory').scrollTop = 0;
+  runUnspool(color);
+}
+function closeMemory(){ scrim.classList.remove('open'); if(unspoolAnim) cancelAnimationFrame(unspoolAnim); }
+document.getElementById('closeBtn').addEventListener('click', closeMemory);
+scrim.addEventListener('click', e=>{ if(e.target===scrim) closeMemory(); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeMemory(); });
+
+/* animated strand unspooling across the top of the memory view */
+function runUnspool(color){
+  const cv = document.getElementById('unspool');
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  let t = 0;
+  cancelAnimationFrame(unspoolAnim);
+  function frame(){
+    t += 0.02;
+    ctx.clearRect(0,0,W,H);
+    const prog = Math.min(1, t*0.6);           // unspool progress 0..1
+    ctx.lineCap="round";
+    for(let layer=0; layer<3; layer++){
+      ctx.beginPath();
+      const amp = 26 - layer*6;
+      const end = W * prog;
+      for(let x=0; x<=end; x+=6){
+        const y = H*0.5
+          + Math.sin(x*0.018 + t*2 + layer) * amp
+          + Math.sin(x*0.045 - t*1.3) * (8-layer*2);
+        if(x===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.strokeStyle = layer===0 ? "rgba(255,255,255,.9)"
+                      : (layer===1 ? hexA(color,.8) : hexA(color,.35));
+      ctx.lineWidth = layer===0 ? 1.4 : (layer===1 ? 2.6 : 6);
+      ctx.shadowColor = hexA(color,.6); ctx.shadowBlur = layer===2?18:6;
+      ctx.stroke();
+    }
+    // leading glow head while unspooling
+    if(prog<1){
+      const hx = W*prog, hy=H*0.5 + Math.sin(hx*0.018 + t*2)*20;
+      const g = ctx.createRadialGradient(hx,hy,0,hx,hy,22);
+      g.addColorStop(0, hexA(color,.9)); g.addColorStop(1, hexA(color,0));
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(hx,hy,22,0,7); ctx.fill();
+    }
+    unspoolAnim = requestAnimationFrame(frame);
+  }
+  frame();
+}
+function hexA(hex,a){
+  const n = parseInt(hex.slice(1),16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
+
+/* ---------- capture: draw a strand into a new vial ---------- */
+const capture = document.getElementById('capture');
+const drawCv = document.getElementById('drawCanvas');
+function autoLabel(text){
+  const words = text.replace(/\s+/g,' ').trim();
+  if(!words) return "Untitled strand";
+  // first sentence or first ~6 words
+  let first = words.split(/[.!?\n]/)[0].trim();
+  const parts = first.split(' ');
+  if(parts.length>7) first = parts.slice(0,7).join(' ')+"…";
+  return first.charAt(0).toUpperCase()+first.slice(1);
+}
+function autoCategory(text){
+  const t = text.toLowerCase();
+  if(/\b(idea|what if|concept|design|feature|build|maybe we)\b/.test(t)) return "Ideas";
+  if(/\b(dream|dreamt|asleep|nightmare|woke)\b/.test(t)) return "Dreams";
+  if(/\b(learned|lesson|never again|note to self|realised|realized|always)\b/.test(t)) return "Lessons";
+  if(/\b(mum|dad|friend|mira|said|she |he |they |grandad|mother|father)\b/.test(t)) return "People";
+  return "Reflections";
+}
+function keepStrand(){
+  const text = capture.value.trim();
+  if(!text){ capture.focus(); return; }
+  const cat = autoCategory(text);
+  const mem = {t:autoLabel(text), c:cat, d:"Just now", x:text, s:"Typed"};
+  MEMS.unshift(mem);
+  capture.value="";
+  // drop the chip filter to the new category so the user sees it land
+  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on', c.dataset.cat===cat));
+  activeCat = cat; query=""; document.getElementById('search').value="";
+  render();
+  toast(`Strand kept — labelled “${mem.t}” on the ${cat} shelf`);
+}
+document.getElementById('captureBtn').addEventListener('click', keepStrand);
+capture.addEventListener('keydown', e=>{ if((e.metaKey||e.ctrlKey)&&e.key==='Enter'){ e.preventDefault(); keepStrand(); } });
+
+/* live "coiling strand" preview while typing in the capture box */
+(function(){
+  const ctx = drawCv.getContext('2d');
+  const W=drawCv.width, H=drawCv.height;
+  let energy=0, t=0;
+  capture.addEventListener('input', ()=>{ energy = Math.min(1, capture.value.length/80); });
+  (function loop(){
+    t+=0.03;
+    ctx.clearRect(0,0,W,H);
+    const target = capture.value.length?Math.min(1, capture.value.length/80):0;
+    energy += (target-energy)*0.08;
+    if(energy>0.01){
+      ctx.lineCap="round";
+      for(let l=0;l<2;l++){
+        ctx.beginPath();
+        for(let i=0;i<=40;i++){
+          const p=i/40;
+          // strand coils from top-left, tightening into a vial shape bottom-right
+          const coil = p*Math.PI*6*energy;
+          const r = (1-p)*60*energy + 6;
+          const cx = 90 + p*220;
+          const cy = 60 + Math.sin(t+p*8)*6 + p*60;
+          const x = cx + Math.cos(coil)*r*0.5;
+          const y = cy + Math.sin(coil)*r*0.5;
+          if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.strokeStyle = l===0?`rgba(223,231,242,${.5*energy})`:`rgba(143,182,255,${.5*energy})`;
+        ctx.lineWidth = l===0?1.2:3.2;
+        ctx.shadowColor=`rgba(143,182,255,${.6*energy})`; ctx.shadowBlur=10;
+        ctx.stroke();
+      }
+    }
+    requestAnimationFrame(loop);
+  })();
+})();
+
+/* ---------- toast ---------- */
+let toastTimer=null;
+function toast(msg){
+  const el=document.getElementById('toast');
+  document.getElementById('toastMsg').textContent=msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'), 3200);
+}
+
+/* ---------- ambient dust motes ---------- */
+(function(){
+  const cv=document.getElementById('motes'); const ctx=cv.getContext('2d');
+  let W,H,motes;
+  function resize(){ W=cv.width=innerWidth; H=cv.height=innerHeight;
+    motes=Array.from({length:Math.min(90, Math.floor(W*H/18000))},()=>({
+      x:Math.random()*W, y:Math.random()*H, r:Math.random()*1.6+0.3,
+      vx:(Math.random()-0.5)*0.12, vy:-Math.random()*0.18-0.03,
+      a:Math.random()*0.5+0.1, tw:Math.random()*Math.PI*2
+    }));
+  }
+  resize(); addEventListener('resize', resize);
+  (function draw(){
+    ctx.clearRect(0,0,W,H);
+    motes.forEach(m=>{
+      m.x+=m.vx; m.y+=m.vy; m.tw+=0.03;
+      if(m.y<-5){m.y=H+5; m.x=Math.random()*W;}
+      if(m.x<-5)m.x=W+5; if(m.x>W+5)m.x=-5;
+      const a=m.a*(0.6+0.4*Math.sin(m.tw));
+      ctx.beginPath(); ctx.arc(m.x,m.y,m.r,0,7);
+      ctx.fillStyle=`rgba(190,211,255,${a})`;
+      ctx.shadowColor="rgba(143,182,255,.8)"; ctx.shadowBlur=6;
+      ctx.fill();
+    });
+    requestAnimationFrame(draw);
+  })();
+})();
+
+/* ---------- init ---------- */
+render();
+</script>

@@ -1,0 +1,782 @@
+<!doctype html>
+<!--
+  EVERYDAY PENSIEVE — pragmatic concept #04
+  A calm, fast notes/journal app infused with Pensieve atmosphere rather than literal basins.
+  Core idea: magic that stays OUT OF THE WAY. Instant "pour a thought" capture bar, a memory
+  stream whose cards carry a faint pensieve-silver shimmer, practical labels + search, an AI
+  coach that gently resurfaces a past memory ("A memory stirs…"), and one signature "dive in"
+  focus-read moment. Dark "evening" theme leads; light "daybreak" theme is a toggle away.
+  Self-contained: inline CSS/JS, system fonts, CSS/SVG/canvas only. No assets, no network.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pensieve — Everyday</title>
+<style>
+  /* ---------- Tokens ---------- */
+  :root{
+    --bg:#0b0e13;
+    --bg-2:#0f131a;
+    --surface:#121824;
+    --surface-raised:#172033;
+    --surface-hi:#1c2740;
+    --text:#e9eef7;
+    --text-muted:#8a96ad;
+    --text-faint:#5b6678;
+    --border:#212c42;
+    --border-soft:#1a2334;
+    /* pensieve-silver accent */
+    --silver:#c7d4ea;
+    --silver-bright:#eaf1ff;
+    --silver-deep:#9fb2d4;
+    --accent:#aebfe0;
+    --accent-glow:rgba(174,191,224,.22);
+    --radius:14px;
+    --radius-sm:10px;
+    --radius-lg:22px;
+    --sp:8px;
+    --maxw:1180px;
+    --ease:cubic-bezier(.2,.7,.2,1);
+    --shadow:0 10px 40px -18px rgba(0,0,0,.8);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --serif: ui-serif, Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+  :root[data-theme="light"]{
+    --bg:#eef1f6;
+    --bg-2:#e7ebf2;
+    --surface:#ffffff;
+    --surface-raised:#f6f8fc;
+    --surface-hi:#eef2f9;
+    --text:#131925;
+    --text-muted:#5a6679;
+    --text-faint:#8793a6;
+    --border:#dbe2ee;
+    --border-soft:#e7ecf4;
+    --silver:#4a5f86;
+    --silver-bright:#2f4066;
+    --silver-deep:#64769a;
+    --accent:#52658c;
+    --accent-glow:rgba(82,101,140,.14);
+    --shadow:0 12px 36px -20px rgba(40,55,90,.35);
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:var(--font);
+    background:var(--bg);
+    color:var(--text);
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+    line-height:1.5;
+    letter-spacing:.1px;
+  }
+  /* mist / ambience at the edges — fixed, non-interactive */
+  #mist{position:fixed;inset:0;pointer-events:none;z-index:0}
+  .glow{position:fixed;pointer-events:none;z-index:0;filter:blur(60px);opacity:.5;transition:opacity .8s}
+  .glow.a{top:-160px;left:-120px;width:420px;height:420px;border-radius:50%;
+    background:radial-gradient(circle,rgba(130,160,210,.30),transparent 70%)}
+  .glow.b{bottom:-200px;right:-120px;width:520px;height:520px;border-radius:50%;
+    background:radial-gradient(circle,rgba(150,175,225,.22),transparent 70%)}
+  :root[data-theme="light"] .glow{opacity:.35}
+
+  .app{position:relative;z-index:1;max-width:var(--maxw);margin:0 auto;padding:0 24px 120px;}
+
+  /* ---------- Top bar ---------- */
+  header.top{
+    position:sticky;top:0;z-index:30;
+    display:flex;align-items:center;gap:16px;
+    padding:18px 0 14px;
+    backdrop-filter:blur(14px);
+    background:linear-gradient(to bottom, var(--bg) 60%, transparent);
+  }
+  .brand{display:flex;align-items:center;gap:11px;font-weight:600;letter-spacing:.3px}
+  .brand .mark{width:30px;height:30px;flex:0 0 auto}
+  .brand .name{font-size:16.5px}
+  .brand .name b{font-weight:650}
+  .brand .name span{color:var(--text-faint);font-weight:500}
+  .grow{flex:1}
+
+  .search{
+    position:relative;display:flex;align-items:center;gap:9px;
+    width:min(340px,42vw);
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:999px;padding:8px 14px;
+    transition:border-color .25s, box-shadow .25s, width .3s var(--ease);
+  }
+  .search:focus-within{border-color:var(--silver-deep);box-shadow:0 0 0 4px var(--accent-glow);width:min(400px,48vw)}
+  .search svg{flex:0 0 auto;opacity:.6}
+  .search input{
+    flex:1;background:none;border:none;outline:none;color:var(--text);
+    font-family:var(--font);font-size:14px;
+  }
+  .search input::placeholder{color:var(--text-faint)}
+  .search kbd{font-family:var(--mono);font-size:11px;color:var(--text-faint);
+    border:1px solid var(--border);border-radius:5px;padding:1px 6px;background:var(--surface-raised)}
+
+  .iconbtn{
+    display:grid;place-items:center;width:38px;height:38px;border-radius:11px;
+    background:var(--surface);border:1px solid var(--border);color:var(--text-muted);
+    cursor:pointer;transition:all .2s;
+  }
+  .iconbtn:hover{color:var(--text);border-color:var(--silver-deep);background:var(--surface-raised)}
+
+  /* ---------- Capture bar ---------- */
+  .capture-wrap{position:relative;z-index:5;margin:10px 0 26px}
+  .capture{
+    position:relative;
+    background:linear-gradient(180deg,var(--surface-raised),var(--surface));
+    border:1px solid var(--border);
+    border-radius:var(--radius-lg);
+    padding:16px 16px 12px;
+    box-shadow:var(--shadow);
+    overflow:hidden;
+    transition:border-color .3s, box-shadow .3s;
+  }
+  .capture::before{ /* top silver hairline sheen */
+    content:"";position:absolute;inset:0 0 auto 0;height:1px;
+    background:linear-gradient(90deg,transparent,var(--accent-glow),transparent);
+  }
+  .capture.active{border-color:var(--silver-deep);box-shadow:0 0 0 4px var(--accent-glow),var(--shadow)}
+  .capture .ripple{position:absolute;pointer-events:none;border-radius:50%;
+    border:1px solid var(--accent);opacity:.5;transform:translate(-50%,-50%);
+    animation:ripple 1.1s var(--ease) forwards}
+  @keyframes ripple{from{width:0;height:0;opacity:.5}to{width:520px;height:520px;opacity:0}}
+
+  .capture textarea{
+    width:100%;resize:none;border:none;outline:none;background:none;
+    color:var(--text);font-family:var(--serif);font-size:19px;line-height:1.5;
+    min-height:30px;max-height:220px;overflow-y:auto;
+  }
+  .capture textarea::placeholder{color:var(--text-faint);font-style:italic}
+  .capture-foot{display:flex;align-items:center;gap:8px;margin-top:10px}
+  .tool{
+    display:flex;align-items:center;gap:7px;
+    background:transparent;border:1px solid transparent;border-radius:10px;
+    padding:7px 11px;color:var(--text-muted);cursor:pointer;font-size:13px;
+    transition:all .18s;font-family:var(--font);
+  }
+  .tool:hover{color:var(--text);background:var(--surface-hi);border-color:var(--border-soft)}
+  .tool svg{opacity:.8}
+  .pour{
+    margin-left:auto;display:flex;align-items:center;gap:8px;
+    background:linear-gradient(180deg,var(--silver),var(--silver-deep));
+    color:#0a0d13;font-weight:600;border:none;border-radius:11px;
+    padding:9px 18px;cursor:pointer;font-size:13.5px;font-family:var(--font);
+    transition:transform .15s, filter .2s, opacity .2s;
+    box-shadow:0 6px 20px -8px var(--accent-glow);
+  }
+  .pour:hover{filter:brightness(1.08)}
+  .pour:active{transform:translateY(1px) scale(.99)}
+  .pour:disabled{opacity:.45;cursor:default;filter:none}
+  :root[data-theme="light"] .pour{color:#fff}
+
+  .quick-labels{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px;align-items:center}
+  .quick-labels .lbl-hint{font-size:11.5px;color:var(--text-faint);margin-right:2px}
+
+  /* ---------- Label chips ---------- */
+  .chip{
+    display:inline-flex;align-items:center;gap:6px;
+    font-size:12px;color:var(--text-muted);
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:999px;padding:4px 11px;cursor:pointer;
+    transition:all .18s;white-space:nowrap;font-family:var(--font);
+  }
+  .chip .dot{width:7px;height:7px;border-radius:50%;background:var(--dot,var(--silver-deep))}
+  .chip:hover{color:var(--text);border-color:var(--silver-deep)}
+  .chip.on{color:var(--text);background:var(--surface-hi);border-color:var(--silver-deep);
+    box-shadow:0 0 0 3px var(--accent-glow)}
+
+  /* ---------- Coach: a memory stirs ---------- */
+  .coach{
+    position:relative;overflow:hidden;
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    background:
+      radial-gradient(120% 140% at 0% 0%, rgba(150,175,225,.10), transparent 55%),
+      var(--surface);
+    padding:16px 18px;margin-bottom:26px;
+    display:flex;gap:14px;align-items:flex-start;
+    animation:fadeUp .7s var(--ease) both;
+  }
+  .coach .swirl{flex:0 0 auto;width:42px;height:42px;margin-top:2px}
+  .coach .c-body{flex:1;min-width:0}
+  .coach .c-kick{display:flex;align-items:center;gap:8px;font-size:11.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--silver-deep);font-weight:600;margin-bottom:5px}
+  .coach .c-kick .pulse{width:6px;height:6px;border-radius:50%;background:var(--silver);
+    box-shadow:0 0 0 0 var(--accent-glow);animation:pulse 2.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 var(--accent-glow)}70%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 0 transparent}}
+  .coach h3{margin:0 0 4px;font-size:16px;font-weight:600;font-family:var(--serif)}
+  .coach p{margin:0;color:var(--text-muted);font-size:13.5px}
+  .coach .c-quote{font-family:var(--serif);font-style:italic;color:var(--silver);
+    border-left:2px solid var(--border);padding-left:12px;margin:9px 0 10px;font-size:14.5px}
+  .coach .c-actions{display:flex;gap:8px;margin-top:4px;flex-wrap:wrap}
+  .coach .c-close{position:absolute;top:12px;right:12px;width:26px;height:26px;border-radius:8px;
+    display:grid;place-items:center;color:var(--text-faint);cursor:pointer;background:none;border:none}
+  .coach .c-close:hover{color:var(--text);background:var(--surface-hi)}
+
+  .mini{background:var(--surface-raised);border:1px solid var(--border);color:var(--text);
+    border-radius:9px;padding:6px 13px;font-size:12.5px;cursor:pointer;transition:all .18s;font-family:var(--font)}
+  .mini:hover{border-color:var(--silver-deep);background:var(--surface-hi)}
+  .mini.primary{background:linear-gradient(180deg,var(--silver),var(--silver-deep));color:#0a0d13;border:none;font-weight:600}
+  :root[data-theme="light"] .mini.primary{color:#fff}
+
+  /* ---------- Stream ---------- */
+  .stream-head{display:flex;align-items:baseline;gap:12px;margin:0 2px 14px}
+  .stream-head h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--text-faint);font-weight:600;margin:0}
+  .stream-head .count{font-size:12px;color:var(--text-faint)}
+  .day-sep{display:flex;align-items:center;gap:12px;margin:22px 2px 12px;color:var(--text-faint);font-size:12px}
+  .day-sep::after{content:"";flex:1;height:1px;background:var(--border-soft)}
+
+  .stream{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  @media(max-width:720px){.stream{grid-template-columns:1fr}}
+
+  .card{
+    position:relative;overflow:hidden;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:16px 17px 15px;cursor:pointer;
+    transition:transform .25s var(--ease), border-color .25s, box-shadow .3s;
+    animation:fadeUp .6s var(--ease) both;
+  }
+  .card:hover{transform:translateY(-3px);border-color:var(--silver-deep);box-shadow:var(--shadow)}
+  /* the shimmer — a slow silver sheen that drifts across on hover */
+  .card::after{
+    content:"";position:absolute;inset:0;pointer-events:none;opacity:0;
+    background:linear-gradient(115deg,transparent 30%,rgba(199,212,234,.09) 48%,rgba(234,241,255,.14) 52%,transparent 70%);
+    transform:translateX(-60%);transition:opacity .4s;
+  }
+  .card:hover::after{opacity:1;animation:sheen 1.3s var(--ease)}
+  @keyframes sheen{to{transform:translateX(60%)}}
+
+  .card .c-top{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .card .time{font-family:var(--mono);font-size:11px;color:var(--text-faint)}
+  .card .kind{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-faint)}
+  .card h4{margin:0 0 6px;font-size:15.5px;font-weight:600;font-family:var(--serif);line-height:1.35}
+  .card .body{color:var(--text-muted);font-size:13.5px;line-height:1.55;
+    display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+  .card .labels{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+  .card .tag{font-size:11px;color:var(--silver-deep);background:var(--surface-raised);
+    border:1px solid var(--border-soft);border-radius:7px;padding:2px 8px}
+
+  /* media hint rows */
+  .media-row{display:flex;align-items:center;gap:10px;margin:4px 0 4px;
+    background:var(--surface-raised);border:1px solid var(--border-soft);border-radius:10px;padding:9px 11px}
+  .media-row .play{width:28px;height:28px;border-radius:50%;flex:0 0 auto;
+    display:grid;place-items:center;background:var(--surface-hi);color:var(--silver)}
+  .wave{flex:1;display:flex;align-items:center;gap:2px;height:22px}
+  .wave i{flex:1;background:var(--silver-deep);opacity:.5;border-radius:2px}
+  .photo-strip{display:flex;gap:6px;margin:4px 0}
+  .photo-strip .ph{flex:1;height:60px;border-radius:9px;border:1px solid var(--border-soft);
+    background:linear-gradient(135deg,var(--surface-hi),var(--surface-raised))}
+
+  @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+  /* ---------- Dive-in focus reader ---------- */
+  #dive{
+    position:fixed;inset:0;z-index:60;display:none;
+    align-items:flex-start;justify-content:center;
+    padding:min(8vh,90px) 20px 40px;overflow-y:auto;
+  }
+  #dive.open{display:flex;animation:diveBg .5s ease both}
+  @keyframes diveBg{from{opacity:0}to{opacity:1}}
+  #dive .scrim{position:fixed;inset:0;background:rgba(5,7,11,.78);backdrop-filter:blur(10px) saturate(1.1)}
+  :root[data-theme="light"] #dive .scrim{background:rgba(222,228,238,.72)}
+  #dive .ripplefield{position:fixed;inset:0;pointer-events:none}
+
+  .reader{
+    position:relative;z-index:2;width:min(720px,100%);
+    background:
+      radial-gradient(120% 60% at 50% -10%, rgba(150,175,225,.14), transparent 60%),
+      var(--surface);
+    border:1px solid var(--border);border-radius:20px;
+    padding:38px clamp(22px,5vw,54px) 46px;
+    box-shadow:0 40px 120px -40px rgba(0,0,0,.9);
+    animation:diveIn .6s var(--ease) both;
+  }
+  @keyframes diveIn{from{opacity:0;transform:translateY(30px) scale(.97)}to{opacity:1;transform:none}}
+  .reader .r-close{position:absolute;top:16px;right:16px;width:34px;height:34px;border-radius:10px;
+    display:grid;place-items:center;color:var(--text-muted);background:var(--surface-raised);
+    border:1px solid var(--border);cursor:pointer;transition:all .2s}
+  .reader .r-close:hover{color:var(--text);border-color:var(--silver-deep)}
+  .reader .r-meta{display:flex;align-items:center;gap:10px;color:var(--text-faint);
+    font-family:var(--mono);font-size:12px;margin-bottom:18px}
+  .reader h1{font-family:var(--serif);font-weight:650;font-size:clamp(24px,4vw,32px);
+    line-height:1.2;margin:0 0 20px}
+  .reader .r-body{font-family:var(--serif);font-size:18.5px;line-height:1.72;color:var(--text)}
+  .reader .r-body p{margin:0 0 17px}
+  .reader .r-body .dim{color:var(--text-muted)}
+  .reader .r-labels{display:flex;gap:8px;flex-wrap:wrap;margin:26px 0 4px;padding-top:20px;
+    border-top:1px solid var(--border-soft)}
+  .reader .r-foot{display:flex;gap:9px;margin-top:22px;flex-wrap:wrap}
+
+  /* toast */
+  #toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%) translateY(20px);
+    z-index:80;background:var(--surface-raised);border:1px solid var(--silver-deep);
+    color:var(--text);padding:11px 18px;border-radius:12px;font-size:13.5px;
+    box-shadow:var(--shadow);opacity:0;transition:all .35s var(--ease);
+    display:flex;align-items:center;gap:9px;pointer-events:none}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast .tdot{width:7px;height:7px;border-radius:50%;background:var(--silver);
+    box-shadow:0 0 10px var(--silver)}
+
+  .hint-row{display:flex;gap:16px;justify-content:center;margin-top:30px;color:var(--text-faint);font-size:12px;flex-wrap:wrap}
+  .hint-row kbd{font-family:var(--mono);background:var(--surface-raised);border:1px solid var(--border);
+    border-radius:5px;padding:1px 6px;color:var(--text-muted)}
+
+  @media(max-width:560px){
+    .search{display:none}
+    .brand .name span{display:none}
+  }
+</style>
+</head>
+<body>
+<canvas id="mist"></canvas>
+<div class="glow a"></div>
+<div class="glow b"></div>
+
+<div class="app">
+  <!-- Top bar -->
+  <header class="top">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 40 40" fill="none">
+        <defs>
+          <radialGradient id="basin" cx="50%" cy="38%" r="60%">
+            <stop offset="0%" stop-color="#eaf1ff"/>
+            <stop offset="55%" stop-color="#aebfe0"/>
+            <stop offset="100%" stop-color="#5d6f94"/>
+          </radialGradient>
+        </defs>
+        <ellipse cx="20" cy="22" rx="15" ry="9" fill="url(#basin)" opacity=".92"/>
+        <ellipse cx="20" cy="22" rx="15" ry="9" fill="none" stroke="#c7d4ea" stroke-width="1" opacity=".5"/>
+        <path d="M8 20 Q20 12 32 20" stroke="#0b0e13" stroke-width="1.1" fill="none" opacity=".25"/>
+        <circle cx="20" cy="9" r="2.1" fill="#eaf1ff"/>
+        <circle cx="20" cy="15" r="1.1" fill="#c7d4ea" opacity=".7"/>
+      </svg>
+      <span class="name"><b>Pensieve</b> <span>· evening</span></span>
+    </div>
+    <div class="grow"></div>
+    <label class="search" title="Search memories (/)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/>
+      </svg>
+      <input id="search" placeholder="Search your memories…" />
+      <kbd>/</kbd>
+    </label>
+    <button class="iconbtn" id="themeBtn" title="Toggle evening / daybreak">
+      <svg id="themeIcon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+      </svg>
+    </button>
+  </header>
+
+  <!-- Capture bar: pour a thought -->
+  <div class="capture-wrap">
+    <div class="capture" id="capture">
+      <textarea id="pourText" rows="1" placeholder="Pour a thought…"></textarea>
+      <div class="capture-foot">
+        <button class="tool" data-kind="photo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="m3 17 5-4 4 3 3-3 6 5"/></svg>Photo</button>
+        <button class="tool" data-kind="voice"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Voice</button>
+        <button class="tool" data-kind="video"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg>Video</button>
+        <button class="tool" data-kind="page"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M8 13h8M8 17h5"/></svg>Journal page</button>
+        <button class="pour" id="pourBtn" disabled>
+          Pour in
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+        </button>
+      </div>
+      <div class="quick-labels" id="quickLabels">
+        <span class="lbl-hint">Flows into:</span>
+        <span class="chip" data-label="Journal"><span class="dot" style="--dot:#aebfe0"></span>Journal</span>
+        <span class="chip" data-label="Ideas"><span class="dot" style="--dot:#9cd0c0"></span>Ideas</span>
+        <span class="chip" data-label="Work"><span class="dot" style="--dot:#d6b58c"></span>Work</span>
+        <span class="chip" data-label="Dreams"><span class="dot" style="--dot:#c3a6e0"></span>Dreams</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Coach: a memory stirs -->
+  <div class="coach" id="coach">
+    <svg class="swirl" viewBox="0 0 48 48" fill="none">
+      <g id="swirlG">
+        <circle cx="24" cy="24" r="21" stroke="#2a3550" stroke-width="1"/>
+        <path d="M24 6a18 18 0 0 1 0 36" stroke="#aebfe0" stroke-width="1.6" stroke-linecap="round"/>
+        <path d="M24 12a12 12 0 0 1 0 24" stroke="#c7d4ea" stroke-width="1.4" stroke-linecap="round" opacity=".7"/>
+        <circle cx="24" cy="24" r="3" fill="#eaf1ff"/>
+      </g>
+    </svg>
+    <div class="c-body">
+      <div class="c-kick"><span class="pulse"></span>A memory stirs</div>
+      <h3>One year ago, you were wrestling with the same question.</h3>
+      <div class="c-quote">"I keep waiting to feel ready before I start. Maybe readiness is a thing you build by starting, not a gate you pass."</div>
+      <p>You've written about <b>starting before you're ready</b> 7 times. The coach thinks it's worth revisiting today.</p>
+      <div class="c-actions">
+        <button class="mini primary" id="reviveBtn">Dive into this memory</button>
+        <button class="mini" id="connectBtn">See all 7</button>
+      </div>
+    </div>
+    <button class="c-close" id="coachClose" title="Let it settle">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+
+  <!-- Stream head + filters -->
+  <div class="stream-head">
+    <h2>Memory stream</h2>
+    <span class="count" id="count">24 memories</span>
+    <div style="flex:1"></div>
+  </div>
+  <div class="quick-labels" id="filterLabels" style="margin:0 0 6px">
+    <span class="chip on" data-filter="all">All</span>
+    <span class="chip" data-filter="Journal"><span class="dot" style="--dot:#aebfe0"></span>Journal</span>
+    <span class="chip" data-filter="Ideas"><span class="dot" style="--dot:#9cd0c0"></span>Ideas</span>
+    <span class="chip" data-filter="Work"><span class="dot" style="--dot:#d6b58c"></span>Work</span>
+    <span class="chip" data-filter="Dreams"><span class="dot" style="--dot:#c3a6e0"></span>Dreams</span>
+  </div>
+
+  <div class="day-sep">Today · Sunday, 5 October</div>
+  <div class="stream" id="streamToday"></div>
+
+  <div class="day-sep">Yesterday</div>
+  <div class="stream" id="streamYesterday"></div>
+
+  <div class="hint-row">
+    <span><kbd>/</kbd> search</span>
+    <span><kbd>N</kbd> new thought</span>
+    <span><kbd>↵</kbd> pour in · <kbd>⇧↵</kbd> newline</span>
+    <span><kbd>Esc</kbd> close</span>
+  </div>
+</div>
+
+<!-- Dive-in focus reader -->
+<div id="dive">
+  <div class="scrim" id="diveScrim"></div>
+  <canvas class="ripplefield" id="ripplefield"></canvas>
+  <article class="reader" id="reader"></article>
+</div>
+
+<!-- Toast -->
+<div id="toast"><span class="tdot"></span><span id="toastMsg">Poured in.</span></div>
+
+<script>
+/* ---------------- Data: plausible sample memories ---------------- */
+const MEMS = [
+  {id:1, day:'today', time:'09:14', kind:'text', cat:'Journal', color:'#aebfe0',
+   title:'The quiet before the house wakes',
+   body:'Coffee, dark window, nobody needs anything yet. I notice I think most clearly in this hour — before the day pours its own agenda into me. Protect it.',
+   tags:['morning','focus'],
+   full:'Coffee, dark window, nobody needs anything yet. I notice I think most clearly in this hour — before the day pours its own agenda into me.\n\nThere is a version of me that wakes at 6 and owns the first ninety minutes, and a version that lets the phone decide. They live very different lives. Today I chose the first one, and the difference is not subtle.\n\nProtect this hour the way I protect a meeting I can\'t move.'},
+
+  {id:2, day:'today', time:'08:02', kind:'voice', cat:'Ideas', color:'#9cd0c0',
+   title:'Voice note — the "pour, don\'t file" principle',
+   body:'Capture should never ask me to decide where something goes. Pour it in; let the system sort it later. Friction at capture is where thoughts die.',
+   tags:['product','pensieve'], media:'voice',
+   full:'Capture should never ask me to decide where something goes. Pour it in; let the system sort it later.\n\nEvery time an app makes me pick a folder before I can write, the thought cools by the time I\'ve decided. Friction at capture is where thoughts die. The basin takes everything; organisation is a current underneath, not a gate at the door.'},
+
+  {id:3, day:'today', time:'07:40', kind:'photo', cat:'Journal', color:'#aebfe0',
+   title:'Morning run — the fog over the reservoir',
+   body:'Couldn\'t see the far bank. Ran anyway. Good metaphor and I\'ll leave it at that.',
+   tags:['run','outside'], media:'photo',
+   full:'Couldn\'t see the far bank. Ran anyway.\n\nThere\'s something about moving into fog on purpose — you trust the path exists a few steps ahead of where you can see. Good metaphor and I\'ll leave it there before I ruin it.'},
+
+  {id:4, day:'today', time:'06:55', kind:'text', cat:'Work', color:'#d6b58c',
+   title:'Decision: ship the rough version Friday',
+   body:'Stop polishing the capture bar. It\'s good enough to live with for a week, and a week of real use will tell me more than another week of guessing.',
+   tags:['decision','ship'],
+   full:'Stop polishing the capture bar. It\'s good enough to live with for a week.\n\nA week of real use will tell me more than another week of guessing at a desk. Ship Friday. Write down what annoys me. Fix the top three. Repeat.'},
+
+  {id:5, day:'yesterday', time:'22:10', kind:'text', cat:'Dreams', color:'#c3a6e0',
+   title:'A staircase that kept adding floors',
+   body:'Every landing had a door I didn\'t open. Woke up certain it meant something about not finishing things.',
+   tags:['dream'],
+   full:'Every landing had a door I didn\'t open, and the staircase kept adding floors above me as I climbed.\n\nWoke up certain it meant something about not finishing things — always one more level before I let myself rest. Noting it without solving it.'},
+
+  {id:6, day:'yesterday', time:'18:30', kind:'video', cat:'Journal', color:'#aebfe0',
+   title:'Video — walking home, thinking out loud',
+   body:'Rambled for four minutes about whether I\'m building Pensieve for me or for an imaginary user. Transcript auto-saved.',
+   tags:['reflection'], media:'video',
+   full:'Rambled for four minutes about whether I\'m building Pensieve for me or for an imaginary user.\n\nThe honest answer: for me, first. If it becomes effortless for one real thinker, it has a soul worth sharing. If I build for a persona I made up, it\'ll have features and no center.'},
+
+  {id:7, day:'yesterday', time:'14:05', kind:'text', cat:'Ideas', color:'#9cd0c0',
+   title:'"A memory stirs" — the coach shouldn\'t nag',
+   body:'Resurfacing works only if it feels like the app noticing, not reminding. Max one per day. It should feel earned.',
+   tags:['product','coach'],
+   full:'Resurfacing works only if it feels like the app noticing something true, not a reminder nagging me.\n\nRules: at most one a day. It must connect to something I actually wrote. No streaks, no guilt, no red badges. When it lands, it should feel like a friend saying "hey, remember when…" — and then getting out of the way.'},
+
+  {id:8, day:'yesterday', time:'09:20', kind:'page', cat:'Journal', color:'#aebfe0',
+   title:'Handwritten page — gratitude, three lines',
+   body:'Photographed the notebook. Transcribed: slept well, the kids laughed at dinner, I finished the hard email I\'d been avoiding.',
+   tags:['gratitude'], media:'photo',
+   full:'Photographed the notebook; the handwriting is mine from this morning.\n\nTranscribed: slept well for once. The kids laughed at dinner, the real kind. I finally finished the hard email I\'d been avoiding for three days — and it took four minutes. Most dread is longer than the task.'},
+];
+
+/* ---------------- Render stream ---------------- */
+const kindIcon = {
+  text:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
+  voice:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="9" y="3" width="6" height="10" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/></svg>',
+  photo:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="m3 17 5-4 4 3"/></svg>',
+  video:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg>',
+  page:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5"/></svg>',
+};
+const kindName = {text:'Note',voice:'Voice',photo:'Photo',video:'Video',page:'Page'};
+
+function mediaHtml(m){
+  if(m.media==='voice'||m.media==='video'){
+    let bars='';for(let i=0;i<40;i++){bars+=`<i style="height:${20+Math.round(70*Math.abs(Math.sin(i*0.9)))}%"></i>`;}
+    return `<div class="media-row"><span class="play">${m.media==='video'?kindIcon.video:'<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>'}</span><div class="wave">${bars}</div><span class="time">${m.media==='video'?'4:12':'1:38'}</span></div>`;
+  }
+  if(m.media==='photo'){
+    return `<div class="photo-strip"><div class="ph"></div><div class="ph"></div></div>`;
+  }
+  return '';
+}
+
+function cardHtml(m){
+  return `<article class="card" data-id="${m.id}" data-cat="${m.cat}">
+    <div class="c-top">
+      <span class="time">${m.time}</span>
+      <span class="kind">${kindIcon[m.kind]||kindIcon.text}${kindName[m.kind]||'Note'}</span>
+    </div>
+    <h4>${m.title}</h4>
+    ${mediaHtml(m)}
+    <div class="body">${m.body}</div>
+    <div class="labels">
+      <span class="tag" style="color:${m.color}">#${m.cat}</span>
+      ${m.tags.map(t=>`<span class="tag">#${t}</span>`).join('')}
+    </div>
+  </article>`;
+}
+
+function renderStream(filter='all'){
+  const today=MEMS.filter(m=>m.day==='today'&&(filter==='all'||m.cat===filter));
+  const yest=MEMS.filter(m=>m.day==='yesterday'&&(filter==='all'||m.cat===filter));
+  document.getElementById('streamToday').innerHTML=today.map(cardHtml).join('');
+  document.getElementById('streamYesterday').innerHTML=yest.map(cardHtml).join('');
+  const total=today.length+yest.length;
+  document.getElementById('count').textContent=`${filter==='all'?MEMS.length:total} ${total===1?'memory':'memories'}`;
+  // stagger animation delays
+  document.querySelectorAll('.card').forEach((c,i)=>c.style.animationDelay=(i*0.04)+'s');
+  bindCards();
+}
+function bindCards(){
+  document.querySelectorAll('.card').forEach(c=>{
+    c.onclick=()=>openDive(+c.dataset.id);
+  });
+}
+
+/* ---------------- Dive-in focus reader ---------------- */
+const diveEl=document.getElementById('dive');
+const readerEl=document.getElementById('reader');
+function openDive(id){
+  const m=MEMS.find(x=>x.id===id); if(!m)return;
+  const paras=m.full.split('\n\n').map(p=>`<p>${p}</p>`).join('');
+  readerEl.innerHTML=`
+    <button class="r-close" id="rClose" title="Surface (Esc)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+    <div class="r-meta">${kindIcon[m.kind]||''} ${kindName[m.kind]} · ${m.day==='today'?'Today':'Yesterday'} · ${m.time}</div>
+    <h1>${m.title}</h1>
+    ${m.media?`<div style="margin:-4px 0 22px">${mediaHtml(m)}</div>`:''}
+    <div class="r-body">${paras}</div>
+    <div class="r-labels">
+      <span class="tag" style="color:${m.color};font-size:12px">#${m.cat}</span>
+      ${m.tags.map(t=>`<span class="tag" style="font-size:12px">#${t}</span>`).join('')}
+    </div>
+    <div class="r-foot">
+      <button class="mini primary" id="editBtn">Add to this thought</button>
+      <button class="mini" id="stirBtn">Find related memories</button>
+    </div>`;
+  diveEl.classList.add('open');
+  document.body.style.overflow='hidden';
+  startRipples();
+  document.getElementById('rClose').onclick=closeDive;
+  document.getElementById('editBtn').onclick=()=>{closeDive();document.getElementById('pourText').focus();};
+  document.getElementById('stirBtn').onclick=()=>{closeDive();toast('Surfacing related memories…');};
+}
+function closeDive(){
+  diveEl.classList.remove('open');
+  document.body.style.overflow='';
+  stopRipples();
+}
+document.getElementById('diveScrim').onclick=closeDive;
+
+/* ripple canvas inside the dive (signature immersive moment) */
+let rip=null, ripAnim=null;
+function startRipples(){
+  const cv=document.getElementById('ripplefield');
+  const ctx=cv.getContext('2d');
+  const dpr=Math.min(devicePixelRatio||1,2);
+  function size(){cv.width=innerWidth*dpr;cv.height=innerHeight*dpr;}
+  size();
+  let rings=[];let t=0;
+  function spawn(){rings.push({x:cv.width/2+(Math.random()-.5)*cv.width*.4,y:cv.height*0.5+(Math.random()-.5)*cv.height*.4,r:0,a:.35});}
+  function frame(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    if(t%34===0)spawn();t++;
+    rings.forEach(r=>{r.r+=1.1*dpr;r.a*=0.985;
+      ctx.beginPath();ctx.arc(r.x,r.y,r.r,0,7);
+      ctx.strokeStyle=`rgba(174,191,224,${r.a})`;ctx.lineWidth=1*dpr;ctx.stroke();});
+    rings=rings.filter(r=>r.a>0.01);
+    ripAnim=requestAnimationFrame(frame);
+  }
+  rip={cv,size};addEventListener('resize',size);frame();
+}
+function stopRipples(){if(ripAnim)cancelAnimationFrame(ripAnim);if(rip)removeEventListener('resize',rip.size);}
+
+/* ---------------- Capture bar ---------------- */
+const ta=document.getElementById('pourText');
+const pourBtn=document.getElementById('pourBtn');
+const captureEl=document.getElementById('capture');
+let chosenLabel='Journal';
+
+function autosize(){ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,220)+'px';}
+ta.addEventListener('input',()=>{autosize();pourBtn.disabled=ta.value.trim()==='';});
+ta.addEventListener('focus',()=>captureEl.classList.add('active'));
+ta.addEventListener('blur',()=>{if(ta.value.trim()==='')captureEl.classList.remove('active');});
+ta.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();pour();}
+});
+
+// default label selected
+document.querySelector('#quickLabels .chip[data-label="Journal"]').classList.add('on');
+document.querySelectorAll('#quickLabels .chip').forEach(ch=>{
+  ch.onclick=()=>{
+    document.querySelectorAll('#quickLabels .chip').forEach(c=>c.classList.remove('on'));
+    ch.classList.add('on');chosenLabel=ch.dataset.label;
+  };
+});
+
+function pour(ev){
+  const text=ta.value.trim();
+  if(!text)return;
+  // ripple from pour button
+  const rb=captureEl.getBoundingClientRect();
+  const r=document.createElement('span');r.className='ripple';
+  r.style.left=(pourBtn.getBoundingClientRect().left-rb.left+40)+'px';
+  r.style.top=(pourBtn.getBoundingClientRect().top-rb.top+18)+'px';
+  captureEl.appendChild(r);setTimeout(()=>r.remove(),1100);
+
+  const cat=chosenLabel;
+  const color={Journal:'#aebfe0',Ideas:'#9cd0c0',Work:'#d6b58c',Dreams:'#c3a6e0'}[cat]||'#aebfe0';
+  const now=new Date();
+  const hh=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  const mem={id:Date.now(),day:'today',time:hh,kind:'text',cat,color,
+    title:text.split('\n')[0].slice(0,60),
+    body:text, tags:['new'], full:text};
+  MEMS.unshift(mem);
+  ta.value='';autosize();pourBtn.disabled=true;
+  renderStream(currentFilter);
+  toast('Poured in · '+cat);
+  // gentle flash on the new card
+  const nc=document.querySelector(`.card[data-id="${mem.id}"]`);
+  if(nc){nc.style.boxShadow='0 0 0 4px var(--accent-glow)';setTimeout(()=>nc.style.boxShadow='',900);}
+}
+pourBtn.onclick=pour;
+
+// capture tool buttons (concept — show a toast)
+document.querySelectorAll('.capture .tool').forEach(b=>{
+  b.onclick=()=>{captureEl.classList.add('active');ta.focus();toast('Ready to capture '+b.dataset.kind+' (concept)');};
+});
+
+/* ---------------- Filters ---------------- */
+let currentFilter='all';
+document.querySelectorAll('#filterLabels .chip').forEach(ch=>{
+  ch.onclick=()=>{
+    document.querySelectorAll('#filterLabels .chip').forEach(c=>c.classList.remove('on'));
+    ch.classList.add('on');currentFilter=ch.dataset.filter;renderStream(currentFilter);
+  };
+});
+
+/* ---------------- Search (filters titles/body) ---------------- */
+const searchEl=document.getElementById('search');
+searchEl.addEventListener('input',()=>{
+  const q=searchEl.value.trim().toLowerCase();
+  if(!q){renderStream(currentFilter);return;}
+  const hit=m=>(m.title+m.body+m.tags.join(' ')+m.cat).toLowerCase().includes(q);
+  document.getElementById('streamToday').innerHTML=MEMS.filter(m=>m.day==='today'&&hit(m)).map(cardHtml).join('')||'<p style="color:var(--text-faint);font-size:13px">No memories here.</p>';
+  document.getElementById('streamYesterday').innerHTML=MEMS.filter(m=>m.day==='yesterday'&&hit(m)).map(cardHtml).join('')||'';
+  bindCards();
+});
+
+/* ---------------- Coach ---------------- */
+document.getElementById('coachClose').onclick=()=>{
+  const c=document.getElementById('coach');
+  c.style.transition='opacity .4s, transform .4s, margin .4s, padding .4s, height .4s';
+  c.style.opacity='0';c.style.transform='translateY(-8px)';
+  setTimeout(()=>c.style.display='none',380);
+};
+document.getElementById('reviveBtn').onclick=()=>openDive(7);
+document.getElementById('connectBtn').onclick=()=>{searchEl.value='ready';searchEl.dispatchEvent(new Event('input'));searchEl.scrollIntoView({behavior:'smooth'});toast('Showing memories about starting before you\'re ready');};
+
+/* ---------------- Theme ---------------- */
+const themeBtn=document.getElementById('themeBtn');
+themeBtn.onclick=()=>{
+  const root=document.documentElement;
+  const light=root.getAttribute('data-theme')==='light';
+  root.setAttribute('data-theme',light?'dark':'light');
+  document.getElementById('themeIcon').innerHTML=light
+    ?'<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'
+    :'<circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/>';
+};
+
+/* ---------------- Toast ---------------- */
+let toastT;
+function toast(msg){
+  document.getElementById('toastMsg').textContent=msg;
+  const t=document.getElementById('toast');t.classList.add('show');
+  clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+/* ---------------- Keyboard shortcuts ---------------- */
+addEventListener('keydown',e=>{
+  if(e.key==='Escape'){if(diveEl.classList.contains('open'))closeDive();}
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
+  if(e.key==='/'){e.preventDefault();searchEl.focus();}
+  if(e.key.toLowerCase()==='n'){e.preventDefault();ta.focus();}
+});
+
+/* ---------------- Edge mist (subtle canvas particles) ---------------- */
+(function mist(){
+  const cv=document.getElementById('mist');const ctx=cv.getContext('2d');
+  const dpr=Math.min(devicePixelRatio||1,1.5);
+  let W,H,parts=[];
+  function size(){W=cv.width=innerWidth*dpr;H=cv.height=innerHeight*dpr;}
+  size();addEventListener('resize',size);
+  const N=26;
+  for(let i=0;i<N;i++)parts.push({
+    x:Math.random()*W, y:Math.random()*H,
+    r:(30+Math.random()*70)*dpr,
+    vx:(Math.random()-.5)*0.08*dpr, vy:(Math.random()-.5)*0.05*dpr,
+    a:0.015+Math.random()*0.03,
+    edge:Math.random()<0.5
+  });
+  function frame(){
+    ctx.clearRect(0,0,W,H);
+    parts.forEach(p=>{
+      p.x+=p.vx;p.y+=p.vy;
+      if(p.x<-120)p.x=W+120;if(p.x>W+120)p.x=-120;
+      if(p.y<-120)p.y=H+120;if(p.y>H+120)p.y=-120;
+      // keep ambience biased to edges: fade particles near center
+      const cx=Math.abs(p.x-W/2)/(W/2), cy=Math.abs(p.y-H/2)/(H/2);
+      const edgeBias=Math.min(1,Math.max(cx,cy)*1.1);
+      const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r);
+      g.addColorStop(0,`rgba(174,191,224,${p.a*edgeBias})`);
+      g.addColorStop(1,'rgba(174,191,224,0)');
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill();
+    });
+    requestAnimationFrame(frame);
+  }
+  frame();
+})();
+
+/* ---------------- Boot ---------------- */
+renderStream('all');
+autosize();
+setTimeout(()=>toast('Welcome back. 24 memories rest in the basin.'),700);
+</script>
+</body>
+</html>
