@@ -27,7 +27,9 @@ export function TabBar({ tabs, active, onHome, onSelect, onClose }: TabBarProps)
   };
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-1">
+    // The row (and its empty spaces) is a window drag handle; the interactive children
+    // below have no drag attribute, so clicking a tab/button still works normally.
+    <div data-tauri-drag-region className="flex min-w-0 flex-1 items-center gap-1">
       {/* Home — the Pensieve mark. Always present; returns to your work. */}
       <button
         onClick={onHome}
@@ -42,7 +44,10 @@ export function TabBar({ tabs, active, onHome, onSelect, onClose }: TabBarProps)
       {tabs.length > 0 && <span className="h-5 w-px shrink-0 bg-border" />}
 
       {/* The open tabs — scroll horizontally when they overflow. */}
-      <div className="no-scrollbar flex min-w-0 items-center gap-1 overflow-x-auto">
+      <div
+        data-tauri-drag-region
+        className="no-scrollbar flex min-w-0 items-center gap-1 overflow-x-auto"
+      >
         {tabs.map((n) => {
           const isActive = active === n.id;
           return (

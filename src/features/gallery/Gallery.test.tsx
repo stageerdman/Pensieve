@@ -35,15 +35,15 @@ describe("Gallery — layout", () => {
     expect(screen.getByText(/no memories yet/i)).toBeInTheDocument();
   });
 
-  it("groups by date and orders groups oldest-first (Today last)", () => {
+  it("groups by date and orders groups newest-first (Today first)", () => {
     renderGallery([
       note({ id: "today", title: "Today note", createdAt: NOW }),
       note({ id: "old", title: "Old note", createdAt: NOW - 60 * DAY }),
     ]);
     const sections = screen.getAllByRole("region").slice(1); // [0] is the gallery itself
     const names = sections.map((s) => s.getAttribute("aria-label"));
-    expect(names[names.length - 1]).toBe("Today");
-    expect(names[0]).not.toBe("Today");
+    expect(names[0]).toBe("Today");
+    expect(names[names.length - 1]).not.toBe("Today");
   });
 
   it("renders the snippet only when the field is on", () => {

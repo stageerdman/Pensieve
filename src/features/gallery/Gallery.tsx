@@ -51,7 +51,7 @@ export function Gallery({
     [state.workingSet, byId],
   );
 
-  // Always land on the top (the oldest memories) when the gallery opens.
+  // Always land on the top (the most recent memories) when the gallery opens.
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, []);
