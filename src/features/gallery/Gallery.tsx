@@ -6,7 +6,7 @@ import { bucketize } from "../../lib/gallery/buckets";
 import { FlaskFor } from "../../components/Flask";
 import { FlaskCard, type MenuAnchor, type PeekTarget } from "./FlaskCard";
 import { WorkingSetStrip } from "./WorkingSetStrip";
-import { PeekPopover } from "./PeekPopover";
+import { PreviewPortal } from "./PreviewPortal";
 import { CardContextMenu, type CardMenuTarget } from "./CardContextMenu";
 
 // Home: every memory at once, as large flasks grouped by creation date (Apple-Photos
@@ -19,6 +19,7 @@ interface GalleryProps {
   notes: NoteMeta[];
   state: GalleryState;
   categoryDefs: CategoryDef[];
+  theme: "light" | "dark";
   onOpen: (id: string, background: boolean) => void;
   onToggleWorkingSet: (id: string) => void;
   onRemoveFromWorkingSet: (id: string) => void;
@@ -29,6 +30,7 @@ export function Gallery({
   notes,
   state,
   categoryDefs,
+  theme,
   onOpen,
   onToggleWorkingSet,
   onRemoveFromWorkingSet,
@@ -51,7 +53,7 @@ export function Gallery({
     [state.workingSet, byId],
   );
 
-  // Always land on the top (the oldest memories) when the gallery opens.
+  // Always land on the top (the most recent memories) when the gallery opens.
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, []);
@@ -91,9 +93,9 @@ export function Gallery({
     setMenu({ id, x: e.clientX, y: e.clientY, inWorkingSet: wsSet.has(id) });
   };
 
-  // Peeks are anchored to live rects; drop them on scroll so nothing floats detached.
+  // The portal is centered (not anchored), so scrolling only ends a transient
+  // Alt-hover peek; a Space-pinned peek stays until Esc/Space.
   const onScroll = () => {
-    if (keyPeek) setKeyPeek(null);
     if (hovered) setHovered(null);
   };
 
@@ -153,11 +155,11 @@ export function Gallery({
       )}
 
       {peekTarget && peekNote && (
-        <PeekPopover
+        <PreviewPortal
           id={peekTarget.id}
           title={peekNote.title}
-          fallback={peekNote.excerpt ?? ""}
-          rect={peekTarget.el.getBoundingClientRect()}
+          theme={theme}
+          interactive={!!keyPeek}
         />
       )}
 

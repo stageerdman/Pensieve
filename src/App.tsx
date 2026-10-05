@@ -207,7 +207,7 @@ export default function App() {
           <header
             data-tauri-drag-region
             className={
-              "flex h-11 items-center gap-2 border-b border-border bg-surface-sunken pr-3 " +
+              "flex h-12 items-center gap-2 border-b border-border bg-surface-sunken pr-3 " +
               (IS_TAURI ? "pl-20" : "pl-3")
             }
           >
@@ -270,6 +270,7 @@ export default function App() {
               notes={notes}
               state={gallery.state}
               categoryDefs={categories.defs}
+              theme={theme}
               onOpen={openNote}
               onToggleWorkingSet={gallery.toggleWorkingSet}
               onRemoveFromWorkingSet={gallery.removeFromWorkingSet}

@@ -33,10 +33,10 @@ describe("bucketize — bucket assignment", () => {
     const map = Object.fromEntries(
       sections.map((s) => [s.label, s.notes.map((n) => n.id)]),
     );
-    expect(map["Today"]).toEqual(["earlier-today", "today"]); // ascending within bucket
+    expect(map["Today"]).toEqual(["today", "earlier-today"]); // newest first within bucket
     expect(map["Yesterday"]).toEqual(["yesterday"]);
-    expect(map["Last week"]).toEqual(["6d", "3d"]); // oldest first
-    expect(map["Last month"]).toEqual(["29d", "10d"]);
+    expect(map["Last week"]).toEqual(["3d", "6d"]); // newest first
+    expect(map["Last month"]).toEqual(["10d", "29d"]);
   });
 
   it("drops anything older than 30 days into its calendar month", () => {
@@ -52,8 +52,8 @@ describe("bucketize — bucket assignment", () => {
   });
 });
 
-describe("bucketize — ordering (oldest on top)", () => {
-  it("orders buckets oldest-first: months … Last month, Last week, Yesterday, Today", () => {
+describe("bucketize — ordering (newest on top)", () => {
+  it("orders buckets newest-first: Today, Yesterday, Last week, Last month, months …", () => {
     const notes = [
       note({ id: "t", createdAt: NOW }),
       note({ id: "y", createdAt: NOW - DAY }),
@@ -63,24 +63,24 @@ describe("bucketize — ordering (oldest on top)", () => {
       note({ id: "jun", createdAt: new Date(2026, 5, 10).getTime() }),
     ];
     expect(labels(notes)).toEqual([
-      "June",
-      "August",
-      "Last month",
-      "Last week",
-      "Yesterday",
       "Today",
+      "Yesterday",
+      "Last week",
+      "Last month",
+      "August",
+      "June",
     ]);
   });
 
-  it("sorts notes ascending by createdAt within a bucket, id as tie-break", () => {
+  it("sorts notes descending by createdAt within a bucket, id as tie-break", () => {
     const notes = [
       note({ id: "b", createdAt: new Date(2026, 5, 10).getTime() }),
       note({ id: "a", createdAt: new Date(2026, 5, 10).getTime() }), // same ts -> id order
-      note({ id: "c", createdAt: new Date(2026, 5, 5).getTime() }), // earlier
+      note({ id: "c", createdAt: new Date(2026, 5, 5).getTime() }), // earlier -> last
     ];
     const [section] = bucketize(notes, NOW);
     expect(section.label).toBe("June");
-    expect(section.notes.map((n) => n.id)).toEqual(["c", "a", "b"]);
+    expect(section.notes.map((n) => n.id)).toEqual(["a", "b", "c"]);
   });
 });
 
@@ -99,12 +99,12 @@ describe("bucketize — month labels", () => {
     expect(s.short).toBe("Feb '25");
   });
 
-  it("keeps same-month different-year buckets separate and ordered oldest-first", () => {
+  it("keeps same-month different-year buckets separate and ordered newest-first", () => {
     const notes = [
       note({ id: "feb26", createdAt: new Date(2026, 1, 10).getTime() }),
       note({ id: "feb25", createdAt: new Date(2025, 1, 10).getTime() }),
     ];
-    expect(labels(notes)).toEqual(["Feb '25", "February"]);
+    expect(labels(notes)).toEqual(["February", "Feb '25"]);
   });
 });
 

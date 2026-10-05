@@ -1,14 +1,14 @@
 // The pure ordering/grouping layer for the gallery. Given the raw note list, produce
 // the exact date-bucketed sections the gallery renders — Apple-Photos-style relative
-// buckets, OLDEST ON TOP. No store, no DOM, so the boundary logic (where "Last week"
+// buckets, NEWEST ON TOP. No store, no DOM, so the boundary logic (where "Last week"
 // ends, how old months are labelled and ordered) is trivially unit-testable — which is
 // where the real correctness risk lives.
 //
-// Ordering (top -> bottom = oldest -> newest), to match "the view always starts at the
-// top showing the earliest memories":
-//   <oldest calendar months, ascending> … Last month, Last week, Yesterday, Today.
-// Within every bucket notes are ascending by creation date (oldest first), id as a
-// stable tie-break.
+// Ordering (top -> bottom = newest -> oldest), to match "on top I want the notes from
+// today, and below the older ones":
+//   Today, Yesterday, Last week, Last month, <recent calendar months> … <oldest>.
+// Within every bucket notes are descending by creation date (newest first), id as a
+// stable tie-break. The gallery opens scrolled to the top, i.e. on the most recent.
 
 import type { NoteMeta } from "../types";
 
@@ -87,10 +87,10 @@ function bucketOf(note: NoteMeta, now: number): Bucket {
   };
 }
 
-/** Ascending by creation date, id as a stable tie-break — so the output is identical
- *  regardless of the order list() happened to return. */
-function byCreatedAsc(a: NoteMeta, b: NoteMeta): number {
-  const r = a.createdAt - b.createdAt;
+/** Descending by creation date (newest first), id as a stable tie-break — so the output
+ *  is identical regardless of the order list() happened to return. */
+function byCreatedDesc(a: NoteMeta, b: NoteMeta): number {
+  const r = b.createdAt - a.createdAt;
   if (r !== 0) return r;
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
@@ -108,11 +108,11 @@ export function bucketize(notes: NoteMeta[], now: number = Date.now()): GalleryS
     else buckets.set(b.key, { meta: b, notes: [n] });
   }
   return [...buckets.values()]
-    .sort((a, b) => a.meta.order - b.meta.order)
+    .sort((a, b) => b.meta.order - a.meta.order)
     .map(({ meta, notes }) => ({
       key: meta.key,
       label: meta.label,
       short: meta.short,
-      notes: [...notes].sort(byCreatedAsc),
+      notes: [...notes].sort(byCreatedDesc),
     }));
 }
