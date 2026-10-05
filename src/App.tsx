@@ -9,6 +9,7 @@ import { IconButton } from "./components/IconButton";
 import { Clock, PanelRight, Plus, Trash } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
 import { Gallery } from "./features/gallery/Gallery";
+import { GalleryCustomise } from "./features/gallery/GalleryCustomise";
 import { contentCharCount } from "./lib/text";
 import { useNotes } from "./hooks/useNotes";
 import { useGallery } from "./hooks/useGallery";
@@ -213,9 +214,17 @@ export default function App() {
               onClose={closeTab}
             />
             {onHome ? (
-              <IconButton label="New note" title="New note  ⌘N" onClick={() => void newNote()}>
-                <Plus size={18} />
-              </IconButton>
+              <div className="flex shrink-0 items-center gap-0.5">
+                <IconButton label="New note" title="New note  ⌘N" onClick={() => void newNote()}>
+                  <Plus size={18} />
+                </IconButton>
+                <GalleryCustomise
+                  state={gallery.state}
+                  onToggleField={gallery.toggleField}
+                  onSetSnippetLines={gallery.setSnippetLines}
+                  onSetWorkingSetPersist={gallery.setWorkingSetPersist}
+                />
+              </div>
             ) : (
               current && (
                 <div className="flex shrink-0 items-center gap-0.5">

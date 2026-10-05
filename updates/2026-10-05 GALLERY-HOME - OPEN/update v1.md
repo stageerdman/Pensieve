@@ -57,7 +57,10 @@ persistence.
   Full suite green (122 tests incl. 4 new Gallery render tests); web build clean.
   NOTE: Sidebar.tsx / SidebarCustomise.tsx / NoteRow.tsx + sidebar lib (except
   format.ts, still used) are now DEAD CODE — delete in P4 cleanup.
-- P3 ▢ interactions: Option-hover peek, right-click → working set, working-set strip.
-- P4 ▢ three-dots "Edit view" popover (field toggles + working-set persistence setting);
-  delete dead sidebar files.
-- P5 ▢ polish, full tests, native build, merge to main.
+- P3 ✅ interactions: PeekPopover (Alt-hover / Space), CardContextMenu (right-click /
+  Shift+F10), WorkingSetStrip (always-on-top, hidden when empty). Committed.
+- P4 ✅ GalleryCustomise "Edit view" popover (field toggles + snippet lines + working-set
+  persistence setting) wired into the Home header. Dead sidebar removed:
+  Sidebar/SidebarCustomise/NoteRow + lib/sidebar/{view,arrange,persist}; format.ts moved
+  to lib/format.ts. 113 tests green; build clean.
+- P5 ▢ polish, native build, merge to main.

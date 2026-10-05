@@ -3,7 +3,7 @@ import type { NoteMeta } from "../../lib/types";
 import type { CategoryDef } from "../../lib/categories/defs";
 import { colorOf } from "../../lib/categories/defs";
 import { catFg } from "../../lib/categories/palette";
-import { relativeTime, absoluteDate } from "../../lib/sidebar/format";
+import { relativeTime, absoluteDate } from "../../lib/format";
 import type { GalleryFields, SnippetLines } from "../../lib/gallery/view";
 import { FlaskFor } from "../../components/Flask";
 import { Bookmark } from "../../components/icons";
