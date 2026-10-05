@@ -8,6 +8,7 @@ import { FlaskButton } from "./components/FlaskButton";
 import { IconButton } from "./components/IconButton";
 import { Clock, PanelRight, Trash } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
+import { contentCharCount } from "./lib/text";
 import { useNotes } from "./hooks/useNotes";
 import { useTheme } from "./hooks/useTheme";
 import { useFontScale } from "./hooks/useFontScale";
@@ -182,6 +183,7 @@ export default function App() {
                   <div className="mx-auto mb-1 max-w-[72ch]">
                     <FlaskButton
                       icon={current.icon}
+                      chars={contentCharCount(current.markdown)}
                       onChange={(icon) => updateMeta({ icon })}
                     />
                   </div>

@@ -4,7 +4,7 @@
 // on-disk .md vault + sidecar timeline files.
 
 import type { Note, NoteMeta, Store, TimelineEntry } from "../types";
-import { titleFromMarkdown, excerptFromMarkdown } from "../text";
+import { titleFromMarkdown, excerptFromMarkdown, contentCharCount } from "../text";
 import { log } from "../logger";
 
 const NOTE_PREFIX = "pensieve:note:";
@@ -51,6 +51,7 @@ export class BrowserStore implements Store {
         icon: n.icon,
         pinned: n.pinned,
         excerpt: excerptFromMarkdown(n.markdown),
+        chars: contentCharCount(n.markdown),
       });
     }
     // Order is a view concern now (see lib/sidebar/arrange) — return unsorted.

@@ -127,3 +127,10 @@
 .pensieve-editor .note-link:hover {
   background: hsl(var(--accent) / 0.12);
 }
+/* The referenced note's flask, inline just before its title. */
+.pensieve-editor .note-link-flask {
+  display: inline-block;
+  vertical-align: -0.18em;
+  margin-right: 0.15em;
+  color: hsl(var(--text-muted));
+}

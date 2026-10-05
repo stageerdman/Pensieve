@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DEFAULT_ICON, SHAPE_LABELS, type NoteIcon } from "../lib/flasks/icon";
-import { Flask } from "./Flask";
+import { FlaskFor } from "./Flask";
 import { FlaskPicker } from "./FlaskPicker";
 
 // The note's flask, large and left-aligned above the editor (Notion page-icon
@@ -11,10 +11,11 @@ import { FlaskPicker } from "./FlaskPicker";
 
 interface FlaskButtonProps {
   icon?: NoteIcon;
+  chars?: number; // the open note's content length — drives the flask's fill level
   onChange: (icon: NoteIcon) => void;
 }
 
-export function FlaskButton({ icon, onChange }: FlaskButtonProps) {
+export function FlaskButton({ icon, chars, onChange }: FlaskButtonProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -51,7 +52,7 @@ export function FlaskButton({ icon, onChange }: FlaskButtonProps) {
         title="Change flask"
         className="-ml-1 flex h-10 w-10 items-center justify-center rounded-lg text-text transition-colors hover:bg-surface-raised"
       >
-        <Flask shape={shown.shape} color={shown.color} size={28} />
+        <FlaskFor icon={icon} chars={chars} size={28} />
       </button>
 
       {open && (

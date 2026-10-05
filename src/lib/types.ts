@@ -29,6 +29,7 @@ export interface NoteMeta {
   // preview without reading note bodies (see lib/sidebar). Not in .md frontmatter.
   pinned?: boolean; // user-pinned to the top of the sidebar
   excerpt?: string; // Markdown-stripped first ~140 chars of the body, for previews
+  chars?: number; // non-space content char count (drives the flask fill level)
 }
 
 export interface Note extends NoteMeta {
