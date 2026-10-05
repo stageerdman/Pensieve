@@ -32,9 +32,9 @@ vi.mock("./components/Editor", () => ({
 describe("App", () => {
   beforeEach(() => localStorage.clear());
 
-  it("renders the empty state and creates a note on ⌘N", async () => {
+  it("renders the gallery empty state and creates a note on ⌘N", async () => {
     render(<App />);
-    expect(await screen.findByText(/start writing/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no memories yet/i)).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "n", metaKey: true });
 
@@ -43,7 +43,7 @@ describe("App", () => {
     });
   });
 
-  it("⌘-clicks a note into a tab and closes it with X", async () => {
+  it("⌘-clicks a gallery flask into a background tab and closes it with X", async () => {
     seed("a", "Alpha note");
     seed("b", "Beta note");
     render(<App />);
@@ -52,7 +52,7 @@ describe("App", () => {
     expect(await screen.findByLabelText("Home — your work")).toBeInTheDocument();
     expect(screen.queryByRole("tab")).toBeNull();
 
-    // ⌘-click a sidebar note opens it in a tab.
+    // ⌘-click a gallery flask opens it in a background tab.
     const betaRow = await screen.findByText("Beta note");
     fireEvent.click(betaRow, { metaKey: true });
 
@@ -62,5 +62,19 @@ describe("App", () => {
     // X closes the tab.
     fireEvent.click(within(tab).getByLabelText("Close tab"));
     await waitFor(() => expect(screen.queryByRole("tab")).toBeNull());
+  });
+
+  it("keeps a persisted working set across launch (notes load async)", async () => {
+    seed("a", "Alpha note");
+    // A working set saved from a prior session, with persistence on (the default).
+    localStorage.setItem("pensieve:gallery:workingset", JSON.stringify(["a"]));
+    render(<App />);
+
+    // The strip must still show the saved flask after notes finish loading — the
+    // async list load must not wipe the restored working set.
+    const strip = await screen.findByRole("list", { name: /working set/i });
+    expect(within(strip).getByText("Alpha note")).toBeInTheDocument();
+    // And it must remain persisted, not overwritten with [].
+    expect(JSON.parse(localStorage.getItem("pensieve:gallery:workingset")!)).toEqual(["a"]);
   });
 });

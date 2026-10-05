@@ -92,3 +92,12 @@ export const Plus = (p: IconProps) =>
     </>,
     p,
   );
+
+export const Bookmark = ({ filled, ...p }: IconProps & { filled?: boolean }) =>
+  svg(
+    <path
+      d="M6 4h12a1 1 0 0 1 1 1v15l-7-4-7 4V5a1 1 0 0 1 1-1Z"
+      fill={filled ? "currentColor" : "none"}
+    />,
+    p,
+  );

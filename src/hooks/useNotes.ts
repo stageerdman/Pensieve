@@ -101,6 +101,7 @@ export function useNotes() {
     setStatus("idle");
     await startSession(note);
     log.info("notes", "create", { id: note.id });
+    return note;
   }, [store, flushSave, closeSession, startSession, refresh]);
 
   const remove = useCallback(
