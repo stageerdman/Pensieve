@@ -25,6 +25,16 @@ export const FLASK_SHAPES: FlaskShape[] = [
   "beaker",
 ];
 
+/** Human-readable names for aria labels / tooltips. */
+export const SHAPE_LABELS: Record<FlaskShape, string> = {
+  "round-bottom": "Round-bottom flask",
+  erlenmeyer: "Conical flask",
+  vial: "Vial",
+  "potion-bottle": "Potion bottle",
+  teardrop: "Teardrop vial",
+  beaker: "Beaker",
+};
+
 export interface NoteIcon {
   shape: FlaskShape;
   color: CategoryColor;

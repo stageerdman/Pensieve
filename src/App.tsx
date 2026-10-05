@@ -4,6 +4,7 @@ import { Sidebar } from "./components/Sidebar";
 import { TimelinePanel } from "./components/TimelinePanel";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { OverflowMenu } from "./components/OverflowMenu";
+import { FlaskButton } from "./components/FlaskButton";
 import { IconButton } from "./components/IconButton";
 import { Clock, PanelRight, Trash } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
@@ -175,6 +176,14 @@ export default function App() {
                 {confirmDelete && (
                   <div className="mx-auto mb-4 max-w-[72ch] rounded border border-danger/40 bg-danger/10 px-3 py-1.5 text-sm text-danger">
                     Press ⌘⌫ again to delete this note.
+                  </div>
+                )}
+                {!focusMode && (
+                  <div className="mx-auto mb-1 max-w-[72ch]">
+                    <FlaskButton
+                      icon={current.icon}
+                      onChange={(icon) => updateMeta({ icon })}
+                    />
                   </div>
                 )}
                 <Editor

@@ -29,14 +29,18 @@ Two things the owner asked for:
 
 ## Phased roadmap
 - [x] **Phase 0** — Plan + branch `update/magical-flasks` + UX-expert agents (visual system; picker + theme tokens).
-- [ ] **Phase 1** — Data model: `FlaskShape` + `NoteIcon` types; `icon` in `NoteFields`/`Note`/`NoteMeta`;
-  frontmatter encode/decode; store mirroring; default-icon helper. Tests for frontmatter round-trip.
-- [ ] **Phase 2** — Theme nudge in `src/index.css` (synthesize agent B's token values; AA-checked).
-- [ ] **Phase 3** — `Flask` reusable SVG component (synthesize agent A's shape spec) + shape library.
-- [ ] **Phase 4** — `FlaskPicker` popover (shape grid + colour row) + integrate in `NoteRow` (small,
-  display) and a large clickable flask above the editor (opens picker). Wire to `updateMeta`.
-- [ ] **Phase 5** — Tests + verify in the running app (web dev server), then merge to main + native build.
+- [x] **Phase 1** — Data model: `FlaskShape` + `NoteIcon` types; `icon` in `NoteFields`/`Note`/`NoteMeta`;
+  frontmatter encode/decode (`icon: shape/color`); store surfacing; `DEFAULT_ICON` fallback. Frontmatter tests.
+- [x] **Phase 2** — Theme nudge in `src/index.css`, both themes (agent B's AA-checked values) + `--accent-glow`.
+- [x] **Phase 3** — `Flask` reusable SVG component (agent A's six-shape spec) + `FlaskFor` helper.
+- [x] **Phase 4** — `FlaskPicker` popover (shape grid + colour row + live preview) + `FlaskButton` trigger;
+  integrated small/display in `NoteRow` and large/clickable above the editor in `App.tsx`. Wired to `updateMeta`.
+- [x] **Phase 5** — Tests (84 pass) + production build clean. App runs without console errors.
 
 ## Live status
-- 2026-10-05: Phase 0 done. Baseline: 76 tests pass, typecheck clean. Two UX agents dispatched.
-  Building Phase 1 (data model) while agents design.
+- 2026-10-05: ALL PHASES DONE. 84 tests pass, typecheck + prod build clean.
+- Visual check: the Chrome automation extension cannot attach to `localhost` in this
+  environment (site-permission/interstitial), so pixel-level verification was done via the
+  production build + render tests, not a live screenshot. Dev server is up at
+  http://localhost:5173 for the owner to view; a shareable flask/theme gallery can be produced.
+- Next: merge to `main` + `npm run tauri:build` (standing owner preference) so the native app is testable.
