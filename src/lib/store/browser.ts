@@ -48,6 +48,7 @@ export class BrowserStore implements Store {
         updatedAt: n.updatedAt,
         categories: n.categories,
         tags: n.tags,
+        icon: n.icon,
         pinned: n.pinned,
         excerpt: excerptFromMarkdown(n.markdown),
       });

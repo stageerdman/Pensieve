@@ -6,6 +6,7 @@ import { colorOf } from "../lib/categories/defs";
 import { catFg } from "../lib/categories/palette";
 import { relativeTime, absoluteDate } from "../lib/sidebar/format";
 import { Pin } from "./icons";
+import { FlaskFor } from "./Flask";
 
 // One note in the sidebar. The title is always shown; everything below it is driven
 // by the view's field toggles. Fields collapse into at most two sub-lines so the row
@@ -66,8 +67,10 @@ export function NoteRow({ note, view, active, now, categoryDefs, onOpen, onToggl
       title={tooltip}
       className="group relative block w-full select-none rounded-md px-3 py-2 text-left hover:bg-surface-raised aria-[current=true]:bg-surface-raised aria-[current=true]:before:absolute aria-[current=true]:before:inset-y-1 aria-[current=true]:before:left-0 aria-[current=true]:before:w-0.5 aria-[current=true]:before:rounded-full aria-[current=true]:before:bg-accent"
     >
-      {/* Title line: category dots · title · pin */}
+      {/* Title line: flask · (category dots) · title · pin */}
       <span className="flex items-center gap-1.5">
+        {/* The note's flask — its visual identity, always shown (default if unset). */}
+        <FlaskFor icon={note.icon} size={14} className="shrink-0 text-text-muted" />
         {showDots && (
           <span className="flex shrink-0 -space-x-0.5">
             {cats.slice(0, 2).map((c) => (
