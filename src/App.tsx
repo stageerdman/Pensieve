@@ -1,21 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Editor } from "./components/Editor";
-import { Sidebar } from "./components/Sidebar";
 import { TimelinePanel } from "./components/TimelinePanel";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { OverflowMenu } from "./components/OverflowMenu";
 import { FlaskButton } from "./components/FlaskButton";
 import { TabBar, HOME, type ActiveTab } from "./components/TabBar";
 import { IconButton } from "./components/IconButton";
-import { Clock, PanelRight, Trash } from "./components/icons";
+import { Clock, PanelRight, Plus, Trash } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
+import { Gallery } from "./features/gallery/Gallery";
 import { contentCharCount } from "./lib/text";
 import { useNotes } from "./hooks/useNotes";
+import { useGallery } from "./hooks/useGallery";
 import { useTheme } from "./hooks/useTheme";
 import { useFontScale } from "./hooks/useFontScale";
 import { useCategoryDefs } from "./hooks/useCategoryDefs";
-import type { SidebarState } from "./lib/sidebar/view";
-import { loadState, saveState } from "./lib/sidebar/persist";
+
+// Native app: the macOS title bar is integrated (Overlay). The traffic lights float at
+// the top-left, so the header insets its left edge to clear them.
+const IS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 export default function App() {
   const { notes, current, status, open, create, remove, change, updateMeta, togglePin, setCreatedAt } =
@@ -23,69 +26,62 @@ export default function App() {
   const { theme, toggle } = useTheme();
   useFontScale();
   const categories = useCategoryDefs();
-  // Native app: the macOS title bar is integrated (Overlay) — mark the root so the
-  // sidebar top bar can inset its controls clear of the floating traffic lights.
+  const gallery = useGallery();
+
   useEffect(() => {
-    if ("__TAURI_INTERNALS__" in window) document.documentElement.classList.add("tauri");
+    if (IS_TAURI) document.documentElement.classList.add("tauri");
   }, []);
-  const [sidebarState, setSidebarState] = useState<SidebarState>(() => loadState());
-  const changeSidebarState = useCallback((s: SidebarState) => {
-    setSidebarState(s);
-    saveState(s);
-  }, []);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const confirmTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  // Tabs. The editor is shared and always shows `current`; a tab is an open note in
-  // the top strip. "Home" is your main work — the note you reach by a normal sidebar
-  // click; ⌘-clicking a note opens it in a tab instead, without disturbing home.
+  // Tabs. Home is the gallery of all memories; the editor shows `current` whenever a
+  // note tab is active. Clicking a flask opens it as a tab and switches to it;
+  // ⌘/Ctrl-clicking opens a background tab and stays on Home.
   const [tabIds, setTabIds] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>(HOME);
-  const homeNoteId = useRef<string | undefined>(undefined);
-  // While on Home, home tracks whatever note is open (normal clicks, ⌘N, initial).
-  useEffect(() => {
-    if (activeTab === HOME && current) homeNoteId.current = current.id;
-  }, [activeTab, current]);
+  const onHome = activeTab === HOME;
+
   // Drop tabs whose note no longer exists (e.g. deleted); fall back to Home if the
-  // active tab was the one removed.
+  // active tab was the one removed. Keep the working set healed to live notes too.
   useEffect(() => {
+    const live = new Set(notes.map((n) => n.id));
     setTabIds((ids) => {
-      const live = ids.filter((id) => notes.some((n) => n.id === id));
-      return live.length === ids.length ? ids : live;
+      const kept = ids.filter((id) => live.has(id));
+      return kept.length === ids.length ? ids : kept;
     });
-    setActiveTab((a) => (a !== HOME && !notes.some((n) => n.id === a) ? HOME : a));
-  }, [notes]);
+    setActiveTab((a) => (a !== HOME && !live.has(a) ? HOME : a));
+    gallery.pruneWorkingSet(live);
+  }, [notes, gallery.pruneWorkingSet]);
+
   const tabs = tabIds
     .map((id) => notes.find((n) => n.id === id))
     .filter(Boolean) as typeof notes;
 
-  // Open a note. Normal → Home (your work); ⌘/Ctrl → a tab (opened and shown).
+  // Open a flask from the gallery/working set. Background → a quiet tab, stay on Home;
+  // otherwise open the tab and switch to it (the note loads into the editor).
   const openNote = useCallback(
-    (id: string, newTab?: boolean) => {
-      if (newTab) {
-        setTabIds((ids) => (ids.includes(id) ? ids : [...ids, id]));
+    (id: string, background: boolean) => {
+      setTabIds((ids) => (ids.includes(id) ? ids : [...ids, id]));
+      if (!background) {
         setActiveTab(id);
-      } else {
-        setActiveTab(HOME);
+        void open(id);
       }
-      void open(id);
     },
     [open],
   );
 
-  const goHome = useCallback(() => {
-    setActiveTab(HOME);
-    if (homeNoteId.current) void open(homeNoteId.current);
-  }, [open]);
+  const goHome = useCallback(() => setActiveTab(HOME), []);
 
-  // A new note is your work — it opens on Home.
-  const newNote = useCallback(() => {
-    setActiveTab(HOME);
-    void create();
+  // A new note opens straight into the editor as its own tab, ready to write.
+  const newNote = useCallback(async () => {
+    const note = await create();
+    if (!note) return;
+    setTabIds((ids) => (ids.includes(note.id) ? ids : [...ids, note.id]));
+    setActiveTab(note.id);
   }, [create]);
 
   const selectTab = useCallback(
@@ -101,7 +97,7 @@ export default function App() {
       setTabIds((ids) => {
         const idx = ids.indexOf(id);
         const next = ids.filter((t) => t !== id);
-        // If the closed tab was active, fall to a neighbour, else Home.
+        // If the closed tab was active, fall to a neighbour, else Home (the gallery).
         setActiveTab((cur) => {
           if (cur !== id) return cur;
           const neighbour = next[idx] ?? next[idx - 1];
@@ -109,7 +105,6 @@ export default function App() {
             void open(neighbour);
             return neighbour;
           }
-          if (homeNoteId.current) void open(homeNoteId.current);
           return HOME;
         });
         return next;
@@ -118,28 +113,28 @@ export default function App() {
     [open],
   );
 
-  // Live set of tags in use across notes — the source for tag whispering. A tag
-  // no longer on any note simply stops appearing here.
+  // Live set of tags in use across notes — the source for tag whispering.
   const tagSuggestions = useMemo(
     () => Array.from(new Set(notes.flatMap((n) => n.tags ?? []))).sort(),
     [notes],
   );
 
-  // The right dock holds one panel at a time — opening either closes the other.
+  // The right dock holds one panel at a time — opening either closes the other. Only
+  // meaningful with a note open, so they are no-ops on Home.
   const toggleTimeline = useCallback(() => {
-    if (!current) return;
+    if (onHome || !current) return;
     setTimelineOpen((v) => !v);
     setDetailsOpen(false);
-  }, [current]);
+  }, [onHome, current]);
 
   const toggleDetails = useCallback(() => {
-    if (!current) return;
+    if (onHome || !current) return;
     setDetailsOpen((v) => !v);
     setTimelineOpen(false);
-  }, [current]);
+  }, [onHome, current]);
 
   const askDelete = useCallback(() => {
-    if (!current) return;
+    if (onHome || !current) return;
     if (confirmDelete) {
       setConfirmDelete(false);
       void remove(current.id);
@@ -148,7 +143,7 @@ export default function App() {
     setConfirmDelete(true);
     if (confirmTimer.current) clearTimeout(confirmTimer.current);
     confirmTimer.current = setTimeout(() => setConfirmDelete(false), 3000);
-  }, [current, confirmDelete, remove]);
+  }, [onHome, current, confirmDelete, remove]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -163,20 +158,19 @@ export default function App() {
       const k = e.key.toLowerCase();
       if (k === "n") {
         e.preventDefault();
-        newNote();
+        void newNote();
       } else if (k === "w") {
         // ⌘W closes the active tab (no-op on Home).
         e.preventDefault();
-        if (activeTab !== HOME) closeTab(activeTab);
+        if (!onHome) closeTab(activeTab);
       } else if (k === "p") {
         // ⌘P pins/unpins the open note (overrides the browser print dialog).
         e.preventDefault();
-        if (current) void togglePin(current.id);
-      } else if (e.code === "Backslash") {
-        // ⌘\ toggles the left sidebar; ⌘⇧\ toggles the right Details panel.
+        if (!onHome && current) void togglePin(current.id);
+      } else if (e.code === "Backslash" && e.shiftKey) {
+        // ⌘⇧\ toggles the right Details panel.
         e.preventDefault();
-        if (e.shiftKey) toggleDetails();
-        else setSidebarOpen((v) => !v);
+        toggleDetails();
       } else if (k === "t") {
         e.preventDefault();
         toggleTimeline();
@@ -196,30 +190,20 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [newNote, current, toggle, askDelete, toggleTimeline, toggleDetails, togglePin, activeTab, closeTab]);
+  }, [newNote, current, toggle, askDelete, toggleTimeline, toggleDetails, togglePin, onHome, activeTab, closeTab]);
 
   const showChrome = !focusMode;
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-surface text-text">
-      {showChrome && sidebarOpen && (
-        <Sidebar
-          notes={notes}
-          state={sidebarState}
-          categoryDefs={categories.defs}
-          currentId={current?.id}
-          onOpen={openNote}
-          onNew={newNote}
-          onTogglePin={(id) => void togglePin(id)}
-          onChangeState={changeSidebarState}
-        />
-      )}
-
       <main className="flex min-w-0 flex-1 flex-col">
         {showChrome && (
           <header
             data-tauri-drag-region
-            className="flex h-11 items-center gap-2 border-b border-border bg-surface-sunken px-3"
+            className={
+              "flex h-11 items-center gap-2 border-b border-border bg-surface-sunken pr-3 " +
+              (IS_TAURI ? "pl-20" : "pl-3")
+            }
           >
             <TabBar
               tabs={tabs}
@@ -228,95 +212,112 @@ export default function App() {
               onSelect={selectTab}
               onClose={closeTab}
             />
-            {current && (
-              <div className="flex shrink-0 items-center gap-0.5">
-                <OverflowMenu
-                  items={[
-                    {
-                      icon: <Clock size={16} />,
-                      label: "Timeline",
-                      shortcut: "⌘T",
-                      onSelect: toggleTimeline,
-                      active: timelineOpen,
-                    },
-                    {
-                      icon: <Trash size={16} />,
-                      label: "Delete note",
-                      shortcut: "⌘⌫",
-                      onSelect: askDelete,
-                    },
-                  ]}
-                />
-                <IconButton
-                  label="Note details"
-                  title="Note details  ⌘⇧\"
-                  active={detailsOpen}
-                  onClick={toggleDetails}
-                >
-                  <PanelRight />
-                </IconButton>
-              </div>
+            {onHome ? (
+              <IconButton label="New note" title="New note  ⌘N" onClick={() => void newNote()}>
+                <Plus size={18} />
+              </IconButton>
+            ) : (
+              current && (
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <OverflowMenu
+                    items={[
+                      {
+                        icon: <Clock size={16} />,
+                        label: "Timeline",
+                        shortcut: "⌘T",
+                        onSelect: toggleTimeline,
+                        active: timelineOpen,
+                      },
+                      {
+                        icon: <Trash size={16} />,
+                        label: "Delete note",
+                        shortcut: "⌘⌫",
+                        onSelect: askDelete,
+                      },
+                    ]}
+                  />
+                  <IconButton
+                    label="Note details"
+                    title="Note details  ⌘⇧\"
+                    active={detailsOpen}
+                    onClick={toggleDetails}
+                  >
+                    <PanelRight />
+                  </IconButton>
+                </div>
+              )
             )}
           </header>
         )}
 
         <div className="flex min-h-0 flex-1">
-          <section className="flex-1 overflow-y-auto">
-            {current ? (
-              <div className="w-full px-6 pt-4 pb-16">
-                {confirmDelete && (
-                  <div className="mx-auto mb-4 max-w-[72ch] rounded border border-danger/40 bg-danger/10 px-3 py-1.5 text-sm text-danger">
-                    Press ⌘⌫ again to delete this note.
-                  </div>
-                )}
-                {!focusMode && (
-                  <div className="mx-auto mb-1 max-w-[72ch]">
-                    <FlaskButton
-                      icon={current.icon}
-                      chars={contentCharCount(current.markdown)}
-                      onChange={(icon) => updateMeta({ icon })}
+          {onHome ? (
+            <Gallery
+              notes={notes}
+              state={gallery.state}
+              categoryDefs={categories.defs}
+              onOpen={openNote}
+            />
+          ) : (
+            <>
+              <section className="flex-1 overflow-y-auto">
+                {current ? (
+                  <div className="w-full px-6 pt-4 pb-16">
+                    {confirmDelete && (
+                      <div className="mx-auto mb-4 max-w-[72ch] rounded border border-danger/40 bg-danger/10 px-3 py-1.5 text-sm text-danger">
+                        Press ⌘⌫ again to delete this note.
+                      </div>
+                    )}
+                    {!focusMode && (
+                      <div className="mx-auto mb-1 max-w-[72ch]">
+                        <FlaskButton
+                          icon={current.icon}
+                          chars={contentCharCount(current.markdown)}
+                          onChange={(icon) => updateMeta({ icon })}
+                        />
+                      </div>
+                    )}
+                    <Editor
+                      key={current.id}
+                      markdown={current.markdown}
+                      onChange={change}
+                      focusMode={focusMode}
+                      theme={theme}
+                      selfId={current.id}
+                      notes={notes}
+                      onOpenNote={(id) => void open(id)}
                     />
                   </div>
+                ) : (
+                  <div className="flex h-full items-center justify-center">
+                    <p className="text-text-muted">
+                      Press <kbd>⌘N</kbd> to start writing.
+                    </p>
+                  </div>
                 )}
-                <Editor
-                  key={current.id}
-                  markdown={current.markdown}
-                  onChange={change}
-                  focusMode={focusMode}
-                  theme={theme}
-                  selfId={current.id}
-                  notes={notes}
-                  onOpenNote={(id) => void open(id)}
+              </section>
+
+              {showChrome && timelineOpen && current && (
+                <TimelinePanel
+                  noteId={current.id}
+                  noteTitle={current.title}
+                  onClose={() => setTimelineOpen(false)}
                 />
-              </div>
-            ) : (
-              <div className="flex h-full items-center justify-center">
-                <p className="text-text-muted">
-                  Press <kbd>⌘N</kbd> to start writing.
-                </p>
-              </div>
-            )}
-          </section>
+              )}
 
-          {showChrome && timelineOpen && current && (
-            <TimelinePanel
-              noteId={current.id}
-              noteTitle={current.title}
-              onClose={() => setTimelineOpen(false)}
-            />
-          )}
-
-          {showChrome && detailsOpen && current && (
-            <DetailsPanel
-              note={current}
-              notes={notes}
-              tagSuggestions={tagSuggestions}
-              categories={categories}
-              onClose={() => setDetailsOpen(false)}
-              onOpenNote={(id) => void open(id)}
-              updateMeta={updateMeta}
-              onSetCreatedAt={setCreatedAt}
-            />
+              {showChrome && detailsOpen && current && (
+                <DetailsPanel
+                  note={current}
+                  notes={notes}
+                  tagSuggestions={tagSuggestions}
+                  categories={categories}
+                  onClose={() => setDetailsOpen(false)}
+                  onOpenNote={(id) => void open(id)}
+                  updateMeta={updateMeta}
+                  onSetCreatedAt={setCreatedAt}
+                />
+              )}
+            </>
           )}
         </div>
       </main>

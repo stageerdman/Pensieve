@@ -32,9 +32,9 @@ vi.mock("./components/Editor", () => ({
 describe("App", () => {
   beforeEach(() => localStorage.clear());
 
-  it("renders the empty state and creates a note on ⌘N", async () => {
+  it("renders the gallery empty state and creates a note on ⌘N", async () => {
     render(<App />);
-    expect(await screen.findByText(/start writing/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no memories yet/i)).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "n", metaKey: true });
 
@@ -43,7 +43,7 @@ describe("App", () => {
     });
   });
 
-  it("⌘-clicks a note into a tab and closes it with X", async () => {
+  it("⌘-clicks a gallery flask into a background tab and closes it with X", async () => {
     seed("a", "Alpha note");
     seed("b", "Beta note");
     render(<App />);
@@ -52,7 +52,7 @@ describe("App", () => {
     expect(await screen.findByLabelText("Home — your work")).toBeInTheDocument();
     expect(screen.queryByRole("tab")).toBeNull();
 
-    // ⌘-click a sidebar note opens it in a tab.
+    // ⌘-click a gallery flask opens it in a background tab.
     const betaRow = await screen.findByText("Beta note");
     fireEvent.click(betaRow, { metaKey: true });
 

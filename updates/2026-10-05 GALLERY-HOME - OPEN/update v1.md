@@ -47,4 +47,17 @@ persistence.
   `main`, close folder.
 
 ## Live status
-- P0: branch + folder created; design docs read; UX agents launched.
+- P0 ✅ branch + folder; design docs + concept spec read; 2 UX agents synthesized
+  (layout + interactions). Specs captured below as the build brief.
+- P1 ✅ pure logic (buckets/view/persist) + 18 unit tests. Committed.
+- P2 ✅ Gallery view built and wired as Home. `features/gallery/{FlaskCard,Gallery}`,
+  `hooks/useGallery`. App.tsx refactored: Home = gallery (sidebar no longer rendered);
+  click → tab+switch, ⌘-click → background tab; new note opens into the editor; header
+  insets left for macOS traffic lights; note-only actions/shortcuts gated off Home.
+  Full suite green (122 tests incl. 4 new Gallery render tests); web build clean.
+  NOTE: Sidebar.tsx / SidebarCustomise.tsx / NoteRow.tsx + sidebar lib (except
+  format.ts, still used) are now DEAD CODE — delete in P4 cleanup.
+- P3 ▢ interactions: Option-hover peek, right-click → working set, working-set strip.
+- P4 ▢ three-dots "Edit view" popover (field toggles + working-set persistence setting);
+  delete dead sidebar files.
+- P5 ▢ polish, full tests, native build, merge to main.
