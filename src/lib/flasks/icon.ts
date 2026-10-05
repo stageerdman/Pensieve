@@ -38,6 +38,32 @@ export const SHAPE_LABELS: Record<FlaskShape, string> = {
 export interface NoteIcon {
   shape: FlaskShape;
   color: CategoryColor;
+  /** How rich/saturated the liquid reads, 0..1 (soft → vivid). Default when unset. */
+  vibrancy?: number;
+  /** How glossy the glass reads, 0..1 (matte → glossy). Default when unset. */
+  shine?: number;
+}
+
+// vibrancy/shine both default to the midpoint, which reproduces today's flask look
+// exactly (the Flask formulas are anchored at 0.5).
+export const DEFAULT_VIBRANCY = 0.5;
+export const DEFAULT_SHINE = 0.5;
+
+export const iconVibrancy = (icon?: NoteIcon): number => icon?.vibrancy ?? DEFAULT_VIBRANCY;
+export const iconShine = (icon?: NoteIcon): number => icon?.shine ?? DEFAULT_SHINE;
+
+// Fill level is driven by CONTENT, not chosen: a title-only note is an empty flask;
+// ~5000 non-space content chars reads as the normal fill; by ~10000 it is brim-full
+// ("overfilled"). `fillForChars` returns the fill fraction 0..1 the Flask renders —
+// concave below normal so even short notes read as holding "some".
+export const NORMAL_CHARS = 5000;
+export const OVERFILL_CHARS = 10000;
+export const NORMAL_FILL = 0.8; // fraction that reproduces today's "normal" look
+
+export function fillForChars(chars: number): number {
+  if (chars <= 0) return 0;
+  if (chars <= NORMAL_CHARS) return NORMAL_FILL * Math.pow(chars / NORMAL_CHARS, 0.7);
+  return NORMAL_FILL + (1 - NORMAL_FILL) * Math.min((chars - NORMAL_CHARS) / NORMAL_CHARS, 1);
 }
 
 /** Rendered for any note that hasn't chosen an icon yet — a calm neutral gray vial.
@@ -52,15 +78,30 @@ export function isFlaskShape(v: string): v is FlaskShape {
   return SHAPES.has(v);
 }
 
-/** Frontmatter form: `shape/color` (e.g. `round/blue`). Compact, human-legible. */
+const pct = (n: number) => Math.round(Math.min(1, Math.max(0, n)) * 100);
+const isDefault = (icon: NoteIcon) =>
+  iconVibrancy(icon) === DEFAULT_VIBRANCY && iconShine(icon) === DEFAULT_SHINE;
+
+/** Frontmatter form: `shape/color` (e.g. `vial/gray`), or `shape/color/vibrancy/shine`
+ *  when vibrancy/shine differ from the defaults (percentages, e.g. `vial/blue/80/30`).
+ *  Compact and human-legible; the two extra fields are omitted at default. */
 export function encodeIcon(icon: NoteIcon): string {
-  return `${icon.shape}/${icon.color}`;
+  const base = `${icon.shape}/${icon.color}`;
+  return isDefault(icon) ? base : `${base}/${pct(iconVibrancy(icon))}/${pct(iconShine(icon))}`;
 }
 
 /** Parse a frontmatter `icon` value. Unknown shape/colour → undefined (treated as
- *  "no icon", so the default renders) — never throws on hand-edited files. */
+ *  "no icon", so the default renders) — never throws on hand-edited files. Vibrancy
+ *  and shine (optional 3rd/4th fields, 0..100) fall back to defaults when absent or
+ *  unparseable. */
 export function parseIcon(raw: string): NoteIcon | undefined {
-  const [shape, color] = raw.trim().split("/").map((s) => s.trim());
+  const parts = raw.trim().split("/").map((s) => s.trim());
+  const [shape, color, v, s] = parts;
   if (!shape || !color || !SHAPES.has(shape) || !COLORS.has(color)) return undefined;
-  return { shape: shape as FlaskShape, color: color as CategoryColor };
+  const icon: NoteIcon = { shape: shape as FlaskShape, color: color as CategoryColor };
+  const vn = Number(v);
+  const sn = Number(s);
+  if (v !== undefined && Number.isFinite(vn)) icon.vibrancy = Math.min(1, Math.max(0, vn / 100));
+  if (s !== undefined && Number.isFinite(sn)) icon.shine = Math.min(1, Math.max(0, sn / 100));
+  return icon;
 }

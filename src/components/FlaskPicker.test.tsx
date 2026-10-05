@@ -5,14 +5,25 @@ import { FLASK_SHAPES } from "../lib/flasks/icon";
 import { CATEGORY_COLORS } from "../lib/categories/palette";
 
 describe("FlaskPicker", () => {
-  it("offers every shape and colour as radios", () => {
+  it("offers shape, colour, vibrancy and shine as radiogroups", () => {
     render(<FlaskPicker icon={{ shape: "vial", color: "green" }} onChange={() => {}} />);
-    // One radiogroup per dimension; radios = shapes + colours.
     expect(screen.getByRole("radiogroup", { name: "Shape" })).toBeInTheDocument();
     expect(screen.getByRole("radiogroup", { name: "Colour" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Vibrancy" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Shine" })).toBeInTheDocument();
+    // radios = shapes + colours + 5 vibrancy steps + 5 shine steps.
     expect(screen.getAllByRole("radio")).toHaveLength(
-      FLASK_SHAPES.length + CATEGORY_COLORS.length,
+      FLASK_SHAPES.length + CATEGORY_COLORS.length + 5 + 5,
     );
+  });
+
+  it("commits vibrancy and shine while keeping shape + colour", () => {
+    const onChange = vi.fn();
+    render(<FlaskPicker icon={{ shape: "vial", color: "green" }} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("radio", { name: "Vibrancy 5 of 5" }));
+    expect(onChange).toHaveBeenCalledWith({ shape: "vial", color: "green", vibrancy: 1 });
+    fireEvent.click(screen.getByRole("radio", { name: "Shine 1 of 5" }));
+    expect(onChange).toHaveBeenCalledWith({ shape: "vial", color: "green", shine: 0 });
   });
 
   it("marks the current shape and colour as checked", () => {

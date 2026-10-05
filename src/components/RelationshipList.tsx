@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { NoteMeta } from "../lib/types";
+import { FlaskFor } from "./Flask";
 import { Plus, X } from "./icons";
 
 // Relationships = links to other notes. List linked notes (click opens, X unlinks),
@@ -40,9 +41,10 @@ export function RelationshipList({ noteId, links, notes, onOpen, onChange }: Rel
         <div key={n.id} className="group flex items-center justify-between gap-2">
           <button
             onClick={() => onOpen(n.id)}
-            className="truncate text-left text-sm text-text hover:text-accent"
+            className="flex min-w-0 items-center gap-1.5 text-left text-sm text-text hover:text-accent"
           >
-            {n.title || "Untitled"}
+            <FlaskFor icon={n.icon} chars={n.chars} size={14} className="shrink-0 text-text-muted" />
+            <span className="truncate">{n.title || "Untitled"}</span>
           </button>
           <button
             onClick={() => onChange(links.filter((id) => id !== n.id))}
@@ -81,9 +83,10 @@ export function RelationshipList({ noteId, links, notes, onOpen, onChange }: Rel
               <button
                 key={n.id}
                 onClick={() => link(n.id)}
-                className="block w-full truncate rounded px-1 py-1 text-left text-sm text-text-muted hover:bg-surface-raised hover:text-text"
+                className="flex w-full items-center gap-1.5 rounded px-1 py-1 text-left text-sm text-text-muted hover:bg-surface-raised hover:text-text"
               >
-                {n.title || "Untitled"}
+                <FlaskFor icon={n.icon} chars={n.chars} size={14} className="shrink-0" />
+                <span className="truncate">{n.title || "Untitled"}</span>
               </button>
             ))}
           </div>

@@ -20,7 +20,8 @@ import { AllSelection, TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { useEffect, useRef } from "react";
 import { blocksToExtendedMd, extendedMdToBlocks } from "../lib/md/extended";
-import { NoteLink, setNoteLinkOpen } from "./noteLink";
+import { NoteLink, setNoteLinkOpen, setNoteLinkResolve } from "./noteLink";
+import { FlaskFor } from "./Flask";
 import type { NoteMeta } from "../lib/types";
 
 // Editor schema = the default blocks/styles + our custom "noteLink" inline content
@@ -79,6 +80,8 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
 
   // Wire note-link clicks to open the note (the inline spec's render is module-level).
   useEffect(() => setNoteLinkOpen(onOpenNote), [onOpenNote]);
+  // Let note links resolve the referenced note's live flask (icon + fill).
+  useEffect(() => setNoteLinkResolve((id) => notesRef.current.find((n) => n.id === id)), []);
 
   // Two-level ⌘A. Attached to the wrapper (capture phase) so we read the live
   // ProseMirror view at event time — it is reliably mounted by then.
@@ -170,6 +173,7 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
               .slice(0, 8)
               .map((n) => ({
                 title: n.title || "Untitled",
+                icon: <FlaskFor icon={n.icon} chars={n.chars} size={16} />,
                 onItemClick: () => {
                   editor.insertInlineContent([
                     { type: "noteLink", props: { noteId: n.id, title: n.title || "Untitled" } },

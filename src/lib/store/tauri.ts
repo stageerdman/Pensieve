@@ -7,7 +7,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import type { Category, Note, NoteMeta, Store, TimelineEntry } from "../types";
-import { titleFromMarkdown, excerptFromMarkdown } from "../text";
+import { titleFromMarkdown, excerptFromMarkdown, contentCharCount } from "../text";
 import { parseFrontmatter, composeFrontmatter } from "../md/frontmatter";
 import { log } from "../logger";
 
@@ -57,6 +57,7 @@ export class TauriStore implements Store {
       const file = await readText(notePath(id));
       const parsed = file ? parseFrontmatter(file) : null;
       const excerpt = parsed ? excerptFromMarkdown(parsed.body) : "";
+      const chars = parsed ? contentCharCount(parsed.body) : 0;
       metas.push({
         id,
         title: m.title,
@@ -68,6 +69,7 @@ export class TauriStore implements Store {
         icon: parsed?.fields.icon,
         pinned: m.pinned ?? false,
         excerpt,
+        chars,
       });
     }
     // Order is a view concern now (see lib/sidebar/arrange) — return unsorted.

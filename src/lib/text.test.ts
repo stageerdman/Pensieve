@@ -1,5 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { titleFromMarkdown, slugify, wordCount, excerptFromMarkdown } from "./text";
+import { titleFromMarkdown, slugify, wordCount, excerptFromMarkdown, contentCharCount } from "./text";
+
+describe("contentCharCount", () => {
+  it("is zero for a title-only note (one line)", () => {
+    expect(contentCharCount("# Just a title")).toBe(0);
+    expect(contentCharCount("Just a title\n")).toBe(0);
+    expect(contentCharCount("Just a title\n\n   \n")).toBe(0);
+  });
+  it("counts non-space characters after the title line", () => {
+    // "helloworld" (10) + "world" (5) = 15 non-space chars; title + whitespace excluded.
+    expect(contentCharCount("Title\nhello world\nwo rld")).toBe(15);
+  });
+  it("skips leading blank lines before the title", () => {
+    expect(contentCharCount("\n\nTitle\nabc")).toBe(3);
+  });
+});
 
 describe("titleFromMarkdown", () => {
   it("uses the first non-empty line, stripping heading marks", () => {

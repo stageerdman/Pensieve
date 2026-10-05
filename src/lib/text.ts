@@ -62,6 +62,17 @@ export function excerptFromMarkdown(md: string, max = 140): string {
   return out.length > max ? out.slice(0, max).trimEnd() + "…" : out;
 }
 
+/** Non-space character count of the note's CONTENT — everything after the title
+ *  line, with whitespace removed. Drives the flask fill level (a title-only note
+ *  has zero content → an empty flask). Cheap; computed once per note in list(). */
+export function contentCharCount(md: string): number {
+  const lines = md.split("\n");
+  let i = 0;
+  while (i < lines.length && !lines[i].trim()) i++; // skip leading blank lines
+  // Line i is the title; everything after it is content.
+  return lines.slice(i + 1).join("").replace(/\s/g, "").length;
+}
+
 /** Word count of the note's content, ignoring markdown punctuation noise. */
 export function wordCount(md: string): number {
   const words = md

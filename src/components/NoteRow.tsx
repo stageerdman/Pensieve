@@ -69,8 +69,9 @@ export function NoteRow({ note, view, active, now, categoryDefs, onOpen, onToggl
     >
       {/* Title line: flask · (category dots) · title · pin */}
       <span className="flex items-center gap-1.5">
-        {/* The note's flask — its visual identity, always shown (default if unset). */}
-        <FlaskFor icon={note.icon} size={14} className="shrink-0 text-text-muted" />
+        {/* The note's flask — its visual identity, always shown (default if unset).
+            Fill mirrors how much content the note holds. */}
+        <FlaskFor icon={note.icon} chars={note.chars} size={14} className="shrink-0 text-text-muted" />
         {showDots && (
           <span className="flex shrink-0 -space-x-0.5">
             {cats.slice(0, 2).map((c) => (
