@@ -6,7 +6,6 @@ import { colorOf } from "../lib/categories/defs";
 import { catFg } from "../lib/categories/palette";
 import { NoteRow } from "./NoteRow";
 import { SidebarCustomise } from "./SidebarCustomise";
-import { Logo } from "./Logo";
 import { Plus } from "./icons";
 
 // The notes list. Ordering/grouping/pinning is derived by the pure arrange() layer
@@ -52,11 +51,6 @@ export function Sidebar({
       </div>
 
       <nav className="flex-1 overflow-y-auto px-1 pb-2">
-        {/* Brand — the Pensieve mark, calm and persistent above the list. */}
-        <div className="flex items-center gap-2 px-3 pb-1 pt-2 text-text">
-          <Logo size={22} className="shrink-0" />
-          <span className="text-sm font-semibold tracking-wide">Pensieve</span>
-        </div>
         {/* New note is the primary action — a full-width, slim button atop the list. */}
         <button
           onClick={onNew}

@@ -5,7 +5,6 @@ import { TimelinePanel } from "./components/TimelinePanel";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { OverflowMenu } from "./components/OverflowMenu";
 import { FlaskButton } from "./components/FlaskButton";
-import { Logo } from "./components/Logo";
 import { IconButton } from "./components/IconButton";
 import { Clock, PanelRight, Trash } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
@@ -199,8 +198,7 @@ export default function App() {
                 />
               </div>
             ) : (
-              <div className="flex h-full flex-col items-center justify-center gap-3">
-                <Logo size={56} className="text-text-muted/70" label="Pensieve" />
+              <div className="flex h-full items-center justify-center">
                 <p className="text-text-muted">
                   Press <kbd>⌘N</kbd> to start writing.
                 </p>

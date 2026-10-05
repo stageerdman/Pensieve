@@ -1,0 +1,41 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- deep blue-black "stone" tile (the magical dark theme) -->
+    <linearGradient id="tile" x1="0" y1="96" x2="0" y2="928" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1b2334"/>
+      <stop offset="1" stop-color="#0c111b"/>
+    </linearGradient>
+    <!-- top sheen on the glass tile -->
+    <linearGradient id="sheen" x1="0" y1="96" x2="0" y2="520" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <!-- the memory pool — a magical-blue glow -->
+    <radialGradient id="pool" cx="50%" cy="42%" r="60%">
+      <stop offset="0" stop-color="#8fb6ff" stop-opacity="0.75"/>
+      <stop offset="0.6" stop-color="#8fb6ff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#8fb6ff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- tile (macOS squircle) -->
+  <rect x="96" y="96" width="832" height="832" rx="188" fill="url(#tile)"/>
+  <rect x="96" y="96" width="832" height="832" rx="188" fill="url(#sheen)"/>
+  <rect x="96.5" y="96.5" width="831" height="831" rx="187.5" stroke="#9fb4ff" stroke-opacity="0.18" stroke-width="1"/>
+
+  <!-- the Pensieve sigil: a basin with a wisp of memory rising (Shelves concept),
+       drawn in a 48-unit space scaled up and centred -->
+  <g transform="translate(152 168) scale(15)">
+    <!-- pool glow -->
+    <ellipse cx="24" cy="30" rx="18" ry="10" fill="url(#pool)"/>
+    <!-- liquid surface -->
+    <ellipse cx="24" cy="29" rx="16" ry="8" fill="#8fb6ff" fill-opacity="0.16"/>
+    <!-- basin rim -->
+    <ellipse cx="24" cy="29" rx="17" ry="9" stroke="#d7e3f4" stroke-opacity="0.92" stroke-width="1.5"/>
+    <!-- the wisp -->
+    <path d="M24 25 C 20 18, 30 14, 26 8 C 24 11, 22 9, 24 6"
+      stroke="#eef3fb" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <!-- a rising spark -->
+    <circle cx="24" cy="5.4" r="0.9" fill="#eef3fb"/>
+  </g>
+</svg>
