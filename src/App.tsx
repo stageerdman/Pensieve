@@ -257,6 +257,9 @@ export default function App() {
               state={gallery.state}
               categoryDefs={categories.defs}
               onOpen={openNote}
+              onToggleWorkingSet={gallery.toggleWorkingSet}
+              onRemoveFromWorkingSet={gallery.removeFromWorkingSet}
+              onMoveInWorkingSet={gallery.moveInWorkingSet}
             />
           ) : (
             <>
