@@ -1,0 +1,612 @@
+<!--
+  THE APOTHECARY — Pensieve orientation concept (round 2)
+  Rationale: Orientation is a VISUAL hierarchy problem, so we make hierarchy physical.
+  A persistent "Important" top shelf (pinned + AI-flagged) stays in view, flasks pulled
+  forward + larger. Below, one tight category shelf per colour; within a shelf each flask
+  is SIZED + BRIGHTENED by importance so the eye lands on what matters without reading.
+  Recency = freshness (brighter glass, livelier bubbles); a live tag rail + search + category
+  chips filter every shelf at once; hover glimpses the full thought; pouring settles a new
+  flask onto the right shelf. Goal: scan the whole mind, important bits jump out, in one glance.
+  Fully offline — system fonts, all visuals via CSS + inline SVG. No assets, no network.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Apothecary — Pensieve</title>
+<style>
+  :root{
+    --ink:#0b0e14; --ink-2:#0f131c; --ink-3:#141a26;
+    --shelf:#1b2230; --shelf-edge:#2a3448; --shelf-lip:#38455f;
+    --silver:#e7ecf4; --silver-2:#c3ccdd; --mut:#8793ab; --mut-2:#5c6880;
+    --line:#242d3e; --line-2:#1a2130;
+    --accent:#9fb4ff;            /* single accent: pensieve silver-blue */
+    --spark:#ffd98a;             /* AI importance */
+    --radius:14px; --radius-s:9px;
+    /* category hues */
+    --c-idea:#67e8f9; --c-journal:#f6c477; --c-work:#b79bff;
+    --c-health:#7ee6a8; --c-people:#ff9bc0; --c-learn:#8fb6ff;
+    font-synthesis:none;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:
+      radial-gradient(1200px 700px at 72% -8%, #1a2740 0%, rgba(26,39,64,0) 60%),
+      radial-gradient(900px 600px at 8% 110%, #171f33 0%, rgba(23,31,51,0) 55%),
+      var(--ink);
+    color:var(--silver);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* faint drifting mist */
+  body::before{
+    content:"";position:fixed;inset:-20% -10%;z-index:0;pointer-events:none;
+    background:
+      radial-gradient(400px 220px at 20% 20%, rgba(159,180,255,.05), transparent 70%),
+      radial-gradient(520px 260px at 80% 60%, rgba(159,180,255,.045), transparent 70%);
+    animation:mist 26s ease-in-out infinite alternate;
+  }
+  @keyframes mist{from{transform:translate3d(0,0,0)}to{transform:translate3d(-24px,-18px,0)}}
+
+  .app{position:relative;z-index:1;max-width:1240px;margin:0 auto;padding:18px 20px 60px}
+
+  /* ---------- top bar ---------- */
+  header.top{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+  .brand{display:flex;align-items:center;gap:11px;min-width:0}
+  .mark{width:30px;height:38px;flex:0 0 auto;filter:drop-shadow(0 2px 6px rgba(159,180,255,.35))}
+  .brand h1{font-size:17px;letter-spacing:.14em;text-transform:uppercase;margin:0;font-weight:600;color:var(--silver)}
+  .brand small{display:block;font-size:10.5px;letter-spacing:.22em;color:var(--mut-2);text-transform:uppercase;margin-top:2px}
+
+  .search{position:relative;flex:1 1 300px;min-width:220px}
+  .search input{
+    width:100%;background:linear-gradient(180deg,#121826,#0e1420);border:1px solid var(--line);
+    color:var(--silver);border-radius:999px;padding:11px 16px 11px 40px;font-size:14px;outline:none;
+    transition:border-color .2s, box-shadow .2s;
+  }
+  .search input::placeholder{color:var(--mut-2)}
+  .search input:focus{border-color:rgba(159,180,255,.55);box-shadow:0 0 0 3px rgba(159,180,255,.12)}
+  .search svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);opacity:.6}
+
+  .pour-btn{
+    display:inline-flex;align-items:center;gap:8px;white-space:nowrap;cursor:pointer;
+    background:linear-gradient(180deg,#223150,#18233b);border:1px solid rgba(159,180,255,.45);
+    color:var(--silver);border-radius:999px;padding:10px 16px;font-size:13px;font-weight:600;
+    letter-spacing:.02em;transition:transform .12s, box-shadow .2s, border-color .2s;
+  }
+  .pour-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(159,180,255,.2);border-color:rgba(159,180,255,.75)}
+  .pour-btn:active{transform:translateY(0)}
+
+  /* ---------- layout ---------- */
+  .layout{display:grid;grid-template-columns:200px 1fr;gap:18px;align-items:start}
+
+  /* facet rail */
+  .rail{position:sticky;top:12px;background:linear-gradient(180deg,#10151f,#0d121b);
+    border:1px solid var(--line);border-radius:var(--radius);padding:14px 13px}
+  .rail h2{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--mut-2);margin:2px 2px 10px}
+  .rail .grp+.grp{margin-top:16px}
+  .cat-row,.tag-row{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{
+    display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none;
+    font-size:12px;color:var(--silver-2);background:#121826;border:1px solid var(--line);
+    border-radius:999px;padding:5px 10px;transition:all .15s;
+  }
+  .chip:hover{border-color:var(--mut-2);color:var(--silver)}
+  .chip .dot{width:8px;height:8px;border-radius:50%;box-shadow:0 0 6px currentColor}
+  .chip.on{background:rgba(159,180,255,.14);border-color:rgba(159,180,255,.55);color:#fff}
+  .tag-row .chip{font-size:11.5px;padding:4px 9px}
+  .chip .cnt{color:var(--mut-2);font-variant-numeric:tabular-nums;font-size:10.5px}
+  .rail .clear{margin-top:12px;font-size:11px;color:var(--mut);cursor:pointer;text-align:center;
+    padding:7px;border:1px dashed var(--line-2);border-radius:var(--radius-s)}
+  .rail .clear:hover{color:var(--silver);border-color:var(--mut-2)}
+
+  /* ---------- shelves ---------- */
+  .cabinet{display:flex;flex-direction:column;gap:14px;min-width:0}
+  .shelf{
+    position:relative;background:linear-gradient(180deg,#121826 0%,#0f1420 100%);
+    border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px 0;
+  }
+  .shelf.important{
+    border-color:rgba(255,217,138,.3);
+    background:linear-gradient(180deg,#1a1c20 0%,#13151d 100%);
+    box-shadow:0 0 0 1px rgba(255,217,138,.08), 0 12px 40px rgba(0,0,0,.4);
+  }
+  .shelf-head{display:flex;align-items:center;gap:9px;margin-bottom:2px}
+  .shelf-head .lbl{font-size:12px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;color:var(--silver-2)}
+  .shelf.important .shelf-head .lbl{color:#ffe6b0}
+  .shelf-head .hue{width:9px;height:9px;border-radius:50%;box-shadow:0 0 7px currentColor}
+  .shelf-head .n{font-size:11px;color:var(--mut-2);font-variant-numeric:tabular-nums}
+  .shelf-head .star{margin-left:-2px}
+
+  /* flask row sits on a wooden/glass shelf lip */
+  .row-wrap{position:relative;overflow:hidden}
+  .row{display:flex;align-items:flex-end;gap:4px;padding:6px 2px 0;min-height:118px;
+    overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+  .row::-webkit-scrollbar{display:none}
+  .shelf.important .row{min-height:150px}
+  .lip{height:10px;margin:0 -14px;
+    background:
+      linear-gradient(180deg,var(--shelf-lip),var(--shelf-edge) 55%,var(--shelf) 100%);
+    border-top:1px solid rgba(159,180,255,.14);
+    box-shadow:inset 0 2px 3px rgba(255,255,255,.06), 0 6px 14px rgba(0,0,0,.4);
+    border-bottom-left-radius:var(--radius);border-bottom-right-radius:var(--radius);
+  }
+  .shelf.important .lip{background:linear-gradient(180deg,#4a4232,#36301f 60%,#262013);
+    border-top-color:rgba(255,217,138,.22)}
+
+  /* a flask unit */
+  .flask{
+    position:relative;flex:0 0 auto;display:flex;flex-direction:column;align-items:center;
+    cursor:pointer;padding:2px 3px 0;border-radius:10px;transition:transform .16s, background .16s, opacity .3s;
+    width:62px;
+  }
+  .flask:hover{background:rgba(159,180,255,.06);transform:translateY(-4px)}
+  .flask.lg{width:82px}
+  .flask .glass{display:block}
+  .flask .cap{font-size:10.5px;line-height:1.15;color:var(--silver-2);text-align:center;margin-top:3px;
+    max-width:100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+    letter-spacing:.01em}
+  .flask.lg .cap{font-size:11.5px;color:var(--silver)}
+  /* silver engraved label plate */
+  .flask .plate{margin-top:4px;font-size:9px;letter-spacing:.04em;color:var(--mut);
+    background:linear-gradient(180deg,#232c3e,#1a2130);border:1px solid var(--line);
+    padding:1px 6px;border-radius:5px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+
+  /* importance badges on the flask */
+  .badge{position:absolute;top:-2px;z-index:3;width:16px;height:16px;border-radius:50%;
+    display:grid;place-items:center;font-size:9px}
+  .badge.pin{right:4px;color:#ffd98a}
+  .badge.ai{left:4px;color:var(--spark);
+    filter:drop-shadow(0 0 5px rgba(255,217,138,.6));animation:twinkle 3s ease-in-out infinite}
+  @keyframes twinkle{0%,100%{opacity:.75;transform:scale(1)}50%{opacity:1;transform:scale(1.15)}}
+
+  /* dim when filtered out */
+  .flask.hide{display:none}
+  .flask.dim{opacity:.16;filter:grayscale(.6)}
+  .flask.dim:hover{opacity:.5}
+
+  .shelf.empty{opacity:.4}
+  .shelf .none{font-size:11px;color:var(--mut-2);padding:14px 2px;font-style:italic}
+
+  /* ---------- hover glimpse ---------- */
+  #glimpse{position:fixed;z-index:50;width:280px;pointer-events:none;opacity:0;transform:translateY(6px);
+    transition:opacity .14s, transform .14s;}
+  #glimpse.show{opacity:1;transform:translateY(0)}
+  .gcard{background:linear-gradient(180deg,#161d2b,#111622);border:1px solid rgba(159,180,255,.3);
+    border-radius:12px;padding:13px 14px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
+  .gcard .gtop{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+  .gcard .gtop .dot{width:8px;height:8px;border-radius:50%;box-shadow:0 0 6px currentColor}
+  .gcard .gcat{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut)}
+  .gcard .gtitle{font-size:14px;font-weight:600;color:#fff;margin:0 0 5px;line-height:1.25}
+  .gcard .gbody{font-size:12px;color:var(--silver-2);line-height:1.5;margin:0 0 9px}
+  .gcard .gtags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px}
+  .gcard .gtags span{font-size:10.5px;color:var(--accent);background:rgba(159,180,255,.1);
+    border:1px solid rgba(159,180,255,.2);border-radius:999px;padding:2px 7px}
+  .gcard .gmeta{display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:var(--mut-2);
+    border-top:1px solid var(--line);padding-top:8px}
+  .gcard .gmeta b{color:var(--silver-2);font-weight:600}
+  .meter{display:inline-flex;gap:2px;align-items:center}
+  .meter i{width:4px;height:4px;border-radius:50%;background:var(--mut-2)}
+  .meter i.on{background:var(--spark);box-shadow:0 0 4px var(--spark)}
+
+  /* ---------- pour overlay ---------- */
+  #pour{position:fixed;inset:0;z-index:80;display:none;place-items:center;
+    background:radial-gradient(600px 500px at 50% 40%, rgba(10,13,20,.7), rgba(8,10,16,.95))}
+  #pour.show{display:grid}
+  .pcard{width:min(440px,92vw);background:linear-gradient(180deg,#141a28,#0f1420);
+    border:1px solid rgba(159,180,255,.3);border-radius:18px;padding:22px;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+  .pcard h3{margin:0 0 3px;font-size:15px;letter-spacing:.06em;color:var(--silver)}
+  .pcard p{margin:0 0 16px;font-size:12px;color:var(--mut)}
+  .pcard textarea{width:100%;height:74px;resize:none;background:#0d121c;border:1px solid var(--line);
+    border-radius:12px;color:var(--silver);padding:11px 13px;font-size:13px;font-family:inherit;outline:none}
+  .pcard textarea:focus{border-color:rgba(159,180,255,.5)}
+  .pcat{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 18px}
+  .pour-stage{display:grid;place-items:center;height:150px;margin-bottom:8px}
+  .prow{display:flex;justify-content:flex-end;gap:9px}
+  .ghost-btn{background:transparent;border:1px solid var(--line);color:var(--mut);border-radius:999px;
+    padding:9px 16px;font-size:13px;cursor:pointer}
+  .ghost-btn:hover{color:var(--silver);border-color:var(--mut-2)}
+
+  .stream{stroke:var(--accent);stroke-width:3;stroke-linecap:round;opacity:0}
+  #pour.pouring .stream{opacity:.9;animation:drip .9s ease-in infinite}
+  @keyframes drip{0%{stroke-dashoffset:40}100%{stroke-dashoffset:0}}
+
+  .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);z-index:90;
+    background:linear-gradient(180deg,#1b2740,#141c30);border:1px solid rgba(159,180,255,.4);
+    color:var(--silver);padding:11px 18px;border-radius:999px;font-size:13px;opacity:0;
+    transition:opacity .25s, transform .25s;pointer-events:none;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--mut-2);margin:16px 2px 0;align-items:center}
+  .legend b{color:var(--silver-2);font-weight:600}
+  .legend .fl{display:inline-flex;gap:6px;align-items:center}
+
+  @media (max-width:760px){
+    .layout{grid-template-columns:1fr}
+    .rail{position:static;order:2}
+    .cabinet{order:1}
+  }
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 30 38" fill="none">
+        <path d="M6 3h18l-2 9c-.5 2 .2 3 1.4 4.6C25.6 19 27 21.3 27 25c0 6-5 10-12 10S3 31 3 25c0-3.7 1.4-6 3.6-8.4C7.8 15 8.5 14 8 12L6 3Z"
+          fill="url(#g)" stroke="#9fb4ff" stroke-width="1.1"/>
+        <ellipse cx="15" cy="26" rx="8.5" ry="6" fill="#9fb4ff" opacity=".28"/>
+        <circle cx="12" cy="25" r="1.3" fill="#e7ecf4"/><circle cx="18" cy="28" r="1" fill="#e7ecf4"/>
+        <defs><linearGradient id="g" x1="3" y1="3" x2="27" y2="35" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#1b2435"/><stop offset="1" stop-color="#0e1420"/></linearGradient></defs>
+      </svg>
+      <div><h1>The Apothecary</h1><small>Pensieve · orientation</small></div>
+    </div>
+
+    <label class="search">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8793ab" stroke-width="1.6">
+        <circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg>
+      <input id="q" type="text" placeholder="Search your mind — words, tags, anything…" autocomplete="off">
+    </label>
+
+    <button class="pour-btn" id="openPour">
+      <svg width="15" height="18" viewBox="0 0 15 18" fill="none" stroke="#9fb4ff" stroke-width="1.3">
+        <path d="M4 1h7l-1 5c0 1 4 3 4 7 0 3-3 4-6.5 4S1 16 1 13c0-4 4-6 4-7L4 1Z"/>
+        <path d="M3 12h9" stroke-dasharray="1.5 2"/></svg>
+      Pour a thought
+    </button>
+  </header>
+
+  <div class="layout">
+    <!-- facet rail -->
+    <aside class="rail">
+      <div class="grp">
+        <h2>Categories</h2>
+        <div class="cat-row" id="catRow"></div>
+      </div>
+      <div class="grp">
+        <h2>Tags</h2>
+        <div class="tag-row" id="tagRow"></div>
+      </div>
+      <div class="clear" id="clearBtn">Clear all filters</div>
+    </aside>
+
+    <!-- shelves -->
+    <main class="cabinet" id="cabinet"></main>
+  </div>
+
+  <div class="legend">
+    <span class="fl"><b>Size + brightness</b> = importance</span>
+    <span class="fl">✦ AI-important</span>
+    <span class="fl">★ Pinned</span>
+    <span class="fl">Livelier glass = fresher</span>
+    <span class="fl">Hover a flask to glimpse it</span>
+  </div>
+</div>
+
+<!-- hover glimpse -->
+<div id="glimpse"><div class="gcard" id="gcard"></div></div>
+
+<!-- pour overlay -->
+<div id="pour">
+  <div class="pcard">
+    <h3>Pour a thought</h3>
+    <p>Write it, choose a shelf — watch it settle into a flask.</p>
+    <div class="pour-stage" id="pourStage"></div>
+    <textarea id="pourText" placeholder="What's on your mind?"></textarea>
+    <div class="pcat" id="pourCats"></div>
+    <div class="prow">
+      <button class="ghost-btn" id="cancelPour">Cancel</button>
+      <button class="pour-btn" id="doPour">Pour it in</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- category model (small colour-coded set) ---------- */
+const CATS = {
+  idea:    {name:"Ideas",    hue:"#67e8f9"},
+  journal: {name:"Journal",  hue:"#f6c477"},
+  work:    {name:"Work",     hue:"#b79bff"},
+  health:  {name:"Health",   hue:"#7ee6a8"},
+  people:  {name:"People",   hue:"#ff9bc0"},
+  learn:   {name:"Learning", hue:"#8fb6ff"},
+};
+const ORDER = ["idea","journal","work","health","people","learn"];
+
+/* ---------- ~18 sample thoughts ----------
+   imp 0..1 = importance (size/brightness) · fresh 0..1 = recency
+   pin / ai = badges · revisits = how often reopened                         */
+let DATA = [
+  {t:"Pensieve should feel like a pensieve", body:"The whole app is one calm surface you pour thoughts into — magic in the capture, practicality in the recall.", cat:"idea", tags:["product","vision"], imp:.98, fresh:.9, pin:true, ai:true, revisits:9, age:"today"},
+  {t:"What actually matters this quarter", body:"Three bets only. Everything else is noise. Re-read before every planning session.", cat:"work", tags:["goals","focus"], imp:.95, fresh:.7, pin:true, ai:true, revisits:12, age:"2d"},
+  {t:"Lesson: I overcommit when excited", body:"Pattern across 6 journal entries. Sleep on big yeses for one night.", cat:"journal", tags:["pattern","discipline"], imp:.9, fresh:.4, pin:false, ai:true, revisits:7, age:"1w"},
+  {t:"Glass-flask shelf for orientation", body:"Flasks sized by importance, shelves by category — scan the whole mind at once.", cat:"idea", tags:["design","ux"], imp:.86, fresh:.95, pin:true, ai:false, revisits:4, age:"today"},
+  {t:"Morning pages kept me steady", body:"Weeks I journal mornings, anxiety is noticeably lower. Protect the first 15 min.", cat:"health", tags:["routine","mood"], imp:.8, fresh:.55, pin:false, ai:true, revisits:5, age:"4d"},
+
+  {t:"Local-first, always", body:"Files on disk, SQLite index. The vault outlives any company.", cat:"work", tags:["architecture","principle"], imp:.72, fresh:.3, pin:false, ai:false, revisits:3, age:"2w"},
+  {t:"Call Mom on Sundays", body:"She mentioned the garden project. Ask about it.", cat:"people", tags:["family"], imp:.68, fresh:.85, pin:false, ai:false, revisits:2, age:"today"},
+  {t:"Whisper.cpp runs fully offline", body:"Transcription needs no API. Big for the privacy story.", cat:"learn", tags:["tech","audio"], imp:.6, fresh:.5, pin:false, ai:false, revisits:2, age:"5d"},
+  {t:"The coach should resurface, not nag", body:"Quiet prompts tied to goals, never notifications for their own sake.", cat:"idea", tags:["ai","coach"], imp:.78, fresh:.65, pin:false, ai:true, revisits:4, age:"3d"},
+  {t:"Walked 8k, felt clear after", body:"Movement before hard thinking works. Stack it before deep work.", cat:"health", tags:["exercise","energy"], imp:.5, fresh:.75, pin:false, ai:false, revisits:1, age:"2d"},
+
+  {t:"Sarah's feedback on the editor", body:"'It disappears around the words.' That's the whole target.", cat:"people", tags:["feedback","editor"], imp:.64, fresh:.45, pin:false, ai:false, revisits:3, age:"1w"},
+  {t:"TipTap serializes clean Markdown", body:"Round-trips without cruft. Keep blocks minimal.", cat:"learn", tags:["tech","editor"], imp:.42, fresh:.35, pin:false, ai:false, revisits:1, age:"2w"},
+  {t:"Idea: freshness as glass clarity", body:"Older thoughts fog slightly; fresh ones sparkle. Recency without a timestamp.", cat:"idea", tags:["design","recency"], imp:.55, fresh:.9, pin:false, ai:false, revisits:2, age:"today"},
+  {t:"Revisit my 2024 reflections", body:"End-of-year entries hold the clearest lessons. Schedule a re-read.", cat:"journal", tags:["review","lessons"], imp:.58, fresh:.2, pin:false, ai:true, revisits:6, age:"3w"},
+  {t:"Sleep is the keystone habit", body:"Everything downstream — focus, mood, workouts — tracks sleep. Guard 11pm.", cat:"health", tags:["sleep","keystone"], imp:.74, fresh:.4, pin:true, ai:false, revisits:5, age:"1w"},
+
+  {t:"Ship capture before AI", body:"Daily logging is the wedge. AI is desktop-only, later. Don't invert it.", cat:"work", tags:["roadmap","focus"], imp:.82, fresh:.6, pin:false, ai:true, revisits:4, age:"4d"},
+  {t:"Book: Deep Work — re-skim ch.3", body:"The shutdown ritual maps onto evening journaling.", cat:"learn", tags:["book","focus"], imp:.36, fresh:.3, pin:false, ai:false, revisits:1, age:"2w"},
+  {t:"Grandad's stories, record them", body:"Voice capture + transcript. Do it this month — don't wait.", cat:"people", tags:["family","legacy"], imp:.7, fresh:.5, pin:true, ai:true, revisits:3, age:"6d"},
+];
+
+/* ---------- state ---------- */
+const state = { q:"", cats:new Set(), tags:new Set() };
+
+/* ---------- flask SVG ---------- */
+function flaskSVG(d, big){
+  const hue = CATS[d.cat].hue;
+  const w = big?66:50, h = big?92:72;
+  // liquid height scales with importance; brightness via opacity
+  const fill = 0.32 + d.imp*0.5;           // 0.32..0.82 of body
+  const glow = (0.25 + d.imp*0.75).toFixed(2);
+  const clarity = (0.5 + d.fresh*0.5).toFixed(2); // fresher = clearer/brighter
+  const id = "f"+Math.random().toString(36).slice(2,8);
+  // body path: a round-bottom flask
+  const neckW=big?16:12, cx=w/2;
+  const bodyTop = h*0.30, bodyR = (w/2)-3;
+  const liqTop = h - (h-bodyTop)*fill;
+  return `
+  <svg class="glass" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <defs>
+      <clipPath id="clip${id}">
+        <path d="M${cx-neckW/2} 6 h${neckW} v${bodyTop-10}
+          C${cx+neckW/2+2} ${bodyTop-2} ${w-3} ${h*0.55} ${w-3} ${h*0.72}
+          C${w-3} ${h-4} ${cx+2} ${h-2} ${cx} ${h-2}
+          C${cx-2} ${h-2} 3 ${h-4} 3 ${h*0.72}
+          C3 ${h*0.55} ${cx-neckW/2-2} ${bodyTop-2} ${cx-neckW/2} ${bodyTop-10} Z"/>
+      </clipPath>
+      <linearGradient id="liq${id}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="${hue}" stop-opacity="${clarity}"/>
+        <stop offset="1" stop-color="${hue}" stop-opacity="${Math.min(1,+clarity+.15)}"/>
+      </linearGradient>
+    </defs>
+    <!-- glow -->
+    <ellipse cx="${cx}" cy="${h*0.74}" rx="${bodyR*0.9}" ry="${bodyR*0.78}"
+      fill="${hue}" opacity="${glow*0.28}" style="filter:blur(4px)"/>
+    <!-- liquid -->
+    <g clip-path="url(#clip${id})">
+      <rect x="0" y="${liqTop}" width="${w}" height="${h}" fill="url(#liq${id})"/>
+      <ellipse cx="${cx}" cy="${liqTop}" rx="${bodyR}" ry="3" fill="${hue}" opacity="${clarity}"/>
+      ${d.fresh>0.5?`
+      <circle class="b1" cx="${cx-6}" cy="${h-10}" r="1.6" fill="#fff" opacity=".5"/>
+      <circle class="b2" cx="${cx+5}" cy="${h-16}" r="1.2" fill="#fff" opacity=".4"/>`:''}
+    </g>
+    <!-- glass outline -->
+    <path d="M${cx-neckW/2} 6 h${neckW} v${bodyTop-10}
+      C${cx+neckW/2+2} ${bodyTop-2} ${w-3} ${h*0.55} ${w-3} ${h*0.72}
+      C${w-3} ${h-4} ${cx+2} ${h-2} ${cx} ${h-2}
+      C${cx-2} ${h-2} 3 ${h-4} 3 ${h*0.72}
+      C3 ${h*0.55} ${cx-neckW/2-2} ${bodyTop-2} ${cx-neckW/2} ${bodyTop-10} Z"
+      fill="none" stroke="rgba(231,236,244,${0.3+ +clarity*0.4})" stroke-width="1.3"/>
+    <!-- cork -->
+    <rect x="${cx-neckW/2-1}" y="2" width="${neckW+2}" height="5" rx="2" fill="#2a3448" stroke="rgba(231,236,244,.25)"/>
+    <!-- highlight -->
+    <path d="M${cx-bodyR*0.55} ${h*0.5} q-2 ${h*0.12} 1 ${h*0.2}" stroke="rgba(255,255,255,.5)" stroke-width="1.4" fill="none" opacity=".6"/>
+  </svg>`;
+}
+
+/* ---------- match / filter ---------- */
+function matches(d){
+  if(state.cats.size && !state.cats.has(d.cat)) return false;
+  if(state.tags.size){ for(const t of state.tags) if(!d.tags.includes(t)) return false; }
+  if(state.q){
+    const h=(d.t+" "+d.body+" "+d.tags.join(" ")+" "+CATS[d.cat].name).toLowerCase();
+    if(!h.includes(state.q.toLowerCase())) return false;
+  }
+  return true;
+}
+
+/* ---------- render ---------- */
+function flaskNode(d, big){
+  const el=document.createElement("div");
+  el.className="flask"+(big?" lg":"");
+  el.innerHTML =
+    (d.ai?`<div class="badge ai">✦</div>`:``)+
+    (d.pin?`<div class="badge pin">★</div>`:``)+
+    flaskSVG(d,big)+
+    `<div class="cap">${d.t}</div>`+
+    `<div class="plate">${CATS[d.cat].name}</div>`;
+  el.addEventListener("mouseenter",e=>showGlimpse(d,e.currentTarget));
+  el.addEventListener("mousemove",moveGlimpse);
+  el.addEventListener("mouseleave",hideGlimpse);
+  el._data=d;
+  return el;
+}
+
+function render(){
+  const cab=document.getElementById("cabinet");
+  cab.innerHTML="";
+
+  // IMPORTANT shelf: pinned OR ai, sorted by importance
+  const imp = DATA.filter(d=>d.pin||d.ai).sort((a,b)=>b.imp-a.imp);
+  cab.appendChild(shelfNode({
+    key:"important", important:true, label:"Important", hue:"#ffd98a",
+    items:imp, big:true, star:true
+  }));
+
+  // category shelves
+  ORDER.forEach(c=>{
+    const items=DATA.filter(d=>d.cat===c).sort((a,b)=>b.imp-a.imp);
+    if(!items.length) return;
+    cab.appendChild(shelfNode({key:c, label:CATS[c].name, hue:CATS[c].hue, items, big:false}));
+  });
+
+  applyFilter();
+}
+
+function shelfNode(cfg){
+  const sh=document.createElement("section");
+  sh.className="shelf"+(cfg.important?" important":"");
+  sh.dataset.key=cfg.key;
+  const head=document.createElement("div");
+  head.className="shelf-head";
+  head.innerHTML =
+    (cfg.star?`<span class="badge" style="position:static;color:#ffd98a">★</span>`
+      :`<span class="hue" style="color:${cfg.hue}"></span>`)+
+    `<span class="lbl">${cfg.label}</span>`+
+    `<span class="n" data-count>${cfg.items.length}</span>`+
+    (cfg.important?`<span class="n" style="margin-left:auto;color:#caa96b">pinned + AI-surfaced, always in view</span>`:``);
+  sh.appendChild(head);
+
+  const wrap=document.createElement("div"); wrap.className="row-wrap";
+  const row=document.createElement("div"); row.className="row";
+  cfg.items.forEach(d=>row.appendChild(flaskNode(d,cfg.big)));
+  const none=document.createElement("div"); none.className="none"; none.textContent="nothing on this shelf matches"; none.style.display="none";
+  row.appendChild(none);
+  wrap.appendChild(row); sh.appendChild(wrap);
+
+  const lip=document.createElement("div"); lip.className="lip"; sh.appendChild(lip);
+  return sh;
+}
+
+/* live filter: dim/hide flasks, update counts, fade empty shelves */
+function applyFilter(){
+  document.querySelectorAll(".shelf").forEach(sh=>{
+    let vis=0;
+    sh.querySelectorAll(".flask").forEach(f=>{
+      const ok=matches(f._data);
+      const filtering = state.q || state.cats.size || state.tags.size;
+      f.classList.toggle("hide", !ok && !!state.q);     // search hides outright
+      f.classList.toggle("dim", !ok && !state.q && filtering); // facets dim so density stays
+      if(ok) vis++;
+    });
+    const total=sh.querySelectorAll(".flask").length;
+    const cnt=sh.querySelector("[data-count]");
+    if(cnt) cnt.textContent = (state.q? vis : vis+ (vis!==total?"/"+total:""));
+    const none=sh.querySelector(".none");
+    if(none) none.style.display = (vis===0?"block":"none");
+    sh.classList.toggle("empty", vis===0);
+  });
+}
+
+/* ---------- facet rails ---------- */
+function buildRails(){
+  const cr=document.getElementById("catRow");
+  ORDER.forEach(c=>{
+    const n=DATA.filter(d=>d.cat===c).length;
+    const chip=document.createElement("div"); chip.className="chip"; chip.dataset.cat=c;
+    chip.innerHTML=`<span class="dot" style="color:${CATS[c].hue}"></span>${CATS[c].name}<span class="cnt">${n}</span>`;
+    chip.onclick=()=>{ chip.classList.toggle("on"); chip.classList.contains("on")?state.cats.add(c):state.cats.delete(c); applyFilter(); };
+    cr.appendChild(chip);
+  });
+  const tags={};
+  DATA.forEach(d=>d.tags.forEach(t=>tags[t]=(tags[t]||0)+1));
+  const tr=document.getElementById("tagRow");
+  Object.entries(tags).sort((a,b)=>b[1]-a[1]).forEach(([t,n])=>{
+    const chip=document.createElement("div"); chip.className="chip"; chip.dataset.tag=t;
+    chip.innerHTML=`#${t}<span class="cnt">${n}</span>`;
+    chip.onclick=()=>{ chip.classList.toggle("on"); chip.classList.contains("on")?state.tags.add(t):state.tags.delete(t); applyFilter(); };
+    tr.appendChild(chip);
+  });
+}
+document.getElementById("clearBtn").onclick=()=>{
+  state.q=""; state.cats.clear(); state.tags.clear();
+  document.getElementById("q").value="";
+  document.querySelectorAll(".chip.on").forEach(c=>c.classList.remove("on"));
+  applyFilter();
+};
+document.getElementById("q").addEventListener("input",e=>{state.q=e.target.value.trim();applyFilter();});
+
+/* ---------- hover glimpse ---------- */
+const glimpse=document.getElementById("glimpse"), gcard=document.getElementById("gcard");
+function showGlimpse(d,anchor){
+  const dots=n=>Array.from({length:5},(_,i)=>`<i class="${i<n?'on':''}"></i>`).join("");
+  gcard.innerHTML=
+    `<div class="gtop"><span class="dot" style="color:${CATS[d.cat].hue}"></span>
+      <span class="gcat">${CATS[d.cat].name}</span>
+      ${d.pin?'<span style="color:#ffd98a">★</span>':''}${d.ai?'<span style="color:#ffd98a">✦</span>':''}</div>
+    <h4 class="gtitle">${d.t}</h4>
+    <p class="gbody">${d.body}</p>
+    <div class="gtags">${d.tags.map(t=>`<span>#${t}</span>`).join("")}</div>
+    <div class="gmeta">
+      <span>added <b>${d.age}</b> · ${d.revisits}× revisited</span>
+      <span class="meter">importance <span class="meter">${dots(Math.round(d.imp*5))}</span></span>
+    </div>`;
+  moveGlimpse({clientX:lastXY.x,clientY:lastXY.y});
+  glimpse.classList.add("show");
+}
+let lastXY={x:0,y:0};
+function moveGlimpse(e){
+  lastXY={x:e.clientX,y:e.clientY};
+  const W=280, H=glimpse.offsetHeight||190, pad=16;
+  let x=e.clientX+18, y=e.clientY+18;
+  if(x+W>innerWidth-pad) x=e.clientX-W-18;
+  if(y+H>innerHeight-pad) y=innerHeight-H-pad;
+  glimpse.style.left=x+"px"; glimpse.style.top=y+"px";
+}
+function hideGlimpse(){glimpse.classList.remove("show");}
+
+/* ---------- pour flow ---------- */
+const pour=document.getElementById("pour");
+let pourCat="idea";
+function buildPourCats(){
+  const box=document.getElementById("pourCats"); box.innerHTML="";
+  ORDER.forEach(c=>{
+    const chip=document.createElement("div"); chip.className="chip"+(c===pourCat?" on":"");
+    chip.innerHTML=`<span class="dot" style="color:${CATS[c].hue}"></span>${CATS[c].name}`;
+    chip.onclick=()=>{pourCat=c; buildPourCats(); drawPourFlask();};
+    box.appendChild(chip);
+  });
+}
+function drawPourFlask(){
+  const stage=document.getElementById("pourStage");
+  const demo={cat:pourCat, imp:.6, fresh:1};
+  stage.innerHTML=`
+    <svg width="120" height="150" viewBox="0 0 120 150">
+      <path class="stream" d="M60 6 V46" stroke-dasharray="4 6"/>
+      <circle cx="60" cy="4" r="3.5" fill="#9fb4ff"/>
+    </svg>`;
+  const holder=document.createElement("div");
+  holder.style.marginTop="-8px";
+  holder.innerHTML=flaskSVG(demo,true);
+  stage.appendChild(holder);
+}
+document.getElementById("openPour").onclick=()=>{buildPourCats();drawPourFlask();pour.classList.add("show");document.getElementById("pourText").focus();};
+document.getElementById("cancelPour").onclick=()=>pour.classList.remove("show");
+pour.addEventListener("click",e=>{if(e.target===pour)pour.classList.remove("show");});
+document.getElementById("doPour").onclick=()=>{
+  const txt=document.getElementById("pourText").value.trim()||"A new thought";
+  pour.classList.add("pouring");
+  setTimeout(()=>{
+    pour.classList.remove("pouring");
+    pour.classList.remove("show");
+    const d={t:txt.slice(0,46), body:txt, cat:pourCat, tags:["new"], imp:.55, fresh:1, pin:false, ai:false, revisits:0, age:"just now"};
+    DATA.unshift(d);
+    render(); buildRailsRefresh();
+    flashToast(`Poured onto the ${CATS[pourCat].name} shelf`);
+    document.getElementById("pourText").value="";
+    // settle animation: find the new flask on its shelf
+    requestAnimationFrame(()=>{
+      const shelf=document.querySelector(`.shelf[data-key="${pourCat}"]`);
+      if(shelf){const f=[...shelf.querySelectorAll(".flask")].find(x=>x._data===d);
+        if(f){f.animate([{transform:"translateY(-26px)",opacity:0},{transform:"translateY(0)",opacity:1}],{duration:650,easing:"cubic-bezier(.2,.8,.2,1)"});
+          shelf.scrollIntoView({behavior:"smooth",block:"nearest"});}}
+    });
+  },1100);
+};
+function buildRailsRefresh(){
+  document.getElementById("catRow").innerHTML="";
+  document.getElementById("tagRow").innerHTML="";
+  buildRails();
+  // re-apply active state
+  state.cats.forEach(c=>document.querySelector(`.chip[data-cat="${c}"]`)?.classList.add("on"));
+  state.tags.forEach(t=>document.querySelector(`.chip[data-tag="${t}"]`)?.classList.add("on"));
+}
+function flashToast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("show"),2200);}
+
+/* ---------- init ---------- */
+buildRails();
+render();
+</script>

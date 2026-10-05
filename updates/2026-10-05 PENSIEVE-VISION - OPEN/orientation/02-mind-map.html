@@ -1,0 +1,737 @@
+<!--
+  PENSIEVE — ORIENTATION 02: "THE MIND MAP" (spatial orientation by category + tag)
+  Fuses: silver-on-ink Pensieve atmosphere + glass-flask capture (Strands & Vials) + Everyday speed.
+  IDEA: a zoomable overview->detail map. Categories are coloured REGIONS you learn the geography of;
+  the most important thoughts sit as larger, brighter glass flasks within their region; TAGS are both
+  connective threads AND a facet filter that instantly reshapes the map (dim non-matching, pull matching
+  together, brightest first). Zoomed out = read the whole mind by colour + density + brightness at a glance;
+  zoom/click = drill region -> flask. "Pour a thought" flies a fresh flask to its region. All visuals are
+  <canvas> + CSS; silver on ink; smooth via requestAnimationFrame; labels stay legible at every zoom.
+-->
+<title>Pensieve — The Mind Map</title>
+<style>
+  :root{
+    --ink:#080a10; --ink2:#0b0e16; --stone:#12151e; --stone2:#171b26;
+    --edge:#232a3a; --edge2:#2e3650;
+    --silver:#dfe7f2; --silver-dim:#9aa6bd; --silver-faint:#5b657e;
+    --glow:#bcd3ff;
+    --r:14px;
+    font-synthesis:none;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--silver);
+    background:
+      radial-gradient(1200px 700px at 18% -8%, #1a2032 0%, rgba(26,32,50,0) 60%),
+      radial-gradient(1000px 800px at 108% 18%, #141a2b 0%, rgba(20,26,43,0) 55%),
+      linear-gradient(180deg,#0b0e16 0%, #070910 100%);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- top bar ---------- */
+  header{
+    position:fixed; inset:0 0 auto 0; z-index:20; display:flex; align-items:center; gap:16px;
+    padding:14px 18px; flex-wrap:wrap;
+    background:linear-gradient(180deg, rgba(8,10,16,.82), rgba(8,10,16,0));
+    pointer-events:none;
+  }
+  header > *{pointer-events:auto}
+  .brand{display:flex; align-items:center; gap:12px; min-width:0}
+  .sigil{width:36px;height:36px;flex:0 0 auto;filter:drop-shadow(0 0 9px rgba(143,182,255,.4))}
+  .brand h1{font-size:14px; font-weight:600; letter-spacing:.16em; text-transform:uppercase; margin:0}
+  .brand p{margin:1px 0 0; font-size:11px; color:var(--silver-faint); letter-spacing:.02em}
+
+  .search{position:relative; flex:1 1 260px; max-width:360px; min-width:170px; margin-left:4px}
+  .search svg{position:absolute; left:12px; top:50%; transform:translateY(-50%); width:15px;height:15px; color:var(--silver-faint)}
+  .search input{
+    width:100%; padding:9px 12px 9px 34px; border-radius:11px;
+    background:rgba(255,255,255,.04); border:1px solid var(--edge);
+    color:var(--silver); font-size:13px; outline:none;
+    transition:border-color .2s, box-shadow .2s, background .2s;
+  }
+  .search input::placeholder{color:var(--silver-faint)}
+  .search input:focus{border-color:var(--edge2); box-shadow:0 0 0 4px rgba(143,182,255,.08); background:rgba(255,255,255,.055)}
+
+  .actions{display:flex; gap:9px; margin-left:auto; flex-wrap:wrap}
+  button.btn{
+    font:inherit; font-size:12.5px; color:var(--silver); cursor:pointer;
+    padding:9px 13px; border-radius:11px; border:1px solid var(--edge);
+    background:rgba(255,255,255,.035); transition:border-color .18s, background .18s, transform .1s;
+    display:inline-flex; align-items:center; gap:7px; white-space:nowrap;
+  }
+  button.btn:hover{border-color:var(--edge2); background:rgba(255,255,255,.07)}
+  button.btn:active{transform:translateY(1px)}
+  button.btn.primary{border-color:#3b4a73; background:linear-gradient(180deg, rgba(120,160,255,.22), rgba(120,160,255,.08)); color:#e8f0ff}
+  button.btn.primary:hover{background:linear-gradient(180deg, rgba(120,160,255,.3), rgba(120,160,255,.12))}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--glow);box-shadow:0 0 8px var(--glow)}
+
+  /* ---------- filter rail ---------- */
+  #chips{
+    position:fixed; z-index:15; left:18px; top:64px; display:flex; flex-wrap:wrap; gap:7px;
+    max-width:min(640px, calc(100vw - 36px));
+  }
+  .chip{
+    font-size:11.5px; letter-spacing:.02em; color:var(--silver-dim); cursor:pointer; user-select:none;
+    padding:6px 11px; border-radius:999px; border:1px solid var(--edge);
+    background:rgba(16,20,30,.6); backdrop-filter:blur(6px);
+    display:inline-flex; align-items:center; gap:7px; transition:all .16s;
+  }
+  .chip:hover{color:var(--silver); border-color:var(--edge2)}
+  .chip .sw{width:9px;height:9px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 7px currentColor}
+  .chip.cat{position:relative}
+  .chip.active{color:#0a0c12; font-weight:600; border-color:transparent}
+  .chip.tag.active{background:var(--silver); color:#0a0c12}
+  .chip .ct{font-size:10px; color:var(--silver-faint)}
+  .chip.active .ct{color:rgba(10,12,18,.6)}
+  .chip-sep{width:1px; align-self:center; height:18px; background:var(--edge); margin:0 2px}
+
+  /* ---------- canvas ---------- */
+  canvas#map{position:fixed; inset:0; z-index:1; display:block; touch-action:none; cursor:grab}
+  canvas#map.drag{cursor:grabbing}
+
+  /* ---------- zoom legend / hint (bottom-left) ---------- */
+  #legend{
+    position:fixed; z-index:12; left:18px; bottom:16px; font-size:11px; color:var(--silver-faint);
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap; max-width:calc(100vw - 36px);
+  }
+  #legend b{color:var(--silver-dim); font-weight:500}
+  .lk{display:inline-flex; align-items:center; gap:6px}
+  .lk .d1{width:7px;height:7px;border-radius:50%;background:var(--silver-faint)}
+  .lk .d2{width:13px;height:13px;border-radius:50%;background:var(--silver);box-shadow:0 0 10px var(--glow)}
+
+  /* zoom level pill (bottom-right) */
+  #zlvl{position:fixed; z-index:12; right:18px; bottom:16px; font-size:11px; color:var(--silver-faint);
+    background:rgba(16,20,30,.6); border:1px solid var(--edge); border-radius:999px; padding:6px 12px; backdrop-filter:blur(6px)}
+
+  /* ---------- detail panel ---------- */
+  #panel{
+    position:fixed; z-index:30; top:0; right:0; height:100%; width:min(380px, 92vw);
+    background:linear-gradient(180deg, rgba(20,24,34,.97), rgba(11,14,22,.98));
+    border-left:1px solid var(--edge); box-shadow:-30px 0 70px -30px rgba(0,0,0,.9);
+    transform:translateX(102%); transition:transform .32s cubic-bezier(.22,.61,.36,1);
+    padding:22px 22px 26px; overflow-y:auto; backdrop-filter:blur(8px);
+  }
+  #panel.open{transform:translateX(0)}
+  #panel .x{position:absolute; top:16px; right:16px; width:30px;height:30px; border-radius:9px;
+    border:1px solid var(--edge); background:rgba(255,255,255,.04); color:var(--silver-dim); cursor:pointer; font-size:16px; line-height:1}
+  #panel .x:hover{color:var(--silver); border-color:var(--edge2)}
+  .p-cat{display:inline-flex; align-items:center; gap:8px; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--silver-dim)}
+  .p-cat .sw{width:10px;height:10px;border-radius:50%;box-shadow:0 0 8px currentColor}
+  #panel h2{font-size:19px; font-weight:600; line-height:1.3; margin:12px 0 6px; color:#eef3fb}
+  .p-body{font-size:13.5px; line-height:1.6; color:var(--silver-dim); margin:0 0 18px}
+  .p-tags{display:flex; flex-wrap:wrap; gap:6px; margin:0 0 20px}
+  .p-tags span{font-size:11px; color:var(--silver-dim); background:rgba(255,255,255,.05); border:1px solid var(--edge); padding:4px 9px; border-radius:999px; cursor:pointer}
+  .p-tags span:hover{color:var(--silver); border-color:var(--edge2)}
+  .p-meta{display:grid; grid-template-columns:1fr 1fr; gap:12px 14px; margin:0 0 20px}
+  .mcell{background:rgba(255,255,255,.03); border:1px solid var(--edge); border-radius:11px; padding:11px 12px}
+  .mcell .k{font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--silver-faint)}
+  .mcell .v{font-size:15px; color:var(--silver); margin-top:3px; display:flex; align-items:baseline; gap:6px}
+  .mcell .v small{font-size:11px; color:var(--silver-faint); font-weight:400}
+  .meter{height:6px; border-radius:4px; background:rgba(255,255,255,.07); overflow:hidden; margin-top:8px}
+  .meter i{display:block; height:100%; border-radius:4px; background:linear-gradient(90deg,#8fb6ff,#dfe7f2)}
+  .p-links h3{font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--silver-faint); margin:0 0 9px}
+  .lrow{display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:10px; cursor:pointer; border:1px solid transparent}
+  .lrow:hover{background:rgba(255,255,255,.04); border-color:var(--edge)}
+  .lrow .sw{width:8px;height:8px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 7px currentColor}
+  .lrow .t{font-size:13px; color:var(--silver); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+
+  /* toast */
+  #toast{position:fixed; z-index:40; left:50%; bottom:26px; transform:translate(-50%,20px); opacity:0;
+    background:rgba(18,22,32,.95); border:1px solid var(--edge2); color:var(--silver); font-size:13px;
+    padding:11px 16px; border-radius:12px; box-shadow:var(--shadow); transition:opacity .25s, transform .25s; display:flex; align-items:center; gap:9px}
+  #toast.show{opacity:1; transform:translate(-50%,0)}
+  #toast .sw{width:9px;height:9px;border-radius:50%;box-shadow:0 0 8px currentColor}
+
+  @media (max-width:640px){
+    #chips{top:108px}
+    .brand p{display:none}
+  }
+</style>
+
+<header>
+  <div class="brand">
+    <svg class="sigil" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+      <ellipse cx="24" cy="30" rx="16" ry="8" stroke="#bcd3ff" stroke-width="1.6" opacity=".55"/>
+      <ellipse cx="24" cy="30" rx="10" ry="4.6" stroke="#dfe7f2" stroke-width="1.4" opacity=".9"/>
+      <path d="M24 8c3 6-3 9 0 14" stroke="#8fb6ff" stroke-width="1.6" stroke-linecap="round"/>
+      <circle cx="24" cy="30" r="2.1" fill="#eef3fb"/>
+    </svg>
+    <div class="brand">
+      <div><h1>Pensieve</h1><p>The mind map — know where every thought lives</p></div>
+    </div>
+  </div>
+
+  <div class="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
+    <input id="q" type="text" placeholder="Search thoughts…" autocomplete="off" spellcheck="false">
+  </div>
+
+  <div class="actions">
+    <button class="btn" id="reset">Overview</button>
+    <button class="btn primary" id="pour"><span class="dot"></span>Pour a thought</button>
+  </div>
+</header>
+
+<div id="chips"></div>
+
+<canvas id="map"></canvas>
+
+<div id="legend">
+  <span class="lk"><span class="d1"></span><span class="d2"></span><b>bigger &amp; brighter = more important</b></span>
+  <span class="lk"><b>colour = category · cluster = region · threads = links</b></span>
+  <span class="lk"><b>scroll to zoom · drag to pan · click a flask</b></span>
+</div>
+<div id="zlvl">overview</div>
+
+<aside id="panel" aria-hidden="true">
+  <button class="x" id="pclose" aria-label="Close">×</button>
+  <div id="pbody"></div>
+</aside>
+
+<div id="toast"><span class="sw"></span><span id="tmsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============================ DATA ============================ */
+  const CATS = {
+    work:    { name:"Work",          color:"#6ea8ff", pos:[   0,-330] },
+    ideas:   { name:"Ideas",         color:"#c58cff", pos:[ 314,-102] },
+    rel:     { name:"Relationships", color:"#ffb86b", pos:[ 194, 268] },
+    health:  { name:"Health",        color:"#63d6a4", pos:[-194, 268] },
+    learn:   { name:"Learning",      color:"#5fd0e6", pos:[-314,-102] },
+  };
+
+  // importance 0..1 (future-AI weight), rec = days ago, rev = revisits, pin = favourite
+  let NODES = [
+    { id:"n1", cat:"work",   t:"Q4 strategy: ship capture before coach", imp:.96, rec:1,  rev:14, pin:true,  tags:["goals","deadline","startup"],
+      body:"The one lever this quarter. Capture has to feel instant before any AI layer earns attention. Everything downstream depends on this." },
+    { id:"n2", cat:"work",   t:"Hiring plan — one more engineer", imp:.55, rec:9,  rev:3,  pin:false, tags:["money","goals"],
+      body:"Can we afford a second pair of hands, and what would they own first?" },
+    { id:"n3", cat:"work",   t:"Deadline: investor update Friday", imp:.72, rec:2,  rev:6,  pin:false, tags:["deadline","money","startup"],
+      body:"Numbers, narrative, and the one honest risk. Keep it to a page." },
+    { id:"n4", cat:"ideas",  t:"Onboarding: first thought in <5s", imp:.88, rec:1,  rev:9,  pin:true,  tags:["idea","startup","focus"],
+      body:"What if the very first screen is just the flask and a blinking cursor? No account, no setup — pour first, ask later." },
+    { id:"n5", cat:"ideas",  t:"Voice memo → auto-labelled flask", imp:.63, rec:4,  rev:4,  pin:false, tags:["idea","habit"],
+      body:"Capture by speaking on a walk; transcript lands in the right region by itself." },
+    { id:"n6", cat:"ideas",  t:"A 'why this matters' nudge from the coach", imp:.5, rec:12, rev:2, pin:false, tags:["idea","focus","goals"],
+      body:"Surface the past lesson that applies to today's decision — unprompted, once." },
+    { id:"n7", cat:"rel",    t:"Call Dad this weekend", imp:.78, rec:2,  rev:5,  pin:true,  tags:["family","gratitude"],
+      body:"It's been three weeks. Just call — no agenda." },
+    { id:"n8", cat:"rel",    t:"Plan the trip with M.", imp:.6,  rec:6,  rev:4,  pin:false, tags:["travel","family"],
+      body:"Two weeks in spring. Somewhere slow, near water." },
+    { id:"n9", cat:"rel",    t:"Thank J. for the intro", imp:.34, rec:3,  rev:1,  pin:false, tags:["gratitude","startup"],
+      body:"A short honest note goes a long way." },
+    { id:"n10",cat:"health", t:"Protect sleep — no screens after 10", imp:.82, rec:1, rev:11, pin:true,  tags:["sleep","habit","focus"],
+      body:"Every good week this year started with sleep. This is the keystone habit." },
+    { id:"n11",cat:"health", t:"Back to running — 3x / week", imp:.57, rec:5, rev:6,  pin:false, tags:["running","habit"],
+      body:"Short and easy counts. Consistency over intensity." },
+    { id:"n12",cat:"health", t:"That anxious spiral, and what broke it", imp:.68, rec:8, rev:7, pin:false, tags:["fear","gratitude"],
+      body:"Naming it on the page, then one small action. Worth remembering next time." },
+    { id:"n13",cat:"learn",  t:"Notes: 'Deep Work' — attention as capital", imp:.74, rec:7, rev:8, pin:false, tags:["book","focus","habit"],
+      body:"Guard long unbroken blocks like money. Shallow work expands to fill the day." },
+    { id:"n14",cat:"learn",  t:"Learning Rust ownership model", imp:.46, rec:10, rev:3, pin:false, tags:["book","focus"],
+      body:"Borrow checker finally clicked — it's about who is responsible, not when." },
+    { id:"n15",cat:"learn",  t:"Idea for a reading habit that sticks", imp:.4,  rec:14, rev:2, pin:false, tags:["book","habit","idea"],
+      body:"One page before bed, same chair, phone in the other room." },
+  ];
+
+  // relationship threads (links)
+  const LINKS = [
+    ["n1","n4"],["n1","n3"],["n4","n5"],["n4","n6"],["n1","n13"],
+    ["n10","n11"],["n10","n13"],["n12","n10"],["n6","n13"],
+    ["n7","n8"],["n3","n9"],["n15","n13"],["n15","n5"],
+  ];
+
+  /* ============================ CANVAS SETUP ============================ */
+  const cv = document.getElementById("map");
+  const ctx = cv.getContext("2d");
+  let W=0,H=0, DPR=1, CX=0, CY=0;
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio||1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = Math.floor(W*DPR); cv.height = Math.floor(H*DPR);
+    cv.style.width = W+"px"; cv.style.height = H+"px";
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    CX = W/2; CY = H/2;
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  /* ============================ CAMERA ============================ */
+  const FIT = 0.74;
+  const cam  = { x:0, y:20, zoom:FIT };     // rendered
+  const camT = { x:0, y:20, zoom:FIT };     // target (lerped toward)
+  function w2s(wx,wy){ return [ (wx-cam.x)*cam.zoom + CX, (wy-cam.y)*cam.zoom + CY ]; }
+  function s2w(sx,sy){ return [ (sx-CX)/cam.zoom + cam.x, (sy-CY)/cam.zoom + cam.y ]; }
+
+  /* ============================ NODE LAYOUT ============================ */
+  // give each node a stable "home" position jittered around its region
+  function seeded(i){ const x=Math.sin(i*127.1)*43758.5453; return x-Math.floor(x); }
+  function layoutHomes(){
+    const byCat={};
+    NODES.forEach(n=>{ (byCat[n.cat]=byCat[n.cat]||[]).push(n); });
+    Object.keys(byCat).forEach(c=>{
+      const list = byCat[c].sort((a,b)=>b.imp-a.imp);   // important thoughts sit nearer region centre
+      const [rx,ry]=CATS[c].pos;
+      list.forEach((n,i)=>{
+        const ang = (i*2.399) + seeded(parseInt(n.id.slice(1))*7)*6.283; // golden-ish spread
+        const rad = 26 + i*26 + seeded(i+3)*14;
+        n.hx = rx + Math.cos(ang)*rad;
+        n.hy = ry + Math.sin(ang)*rad*0.82;
+        if(n.dx===undefined){ n.dx=n.hx; n.dy=n.hy; }   // display pos (animated)
+        n.tx=n.hx; n.ty=n.hy;                            // target pos
+      });
+    });
+  }
+  NODES.forEach(n=>{ n.dim=1; n.bright=1; n.appear=1; }); // dim/bright/appear = animated 0..1
+  layoutHomes();
+
+  const nodeById = id => NODES.find(n=>n.id===id);
+  function radius(n){ return 10 + n.imp*20; } // world-space radius
+
+  /* ============================ FILTER STATE ============================ */
+  let filter = null;             // {type:'cat'|'tag', value}
+  let selected = null;           // node id
+  let query = "";
+
+  function matches(n){
+    let ok = true;
+    if(filter){
+      if(filter.type==="cat") ok = n.cat===filter.value;
+      else ok = n.tags.includes(filter.value);
+    }
+    if(ok && query){
+      const q=query.toLowerCase();
+      ok = n.t.toLowerCase().includes(q) || n.body.toLowerCase().includes(q) || n.tags.some(t=>t.includes(q));
+    }
+    return ok;
+  }
+
+  // compute targets + camera whenever filter/query changes
+  function recompute(){
+    const anyFacet = !!filter || !!query;
+
+    // TAG facet (or search) → GATHER matching into a bright ring at world origin, biggest first
+    if(filter && filter.type==="tag" || (query && !filter)){
+      const hits = NODES.filter(matches).sort((a,b)=>b.imp-a.imp);
+      hits.forEach((n,i)=>{
+        if(i===0){ n.tx=0; n.ty=10; }
+        else{
+          const ring = Math.ceil((Math.sqrt(i)) );
+          const per  = Math.max(5, ring*5);
+          const idxInRing = i;
+          const ang = (idxInRing*2.399);
+          const rad = 60 + ring*58;
+          n.tx = Math.cos(ang)*rad;
+          n.ty = 10 + Math.sin(ang)*rad;
+        }
+      });
+      NODES.forEach(n=>{ if(!matches(n)){ n.tx=n.hx; n.ty=n.hy; } });
+      camT.x=0; camT.y=10; camT.zoom = Math.min(FIT*1.18, 0.98);
+    }
+    // CATEGORY facet → keep homes, fly camera to that region
+    else if(filter && filter.type==="cat"){
+      NODES.forEach(n=>{ n.tx=n.hx; n.ty=n.hy; });
+      const [rx,ry]=CATS[filter.value].pos;
+      camT.x=rx; camT.y=ry; camT.zoom=1.7;
+    }
+    // NO facet → homes + overview
+    else{
+      NODES.forEach(n=>{ n.tx=n.hx; n.ty=n.hy; });
+      if(!userMoved){ camT.x=0; camT.y=20; camT.zoom=FIT; }
+    }
+
+    // brightness / dim targets
+    NODES.forEach(n=>{
+      n._bright = anyFacet ? (matches(n)?1:0) : 1;
+      n._dim    = anyFacet ? (matches(n)?1:0.16) : 1;
+    });
+    updateChipCounts();
+  }
+
+  let userMoved=false; // if user panned/zoomed manually, don't yank camera on plain filter clear
+
+  /* ============================ CHIPS (filter rail) ============================ */
+  const chipsEl = document.getElementById("chips");
+  const tagCounts = {};
+  NODES.forEach(n=>n.tags.forEach(t=>tagCounts[t]=(tagCounts[t]||0)+1));
+  const topTags = Object.keys(tagCounts).sort((a,b)=>tagCounts[b]-tagCounts[a]).slice(0,8);
+
+  function buildChips(){
+    chipsEl.innerHTML="";
+    Object.keys(CATS).forEach(c=>{
+      const el=document.createElement("div");
+      el.className="chip cat"; el.dataset.type="cat"; el.dataset.val=c;
+      el.innerHTML=`<span class="sw" style="color:${CATS[c].color};background:${CATS[c].color}"></span>${CATS[c].name} <span class="ct"></span>`;
+      chipsEl.appendChild(el);
+    });
+    const sep=document.createElement("div"); sep.className="chip-sep"; chipsEl.appendChild(sep);
+    topTags.forEach(t=>{
+      const el=document.createElement("div");
+      el.className="chip tag"; el.dataset.type="tag"; el.dataset.val=t;
+      el.innerHTML=`#${t} <span class="ct">${tagCounts[t]}</span>`;
+      chipsEl.appendChild(el);
+    });
+  }
+  buildChips();
+
+  function updateChipCounts(){
+    chipsEl.querySelectorAll(".chip").forEach(el=>{
+      const isActive = filter && filter.type===el.dataset.type && filter.value===el.dataset.val;
+      el.classList.toggle("active", !!isActive);
+      if(el.dataset.type==="cat"){
+        const c=el.dataset.val;
+        const cnt=NODES.filter(n=>n.cat===c).length;
+        el.querySelector(".ct").textContent=cnt;
+        if(isActive){ el.style.background=CATS[c].color; el.style.color="#0a0c12"; }
+        else{ el.style.background="rgba(16,20,30,.6)"; el.style.color=""; }
+      }
+    });
+  }
+
+  chipsEl.addEventListener("click", e=>{
+    const chip=e.target.closest(".chip"); if(!chip||!chip.dataset.type) return;
+    const type=chip.dataset.type, val=chip.dataset.val;
+    if(filter && filter.type===type && filter.value===val){ filter=null; }
+    else{ filter={type,value:val}; }
+    userMoved=false;
+    recompute();
+  });
+
+  /* ============================ INTERACTION ============================ */
+  let dragging=false, moved=false, lastX=0, lastY=0;
+  cv.addEventListener("pointerdown", e=>{
+    dragging=true; moved=false; lastX=e.clientX; lastY=e.clientY;
+    cv.setPointerCapture(e.pointerId); cv.classList.add("drag");
+  });
+  cv.addEventListener("pointermove", e=>{
+    if(!dragging) return;
+    const dx=e.clientX-lastX, dy=e.clientY-lastY;
+    if(Math.abs(dx)+Math.abs(dy)>3) moved=true;
+    camT.x -= dx/cam.zoom; camT.y -= dy/cam.zoom;
+    cam.x  -= dx/cam.zoom; cam.y  -= dy/cam.zoom; // immediate follow
+    userMoved=true;
+    lastX=e.clientX; lastY=e.clientY;
+  });
+  cv.addEventListener("pointerup", e=>{
+    dragging=false; cv.classList.remove("drag");
+    if(!moved) handleClick(e.clientX, e.clientY);
+  });
+
+  cv.addEventListener("wheel", e=>{
+    e.preventDefault();
+    const [wx,wy]=s2w(e.clientX,e.clientY);
+    const factor = Math.exp(-e.deltaY*0.0014);
+    let nz = cam.zoom*factor; nz=Math.max(0.42, Math.min(3.2, nz));
+    cam.zoom=nz; camT.zoom=nz;
+    // keep cursor-anchored
+    cam.x = wx - (e.clientX-CX)/nz; cam.y = wy - (e.clientY-CY)/nz;
+    camT.x=cam.x; camT.y=cam.y;
+    userMoved=true;
+  }, {passive:false});
+
+  function hitTest(sx,sy){
+    // topmost (last drawn / most important) first
+    let best=null, bestD=1e9;
+    for(const n of NODES){
+      const [x,y]=w2s(n.dx,n.dy);
+      const r=radius(n)*cam.zoom + 6;
+      const d=Math.hypot(sx-x, sy-y);
+      if(d<r && d<bestD){ bestD=d; best=n; }
+    }
+    return best;
+  }
+  function handleClick(sx,sy){
+    const n=hitTest(sx,sy);
+    if(n){ selectNode(n.id, true); return; }
+    // click empty space → if close to a region centre, zoom there
+    const [wx,wy]=s2w(sx,sy);
+    let near=null, nd=1e9;
+    Object.keys(CATS).forEach(c=>{
+      const [rx,ry]=CATS[c].pos; const d=Math.hypot(wx-rx,wy-ry);
+      if(d<nd){nd=d; near=c;}
+    });
+    if(nd<190 && cam.zoom<1.2){ filter=null; recompute(); camT.x=CATS[near].pos[0]; camT.y=CATS[near].pos[1]; camT.zoom=1.7; userMoved=true; }
+  }
+
+  /* ============================ DETAIL PANEL ============================ */
+  const panel=document.getElementById("panel");
+  const pbody=document.getElementById("pbody");
+  document.getElementById("pclose").addEventListener("click", ()=>closePanel());
+  function closePanel(){ panel.classList.remove("open"); panel.setAttribute("aria-hidden","true"); selected=null; }
+
+  function selectNode(id, fly){
+    selected=id; const n=nodeById(id); if(!n) return;
+    const c=CATS[n.cat];
+    const links=LINKS.filter(l=>l.includes(id)).map(l=> l[0]===id?l[1]:l[0]).map(nodeById).filter(Boolean);
+    pbody.innerHTML=`
+      <div class="p-cat"><span class="sw" style="color:${c.color};background:${c.color}"></span>${c.name}${n.pin?' · ★ pinned':''}</div>
+      <h2>${esc(n.t)}</h2>
+      <p class="p-body">${esc(n.body)}</p>
+      <div class="p-tags">${n.tags.map(t=>`<span data-tag="${t}">#${t}</span>`).join("")}</div>
+      <div class="p-meta">
+        <div class="mcell"><div class="k">Importance</div><div class="v">${Math.round(n.imp*100)}<small>/100</small></div><div class="meter"><i style="width:${Math.round(n.imp*100)}%"></i></div></div>
+        <div class="mcell"><div class="k">Revisited</div><div class="v">${n.rev}<small>times</small></div></div>
+        <div class="mcell"><div class="k">Last touched</div><div class="v">${n.rec===1?'today':n.rec+' d ago'}</div></div>
+        <div class="mcell"><div class="k">Links</div><div class="v">${links.length}<small>threads</small></div></div>
+      </div>
+      ${links.length?`<div class="p-links"><h3>Connected thoughts</h3>${links.map(l=>`
+        <div class="lrow" data-go="${l.id}"><span class="sw" style="color:${CATS[l.cat].color};background:${CATS[l.cat].color}"></span><span class="t">${esc(l.t)}</span></div>`).join("")}</div>`:''}
+    `;
+    pbody.querySelectorAll("[data-go]").forEach(el=>el.addEventListener("click",()=>selectNode(el.dataset.go,true)));
+    pbody.querySelectorAll("[data-tag]").forEach(el=>el.addEventListener("click",()=>{ filter={type:"tag",value:el.dataset.tag}; userMoved=false; recompute(); }));
+    panel.classList.add("open"); panel.setAttribute("aria-hidden","false");
+    if(fly){
+      userMoved=true;
+      camT.x=n.dx; camT.y=n.dy; camT.zoom=Math.max(cam.zoom, 1.9);
+    }
+  }
+  function esc(s){ return s.replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m])); }
+
+  /* ============================ BUTTONS ============================ */
+  document.getElementById("reset").addEventListener("click", ()=>{
+    filter=null; query=""; document.getElementById("q").value=""; userMoved=false;
+    closePanel(); recompute(); camT.x=0; camT.y=20; camT.zoom=FIT;
+  });
+  document.getElementById("q").addEventListener("input", e=>{
+    query=e.target.value.trim(); userMoved=false; recompute();
+  });
+
+  // "Pour a thought" — a fresh flask flies from the basin (screen centre) to its region
+  const DRAFTS=[
+    {cat:"ideas", t:"Flask that flies to its region on capture", imp:.52, tags:["idea","startup"], body:"The animation you just watched — capture should feel like pouring a memory into the mind."},
+    {cat:"health",t:"Walk after lunch, every day", imp:.44, tags:["habit","running"], body:"Ten minutes resets the afternoon."},
+    {cat:"work",  t:"Write the changelog while it's fresh", imp:.5, tags:["habit","focus"], body:"Future-me will not remember why."},
+  ];
+  let pourIdx=0;
+  document.getElementById("pour").addEventListener("click", ()=>{
+    const d=DRAFTS[pourIdx++ % DRAFTS.length];
+    const id="new"+Date.now();
+    const n={ id, cat:d.cat, t:d.t, imp:d.imp, rec:1, rev:0, pin:false, tags:d.tags, body:d.body,
+              dim:1, bright:1, appear:0 };
+    // start at basin (screen centre in world coords)
+    const [wx,wy]=s2w(CX, CY);
+    n.dx=wx; n.dy=wy;
+    NODES.push(n);
+    layoutHomes();                 // assign it a home in its region
+    n.dx=wx; n.dy=wy;              // (layout set dx; override to basin so it flies)
+    recompute();
+    tagCounts && d.tags.forEach(t=>tagCounts[t]=(tagCounts[t]||0)+1);
+    toast(CATS[d.cat].color, `Captured → ${CATS[d.cat].name}`);
+    if(!userMoved){ camT.x=0; camT.y=20; camT.zoom=FIT; }
+  });
+
+  const toastEl=document.getElementById("toast"), tmsg=document.getElementById("tmsg");
+  let toastTimer=null;
+  function toast(color,msg){
+    toastEl.querySelector(".sw").style.cssText=`background:${color};color:${color}`;
+    tmsg.textContent=msg; toastEl.classList.add("show");
+    clearTimeout(toastTimer); toastTimer=setTimeout(()=>toastEl.classList.remove("show"), 2200);
+  }
+
+  recompute();
+
+  /* ============================ MOTES (ambient mist) ============================ */
+  const motes=[]; for(let i=0;i<46;i++){ motes.push({x:Math.random(),y:Math.random(),r:Math.random()*1.6+.4,s:Math.random()*.4+.1,p:Math.random()*6.28}); }
+
+  /* ============================ RENDER LOOP ============================ */
+  const zpill=document.getElementById("zlvl");
+  let hoverId=null;
+  cv.addEventListener("pointermove", e=>{ if(!dragging){ const n=hitTest(e.clientX,e.clientY); hoverId=n?n.id:null; cv.style.cursor=n?"pointer":"grab"; }});
+
+  let t0=performance.now();
+  function frame(now){
+    const dt=Math.min(40, now-t0); t0=now; const k=dt/16.7;
+    // lerp camera
+    cam.x += (camT.x-cam.x)*0.14*k;
+    cam.y += (camT.y-cam.y)*0.14*k;
+    cam.zoom += (camT.zoom-cam.zoom)*0.14*k;
+
+    // lerp node state
+    for(const n of NODES){
+      n.dx += (n.tx-n.dx)*0.12*k;
+      n.dy += (n.ty-n.dy)*0.12*k;
+      n.dim   += (( ('_dim'   in n)?n._dim   :1) - n.dim  )*0.12*k;
+      n.bright+= (( ('_bright' in n)?n._bright:1) - n.bright)*0.12*k;
+      if(n.appear<1){ n.appear=Math.min(1, n.appear+0.05*k); }
+    }
+
+    draw(now);
+    requestAnimationFrame(frame);
+  }
+
+  function draw(now){
+    ctx.clearRect(0,0,W,H);
+
+    // ambient motes
+    ctx.save();
+    for(const m of motes){
+      const x=m.x*W, y=((m.y + (now*0.00002*m.s))%1)*H;
+      const a=0.10+0.12*Math.sin(now*0.0012+m.p);
+      ctx.fillStyle=`rgba(190,211,255,${Math.max(0,a)})`;
+      ctx.beginPath(); ctx.arc(x,y,m.r,0,6.283); ctx.fill();
+    }
+    ctx.restore();
+
+    const zoom=cam.zoom;
+
+    /* ---- region blobs + labels (world space) ---- */
+    const regionAlpha = clamp(map(zoom, 0.6, 1.4, 1, 0.35),0.3,1);
+    Object.keys(CATS).forEach(c=>{
+      const cat=CATS[c]; const [sx,sy]=w2s(cat.pos[0],cat.pos[1]);
+      const facetDim = filter ? (filter.type==="cat" ? (filter.value===c?1:0.28)
+                                : (filter.type==="tag"?0.45:1)) : 1;
+      const R = (150 + countCat(c)*8) * zoom;
+      const g=ctx.createRadialGradient(sx,sy,R*0.1, sx,sy,R);
+      const col=hexRGB(cat.color);
+      g.addColorStop(0, `rgba(${col},${0.15*regionAlpha*facetDim})`);
+      g.addColorStop(0.55, `rgba(${col},${0.06*regionAlpha*facetDim})`);
+      g.addColorStop(1, `rgba(${col},0)`);
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(sx,sy,R,0,6.283); ctx.fill();
+    });
+
+    /* ---- link threads (world space) ---- */
+    ctx.lineWidth=Math.max(0.6, 1*zoom);
+    for(const [a,b] of LINKS){
+      const na=nodeById(a), nb=nodeById(b); if(!na||!nb) continue;
+      const vis=Math.min(na.dim,nb.dim)*Math.max(na.bright,nb.bright,0.4);
+      const [ax,ay]=w2s(na.dx,na.dy), [bx,by]=w2s(nb.dx,nb.dy);
+      const sel = selected && (a===selected||b===selected);
+      const grad=ctx.createLinearGradient(ax,ay,bx,by);
+      grad.addColorStop(0, `rgba(${hexRGB(CATS[na.cat].color)},${(sel?0.7:0.22)*vis})`);
+      grad.addColorStop(1, `rgba(${hexRGB(CATS[nb.cat].color)},${(sel?0.7:0.22)*vis})`);
+      ctx.strokeStyle=grad; ctx.lineWidth=(sel?2:1)*Math.max(.7,zoom);
+      // gentle curve
+      const mx=(ax+bx)/2, my=(ay+by)/2 - Math.hypot(bx-ax,by-ay)*0.12;
+      ctx.beginPath(); ctx.moveTo(ax,ay); ctx.quadraticCurveTo(mx,my,bx,by); ctx.stroke();
+    }
+
+    /* ---- flasks (sorted so important/bright draw on top) ---- */
+    const order=[...NODES].sort((a,b)=> (a.bright*a.imp) - (b.bright*b.imp));
+    for(const n of order){
+      const [x,y]=w2s(n.dx,n.dy);
+      const r=radius(n)*zoom*(0.4+0.6*n.appear);
+      if(x< -80||x>W+80||y<-80||y>H+120) continue;
+      drawFlask(x,y,r,n);
+    }
+
+    /* ---- labels: region names (fade out when zoomed in) + flask labels (fade in) ---- */
+    ctx.textAlign="center";
+    const regLabelA = clamp(map(zoom,0.9,1.5, 1, 0),0,1);
+    if(regLabelA>0.02){
+      Object.keys(CATS).forEach(c=>{
+        const cat=CATS[c]; const [sx,sy]=w2s(cat.pos[0],cat.pos[1]);
+        const facetDim = filter&&filter.type==="cat"? (filter.value===c?1:0.3) : (filter&&filter.type==="tag"?0.5:1);
+        ctx.font=`600 ${13+4*zoom}px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif`;
+        ctx.fillStyle=`rgba(${hexRGB(cat.color)},${0.9*regLabelA*facetDim})`;
+        ctx.save(); ctx.shadowColor=`rgba(${hexRGB(cat.color)},0.5)`; ctx.shadowBlur=14;
+        ctx.fillText(cat.name.toUpperCase(), sx, sy - (150+countCat(c)*8)*zoom*0.52);
+        ctx.restore();
+        ctx.font=`400 10px -apple-system,sans-serif`;
+        ctx.fillStyle=`rgba(154,166,189,${0.55*regLabelA*facetDim})`;
+        ctx.fillText(countCat(c)+" thoughts", sx, sy - (150+countCat(c)*8)*zoom*0.52 + 15);
+      });
+    }
+
+    // flask labels — show when zoomed in, or for important / selected / hovered / gathered
+    for(const n of NODES){
+      const [x,y]=w2s(n.dx,n.dy);
+      const r=radius(n)*zoom;
+      const gathered = filter&&filter.type==="tag" && n.bright>0.5;
+      const showByZoom = clamp(map(zoom,1.1,1.6,0,1),0,1);
+      let a = Math.max( showByZoom, (n.imp>0.8?0.9:0), (n.id===hoverId?1:0), (n.id===selected?1:0), (gathered?1:0) );
+      a *= n.dim * n.appear;
+      if(a<0.05) continue;
+      const label = n.t.length>34? n.t.slice(0,32)+"…" : n.t;
+      ctx.font=`500 12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif`;
+      const tw=ctx.measureText(label).width;
+      const ly=y+r+13;
+      // pill bg for legibility
+      ctx.fillStyle=`rgba(8,10,16,${0.6*a})`;
+      roundRect(x-tw/2-7, ly-10, tw+14, 19, 6); ctx.fill();
+      ctx.fillStyle=`rgba(223,231,242,${a})`;
+      ctx.fillText(label, x, ly+3.5);
+      if(n.pin){ ctx.fillStyle=`rgba(255,215,130,${a})`; ctx.fillText("★", x-tw/2-14, ly+3.5); }
+    }
+
+    // zoom pill text
+    zpill.textContent = zoom<0.85?"overview": zoom<1.4?"region":"detail";
+  }
+
+  /* ---- a single glass flask ---- */
+  function drawFlask(x,y,r,n){
+    const col=CATS[n.cat].color, rgb=hexRGB(col);
+    const bright = 0.35 + 0.65*n.bright;
+    const dim = n.dim;
+    const sel = n.id===selected || n.id===hoverId;
+
+    // outer glow (importance + brightness)
+    const glowR = r*(1.9+ n.imp*1.2);
+    const g=ctx.createRadialGradient(x,y,r*0.3, x,y,glowR);
+    g.addColorStop(0, `rgba(${rgb},${0.33*bright*dim})`);
+    g.addColorStop(1, `rgba(${rgb},0)`);
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,glowR,0,6.283); ctx.fill();
+
+    ctx.save();
+    ctx.globalAlpha = dim;
+
+    // flask body (round bottom) + neck
+    const neckW=r*0.52, neckH=r*0.7;
+    ctx.beginPath();
+    ctx.moveTo(x-neckW/2, y-r*0.9);
+    ctx.lineTo(x-neckW/2, y-r*0.9+neckH*0.5);
+    ctx.quadraticCurveTo(x-neckW/2, y-r*0.2, x-r, y+r*0.1);
+    ctx.arc(x, y+r*0.1, r, Math.PI*0.85, Math.PI*0.15, false);
+    ctx.quadraticCurveTo(x+neckW/2, y-r*0.2, x+neckW/2, y-r*0.9+neckH*0.5);
+    ctx.lineTo(x+neckW/2, y-r*0.9);
+    ctx.closePath();
+
+    // silver memory-mist fill
+    const fg=ctx.createRadialGradient(x-r*0.3,y-r*0.1,r*0.1, x,y+r*0.1,r*1.2);
+    fg.addColorStop(0, `rgba(240,245,255,${0.9*bright})`);
+    fg.addColorStop(0.5, `rgba(${rgb},${0.55*bright})`);
+    fg.addColorStop(1, `rgba(${rgb},${0.18*bright})`);
+    ctx.fillStyle=fg; ctx.fill();
+
+    // glass rim
+    ctx.lineWidth=Math.max(0.8, r*0.09);
+    ctx.strokeStyle=`rgba(223,231,242,${(sel?0.95:0.55)*bright})`;
+    ctx.stroke();
+
+    // cork
+    ctx.fillStyle=`rgba(190,170,150,${0.8*bright})`;
+    roundRect(x-neckW/2, y-r*0.9-r*0.28, neckW, r*0.3, r*0.08); ctx.fill();
+
+    // specular highlight
+    ctx.fillStyle=`rgba(255,255,255,${0.5*bright})`;
+    ctx.beginPath(); ctx.ellipse(x-r*0.32, y-r*0.05, r*0.14, r*0.3, -0.5, 0, 6.283); ctx.fill();
+
+    // selection ring
+    if(sel){
+      ctx.strokeStyle=`rgba(223,231,242,0.8)`; ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.arc(x, y+r*0.05, r*1.5, 0, 6.283); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /* ---- helpers ---- */
+  function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+  function hexRGB(h){ const n=parseInt(h.slice(1),16); return `${(n>>16)&255},${(n>>8)&255},${n&255}`; }
+  function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+  function map(v,a,b,c,d){ return c+(d-c)*((v-a)/(b-a)); }
+  function countCat(c){ return NODES.filter(n=>n.cat===c).length; }
+
+  // keyboard: Esc closes panel / clears filter
+  window.addEventListener("keydown", e=>{
+    if(e.key==="Escape"){ if(panel.classList.contains("open")) closePanel(); else if(filter){ filter=null; recompute(); } }
+    if(e.key==="/" && document.activeElement!==document.getElementById("q")){ e.preventDefault(); document.getElementById("q").focus(); }
+  });
+
+  requestAnimationFrame(frame);
+})();
+</script>

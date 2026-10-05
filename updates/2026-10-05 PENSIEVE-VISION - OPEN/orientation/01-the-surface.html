@@ -1,0 +1,765 @@
+<!--
+  PENSIEVE — ROUND 2 / ORIENTATION 01: "THE SURFACE (importance rises)"
+  The problem: glance-and-know what matters now, and find things fast — magical AND practical.
+  The answer: a calm pool where the most important thoughts RISE as the brightest, nearest glass flasks.
+  Rank = a TRANSPARENT blend of pins + recency + revisit-frequency + links + (future) AI importance.
+  Category = the flask's glow colour (1-glance scan); tags = a fine filter. Each flask shows WHY it's up
+  ("pinned · revisited 6×") and you can open the live weights to see/steer the ranking — magic made legible.
+  "Stir the Pensieve" resurfaces an important-but-forgotten thought. Visuals: CSS + inline-SVG + <canvas>, no assets.
+-->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pensieve — The Surface</title>
+<style>
+  :root{
+    --ink:#070a10; --ink2:#0b0f18; --stone:#12151e; --stone2:#171b26;
+    --edge:#222a3a; --edge2:#2f3850;
+    --silver:#e2e9f4; --silver-dim:#9aa6bd; --silver-faint:#5b657e;
+    --glow:#bcd3ff; --glow2:#8fb6ff;
+    --shadow:0 24px 60px -24px rgba(0,0,0,.85);
+    font-synthesis:none;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; overflow-x:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--silver);
+    background:
+      radial-gradient(1200px 620px at 50% -12%, #16203a 0%, rgba(22,32,58,0) 58%),
+      radial-gradient(1000px 900px at 110% 30%, #121829 0%, rgba(18,24,41,0) 55%),
+      linear-gradient(180deg,#0a0e17 0%, #06080e 100%);
+    -webkit-font-smoothing:antialiased;
+  }
+  /* the surface water + drifting motes, behind everything */
+  #pool{position:fixed; inset:0; z-index:0; pointer-events:none}
+  .wrap{position:relative; z-index:1; max-width:1180px; margin:0 auto; padding:24px 24px 90px}
+
+  /* ---------- header ---------- */
+  header.top{display:flex; align-items:center; gap:18px; flex-wrap:wrap; margin-bottom:18px}
+  .brand{display:flex; align-items:center; gap:13px; min-width:0}
+  .sigil{width:44px;height:44px;flex:0 0 auto; filter:drop-shadow(0 0 10px rgba(143,182,255,.4))}
+  .brand h1{font-size:18px; font-weight:600; letter-spacing:.16em; text-transform:uppercase; margin:0}
+  .brand p{margin:2px 0 0; font-size:12px; color:var(--silver-faint); letter-spacing:.03em}
+  .search{margin-left:auto; position:relative; flex:1 1 300px; max-width:400px; min-width:200px}
+  .search svg{position:absolute; left:13px; top:50%; transform:translateY(-50%); width:16px;height:16px; color:var(--silver-faint)}
+  .search input{
+    width:100%; padding:11px 13px 11px 38px; border-radius:11px;
+    background:rgba(255,255,255,.035); border:1px solid var(--edge);
+    color:var(--silver); font-size:14px; outline:none;
+    transition:border-color .2s, box-shadow .2s, background .2s;
+  }
+  .search input::placeholder{color:var(--silver-faint)}
+  .search input:focus{border-color:var(--edge2); box-shadow:0 0 0 4px rgba(143,182,255,.08); background:rgba(255,255,255,.05)}
+
+  /* ---------- pour a thought ---------- */
+  .pour{
+    position:relative; display:flex; align-items:center; gap:10px; margin:0 0 16px;
+    background:linear-gradient(180deg, rgba(23,27,38,.86), rgba(12,15,22,.86));
+    border:1px solid var(--edge); border-radius:14px; padding:9px 9px 9px 18px;
+    box-shadow:var(--shadow); overflow:hidden;
+  }
+  .pour::before{content:""; position:absolute; inset:0; pointer-events:none;
+    background:radial-gradient(520px 120px at 10% -40%, rgba(143,182,255,.1), transparent 70%)}
+  .pour .lab{font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--silver-faint); flex:0 0 auto}
+  .pour input{flex:1; min-width:120px; background:transparent; border:0; outline:0; color:var(--silver); font-size:15px; font-family:inherit}
+  .pour input::placeholder{color:var(--silver-faint)}
+  .btn{
+    appearance:none; cursor:pointer; border:1px solid var(--edge2); flex:0 0 auto;
+    background:linear-gradient(180deg, rgba(143,182,255,.2), rgba(143,182,255,.06));
+    color:var(--glow); font-size:13px; font-weight:600; letter-spacing:.02em;
+    padding:10px 16px; border-radius:10px; transition:transform .12s, box-shadow .2s, border-color .2s;
+    display:inline-flex; align-items:center; gap:7px;
+  }
+  .btn:hover{transform:translateY(-1px); border-color:#4a5a86; box-shadow:0 10px 26px -12px rgba(143,182,255,.5)}
+  .btn:active{transform:translateY(0)}
+  .btn.ghost{background:rgba(255,255,255,.025); color:var(--silver-dim)}
+  .btn.ghost:hover{color:var(--silver)}
+
+  /* ---------- controls: filters + stir + why ---------- */
+  .controls{display:flex; gap:9px; flex-wrap:wrap; align-items:center; margin:0 2px 8px}
+  .chip{
+    cursor:pointer; user-select:none; font-size:12.5px; padding:6px 12px; border-radius:999px;
+    border:1px solid var(--edge); background:rgba(255,255,255,.02); color:var(--silver-dim);
+    transition:all .18s; display:inline-flex; align-items:center; gap:7px;
+  }
+  .chip .dot{width:7px;height:7px;border-radius:50%; background:var(--c,#8fb6ff); box-shadow:0 0 8px var(--c,#8fb6ff)}
+  .chip:hover{border-color:var(--edge2); color:var(--silver)}
+  .chip.on{background:rgba(143,182,255,.12); border-color:#45527c; color:var(--silver)}
+  .spacer{margin-left:auto}
+  .taglabel{font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--silver-faint); margin:10px 2px 6px}
+  .tags{display:flex; gap:7px; flex-wrap:wrap; margin:0 2px 14px}
+  .tag{
+    cursor:pointer; user-select:none; font-size:11.5px; padding:4px 10px; border-radius:7px;
+    border:1px solid var(--edge); background:rgba(255,255,255,.015); color:var(--silver-faint); transition:all .16s;
+  }
+  .tag:hover{color:var(--silver-dim); border-color:var(--edge2)}
+  .tag.on{background:rgba(143,182,255,.14); border-color:#45527c; color:var(--silver)}
+  .tag .x{opacity:.6; margin-left:4px}
+
+  /* ---------- why / weights panel ---------- */
+  .why{
+    margin:0 0 20px; border:1px solid var(--edge); border-radius:14px; overflow:hidden;
+    background:linear-gradient(180deg, rgba(20,24,34,.7), rgba(11,14,21,.7)); display:none;
+  }
+  .why.open{display:block; animation:fade .25s ease both}
+  @keyframes fade{from{opacity:0; transform:translateY(-4px)} to{opacity:1; transform:none}}
+  .why-head{display:flex; align-items:center; gap:10px; padding:13px 16px; border-bottom:1px solid var(--edge)}
+  .why-head b{font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--silver)}
+  .why-head span{font-size:12px; color:var(--silver-faint)}
+  .sliders{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px 22px; padding:16px}
+  .slider label{display:flex; justify-content:space-between; font-size:12px; color:var(--silver-dim); margin-bottom:7px}
+  .slider label .v{color:var(--glow); font-variant-numeric:tabular-nums}
+  .slider input[type=range]{width:100%; accent-color:#8fb6ff; cursor:pointer}
+  .slider .ex{font-size:10.5px; color:var(--silver-faint); margin-top:5px; line-height:1.35}
+  .slider.off{opacity:.5}
+
+  /* ---------- the surface (ranked flasks) ---------- */
+  .stage{display:flex; gap:20px; align-items:stretch}
+  /* depth gauge — surface at top, settling below */
+  .gauge{flex:0 0 118px; position:relative; padding-top:6px}
+  .gauge .track{position:absolute; left:16px; top:14px; bottom:14px; width:2px;
+    background:linear-gradient(180deg, rgba(190,211,255,.65), rgba(190,211,255,.05)); border-radius:2px}
+  .gauge .mk{position:relative; padding-left:30px; margin-bottom:0; height:0}
+  .gauge .mk .dot{position:absolute; left:11px; width:12px;height:12px; border-radius:50%;
+    background:radial-gradient(circle,#eaf1ff,#8fb6ff 60%, rgba(143,182,255,0) 72%);
+    box-shadow:0 0 14px 2px rgba(160,210,255,.5)}
+  .gauge .mk.lab{height:auto; margin-bottom:8px}
+  .gauge .mk .t{font-size:11px; font-weight:600; letter-spacing:.06em; color:var(--silver)}
+  .gauge .mk .s{font-size:10px; color:var(--silver-faint); margin-top:2px; line-height:1.3}
+  @media(max-width:760px){ .gauge{display:none} }
+
+  .surface{flex:1 1 auto; display:flex; flex-wrap:wrap; gap:14px 14px; align-content:flex-start; min-height:200px; position:relative}
+  .count{font-size:12px; color:var(--silver-faint); letter-spacing:.03em; margin:0 2px 10px}
+
+  /* ---------- a flask ---------- */
+  .flask{
+    position:relative; display:flex; flex-direction:column; align-items:center;
+    width:146px; padding:8px 8px 12px; border-radius:16px; cursor:pointer; outline:none;
+    border:1px solid transparent;
+    transition:transform .55s cubic-bezier(.2,.85,.25,1), opacity .5s, border-color .2s, background .2s;
+  }
+  .flask:hover,.flask:focus{background:rgba(255,255,255,.028); border-color:var(--edge)}
+  .flask .glass{position:relative; transition:height .45s ease, width .45s ease}
+  .flask svg{display:block; width:100%; height:100%; overflow:visible}
+  .flask .halo{position:absolute; left:50%; top:40%; width:130px;height:130px; translate:-50% -50%;
+    border-radius:50%; pointer-events:none; opacity:var(--ha,.0); transition:opacity .4s;
+    background:radial-gradient(circle, var(--cc,#8fb6ff) , transparent 62%)}
+  .flask .cap{margin-top:8px; font-size:12.5px; line-height:1.3; text-align:center; color:var(--silver);
+    max-width:134px; letter-spacing:.005em}
+  .flask .why-trace{margin-top:5px; font-size:10px; color:var(--silver-faint); text-align:center; line-height:1.4; letter-spacing:.02em; max-width:138px}
+  .flask .why-trace b{color:var(--silver-dim); font-weight:600}
+  .flask .pin{position:absolute; top:6px; right:10px; width:13px;height:13px; color:var(--cc,#8fb6ff); opacity:.9; filter:drop-shadow(0 0 5px var(--cc,#8fb6ff))}
+  /* tiers: surface (bright/big) → rising → settled (dim/small) */
+  .flask[data-tier="0"] .glass{width:78px;height:128px}
+  .flask[data-tier="1"] .glass{width:66px;height:108px}
+  .flask[data-tier="2"] .glass{width:54px;height:90px}
+  .flask[data-tier="0"]{--ha:.26}
+  .flask[data-tier="1"]{opacity:.9}
+  .flask[data-tier="2"]{opacity:.6}
+  .flask[data-tier="2"] .cap{color:var(--silver-dim); font-size:11.5px}
+  .flask[data-tier="2"]:hover,.flask[data-tier="1"]:hover{opacity:1}
+  .flask.stirred{animation:stir 1.1s cubic-bezier(.2,.9,.2,1) both}
+  .flask.stirred .halo{opacity:.5 !important}
+  @keyframes stir{0%{transform:translateY(26px); opacity:.2} 60%{transform:translateY(-6px); opacity:1} 100%{transform:none; opacity:1}}
+
+  .empty{padding:50px 10px; text-align:center; color:var(--silver-faint); font-size:13.5px; width:100%}
+
+  /* stir banner */
+  .banner{display:none; align-items:center; gap:11px; margin:0 2px 14px; padding:11px 15px; border-radius:12px;
+    background:linear-gradient(180deg, rgba(143,182,255,.13), rgba(143,182,255,.04));
+    border:1px solid #3a456a; font-size:13px; color:var(--silver)}
+  .banner.show{display:flex; animation:fade .3s ease both}
+  .banner .d{width:8px;height:8px;border-radius:50%; background:var(--glow2); box-shadow:0 0 10px var(--glow2); flex:0 0 auto}
+  .banner .close{margin-left:auto; cursor:pointer; color:var(--silver-faint); font-size:16px; line-height:1}
+  .banner .close:hover{color:var(--silver)}
+
+  /* ---------- memory view ---------- */
+  .scrim{position:fixed; inset:0; z-index:40; display:none; align-items:center; justify-content:center; padding:28px;
+    background:radial-gradient(900px 600px at 50% 30%, rgba(12,16,26,.55), rgba(4,6,10,.88));
+    backdrop-filter:blur(7px); -webkit-backdrop-filter:blur(7px)}
+  .scrim.open{display:flex; animation:fade .28s ease both}
+  .memory{position:relative; width:min(640px,94vw); max-height:88vh; overflow:auto; border-radius:20px;
+    background:linear-gradient(180deg, rgba(22,26,37,.98), rgba(12,15,22,.98));
+    border:1px solid var(--edge2); box-shadow:0 40px 120px -30px rgba(0,0,0,.9);
+    animation:lift .4s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes lift{from{opacity:0; transform:translateY(20px) scale(.985)} to{opacity:1; transform:none}}
+  .m-body{padding:30px 32px 28px}
+  .m-tag{display:inline-flex; align-items:center; gap:8px; font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--silver-dim)}
+  .m-tag .dot{width:8px;height:8px;border-radius:50%; background:var(--cc,#8fb6ff); box-shadow:0 0 10px var(--cc,#8fb6ff)}
+  .memory h3{font-size:23px; font-weight:600; letter-spacing:-.01em; margin:12px 0 5px; color:#eef3fb}
+  .m-date{font-size:12.5px; color:var(--silver-faint); letter-spacing:.04em; margin-bottom:18px}
+  .m-text{font-size:16px; line-height:1.72; color:#cdd6e6; white-space:pre-wrap}
+  .m-tags{display:flex; gap:6px; flex-wrap:wrap; margin-top:16px}
+  .m-tags span{font-size:11px; padding:3px 9px; border-radius:7px; border:1px solid var(--edge); color:var(--silver-faint)}
+  /* why-it-ranks breakdown */
+  .m-why{margin-top:22px; padding:16px 16px 18px; border-radius:14px; border:1px solid var(--edge);
+    background:linear-gradient(180deg, rgba(143,182,255,.06), rgba(143,182,255,.015))}
+  .m-why b.h{display:block; font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--glow); margin-bottom:12px}
+  .m-why .score{float:right; font-size:11px; color:var(--silver-dim); font-variant-numeric:tabular-nums}
+  .bar{display:grid; grid-template-columns:96px 1fr 44px; align-items:center; gap:10px; margin-bottom:9px; font-size:12px}
+  .bar .n{color:var(--silver-dim)}
+  .bar .track{height:7px; border-radius:4px; background:rgba(255,255,255,.06); overflow:hidden}
+  .bar .fill{height:100%; border-radius:4px; background:linear-gradient(90deg,#6f9bff,#bcd3ff); transition:width .5s ease}
+  .bar .val{text-align:right; color:var(--silver-faint); font-variant-numeric:tabular-nums}
+  .bar.muted .n,.bar.muted .val{color:var(--silver-faint); opacity:.6}
+  .m-foot{display:flex; gap:16px; margin-top:20px; padding-top:16px; border-top:1px solid var(--edge); font-size:12px; color:var(--silver-faint); flex-wrap:wrap}
+  .m-foot b{color:var(--silver-dim); font-weight:600}
+  .x{position:absolute; top:14px; right:14px; width:34px;height:34px; border-radius:10px; cursor:pointer;
+    display:grid; place-items:center; color:var(--silver-dim); border:1px solid var(--edge); background:rgba(255,255,255,.03); transition:all .18s}
+  .x:hover{color:var(--silver); border-color:var(--edge2); background:rgba(255,255,255,.07)}
+
+  .toast{position:fixed; left:50%; bottom:28px; translate:-50% 0; z-index:60;
+    background:rgba(20,25,36,.96); border:1px solid var(--edge2); color:var(--silver);
+    padding:12px 18px; border-radius:12px; font-size:13px; box-shadow:var(--shadow);
+    display:flex; align-items:center; gap:10px; opacity:0; pointer-events:none; transition:opacity .3s, transform .3s; transform:translate(-50%,10px)}
+  .toast.show{opacity:1; transform:translate(-50%,0)}
+  .toast .d{width:8px;height:8px;border-radius:50%; background:var(--glow2); box-shadow:0 0 10px var(--glow2)}
+
+  .foot{margin-top:40px; text-align:center; color:var(--silver-faint); font-size:11.5px; letter-spacing:.05em}
+</style>
+
+<canvas id="pool"></canvas>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg class="sigil" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+        <defs>
+          <radialGradient id="bowl" cx="50%" cy="40%" r="60%">
+            <stop offset="0%" stop-color="#eaf1ff"/><stop offset="55%" stop-color="#8fb6ff"/><stop offset="100%" stop-color="#2a3550"/>
+          </radialGradient>
+        </defs>
+        <ellipse cx="24" cy="26" rx="18" ry="8" fill="none" stroke="#4a5a86" stroke-width="1.4"/>
+        <ellipse cx="24" cy="25" rx="14" ry="5.5" fill="url(#bowl)" opacity="0.85"/>
+        <path d="M24 25 C 20 18, 30 14, 26 8 C 24 11, 22 9, 24 6" stroke="#dfe7f2" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.9"/>
+        <circle cx="26" cy="7" r="1.3" fill="#eaf1ff"/>
+      </svg>
+      <div>
+        <h1>Pensieve</h1>
+        <p>The Surface · what matters now rises to the top</p>
+      </div>
+    </div>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="search" type="text" placeholder="Search your thoughts…  (try: sea, morning, no)" aria-label="Search thoughts"/>
+    </div>
+  </header>
+
+  <!-- POUR a thought -->
+  <div class="pour">
+    <span class="lab">Pour a thought</span>
+    <input id="pourInput" type="text" placeholder="Let a thought leave your head — it settles into a fresh flask, labelled for you." aria-label="Pour a thought"/>
+    <button class="btn" id="pourBtn">Pour in →</button>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="controls" id="cats">
+    <span class="chip on" data-cat="all">All</span>
+    <span class="chip" data-cat="Reflections" style="--c:#8fb6ff"><span class="dot"></span>Reflections</span>
+    <span class="chip" data-cat="Ideas" style="--c:#8fe6c6"><span class="dot"></span>Ideas</span>
+    <span class="chip" data-cat="People" style="--c:#e6a6ff"><span class="dot"></span>People</span>
+    <span class="chip" data-cat="Lessons" style="--c:#ff9fb0"><span class="dot"></span>Lessons</span>
+    <span class="chip" data-cat="Goals" style="--c:#ffcf8f"><span class="dot"></span>Goals</span>
+    <span class="spacer"></span>
+    <button class="btn ghost" id="whyBtn">Why this order</button>
+    <button class="btn" id="stirBtn">✦ Stir the Pensieve</button>
+  </div>
+
+  <div class="taglabel">Fine filter — tags</div>
+  <div class="tags" id="tags"></div>
+
+  <!-- WHY / weights -->
+  <div class="why" id="why">
+    <div class="why-head">
+      <b>What lifts a thought</b>
+      <span>— the ranking is a live blend of your signals. Nudge a weight and watch flasks rise or settle.</span>
+    </div>
+    <div class="sliders" id="sliders"></div>
+  </div>
+
+  <!-- stir banner -->
+  <div class="banner" id="banner">
+    <span class="d"></span>
+    <span id="bannerText"></span>
+    <span class="close" id="bannerClose">✕</span>
+  </div>
+
+  <div class="count" id="count"></div>
+
+  <!-- THE SURFACE -->
+  <div class="stage">
+    <aside class="gauge" aria-hidden="true">
+      <div class="track"></div>
+      <div class="mk lab" style="margin-top:2px"><span class="dot"></span><div class="t">At the surface</div><div class="s">nearest · brightest · what matters now</div></div>
+      <div class="mk lab" style="margin-top:150px"><span class="dot" style="opacity:.75"></span><div class="t">Rising</div><div class="s">still close to hand</div></div>
+      <div class="mk lab" style="margin-top:150px"><span class="dot" style="opacity:.45"></span><div class="t">Settled below</div><div class="s">quieter · dimmer · older</div></div>
+    </aside>
+    <main class="surface" id="surface"></main>
+  </div>
+
+  <div class="foot">Round 2 · Orientation 01 — “The Surface (importance rises)”. A Pensieve-vision exploration, not production.</div>
+</div>
+
+<!-- MEMORY VIEW -->
+<div class="scrim" id="scrim" role="dialog" aria-modal="true" aria-label="Thought">
+  <div class="memory" id="memory">
+    <div class="x" id="closeBtn" title="Close (Esc)">✕</div>
+    <div class="m-body">
+      <span class="m-tag"><span class="dot"></span><span id="mCat"></span></span>
+      <h3 id="mTitle"></h3>
+      <div class="m-date" id="mDate"></div>
+      <div class="m-text" id="mText"></div>
+      <div class="m-tags" id="mTags"></div>
+      <div class="m-why" id="mWhy"></div>
+      <div class="m-foot">
+        <span>captured via <b id="mSrc"></b></span>
+        <span>kept in <b>·local vault</b></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="d"></span><span id="toastMsg"></span></div>
+
+<script>
+"use strict";
+
+/* ---------- category palette ---------- */
+const CAT = {
+  Reflections:"#8fb6ff", Ideas:"#8fe6c6", People:"#e6a6ff", Lessons:"#ff9fb0", Goals:"#ffcf8f"
+};
+
+/* ---------- signal weights (steerable, transparent) ---------- */
+const WEIGHTS = [
+  {key:"pin",     name:"Pinned",      w:1.6, on:true,  ex:"You chose to keep it close."},
+  {key:"recency", name:"Recency",     w:1.2, on:true,  ex:"Fresh thoughts sit near the surface, then settle."},
+  {key:"revisit", name:"Revisits",    w:1.4, on:true,  ex:"Thoughts you return to keep their shine."},
+  {key:"link",    name:"Links",       w:0.9, on:true,  ex:"Well-connected thoughts are load-bearing."},
+  {key:"ai",      name:"AI importance",w:1.1, on:false, ex:"Future: the coach's read on what matters to your goals."}
+];
+
+/* ---------- sample thoughts ---------- */
+/* daysAgo drives recency · revisits = times reopened · links = related thoughts · ai = 0..1 future signal */
+let ID=0;
+let THOUGHTS = [
+  {id:++ID, t:"What I actually want this year", c:"Goals", src:"Typed", pin:true, daysAgo:3, revisits:11, links:5, ai:0.95,
+   tags:["clarity","work","health"],
+   x:"Not more output — fewer, deeper things. One piece of work I'd sign my name to. Being someone my friends can call at 2am. Getting strong enough to trust my body again. Everything else is noise dressed up as ambition."},
+  {id:++ID, t:"The tide remembers everything", c:"Reflections", src:"Voice · 2m", pin:true, daysAgo:0, revisits:3, links:2, ai:0.6,
+   tags:["sea","morning","calm"],
+   x:"Walked the cold beach before anyone woke. The tide had rubbed the sand smooth again — every footprint from yesterday gone, and somehow that was a relief, not a loss. Maybe memory works the same way: not a ledger to keep perfect, but a shore that keeps offering a clean place to begin."},
+  {id:++ID, t:"Every yes is a no to something", c:"People", src:"Voice · 1m", pin:false, daysAgo:6, revisits:9, links:3, ai:0.8,
+   tags:["mira","boundaries","work"],
+   x:"Mira, over terrible coffee: 'Every yes is a no to something you haven't met yet.' I've thought about it every week since. Protect the calendar like it's the one non-renewable resource. It is."},
+  {id:++ID, t:"Ship the embarrassing version", c:"Lessons", src:"Typed", pin:true, daysAgo:4, revisits:8, links:4, ai:0.85,
+   tags:["work","creativity","fear"],
+   x:"Every project I'm proud of started as something I was faintly ashamed to show. The shame is the tax on caring. Pay it early and cheap, or pay it late and expensive. Done quietly beats perfect in theory."},
+  {id:++ID, t:"A quieter capture flow", c:"Ideas", src:"Typed", pin:false, daysAgo:1, revisits:4, links:3, ai:0.7,
+   tags:["pensieve","design","creativity"],
+   x:"What if logging a thought felt like pouring a silver strand — no forms, no fields, just the thought leaving your head and settling somewhere safe and labelled? The friction of journaling is the blank page staring back. Remove the page."},
+  {id:++ID, t:"When I almost quit", c:"Lessons", src:"Typed", pin:false, daysAgo:26, revisits:12, links:4, ai:0.9,
+   tags:["fear","work","resolve"],
+   x:"Month four, nothing working, convinced I'd wasted a year. I stayed one more week on a coin-flip. That week everything turned. I never want to forget how close the edge felt — or how ordinary the saving grace was."},
+  {id:++ID, t:"Grandad's workshop", c:"People", src:"Photo + note", pin:false, daysAgo:12, revisits:5, links:3, ai:0.65,
+   tags:["family","hands","memory"],
+   x:"Sawdust, machine oil, and the particular cold of the concrete floor. He never said much — he'd hand me the plane and watch. I understand now that was the whole lesson: here, try, I'm not going anywhere. I want to make things with my hands again."},
+  {id:++ID, t:"Coach, not critic", c:"Ideas", src:"Typed", pin:false, daysAgo:5, revisits:6, links:4, ai:0.78,
+   tags:["pensieve","ai","design"],
+   x:"The AI shouldn't grade my journaling. It should notice patterns I'm too close to see — 'you write about the sea when you're overwhelmed' — and ask one good question. A coach that has read everything and roots for you."},
+  {id:++ID, t:"Measure the week, not the day", c:"Lessons", src:"Typed", pin:false, daysAgo:9, revisits:4, links:2, ai:0.6,
+   tags:["clarity","resolve"],
+   x:"A single bad day told me nothing except that I was tired. Zoomed out to the week and the real signal appeared. Resolution matters: too fine and it's all noise; too coarse and you miss the turn."},
+  {id:++ID, t:"Rain on the studio skylight", c:"Reflections", src:"Typed", pin:false, daysAgo:7, revisits:2, links:1, ai:0.4,
+   tags:["calm","gratitude","creativity"],
+   x:"Worked all afternoon to the sound of rain overhead. Nothing profound happened. But I want to remember ordinary contentment too — not only the hard days and the breakthroughs. The average day is the life."},
+  {id:++ID, t:"The staircase that kept climbing", c:"Reflections", src:"Voice · 40s", pin:false, daysAgo:14, revisits:1, links:1, ai:0.3,
+   tags:["dream","memory"],
+   x:"A library where the staircase folded back on itself forever. Every landing had a door with my own handwriting on it. I never opened one. Woke up certain I'd left something behind a door I'd already passed."},
+  {id:++ID, t:"Strong enough to trust my body", c:"Goals", src:"Typed", pin:false, daysAgo:16, revisits:7, links:3, ai:0.82,
+   tags:["health","resolve"],
+   x:"Not aesthetics — capability. To carry the kayak alone, to take the stairs two at a time at sixty, to not negotiate with my own knees. Train for the decades, not the mirror."},
+  {id:++ID, t:"The promise by the lake", c:"People", src:"Typed", pin:false, daysAgo:40, revisits:3, links:2, ai:0.45,
+   tags:["family","memory"],
+   x:"We said we'd come back every year. We didn't, of course. But I can still feel the cold stone and hear exactly what was said. Some promises matter more as memories than as plans."},
+  {id:++ID, t:"Handwriting, kept whole", c:"Ideas", src:"Handwriting · scan", pin:false, daysAgo:11, revisits:2, links:2, ai:0.55,
+   tags:["pensieve","design"],
+   x:"Keep the original page — the crossings-out, the pressure of the pen — AND a clean transcript so the AI can read it. Never make me choose between the artefact and the searchable text. Hold both."}
+];
+
+/* ---------- scoring ---------- */
+function signals(m){
+  return {
+    pin:     m.pin ? 1 : 0,
+    recency: Math.exp(-m.daysAgo/14),           // 0..1, half-life ~10d
+    revisit: Math.min(m.revisits/12, 1),        // 0..1
+    link:    Math.min(m.links/5, 1),            // 0..1
+    ai:      m.ai                               // 0..1
+  };
+}
+function scoreParts(m){
+  const s = signals(m); const parts={}; let total=0;
+  WEIGHTS.forEach(w=>{
+    const contrib = w.on ? w.w * s[w.key] : 0;
+    parts[w.key] = {signal:s[w.key], weight:w.w, on:w.on, contrib};
+    total += contrib;
+  });
+  return {parts, total, s};
+}
+
+/* ---------- flask SVG; fill level & glow scale with importance ---------- */
+function flaskSVG(color, fill, bright){
+  const uid="g"+Math.random().toString(36).slice(2,8);
+  const lvl = 86 - Math.round(fill*44);          // y of liquid top (fuller = higher)
+  return `
+  <svg viewBox="0 0 72 128" aria-hidden="true">
+    <defs>
+      <linearGradient id="${uid}glass" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="rgba(255,255,255,.22)"/>
+        <stop offset=".5" stop-color="rgba(255,255,255,.05)"/>
+        <stop offset="1" stop-color="rgba(255,255,255,.12)"/>
+      </linearGradient>
+      <linearGradient id="${uid}liq" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffffff" stop-opacity="${0.5+0.4*bright}"/>
+        <stop offset="35%" stop-color="${color}" stop-opacity="${0.55+0.4*bright}"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="${0.25+0.25*bright}"/>
+      </linearGradient>
+      <linearGradient id="${uid}sh" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="rgba(255,255,255,0)"/>
+        <stop offset=".5" stop-color="rgba(255,255,255,.5)"/>
+        <stop offset="1" stop-color="rgba(255,255,255,0)"/>
+      </linearGradient>
+      <clipPath id="${uid}body"><path d="M36 30 h24 a24 24 0 0 1 0 0 v38 a24 26 0 0 1 -24 26 a24 26 0 0 1 -24 -26 v-38 z"/></clipPath>
+    </defs>
+    <!-- cork -->
+    <rect x="27" y="4" width="18" height="12" rx="3" fill="#6b5a44" stroke="#3e3122" stroke-width="1"/>
+    <rect x="28.5" y="6" width="15" height="3" rx="1.5" fill="rgba(255,255,255,.16)"/>
+    <!-- neck -->
+    <rect x="29" y="14" width="14" height="16" fill="url(#${uid}glass)" stroke="rgba(190,211,255,.35)" stroke-width="1"/>
+    <!-- body -->
+    <path d="M36 30 h24 a24 24 0 0 1 0 0 v38 a24 26 0 0 1 -24 26 a24 26 0 0 1 -24 -26 v-38 z"
+          fill="url(#${uid}glass)" stroke="rgba(190,211,255,.4)" stroke-width="1.2"/>
+    <!-- memory liquid, level = importance -->
+    <g clip-path="url(#${uid}body)">
+      <rect x="10" y="${lvl}" width="52" height="60" fill="url(#${uid}liq)"/>
+      <ellipse cx="36" cy="${lvl}" rx="26" ry="4" fill="#ffffff" opacity="${0.35+0.4*bright}"/>
+      <!-- a silver strand suspended in the memory -->
+      <path d="M36 ${lvl+10} C 30 ${lvl+18}, 42 ${lvl+24}, 35 ${lvl+32} C 29 ${lvl+38}, 42 ${lvl+42}, 36 ${lvl+50}"
+            fill="none" stroke="#ffffff" stroke-width="1.1" stroke-linecap="round" opacity="${0.4+0.3*bright}"/>
+    </g>
+    <!-- glass highlight -->
+    <rect x="19" y="34" width="4" height="46" rx="2" fill="url(#${uid}sh)" opacity=".5"/>
+  </svg>`;
+}
+
+/* ---------- state ---------- */
+const surfaceEl = document.getElementById('surface');
+let activeCat="all", activeTags=new Set(), query="", stirredId=null;
+
+/* build tag filter from data */
+(function buildTags(){
+  const counts={};
+  THOUGHTS.forEach(m=>m.tags.forEach(t=>counts[t]=(counts[t]||0)+1));
+  const top = Object.keys(counts).sort((a,b)=>counts[b]-counts[a]);
+  const box=document.getElementById('tags');
+  top.forEach(t=>{
+    const el=document.createElement('span');
+    el.className="tag"; el.dataset.tag=t; el.textContent=t;
+    el.addEventListener('click',()=>{
+      if(activeTags.has(t)){activeTags.delete(t); el.classList.remove('on');}
+      else {activeTags.add(t); el.classList.add('on');}
+      render();
+    });
+    box.appendChild(el);
+  });
+})();
+
+/* build weight sliders */
+(function buildSliders(){
+  const box=document.getElementById('sliders');
+  WEIGHTS.forEach(w=>{
+    const el=document.createElement('div');
+    el.className="slider"+(w.on?"":" off"); el.dataset.key=w.key;
+    el.innerHTML=`
+      <label>${w.name}${w.key==='ai'?' <span style="color:#5b657e">(future)</span>':''} <span class="v">${w.w.toFixed(1)}×</span></label>
+      <input type="range" min="0" max="2.5" step="0.1" value="${w.w}" ${w.on?'':'data-off="1"'}/>
+      <div class="ex">${w.ex}</div>`;
+    const range=el.querySelector('input'); const vv=el.querySelector('.v');
+    range.addEventListener('input',()=>{
+      w.w=parseFloat(range.value); vv.textContent=w.w.toFixed(1)+"×";
+      // turning the AI slider up switches the future signal on
+      if(w.key==='ai'){ w.on = w.w>0; el.classList.toggle('off',!w.on); }
+      render();
+    });
+    box.appendChild(el);
+  });
+})();
+
+/* ---------- FLIP render: flasks rise/settle with motion ---------- */
+let nodes = new Map(); // id -> element
+function filteredSorted(){
+  const q=query.trim().toLowerCase();
+  const list = THOUGHTS.filter(m=>{
+    if(activeCat!=="all" && m.c!==activeCat) return false;
+    if(activeTags.size && !m.tags.some(t=>activeTags.has(t))) return false;
+    if(q && !(m.t+" "+m.x+" "+m.c+" "+m.tags.join(" ")).toLowerCase().includes(q)) return false;
+    return true;
+  }).map(m=>({m, sc:scoreParts(m)}));
+  list.sort((a,b)=>{
+    if(stirredId){ if(a.m.id===stirredId) return -1; if(b.m.id===stirredId) return 1; }
+    return b.sc.total - a.sc.total;
+  });
+  return list;
+}
+function tierOf(rank, n){
+  const surf = Math.max(1, Math.round(n*0.28));
+  const rise = Math.max(1, Math.round(n*0.34));
+  if(rank<surf) return 0;
+  if(rank<surf+rise) return 1;
+  return 2;
+}
+
+function render(){
+  const list = filteredSorted();
+  const n = list.length;
+  document.getElementById('count').textContent =
+    n ? `${n} ${n===1?'thought':'thoughts'} — ordered by importance` + (query.trim()?` · matching “${query.trim()}”`:"") : "";
+
+  // FLIP: record old positions
+  const first=new Map();
+  nodes.forEach((el,id)=>{ first.set(id, el.getBoundingClientRect()); });
+
+  if(!n){
+    surfaceEl.innerHTML = `<div class="empty">Nothing at the surface for this filter. Try another tag, or pour a new thought above.</div>`;
+    nodes.clear(); return;
+  }
+  // remove empty placeholder if present
+  const ph=surfaceEl.querySelector('.empty'); if(ph) ph.remove();
+
+  const maxScore = Math.max(...list.map(x=>x.sc.total)) || 1;
+  const seen=new Set();
+
+  list.forEach((item,rank)=>{
+    const m=item.m, color=CAT[m.c], tier=tierOf(rank,n);
+    const norm = item.sc.total/maxScore;          // 0..1 brightness
+    let el=nodes.get(m.id);
+    if(!el){
+      el=document.createElement('div');
+      el.className="flask"; el.tabIndex=0; el.setAttribute('role','button');
+      el.addEventListener('click',()=>openMemory(m.id));
+      el.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault(); openMemory(m.id);} });
+      nodes.set(m.id,el);
+    }
+    el.dataset.tier=tier;
+    el.style.setProperty('--cc',color);
+    el.setAttribute('aria-label',`${m.t}, ${m.c}, ${whyShort(m,item.sc)}`);
+    el.innerHTML=`
+      ${m.pin?`<svg class="pin" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14 2l-1 6 4 4-5 1-1 9-1-9-5-1 4-4-1-6z"/></svg>`:""}
+      <div class="halo"></div>
+      <div class="glass">${flaskSVG(color, Math.min(1,norm*1.1), norm)}</div>
+      <div class="cap">${m.t}</div>
+      <div class="why-trace">${whyTrace(m,item.sc)}</div>`;
+    el.classList.toggle('stirred', m.id===stirredId);
+    surfaceEl.appendChild(el);                      // reorders in place
+    seen.add(m.id);
+  });
+  // drop filtered-out nodes
+  nodes.forEach((el,id)=>{ if(!seen.has(id)){ el.remove(); nodes.delete(id);} });
+
+  // FLIP: invert + play
+  nodes.forEach((el,id)=>{
+    const prev=first.get(id); if(!prev) return;
+    const now=el.getBoundingClientRect();
+    const dx=prev.left-now.left, dy=prev.top-now.top;
+    if(dx||dy){
+      el.style.transition='none';
+      el.style.transform=`translate(${dx}px,${dy}px)`;
+      requestAnimationFrame(()=>{ el.style.transition=''; el.style.transform=''; });
+    }
+  });
+}
+
+/* the little "why it's up" trace under each flask */
+function whyTrace(m,sc){
+  const bits=[];
+  if(m.pin) bits.push(`<b>pinned</b>`);
+  if(sc.parts.revisit.on && m.revisits>=5) bits.push(`revisited <b>${m.revisits}×</b>`);
+  if(sc.parts.link.on && m.links>=3) bits.push(`linked <b>${m.links}</b>`);
+  if(sc.parts.ai.on && m.ai>=0.8) bits.push(`AI: <b>key</b>`);
+  bits.push(agoText(m.daysAgo));
+  return bits.slice(0,3).join(" · ");
+}
+function whyShort(m,sc){
+  const b=[]; if(m.pin)b.push("pinned"); if(m.revisits>=5)b.push("revisited "+m.revisits+" times"); b.push(agoText(m.daysAgo)); return b.join(", ");
+}
+function agoText(d){
+  if(d<=0) return "today";
+  if(d===1) return "yesterday";
+  if(d<7) return d+"d ago";
+  if(d<30) return Math.round(d/7)+"w ago";
+  return Math.round(d/30)+"mo ago";
+}
+
+/* ---------- controls wiring ---------- */
+document.getElementById('cats').addEventListener('click',e=>{
+  const chip=e.target.closest('.chip'); if(!chip) return;
+  document.querySelectorAll('#cats .chip').forEach(c=>c.classList.remove('on'));
+  chip.classList.add('on'); activeCat=chip.dataset.cat; render();
+});
+document.getElementById('search').addEventListener('input',e=>{ query=e.target.value; render(); });
+document.getElementById('whyBtn').addEventListener('click',()=>{
+  document.getElementById('why').classList.toggle('open');
+});
+
+/* ---------- STIR: resurface an important-but-forgotten thought ---------- */
+document.getElementById('stirBtn').addEventListener('click',()=>{
+  // candidates: high standing importance (pin/revisit/link/ai) but low recency (not seen lately)
+  let best=null, bestScore=-1;
+  THOUGHTS.forEach(m=>{
+    const s=signals(m);
+    const standing = 1.6*s.pin + 1.4*s.revisit + 0.9*s.link + 1.1*m.ai;  // worth, ignoring recency
+    const forgotten = 1 - s.recency;                                      // how settled it is
+    const pull = standing * forgotten;
+    if(pull>bestScore){ bestScore=pull; best=m; }
+  });
+  if(!best) return;
+  // clear filters so it can surface, then pin it to the top with a rising animation
+  activeCat="all"; activeTags.clear(); query="";
+  document.querySelectorAll('#cats .chip').forEach(c=>c.classList.toggle('on',c.dataset.cat==='all'));
+  document.querySelectorAll('.tag').forEach(t=>t.classList.remove('on'));
+  document.getElementById('search').value="";
+  stirredId=best.id;
+  render();
+  const b=document.getElementById('banner');
+  document.getElementById('bannerText').innerHTML =
+    `The Pensieve stirred up <b>“${best.t}”</b> — important (revisited ${best.revisits}×${best.pin?', pinned':''}), but not seen in ${agoText(best.daysAgo)}.`;
+  b.classList.add('show');
+  surfaceEl.scrollIntoView({behavior:"smooth", block:"nearest"});
+  // let it rest at the top for a moment, then release back to its true rank
+  clearTimeout(window._stirT);
+  window._stirT=setTimeout(()=>{ stirredId=null; render(); }, 6000);
+});
+document.getElementById('bannerClose').addEventListener('click',()=>{
+  document.getElementById('banner').classList.remove('show');
+  stirredId=null; render();
+});
+
+/* ---------- POUR a new thought ---------- */
+function autoCategory(text){
+  const t=text.toLowerCase();
+  if(/\b(idea|what if|concept|design|feature|build|maybe)\b/.test(t)) return "Ideas";
+  if(/\b(learned|lesson|never again|note to self|realised|realized|always|mistake)\b/.test(t)) return "Lessons";
+  if(/\b(want|goal|this year|aim|become|train|plan to)\b/.test(t)) return "Goals";
+  if(/\b(mum|dad|friend|mira|said|she|he|they|grandad|mother|father|told me)\b/.test(t)) return "People";
+  return "Reflections";
+}
+function autoLabel(text){
+  let f=text.replace(/\s+/g,' ').trim().split(/[.!?\n]/)[0].trim();
+  const p=f.split(' '); if(p.length>6) f=p.slice(0,6).join(' ')+"…";
+  return f.charAt(0).toUpperCase()+f.slice(1);
+}
+function pour(){
+  const inp=document.getElementById('pourInput'); const text=inp.value.trim();
+  if(!text){ inp.focus(); return; }
+  const cat=autoCategory(text);
+  const m={id:++ID, t:autoLabel(text), c:cat, src:"Typed", pin:false, daysAgo:0, revisits:0, links:0, ai:0.5, tags:["new"], x:text};
+  THOUGHTS.unshift(m);
+  inp.value="";
+  activeCat="all"; activeTags.clear(); query="";
+  document.querySelectorAll('#cats .chip').forEach(c=>c.classList.toggle('on',c.dataset.cat==='all'));
+  document.querySelectorAll('.tag').forEach(t=>t.classList.remove('on'));
+  document.getElementById('search').value="";
+  render();
+  toast(`Poured into a fresh ${cat} flask — it rises to the surface as today's newest.`);
+}
+document.getElementById('pourBtn').addEventListener('click',pour);
+document.getElementById('pourInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault(); pour();} });
+
+/* ---------- memory view + why-it-ranks breakdown ---------- */
+const scrim=document.getElementById('scrim');
+function openMemory(id){
+  const m=THOUGHTS.find(x=>x.id===id); if(!m) return;
+  const color=CAT[m.c]; const sc=scoreParts(m);
+  document.getElementById('mCat').textContent=m.c;
+  document.querySelector('#memory .m-tag .dot').style.setProperty('--cc',color);
+  document.getElementById('mTitle').textContent=m.t;
+  document.getElementById('mDate').textContent=`${agoText(m.daysAgo)} · ${m.pin?'pinned · ':''}revisited ${m.revisits}× · ${m.links} links`;
+  document.getElementById('mText').textContent=m.x;
+  document.getElementById('mTags').innerHTML=m.tags.map(t=>`<span>${t}</span>`).join("");
+  document.getElementById('mSrc').textContent=m.src;
+  // breakdown bars — each weighted contribution, so WHY is fully legible
+  const maxC=Math.max(...WEIGHTS.map(w=>w.w*1))||1;
+  let rows="";
+  WEIGHTS.forEach(w=>{
+    const p=sc.parts[w.key];
+    const pct=Math.round((p.contrib/ (sc.total||1))*100);
+    rows+=`<div class="bar ${p.on?'':'muted'}">
+      <span class="n">${w.name}${w.on?'':' · off'}</span>
+      <span class="track"><span class="fill" style="width:${p.on?Math.round(p.signal*100):0}%; background:${w.key==='ai'?'linear-gradient(90deg,#8fe6c6,#cffae9)':''}"></span></span>
+      <span class="val">${p.on? (p.contrib>0? pct+'%':'—') : 'off'}</span>
+    </div>`;
+  });
+  document.getElementById('mWhy').innerHTML=
+    `<span class="score">surface score ${sc.total.toFixed(2)}</span>
+     <b class="h">Why it's near the surface</b>${rows}`;
+  scrim.classList.add('open'); document.getElementById('memory').scrollTop=0;
+  // count the open as a revisit — it keeps its shine (and may rise)
+  m.revisits+=1;
+}
+function closeMemory(){ scrim.classList.remove('open'); render(); }
+document.getElementById('closeBtn').addEventListener('click',closeMemory);
+scrim.addEventListener('click',e=>{ if(e.target===scrim) closeMemory(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeMemory(); });
+
+/* ---------- toast ---------- */
+let toastTimer=null;
+function toast(msg){
+  const el=document.getElementById('toast');
+  document.getElementById('toastMsg').textContent=msg;
+  el.classList.add('show'); clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),3400);
+}
+
+/* ---------- ambient: the surface water + rising motes ---------- */
+(function(){
+  const cv=document.getElementById('pool'); const ctx=cv.getContext('2d');
+  let W,H,motes; const DPR=Math.min(devicePixelRatio||1,2);
+  function resize(){
+    W=cv.width=innerWidth*DPR; H=cv.height=innerHeight*DPR; cv.style.width=innerWidth+'px'; cv.style.height=innerHeight+'px';
+    motes=Array.from({length:Math.min(80,Math.floor(innerWidth*innerHeight/20000))},()=>({
+      x:Math.random()*W, y:Math.random()*H, r:(Math.random()*1.6+0.3)*DPR,
+      vx:(Math.random()-0.5)*0.12*DPR, vy:(-Math.random()*0.2-0.03)*DPR,
+      a:Math.random()*0.5+0.1, tw:Math.random()*Math.PI*2
+    }));
+  }
+  resize(); addEventListener('resize',resize);
+  let t=0;
+  (function draw(){
+    t+=0.008;
+    ctx.clearRect(0,0,W,H);
+    // faint waterline bands near the top — "the surface"
+    for(let i=0;i<3;i++){
+      ctx.beginPath();
+      const base=(60+i*26)*DPR;
+      for(let x=0;x<=W;x+=12*DPR){
+        const y=base+Math.sin(x*0.004+t*2+i)*7*DPR+Math.sin(x*0.011-t)*3*DPR;
+        if(x===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.strokeStyle=`rgba(143,182,255,${0.05-i*0.012})`; ctx.lineWidth=1.2*DPR; ctx.stroke();
+    }
+    motes.forEach(m=>{
+      m.x+=m.vx; m.y+=m.vy; m.tw+=0.03;
+      if(m.y<-5){m.y=H+5; m.x=Math.random()*W;}
+      if(m.x<-5)m.x=W+5; if(m.x>W+5)m.x=-5;
+      const a=m.a*(0.6+0.4*Math.sin(m.tw));
+      ctx.beginPath(); ctx.arc(m.x,m.y,m.r,0,7);
+      ctx.fillStyle=`rgba(190,211,255,${a})`;
+      ctx.shadowColor="rgba(143,182,255,.8)"; ctx.shadowBlur=6*DPR; ctx.fill();
+    });
+    requestAnimationFrame(draw);
+  })();
+})();
+
+/* ---------- init ---------- */
+render();
+</script>

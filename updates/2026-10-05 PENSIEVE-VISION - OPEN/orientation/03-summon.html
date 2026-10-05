@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pensieve · Summon</title>
+<!--
+  SUMMON — command-first orientation for Pensieve (round 2).
+  Rationale: the fastest orientation is one where the most important thoughts are ALREADY in front of you.
+  Empty state summons pinned/recent/revisited/important flasks; a central command bar + chips (category, #tag,
+  pinned, important, this week) filter live — matches fly in on silver trails, non-matches dissolve. Stacking
+  chips narrows instantly. Fully keyboard-driven: / focuses, type to filter, Tab cycles chips, Space toggles,
+  arrows move between flasks, Enter opens, Esc clears. Magic is the delivery (summoning charm); practicality is
+  the hero — near-zero-latency find, glance-and-know via category colour + importance trace on each glass flask.
+-->
+<style>
+  :root{
+    --ink-0:#070a10;        /* deepest */
+    --ink-1:#0b1018;
+    --ink-2:#111826;
+    --ink-3:#19202f;
+    --silver-0:#f3f6fb;
+    --silver-1:#d7deec;
+    --silver-2:#a7b2c6;
+    --silver-3:#6f7b91;
+    --mist:rgba(190,205,230,.10);
+    --line:rgba(176,194,224,.14);
+    --glow:rgba(170,195,235,.55);
+    /* category colours — small, calm, colour-coded set */
+    --c-idea:#7bd1c4;       /* ideas / sparks     */
+    --c-work:#8aa6f0;       /* work / projects    */
+    --c-life:#e3b06b;       /* life / people      */
+    --c-journal:#c89be0;    /* journal / reflect  */
+    --c-health:#8fd083;     /* health / body      */
+    --c-learn:#e58fa6;      /* learning           */
+    --radius:16px;
+    --flask-w:186px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--silver-1);
+    background:
+      radial-gradient(1200px 700px at 50% -8%, rgba(96,124,176,.22), transparent 60%),
+      radial-gradient(900px 600px at 12% 108%, rgba(78,104,150,.14), transparent 60%),
+      linear-gradient(180deg,var(--ink-1),var(--ink-0));
+    min-height:100%;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* drifting mist overlay */
+  body::before{
+    content:"";position:fixed;inset:-20%;pointer-events:none;z-index:0;
+    background:
+      radial-gradient(420px 280px at 20% 30%, rgba(170,195,235,.07), transparent 70%),
+      radial-gradient(520px 320px at 80% 60%, rgba(150,180,225,.06), transparent 70%),
+      radial-gradient(380px 260px at 55% 85%, rgba(190,210,245,.05), transparent 70%);
+    animation:drift 26s ease-in-out infinite alternate;
+    filter:blur(6px);
+  }
+  @keyframes drift{0%{transform:translate3d(-2%, -1%,0) scale(1.02)}100%{transform:translate3d(2%, 2%,0) scale(1.06)}}
+
+  .wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:30px 22px 80px}
+
+  /* ---- header ---- */
+  header{display:flex;align-items:center;gap:12px;margin-bottom:26px}
+  .logo{width:30px;height:30px;flex:0 0 auto}
+  .brand{font-weight:600;letter-spacing:.32em;text-transform:uppercase;font-size:12px;color:var(--silver-2)}
+  .brand b{color:var(--silver-0);font-weight:700}
+  .hint-top{margin-left:auto;font-size:11.5px;color:var(--silver-3);letter-spacing:.02em}
+  .hint-top kbd{margin:0 1px}
+
+  /* ---- summon bar ---- */
+  .summon{
+    position:relative;margin:0 auto 10px;max-width:720px;
+  }
+  .summon-ring{
+    position:relative;display:flex;align-items:center;gap:12px;
+    background:linear-gradient(180deg,rgba(26,34,50,.92),rgba(16,22,34,.92));
+    border:1px solid var(--line);
+    border-radius:999px;padding:14px 18px;
+    box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 18px 50px -24px rgba(0,0,0,.8);
+    transition:border-color .25s, box-shadow .25s;
+  }
+  .summon.focused .summon-ring{
+    border-color:rgba(150,180,230,.5);
+    box-shadow:0 0 0 1px rgba(150,180,230,.25), 0 0 40px -6px var(--glow), 0 18px 50px -24px rgba(0,0,0,.8);
+  }
+  .sigil{width:22px;height:22px;flex:0 0 auto;opacity:.9}
+  .summon.focused .sigil{animation:spin 9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #q{
+    flex:1;background:transparent;border:0;outline:0;color:var(--silver-0);
+    font-size:18px;letter-spacing:.01em;
+  }
+  #q::placeholder{color:var(--silver-3)}
+  .count{font-size:12px;color:var(--silver-3);white-space:nowrap;letter-spacing:.03em}
+
+  /* ---- chips ---- */
+  .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:860px;margin:14px auto 4px}
+  .chip{
+    display:inline-flex;align-items:center;gap:7px;
+    font-size:12.5px;color:var(--silver-2);
+    background:rgba(255,255,255,.03);
+    border:1px solid var(--line);
+    padding:6px 12px;border-radius:999px;cursor:pointer;user-select:none;
+    transition:background .18s,border-color .18s,color .18s,transform .12s;
+  }
+  .chip:hover{border-color:rgba(160,185,230,.35);color:var(--silver-1)}
+  .chip .dot{width:8px;height:8px;border-radius:50%;box-shadow:0 0 8px currentColor}
+  .chip .k{font-size:10px;color:var(--silver-3);border:1px solid var(--line);border-radius:5px;padding:0 4px;line-height:15px}
+  .chip.on{
+    color:var(--ink-0);background:var(--silver-0);border-color:transparent;font-weight:600;
+    box-shadow:0 0 22px -6px var(--glow);transform:translateY(-1px);
+  }
+  .chip.on .k{color:var(--ink-2);border-color:rgba(0,0,0,.2)}
+  .chip.kbdfocus{outline:2px solid rgba(150,180,230,.7);outline-offset:2px}
+  .chips-label{width:100%;text-align:center;font-size:10.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--silver-3);margin-bottom:2px}
+
+  /* ---- results header ---- */
+  .board-head{display:flex;align-items:center;gap:10px;max-width:980px;margin:30px auto 14px;padding:0 4px}
+  .board-head h2{margin:0;font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--silver-3);font-weight:600}
+  .board-head .rule{height:1px;flex:1;background:linear-gradient(90deg,var(--line),transparent)}
+  .board-head .clear{font-size:11.5px;color:var(--silver-3);cursor:pointer;border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+  .board-head .clear:hover{color:var(--silver-1);border-color:rgba(160,185,230,.35)}
+
+  /* ---- flask grid ---- */
+  .grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--flask-w),1fr));
+    gap:16px;max-width:980px;margin:0 auto;align-items:stretch;
+  }
+  .flask{
+    position:relative;cursor:pointer;
+    border-radius:var(--radius);
+    padding:15px 15px 14px;
+    background:linear-gradient(180deg,rgba(28,37,55,.82),rgba(15,21,33,.9));
+    border:1px solid var(--line);
+    overflow:hidden;
+    transition:transform .5s cubic-bezier(.2,.9,.2,1), opacity .45s, box-shadow .3s, border-color .3s;
+    min-height:150px;display:flex;flex-direction:column;
+  }
+  /* glass sheen */
+  .flask::before{
+    content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    background:linear-gradient(135deg,rgba(255,255,255,.08),transparent 40%),
+               radial-gradient(120% 60% at 50% -20%, rgba(170,195,235,.10), transparent 60%);
+  }
+  .flask:hover{transform:translateY(-3px);border-color:rgba(160,185,230,.4);box-shadow:0 20px 44px -26px rgba(0,0,0,.85),0 0 28px -10px var(--glow)}
+  .flask.kbd{border-color:rgba(160,190,240,.75);box-shadow:0 0 0 1px rgba(160,190,240,.4),0 0 30px -6px var(--glow)}
+  /* liquid level tinted by category, height = importance */
+  .flask .liquid{
+    position:absolute;left:0;right:0;bottom:0;pointer-events:none;opacity:.17;
+    background:linear-gradient(180deg,transparent,var(--cat) 60%);
+    transition:height .5s ease;
+  }
+  .flask .cap{display:flex;align-items:center;gap:8px;margin-bottom:10px;position:relative;z-index:1}
+  .flask .cat{
+    display:inline-flex;align-items:center;gap:6px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--silver-2);
+  }
+  .flask .cat .dot{width:8px;height:8px;border-radius:50%;background:var(--cat);box-shadow:0 0 10px var(--cat)}
+  .flask .pin{margin-left:auto;font-size:12px;color:var(--c-life);opacity:.9}
+  .flask .body{position:relative;z-index:1;font-size:13.5px;line-height:1.45;color:var(--silver-0);flex:1}
+  .flask .tags{position:relative;z-index:1;margin-top:10px;display:flex;flex-wrap:wrap;gap:6px}
+  .flask .tag{font-size:10.5px;color:var(--silver-3)}
+  .flask .meta{position:relative;z-index:1;margin-top:9px;display:flex;align-items:center;gap:10px;font-size:10.5px;color:var(--silver-3)}
+  /* importance trace — tiny bar of glowing beads */
+  .trace{display:inline-flex;gap:3px;align-items:center}
+  .trace i{width:5px;height:5px;border-radius:50%;background:var(--silver-3);opacity:.35}
+  .trace i.lit{background:var(--cat);opacity:1;box-shadow:0 0 7px var(--cat)}
+  .revisits{margin-left:auto;display:inline-flex;align-items:center;gap:4px}
+  .link-badge{display:inline-flex;align-items:center;gap:3px}
+
+  /* fly-in / dissolve states */
+  .flask.enter{animation:flyin .55s cubic-bezier(.16,.84,.26,1) both}
+  @keyframes flyin{
+    0%{opacity:0;transform:translateY(26px) scale(.9);filter:blur(6px)}
+    60%{filter:blur(0)}
+    100%{opacity:1;transform:translateY(0) scale(1)}
+  }
+  .flask.leaving{opacity:0;transform:scale(.86) translateY(8px);filter:blur(5px);pointer-events:none}
+
+  /* silver trail flecks during summon */
+  .trail{position:fixed;width:4px;height:4px;border-radius:50%;background:var(--silver-0);
+    box-shadow:0 0 10px var(--glow);pointer-events:none;z-index:40;opacity:.9}
+
+  .empty{max-width:980px;margin:40px auto;text-align:center;color:var(--silver-3);font-size:14px}
+
+  /* ---- pour-to-capture dock ---- */
+  .dock{
+    position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:30;
+    display:flex;align-items:center;gap:10px;
+    background:linear-gradient(180deg,rgba(26,34,50,.95),rgba(14,20,31,.96));
+    border:1px solid var(--line);border-radius:999px;padding:9px 10px 9px 16px;
+    box-shadow:0 18px 50px -22px rgba(0,0,0,.9);
+    max-width:calc(100vw - 32px);
+  }
+  .dock .pourtxt{font-size:12.5px;color:var(--silver-2)}
+  .dock .pourtxt b{color:var(--silver-0);font-weight:600}
+  .dock .pour{
+    display:inline-flex;align-items:center;gap:8px;cursor:pointer;
+    background:var(--silver-0);color:var(--ink-0);font-weight:600;font-size:13px;
+    border:0;border-radius:999px;padding:8px 14px;
+    transition:transform .12s,box-shadow .2s;
+  }
+  .dock .pour:hover{transform:translateY(-1px);box-shadow:0 0 26px -6px var(--glow)}
+  .dock .pour svg{width:16px;height:16px}
+
+  /* pour animation: a drop falls into a flask that materialises */
+  .pour-fx{position:fixed;inset:0;z-index:50;pointer-events:none;display:none}
+  .pour-fx.show{display:block}
+  .pour-fx .drop{
+    position:absolute;left:50%;top:40%;width:12px;height:16px;border-radius:0 50% 50% 50%;
+    background:radial-gradient(circle at 35% 30%,#fff,var(--silver-1));
+    transform:translate(-50%,-50%) rotate(45deg);
+    box-shadow:0 0 16px var(--glow);
+    animation:drop 1s ease-in forwards;
+  }
+  @keyframes drop{0%{top:14%;opacity:0}20%{opacity:1}100%{top:62%;opacity:0;transform:translate(-50%,-50%) rotate(45deg) scale(.4)}}
+  .pour-fx .born{
+    position:absolute;left:50%;top:62%;transform:translate(-50%,-50%) scale(.4);
+    width:120px;height:120px;border-radius:24px;opacity:0;
+    background:linear-gradient(180deg,rgba(170,195,235,.3),rgba(120,150,210,.12));
+    border:1px solid rgba(170,195,235,.5);
+    animation:born 1s .45s ease-out forwards;
+    box-shadow:0 0 50px -4px var(--glow);
+  }
+  @keyframes born{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}50%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) scale(1.1)}}
+
+  footer{max-width:980px;margin:36px auto 0;text-align:center;color:var(--silver-3);font-size:11px;letter-spacing:.04em;opacity:.8}
+  kbd{font-family:inherit;font-size:10.5px;background:rgba(255,255,255,.05);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 5px;color:var(--silver-2)}
+
+  @media (max-width:560px){
+    #q{font-size:16px}
+    :root{--flask-w:150px}
+    .hint-top{display:none}
+    .dock .pourtxt{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001s!important;transition-duration:.08s!important}
+    body::before{animation:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <svg class="logo" viewBox="0 0 48 48" aria-hidden="true">
+      <defs><radialGradient id="lg" cx="50%" cy="38%" r="60%">
+        <stop offset="0%" stop-color="#eaf0fb"/><stop offset="60%" stop-color="#aebcd6"/><stop offset="100%" stop-color="#5d6a82"/>
+      </radialGradient></defs>
+      <ellipse cx="24" cy="30" rx="17" ry="9" fill="none" stroke="url(#lg)" stroke-width="2"/>
+      <path d="M10 30c4 5 24 5 28 0" fill="none" stroke="#d7deec" stroke-width="1.2" opacity=".5"/>
+      <path d="M24 6c-3 6-9 9-9 15a9 9 0 0 0 18 0c0-6-6-9-9-15z" fill="url(#lg)" opacity=".92"/>
+    </svg>
+    <div class="brand">PENSIEVE · <b>SUMMON</b></div>
+    <div class="hint-top"><kbd>/</kbd> summon · <kbd>Tab</kbd> chips · <kbd>↑↓←→</kbd> move · <kbd>↵</kbd> open · <kbd>Esc</kbd> clear</div>
+  </header>
+
+  <div class="summon" id="summon">
+    <div class="summon-ring">
+      <svg class="sigil" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="#aebcd6" stroke-width="1.3" opacity=".5"/>
+        <circle cx="12" cy="12" r="4.5" fill="none" stroke="#eaf0fb" stroke-width="1.3"/>
+        <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="#aebcd6" stroke-width="1.3" stroke-linecap="round"/>
+      </svg>
+      <input id="q" autocomplete="off" spellcheck="false" placeholder="Summon a thought…  (type, or pick filters below)" />
+      <span class="count" id="count"></span>
+    </div>
+  </div>
+
+  <div class="chips" id="chips">
+    <span class="chips-label">summon by</span>
+  </div>
+
+  <div class="board-head">
+    <h2 id="boardTitle">Most important · summoned for you</h2>
+    <span class="rule"></span>
+    <span class="clear" id="clearBtn">clear <kbd>Esc</kbd></span>
+  </div>
+
+  <div class="grid" id="grid" aria-live="polite"></div>
+  <div class="empty" id="empty" style="display:none">No thoughts answer that summons. <span style="color:var(--silver-1)">Press Esc</span> to recall them all.</div>
+
+  <footer>Empty state shows your pinned, recent, revisited &amp; AI-important thoughts — already in front of you. Stack filters to narrow in real time.</footer>
+</div>
+
+<!-- pour-to-capture dock -->
+<div class="dock">
+  <span class="pourtxt"><b>Pour a thought</b> into a new flask</span>
+  <button class="pour" id="pourBtn">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 4h10l-1 6a4 4 0 0 1-1 2.6V19a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-6.4A4 4 0 0 1 8 10L7 4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    Pour <kbd style="margin-left:4px">N</kbd>
+  </button>
+</div>
+<div class="pour-fx" id="pourfx"><div class="drop"></div><div class="born"></div></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---- category registry (small colour-coded set) ----
+  const CATS = {
+    idea:    {label:"Idea",     var:"--c-idea"},
+    work:    {label:"Work",     var:"--c-work"},
+    life:    {label:"Life",     var:"--c-life"},
+    journal: {label:"Journal",  var:"--c-journal"},
+    health:  {label:"Health",   var:"--c-health"},
+    learn:   {label:"Learning", var:"--c-learn"},
+  };
+
+  // ---- sample thoughts ----
+  // importance 1..5 (future AI importance), revisits = how often reopened, days = recency, pinned, links
+  const THOUGHTS = [
+    {t:"The pensieve metaphor is the whole product: pour it out so your head is clear, revisit when wiser.", cat:"idea", tags:["#pensieve","#naming","#north-star"], days:1, imp:5, rev:9, pin:true, links:3},
+    {t:"Coach should resurface the lesson, not the raw entry — 'last time this mood preceded a bad week.'", cat:"journal", tags:["#coach","#resurface"], days:2, imp:5, rev:6, pin:true, links:2},
+    {t:"Capture latency is the only metric that matters for daily logging. Target under 150ms to first keystroke.", cat:"work", tags:["#perf","#capture"], days:0, imp:4, rev:4, pin:true, links:1},
+    {t:"Felt genuinely calm after the morning walk + no phone. Repeat tomorrow.", cat:"health", tags:["#walk","#mood","#routine"], days:0, imp:2, rev:1, pin:false, links:0},
+    {t:"Idea: flasks on a shelf as the home view — glance and know what's alive in my mind.", cat:"idea", tags:["#home","#flasks","#orientation"], days:3, imp:4, rev:5, pin:false, links:2},
+    {t:"Call Mum on Sunday — she mentioned the garden and sounded tired.", cat:"life", tags:["#family","#followup"], days:1, imp:3, rev:2, pin:false, links:0},
+    {t:"Whisper.cpp small model is accurate enough for voice notes; medium is overkill on-device.", cat:"learn", tags:["#whisper","#transcription","#spike"], days:5, imp:3, rev:3, pin:false, links:1},
+    {t:"Journaling streak hit 21 days. The habit stuck when capture got faster, not when I added reminders.", cat:"journal", tags:["#habit","#streak"], days:2, imp:3, rev:4, pin:false, links:1},
+    {t:"Tag whispering: suggest tags as I type from past labels — keep the vocabulary small and mine.", cat:"work", tags:["#tags","#editor","#ux"], days:4, imp:4, rev:3, pin:false, links:2},
+    {t:"Re-read the stoicism notes before the big review. 'You suffer more in imagination.'", cat:"learn", tags:["#stoicism","#review"], days:6, imp:2, rev:5, pin:false, links:1},
+    {t:"Energy dips hard at 3pm. Correlates with skipping lunch — log meals for a week to confirm.", cat:"health", tags:["#energy","#experiment"], days:3, imp:3, rev:2, pin:false, links:1},
+    {t:"The iPhone app is capture-only. AI lives on the desktop. Protect that line — don't bloat mobile.", cat:"work", tags:["#scope","#mobile","#north-star"], days:7, imp:5, rev:7, pin:true, links:3},
+    {t:"That conversation with Sam changed how I think about ambition vs. contentment.", cat:"life", tags:["#sam","#reflection"], days:8, imp:3, rev:4, pin:false, links:1},
+    {t:"Draft: a weekly 'what mattered' digest the coach writes from my week of thoughts.", cat:"idea", tags:["#coach","#digest","#weekly"], days:4, imp:4, rev:2, pin:false, links:2},
+    {t:"Backup must be boring and invisible. OneDrive adapter first; verify restore before trusting it.", cat:"work", tags:["#backup","#onedrive"], days:9, imp:3, rev:2, pin:false, links:1},
+    {t:"I notice I write more honestly late at night. Maybe default the editor to a darker, quieter mode after 10pm.", cat:"journal", tags:["#honesty","#night","#ux"], days:2, imp:2, rev:3, pin:false, links:0},
+  ];
+  THOUGHTS.forEach((d,i)=>d.id=i);
+
+  // ---- filter chips ----
+  // kinds: cat | flag | tag ; key = keyboard letter
+  const CHIPS = [
+    {id:"pinned",   kind:"flag", label:"Pinned",     key:"p", test:d=>d.pin},
+    {id:"important",kind:"flag", label:"Important",  key:"i", test:d=>d.imp>=4},
+    {id:"week",     kind:"flag", label:"This week",  key:"w", test:d=>d.days<=7},
+    {id:"revisited",kind:"flag", label:"Revisited",  key:"r", test:d=>d.rev>=4},
+    {id:"linked",   kind:"flag", label:"Linked",     key:"l", test:d=>d.links>0},
+    {id:"idea",     kind:"cat",  label:"Idea",       key:"1", cat:"idea"},
+    {id:"work",     kind:"cat",  label:"Work",       key:"2", cat:"work"},
+    {id:"journal",  kind:"cat",  label:"Journal",    key:"3", cat:"journal"},
+    {id:"life",     kind:"cat",  label:"Life",       key:"4", cat:"life"},
+    {id:"health",   kind:"cat",  label:"Health",     key:"5", cat:"health"},
+    {id:"learn",    kind:"cat",  label:"Learning",   key:"6", cat:"learn"},
+  ];
+
+  const active = new Set();      // active chip ids
+  let kbdChip = -1;              // keyboard-focused chip index
+  let kbdCard = -1;             // keyboard-focused card index (into current filtered list)
+  let current = [];             // current filtered+sorted list
+
+  const $ = s=>document.querySelector(s);
+  const grid=$("#grid"), chipsEl=$("#chips"), qEl=$("#q"), summon=$("#summon");
+  const countEl=$("#count"), emptyEl=$("#empty"), titleEl=$("#boardTitle");
+
+  function catColor(cat){return getComputedStyle(document.documentElement).getPropertyValue(CATS[cat].var).trim();}
+
+  // ---- build chips ----
+  CHIPS.forEach((c,idx)=>{
+    const el=document.createElement("span");
+    el.className="chip"; el.dataset.id=c.id; el.dataset.idx=idx;
+    if(c.kind==="cat"){
+      el.innerHTML='<span class="dot" style="background:var('+CATS[c.cat].var+');color:var('+CATS[c.cat].var+')"></span>'+c.label+' <span class="k">'+c.key+'</span>';
+    } else {
+      el.innerHTML=c.label+' <span class="k">'+c.key+'</span>';
+    }
+    el.addEventListener("click",()=>toggleChip(c.id));
+    chipsEl.appendChild(el);
+  });
+
+  function toggleChip(id){
+    if(active.has(id)) active.delete(id); else active.add(id);
+    render(true);
+  }
+
+  // ---- scoring for the empty / default "most important" state ----
+  function importanceScore(d){
+    return d.imp*3 + d.rev*1.4 + (d.pin?5:0) + Math.max(0,8-d.days)*0.6 + d.links*0.8;
+  }
+
+  function matches(d){
+    const q=qEl.value.trim().toLowerCase();
+    if(q){
+      const hay=(d.t+" "+d.tags.join(" ")+" "+CATS[d.cat].label).toLowerCase();
+      // support bare #tag and words
+      const terms=q.split(/\s+/);
+      if(!terms.every(t=>hay.includes(t.replace(/^#/,"#").toLowerCase()) || hay.includes(t))) return false;
+    }
+    for(const id of active){
+      const c=CHIPS.find(x=>x.id===id);
+      if(c.kind==="cat"){ if(d.cat!==c.cat) return false; }
+      else { if(!c.test(d)) return false; }
+    }
+    return true;
+  }
+
+  function relAge(days){
+    if(days===0) return "today";
+    if(days===1) return "yesterday";
+    if(days<7) return days+"d ago";
+    if(days<14) return "last week";
+    return Math.round(days/7)+"w ago";
+  }
+
+  function cardHTML(d){
+    const col="var("+CATS[d.cat].var+")";
+    const level=18+d.imp*13; // liquid height by importance
+    let trace="";
+    for(let i=1;i<=5;i++) trace+='<i class="'+(i<=d.imp?"lit":"")+'"></i>';
+    const linkBadge = d.links>0 ? '<span class="link-badge" title="'+d.links+' linked">&#128279; '+d.links+'</span>' : '';
+    return ''+
+      '<div class="liquid" style="height:'+level+'%"></div>'+
+      '<div class="cap">'+
+        '<span class="cat"><span class="dot"></span>'+CATS[d.cat].label+'</span>'+
+        (d.pin?'<span class="pin" title="Pinned">&#9733;</span>':'')+
+      '</div>'+
+      '<div class="body">'+escapeHTML(d.t)+'</div>'+
+      '<div class="tags">'+d.tags.map(t=>'<span class="tag">'+escapeHTML(t)+'</span>').join(" ")+'</div>'+
+      '<div class="meta">'+
+        '<span class="trace" title="AI importance '+d.imp+'/5">'+trace+'</span>'+
+        linkBadge+
+        '<span class="revisits" title="revisited '+d.rev+'×">&#8635; '+d.rev+' · '+relAge(d.days)+'</span>'+
+      '</div>';
+  }
+
+  function escapeHTML(s){return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+
+  // keep stable DOM nodes per thought so we can animate enter/leave
+  const nodes={};
+  function ensureNode(d){
+    if(nodes[d.id]) return nodes[d.id];
+    const el=document.createElement("div");
+    el.className="flask";
+    el.style.setProperty("--cat","var("+CATS[d.cat].var+")");
+    el.dataset.id=d.id;
+    el.innerHTML=cardHTML(d);
+    el.addEventListener("click",()=>openFlask(d,el));
+    nodes[d.id]=el;
+    return el;
+  }
+
+  function render(animate){
+    const filtered = THOUGHTS.filter(matches);
+    const usingDefault = active.size===0 && !qEl.value.trim();
+    filtered.sort((a,b)=> usingDefault ? importanceScore(b)-importanceScore(a) : (b.imp-a.imp)||(a.days-b.days));
+    current = filtered;
+
+    titleEl.textContent = usingDefault ? "Most important · summoned for you" : "Summoned · "+filtered.length+" match"+(filtered.length===1?"":"es");
+    countEl.textContent = filtered.length+" / "+THOUGHTS.length;
+    emptyEl.style.display = filtered.length? "none":"block";
+
+    // mark leaving
+    const keep=new Set(filtered.map(d=>d.id));
+    Array.from(grid.children).forEach(ch=>{
+      if(!keep.has(+ch.dataset.id)){
+        ch.classList.add("leaving");
+        setTimeout(()=>{ if(ch.parentNode===grid && ch.classList.contains("leaving")) grid.removeChild(ch); },420);
+      }
+    });
+
+    // add / reorder
+    filtered.forEach((d,idx)=>{
+      const el=ensureNode(d);
+      el.classList.remove("leaving");
+      if(el.parentNode!==grid){
+        grid.appendChild(el);
+        if(animate){ el.classList.remove("enter"); void el.offsetWidth; el.classList.add("enter"); spawnTrail(el); }
+      } else {
+        // ensure order
+        grid.appendChild(el);
+      }
+    });
+
+    // sync chip visuals
+    Array.from(chipsEl.querySelectorAll(".chip")).forEach(ch=>{
+      ch.classList.toggle("on", active.has(ch.dataset.id));
+    });
+    syncKbd();
+  }
+
+  // ---- silver trail when a flask flies in ----
+  function spawnTrail(el){
+    if(window.matchMedia("(prefers-reduced-motion:reduce)").matches) return;
+    const r=el.getBoundingClientRect();
+    const sx=r.left+r.width/2, sy=r.top+r.height/2;
+    for(let i=0;i<5;i++){
+      const t=document.createElement("div");
+      t.className="trail";
+      const ang=Math.random()*Math.PI*2, dist=30+Math.random()*50;
+      t.style.left=sx+"px"; t.style.top=sy+"px";
+      document.body.appendChild(t);
+      const dx=Math.cos(ang)*dist, dy=Math.sin(ang)*dist - 20;
+      t.animate([
+        {transform:"translate(0,0) scale(1)",opacity:.9},
+        {transform:"translate("+dx+"px,"+dy+"px) scale(0)",opacity:0}
+      ],{duration:500+Math.random()*250,easing:"ease-out"}).onfinish=()=>t.remove();
+    }
+  }
+
+  function openFlask(d,el){
+    el.animate([
+      {boxShadow:"0 0 0 1px rgba(160,190,240,.4),0 0 30px -6px var(--glow)"},
+      {boxShadow:"0 0 0 3px rgba(190,215,255,.7),0 0 60px 0 var(--glow)"},
+      {boxShadow:"0 0 0 1px rgba(160,190,240,.4),0 0 30px -6px var(--glow)"}
+    ],{duration:420});
+    // In the real app this opens the thought. Mockup: brief flash only.
+  }
+
+  // ---- keyboard model ----
+  function syncKbd(){
+    Array.from(chipsEl.querySelectorAll(".chip")).forEach((ch,i)=>ch.classList.toggle("kbdfocus", i===kbdChip));
+    Array.from(grid.children).forEach(ch=>ch.classList.remove("kbd"));
+    if(kbdCard>=0 && current[kbdCard]){
+      const el=nodes[current[kbdCard].id];
+      if(el){ el.classList.add("kbd"); el.scrollIntoView({block:"nearest",behavior:"smooth"}); }
+    }
+  }
+
+  function colsCount(){
+    const style=getComputedStyle(grid);
+    return style.gridTemplateColumns.split(" ").length || 1;
+  }
+
+  document.addEventListener("keydown",e=>{
+    const typingInQ = document.activeElement===qEl;
+
+    // global: "/" focuses summon
+    if(e.key==="/" && !typingInQ){ e.preventDefault(); qEl.focus(); return; }
+    if(e.key==="Escape"){ clearAll(); qEl.blur(); return; }
+
+    // "N" pours (when not typing)
+    if((e.key==="n"||e.key==="N") && !typingInQ){ e.preventDefault(); pour(); return; }
+
+    // chip hotkeys (when not typing) e.g. p,i,w,r,l,1-6
+    if(!typingInQ && e.key.length===1){
+      const c=CHIPS.find(x=>x.key===e.key.toLowerCase());
+      if(c){ e.preventDefault(); toggleChip(c.id); return; }
+    }
+
+    // Tab cycles chips (both modes)
+    if(e.key==="Tab"){
+      e.preventDefault();
+      const n=CHIPS.length;
+      kbdChip = e.shiftKey ? (kbdChip<=0?n-1:kbdChip-1) : ((kbdChip+1)%n);
+      kbdCard=-1; syncKbd(); return;
+    }
+
+    // Space toggles the kbd-focused chip
+    if(e.key===" " && kbdChip>=0 && !typingInQ){
+      e.preventDefault(); toggleChip(CHIPS[kbdChip].id); return;
+    }
+
+    // Arrow navigation across flasks
+    if(["ArrowDown","ArrowUp","ArrowLeft","ArrowRight"].includes(e.key)){
+      if(!current.length) return;
+      e.preventDefault();
+      const cols=colsCount();
+      if(kbdCard<0) kbdCard=0;
+      else if(e.key==="ArrowRight") kbdCard=Math.min(current.length-1,kbdCard+1);
+      else if(e.key==="ArrowLeft")  kbdCard=Math.max(0,kbdCard-1);
+      else if(e.key==="ArrowDown")  kbdCard=Math.min(current.length-1,kbdCard+cols);
+      else if(e.key==="ArrowUp"){
+        if(kbdCard-cols<0){ qEl.focus(); kbdCard=-1; syncKbd(); return; }
+        kbdCard=kbdCard-cols;
+      }
+      kbdChip=-1; syncKbd(); return;
+    }
+
+    // Enter opens focused flask
+    if(e.key==="Enter"){
+      if(kbdCard>=0 && current[kbdCard]){ openFlask(current[kbdCard], nodes[current[kbdCard].id]); }
+      else if(typingInQ && current.length){ kbdCard=0; syncKbd(); }
+    }
+  });
+
+  qEl.addEventListener("input",()=>render(true));
+  qEl.addEventListener("focus",()=>summon.classList.add("focused"));
+  qEl.addEventListener("blur",()=>summon.classList.remove("focused"));
+
+  function clearAll(){
+    active.clear(); qEl.value=""; kbdChip=-1; kbdCard=-1; render(true);
+  }
+  $("#clearBtn").addEventListener("click",clearAll);
+
+  // ---- pour-to-capture ----
+  function pour(){
+    const fx=$("#pourfx");
+    fx.classList.remove("show"); void fx.offsetWidth; fx.classList.add("show");
+    setTimeout(()=>fx.classList.remove("show"),1500);
+  }
+  $("#pourBtn").addEventListener("click",pour);
+
+  // init
+  render(true);
+  // gentle initial fly-in
+  requestAnimationFrame(()=>{
+    Array.from(grid.children).forEach((el,i)=>{
+      el.classList.remove("enter"); void el.offsetWidth;
+      setTimeout(()=>{el.classList.add("enter"); spawnTrail(el);}, i*45);
+    });
+  });
+})();
+</script>
+</body>
+</html>
