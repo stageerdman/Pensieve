@@ -30,4 +30,14 @@
   - UX-expert agent designs the portal (visual + motion + perf); orchestrator synthesizes.
 
 ## Live status
-- Phase A in progress; UX agent for the portal launched.
+- Phase A ✅ draggable header (TabBar containers are drag regions), traffic lights y 20→24
+  + header h-12, newest-on-top ordering. Committed.
+- Phase B ✅ magical preview portal. `NotePreview` renders the note FORMATTED via a
+  read-only BlockNote (shared `editorSchema`, `.pensieve-editor` skin — images/note-links
+  render too). `PreviewPortal` = centered, translucent (flasks visible behind), fully
+  pointer-events-none for Alt-hover (Space-pinned peek makes the well scrollable); watery
+  ring + breathing glow + drifting caustic in index.css, all with reduced-motion stills.
+  Replaces the old tooltip PeekPopover. 114 tests green; build clean.
+  - Known tradeoff: content swap keys by note id, so BlockNote remounts per swap. Fine at
+    human hover pace; add a small debounce / replaceBlocks-in-place if flinging feels janky.
+- Next: native build + owner eyeball of the chrome pixels, then merge.

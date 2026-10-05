@@ -5,6 +5,15 @@ import { DEFAULT_GALLERY_STATE, type GalleryState } from "../../lib/gallery/view
 import { DEFAULT_CATEGORIES } from "../../lib/categories/defs";
 import type { NoteMeta } from "../../lib/types";
 
+// NotePreview renders a real BlockNote view, which needs layout/DOM APIs jsdom lacks
+// (same reason App.test mocks the editor). Mock it to a marker; its Markdown render is
+// covered by lib/md tests and verified in the real app.
+vi.mock("./NotePreview", () => ({
+  NotePreview: ({ markdown }: { markdown: string }) => (
+    <div data-testid="note-preview">{markdown}</div>
+  ),
+}));
+
 const DAY = 86_400_000;
 const NOW = Date.now();
 
@@ -20,6 +29,7 @@ function renderGallery(
     notes,
     state: DEFAULT_GALLERY_STATE as GalleryState,
     categoryDefs: DEFAULT_CATEGORIES,
+    theme: "light" as const,
     onOpen: vi.fn(),
     onToggleWorkingSet: vi.fn(),
     onRemoveFromWorkingSet: vi.fn(),
@@ -55,6 +65,7 @@ describe("Gallery — layout", () => {
         notes={notes}
         state={{ ...DEFAULT_GALLERY_STATE, fields: { ...DEFAULT_GALLERY_STATE.fields, snippet: false } }}
         categoryDefs={DEFAULT_CATEGORIES}
+        theme="light"
         onOpen={() => {}}
         onToggleWorkingSet={() => {}}
         onRemoveFromWorkingSet={() => {}}
@@ -75,7 +86,23 @@ describe("Gallery — open", () => {
     expect(props.onOpen).toHaveBeenLastCalledWith("a", true);
   });
 
-  it("Enter opens, Space does NOT open (it peeks instead)", () => {
+  it("Enter opens, Space does NOT open (it peeks instead)", async () => {
+    localStorage.clear();
+    localStorage.setItem(
+      "pensieve:note:a",
+      JSON.stringify({
+        id: "a",
+        title: "Alpha",
+        markdown: "# Alpha\n\nbody",
+        createdAt: NOW,
+        addedAt: NOW,
+        updatedAt: NOW,
+        categories: [],
+        tags: [],
+        links: [],
+        pinned: false,
+      }),
+    );
     const onOpen = vi.fn();
     renderGallery([note({ id: "a", title: "Alpha", createdAt: NOW })], { onOpen });
     const card = screen.getByRole("button", { name: /Alpha/ });
@@ -84,7 +111,10 @@ describe("Gallery — open", () => {
     onOpen.mockClear();
     fireEvent.keyDown(card, { key: " " });
     expect(onOpen).not.toHaveBeenCalled();
-    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+    // Space pins a formatted preview portal instead of opening the note.
+    expect(await screen.findByRole("region", { name: /preview/i })).toBeInTheDocument();
+    // Flush the portal's async Markdown load (the mocked preview shows it).
+    await screen.findByTestId("note-preview");
   });
 });
 
@@ -112,6 +142,7 @@ describe("Gallery — working set", () => {
         notes={notes}
         state={{ ...DEFAULT_GALLERY_STATE, workingSet: ["a"] }}
         categoryDefs={DEFAULT_CATEGORIES}
+        theme="light"
         onOpen={() => {}}
         onToggleWorkingSet={() => {}}
         onRemoveFromWorkingSet={() => {}}

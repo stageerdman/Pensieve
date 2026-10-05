@@ -270,6 +270,7 @@ export default function App() {
               notes={notes}
               state={gallery.state}
               categoryDefs={categories.defs}
+              theme={theme}
               onOpen={openNote}
               onToggleWorkingSet={gallery.toggleWorkingSet}
               onRemoveFromWorkingSet={gallery.removeFromWorkingSet}

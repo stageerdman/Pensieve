@@ -2,7 +2,6 @@ import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import "./blocknote-skin.css";
 import { BlockNoteView } from "@blocknote/mantine";
-import { BlockNoteSchema, defaultInlineContentSpecs } from "@blocknote/core";
 import {
   useCreateBlockNote,
   FormattingToolbar,
@@ -20,15 +19,10 @@ import { AllSelection, TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { useEffect, useRef } from "react";
 import { blocksToExtendedMd, extendedMdToBlocks } from "../lib/md/extended";
-import { NoteLink, setNoteLinkOpen, setNoteLinkResolve } from "./noteLink";
+import { setNoteLinkOpen, setNoteLinkResolve } from "./noteLink";
+import { editorSchema } from "./editorSchema";
 import { FlaskFor } from "./Flask";
 import type { NoteMeta } from "../lib/types";
-
-// Editor schema = the default blocks/styles + our custom "noteLink" inline content
-// (inserted via the "@" menu, round-tripped through lib/md/extended).
-const schema = BlockNoteSchema.create({
-  inlineContentSpecs: { ...defaultInlineContentSpecs, noteLink: NoteLink },
-});
 
 // Two-level ⌘A: the first press selects the current block's text; the next selects
 // the whole document. We handle both levels explicitly (rather than defer to the
@@ -72,7 +66,7 @@ interface EditorProps {
 }
 
 export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, onOpenNote }: EditorProps) {
-  const editor = useCreateBlockNote({ schema });
+  const editor = useCreateBlockNote({ schema: editorSchema });
   const loading = useRef(true);
   const wrapRef = useRef<HTMLDivElement>(null);
   const notesRef = useRef(notes);
