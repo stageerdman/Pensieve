@@ -40,7 +40,10 @@ export function Sidebar({
 
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r border-border bg-surface-sunken">
-      <div className="flex h-11 shrink-0 items-center justify-between border-b border-border px-3">
+      <div
+        data-tauri-drag-region
+        className="topbar-left flex h-11 shrink-0 items-center justify-between border-b border-border px-3"
+      >
         <SidebarCustomise state={state} onChange={onChangeState} />
         <button
           onClick={onNew}

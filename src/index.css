@@ -76,6 +76,13 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Native app only: the integrated (Overlay) title bar floats the macOS traffic
+   lights over the top-left of the sidebar — inset the sidebar top bar's controls so
+   they clear the buttons. No effect in the browser (no `.tauri` class). */
+.tauri .topbar-left {
+  padding-left: 76px;
+}
+
 /* Visible focus everywhere (accessibility, design.md). */
 :focus-visible {
   outline: 2px solid hsl(var(--accent));

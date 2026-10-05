@@ -20,6 +20,11 @@ export default function App() {
   const { theme, toggle } = useTheme();
   useFontScale();
   const categories = useCategoryDefs();
+  // Native app: the macOS title bar is integrated (Overlay) — mark the root so the
+  // sidebar top bar can inset its controls clear of the floating traffic lights.
+  useEffect(() => {
+    if ("__TAURI_INTERNALS__" in window) document.documentElement.classList.add("tauri");
+  }, []);
   const [sidebarState, setSidebarState] = useState<SidebarState>(() => loadState());
   const changeSidebarState = useCallback((s: SidebarState) => {
     setSidebarState(s);
@@ -127,7 +132,10 @@ export default function App() {
 
       <main className="flex min-w-0 flex-1 flex-col">
         {showChrome && (
-          <header className="flex h-11 items-center justify-end border-b border-border bg-surface-sunken px-3">
+          <header
+            data-tauri-drag-region
+            className="flex h-11 items-center justify-end border-b border-border bg-surface-sunken px-3"
+          >
             {current && (
               <div className="flex items-center gap-0.5">
                 <OverflowMenu
