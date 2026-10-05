@@ -19,7 +19,7 @@ interface NoteRowProps {
   active: boolean;
   now: number;
   categoryDefs: CategoryDef[];
-  onOpen: (id: string) => void;
+  onOpen: (id: string, newTab?: boolean) => void;
   onTogglePin: (id: string) => void;
 }
 
@@ -62,7 +62,7 @@ export function NoteRow({ note, view, active, now, categoryDefs, onOpen, onToggl
 
   return (
     <button
-      onClick={() => onOpen(note.id)}
+      onClick={(e) => onOpen(note.id, e.metaKey || e.ctrlKey)}
       aria-current={active ? "true" : undefined}
       title={tooltip}
       className="group relative block w-full select-none rounded-md px-3 py-2 text-left hover:bg-surface-raised aria-[current=true]:bg-surface-raised aria-[current=true]:before:absolute aria-[current=true]:before:inset-y-1 aria-[current=true]:before:left-0 aria-[current=true]:before:w-0.5 aria-[current=true]:before:rounded-full aria-[current=true]:before:bg-accent"

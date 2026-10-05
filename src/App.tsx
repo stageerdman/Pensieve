@@ -5,6 +5,7 @@ import { TimelinePanel } from "./components/TimelinePanel";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { OverflowMenu } from "./components/OverflowMenu";
 import { FlaskButton } from "./components/FlaskButton";
+import { TabBar, HOME, type ActiveTab } from "./components/TabBar";
 import { IconButton } from "./components/IconButton";
 import { Clock, PanelRight, Trash } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
@@ -38,6 +39,84 @@ export default function App() {
   const [focusMode, setFocusMode] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const confirmTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  // Tabs. The editor is shared and always shows `current`; a tab is an open note in
+  // the top strip. "Home" is your main work — the note you reach by a normal sidebar
+  // click; ⌘-clicking a note opens it in a tab instead, without disturbing home.
+  const [tabIds, setTabIds] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<ActiveTab>(HOME);
+  const homeNoteId = useRef<string | undefined>(undefined);
+  // While on Home, home tracks whatever note is open (normal clicks, ⌘N, initial).
+  useEffect(() => {
+    if (activeTab === HOME && current) homeNoteId.current = current.id;
+  }, [activeTab, current]);
+  // Drop tabs whose note no longer exists (e.g. deleted); fall back to Home if the
+  // active tab was the one removed.
+  useEffect(() => {
+    setTabIds((ids) => {
+      const live = ids.filter((id) => notes.some((n) => n.id === id));
+      return live.length === ids.length ? ids : live;
+    });
+    setActiveTab((a) => (a !== HOME && !notes.some((n) => n.id === a) ? HOME : a));
+  }, [notes]);
+  const tabs = tabIds
+    .map((id) => notes.find((n) => n.id === id))
+    .filter(Boolean) as typeof notes;
+
+  // Open a note. Normal → Home (your work); ⌘/Ctrl → a tab (opened and shown).
+  const openNote = useCallback(
+    (id: string, newTab?: boolean) => {
+      if (newTab) {
+        setTabIds((ids) => (ids.includes(id) ? ids : [...ids, id]));
+        setActiveTab(id);
+      } else {
+        setActiveTab(HOME);
+      }
+      void open(id);
+    },
+    [open],
+  );
+
+  const goHome = useCallback(() => {
+    setActiveTab(HOME);
+    if (homeNoteId.current) void open(homeNoteId.current);
+  }, [open]);
+
+  // A new note is your work — it opens on Home.
+  const newNote = useCallback(() => {
+    setActiveTab(HOME);
+    void create();
+  }, [create]);
+
+  const selectTab = useCallback(
+    (id: string) => {
+      setActiveTab(id);
+      void open(id);
+    },
+    [open],
+  );
+
+  const closeTab = useCallback(
+    (id: string) => {
+      setTabIds((ids) => {
+        const idx = ids.indexOf(id);
+        const next = ids.filter((t) => t !== id);
+        // If the closed tab was active, fall to a neighbour, else Home.
+        setActiveTab((cur) => {
+          if (cur !== id) return cur;
+          const neighbour = next[idx] ?? next[idx - 1];
+          if (neighbour) {
+            void open(neighbour);
+            return neighbour;
+          }
+          if (homeNoteId.current) void open(homeNoteId.current);
+          return HOME;
+        });
+        return next;
+      });
+    },
+    [open],
+  );
 
   // Live set of tags in use across notes — the source for tag whispering. A tag
   // no longer on any note simply stops appearing here.
@@ -84,7 +163,11 @@ export default function App() {
       const k = e.key.toLowerCase();
       if (k === "n") {
         e.preventDefault();
-        void create();
+        newNote();
+      } else if (k === "w") {
+        // ⌘W closes the active tab (no-op on Home).
+        e.preventDefault();
+        if (activeTab !== HOME) closeTab(activeTab);
       } else if (k === "p") {
         // ⌘P pins/unpins the open note (overrides the browser print dialog).
         e.preventDefault();
@@ -113,7 +196,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [create, current, toggle, askDelete, toggleTimeline, toggleDetails, togglePin]);
+  }, [newNote, current, toggle, askDelete, toggleTimeline, toggleDetails, togglePin, activeTab, closeTab]);
 
   const showChrome = !focusMode;
 
@@ -125,8 +208,8 @@ export default function App() {
           state={sidebarState}
           categoryDefs={categories.defs}
           currentId={current?.id}
-          onOpen={(id) => void open(id)}
-          onNew={() => void create()}
+          onOpen={openNote}
+          onNew={newNote}
           onTogglePin={(id) => void togglePin(id)}
           onChangeState={changeSidebarState}
         />
@@ -136,10 +219,17 @@ export default function App() {
         {showChrome && (
           <header
             data-tauri-drag-region
-            className="flex h-11 items-center justify-end border-b border-border bg-surface-sunken px-3"
+            className="flex h-11 items-center gap-2 border-b border-border bg-surface-sunken px-3"
           >
+            <TabBar
+              tabs={tabs}
+              active={activeTab}
+              onHome={goHome}
+              onSelect={selectTab}
+              onClose={closeTab}
+            />
             {current && (
-              <div className="flex items-center gap-0.5">
+              <div className="flex shrink-0 items-center gap-0.5">
                 <OverflowMenu
                   items={[
                     {
