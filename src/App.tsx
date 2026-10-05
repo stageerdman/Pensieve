@@ -55,7 +55,12 @@ export default function App() {
       return kept.length === ids.length ? ids : kept;
     });
     setActiveTab((a) => (a !== HOME && !live.has(a) ? HOME : a));
-    gallery.pruneWorkingSet(live);
+    // Only heal the working set once notes have actually loaded. On first mount `notes`
+    // is still [] (the store lists asynchronously); pruning against an empty set then
+    // would wipe — and persist as empty — a working set restored from a prior session.
+    // A genuinely empty vault has no valid ids anyway, and dead ids are render-filtered
+    // and cleaned on the next non-empty prune.
+    if (notes.length > 0) gallery.pruneWorkingSet(live);
   }, [notes, gallery.pruneWorkingSet]);
 
   const tabs = tabIds

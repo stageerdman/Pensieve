@@ -63,4 +63,18 @@ describe("App", () => {
     fireEvent.click(within(tab).getByLabelText("Close tab"));
     await waitFor(() => expect(screen.queryByRole("tab")).toBeNull());
   });
+
+  it("keeps a persisted working set across launch (notes load async)", async () => {
+    seed("a", "Alpha note");
+    // A working set saved from a prior session, with persistence on (the default).
+    localStorage.setItem("pensieve:gallery:workingset", JSON.stringify(["a"]));
+    render(<App />);
+
+    // The strip must still show the saved flask after notes finish loading — the
+    // async list load must not wipe the restored working set.
+    const strip = await screen.findByRole("list", { name: /working set/i });
+    expect(within(strip).getByText("Alpha note")).toBeInTheDocument();
+    // And it must remain persisted, not overwritten with [].
+    expect(JSON.parse(localStorage.getItem("pensieve:gallery:workingset")!)).toEqual(["a"]);
+  });
 });
