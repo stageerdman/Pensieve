@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pensieve — The Memory Desk</title>
+<style>
+/* ======================================================================
+   RATIONALE (read me — ~8 lines)
+   ----------------------------------------------------------------------
+   Concept: THE MEMORY DESK / ALCHEMIST'S BENCH. Thoughts are glass flasks
+   of silver memory on a warm, enchanted workbench; the Basin broods above.
+   The whole app runs on ONE idea: a BASKET = a saved LENS over the flasks.
+   • WORKING SET  = the auto-basket "On the bench" (your pinned flasks).
+   • TOPICAL      = conjure a basket by name/tag, e.g. @Sales Mindset — it
+                    floats in on demand and gathers every matching flask.
+   • REVIEW       = step through a TIME-basket (This Week). Untouched flasks
+                    wear dust; a forgotten one "resurfaces"; the finished
+                    review SEALS into its own flask that rolls up into Month.
+   Same gesture, same mechanic, three jobs. Delight is the point: it should
+   make you smile while it does real work fast.
+   ====================================================================== */
+
+:root{
+  --ink:#0d0f14;          /* deepest desk shadow */
+  --ink-2:#14171f;        /* panel */
+  --wood:#1b1711;         /* warm desk wood */
+  --wood-2:#241d14;
+  --silver:#cfd8e3;       /* pensieve silver */
+  --silver-bright:#eef3f9;
+  --mist:#9fb0c3;
+  --text:#e8edf3;
+  --text-muted:#8b93a1;
+  --border:#2a2f3a;
+  --border-warm:#3a2f20;
+  --accent:#8fd0ff;       /* cool memory-glow */
+  --amber:#e7b26a;        /* candle warmth */
+  --gold:#f0c987;
+  --r:14px;
+  --r-sm:9px;
+  --sp:16px;
+  font-synthesis:none;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:
+    radial-gradient(1200px 520px at 50% -8%, rgba(143,208,255,.10), transparent 60%),
+    radial-gradient(900px 500px at 80% 110%, rgba(231,178,106,.08), transparent 60%),
+    linear-gradient(180deg,#0b0d12 0%, #0d0f14 40%, #120f0a 100%);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  min-height:100vh;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit;color:inherit;cursor:pointer}
+::selection{background:rgba(143,208,255,.35)}
+
+/* ---------- top bar ---------- */
+.topbar{
+  display:flex;align-items:center;gap:14px;
+  padding:14px clamp(14px,3vw,30px);
+  position:sticky;top:0;z-index:40;
+  backdrop-filter:blur(10px);
+  background:linear-gradient(180deg, rgba(13,15,20,.85), rgba(13,15,20,.55));
+  border-bottom:1px solid var(--border);
+}
+.brand{display:flex;align-items:center;gap:11px;font-weight:650;letter-spacing:.2px}
+.brand .mark{width:26px;height:26px;filter:drop-shadow(0 0 10px rgba(143,208,255,.5))}
+.brand small{color:var(--text-muted);font-weight:400;letter-spacing:.3px}
+.topbar .spacer{flex:1}
+.hint{color:var(--text-muted);font-size:12.5px}
+.hint kbd{
+  background:var(--ink-2);border:1px solid var(--border);border-bottom-width:2px;
+  border-radius:6px;padding:1px 6px;font-size:11px;color:var(--silver)
+}
+
+/* ---------- the basin ---------- */
+.basin-wrap{display:flex;justify-content:center;padding:18px 16px 2px}
+.basin{
+  position:relative;width:min(760px,94vw);height:96px;
+  border-radius:50%/70%;
+  background:
+    radial-gradient(60% 120% at 50% 0%, rgba(207,216,227,.16), transparent 62%),
+    radial-gradient(90% 120% at 50% 120%, rgba(143,208,255,.10), transparent 60%),
+    #0a0c11;
+  border:1px solid #20242e;
+  box-shadow:inset 0 10px 40px rgba(0,0,0,.7), 0 0 60px rgba(143,208,255,.06);
+  overflow:hidden;
+}
+.basin .mist{
+  position:absolute;inset:0;
+  background:
+    radial-gradient(40% 60% at 30% 40%, rgba(207,216,227,.18), transparent 60%),
+    radial-gradient(40% 60% at 70% 55%, rgba(159,176,195,.16), transparent 60%);
+  filter:blur(5px);
+  animation:swirl 14s linear infinite;
+  opacity:.8;
+}
+@keyframes swirl{
+  0%{transform:translateX(-4%) scale(1.02) rotate(0deg)}
+  50%{transform:translateX(4%) scale(1.05) rotate(2deg)}
+  100%{transform:translateX(-4%) scale(1.02) rotate(0deg)}
+}
+.basin .label{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  gap:10px;color:var(--mist);font-size:13px;letter-spacing:.6px;text-shadow:0 1px 10px rgba(0,0,0,.8)
+}
+
+/* ---------- capture (pour a thought) ---------- */
+.pour{display:flex;justify-content:center;padding:14px 16px 6px}
+.pour .field{
+  display:flex;align-items:center;gap:10px;width:min(760px,94vw);
+  background:linear-gradient(180deg, rgba(36,29,20,.9), rgba(27,23,17,.9));
+  border:1px solid var(--border-warm);border-radius:999px;
+  padding:9px 10px 9px 16px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04), 0 6px 22px rgba(0,0,0,.4);
+}
+.pour input{
+  flex:1;background:transparent;border:none;outline:none;color:var(--text);
+  font-size:15px;padding:6px 2px
+}
+.pour input::placeholder{color:var(--text-muted)}
+.pour .pourbtn{
+  border:1px solid rgba(143,208,255,.4);
+  background:radial-gradient(120% 120% at 50% 0%, rgba(143,208,255,.28), rgba(143,208,255,.08));
+  color:var(--silver-bright);border-radius:999px;padding:8px 16px;font-size:13.5px;font-weight:600;
+  display:flex;align-items:center;gap:7px;transition:transform .12s, box-shadow .2s;
+}
+.pour .pourbtn:hover{transform:translateY(-1px);box-shadow:0 0 22px rgba(143,208,255,.35)}
+
+/* ---------- layout ---------- */
+.stage{
+  display:grid;grid-template-columns:230px 1fr;gap:clamp(14px,2vw,26px);
+  padding:16px clamp(14px,3vw,30px) 60px;max-width:1360px;margin:0 auto;
+}
+@media (max-width:820px){ .stage{grid-template-columns:1fr} }
+
+/* ---------- shelf of baskets (saved lenses) ---------- */
+.shelf h2, .bench h2{
+  font-size:12px;text-transform:uppercase;letter-spacing:1.4px;color:var(--text-muted);
+  margin:4px 2px 12px;font-weight:650;
+}
+.shelf{position:sticky;top:78px;align-self:start}
+@media (max-width:820px){ .shelf{position:static} }
+
+.basket{
+  display:flex;flex-direction:column;gap:3px;text-align:left;width:100%;
+  background:linear-gradient(180deg, rgba(27,23,17,.7), rgba(20,17,12,.7));
+  border:1px solid var(--border-warm);border-left:3px solid var(--border-warm);
+  border-radius:var(--r-sm);padding:11px 13px;margin-bottom:9px;
+  transition:transform .14s, border-color .2s, background .2s, box-shadow .2s;
+}
+.basket:hover{transform:translateX(3px);border-color:#5a4a30;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.basket.active{
+  border-color:var(--accent);border-left-color:var(--accent);
+  background:linear-gradient(180deg, rgba(143,208,255,.10), rgba(20,17,12,.7));
+  box-shadow:0 0 0 1px rgba(143,208,255,.25), 0 8px 24px rgba(143,208,255,.08);
+}
+.basket .bk-top{display:flex;align-items:center;gap:8px}
+.basket .bk-ico{width:16px;height:16px;flex:0 0 auto;opacity:.95}
+.basket .bk-name{font-size:14px;font-weight:600}
+.basket .bk-meta{font-size:11.5px;color:var(--text-muted);display:flex;gap:7px;align-items:center;margin-left:24px}
+.basket .pill{background:var(--ink-2);border:1px solid var(--border);border-radius:999px;padding:0 6px;font-size:10.5px}
+.basket .kind{font-size:10px;letter-spacing:.8px;text-transform:uppercase;opacity:.7}
+
+.conjure{
+  margin-top:6px;display:flex;gap:7px;
+}
+.conjure input{
+  flex:1;min-width:0;background:var(--ink);border:1px dashed var(--border-warm);border-radius:var(--r-sm);
+  color:var(--text);padding:9px 11px;font-size:13px;outline:none;
+}
+.conjure input::placeholder{color:var(--text-muted)}
+.conjure input:focus{border-color:var(--accent);border-style:solid}
+.conjure button{
+  background:rgba(143,208,255,.14);border:1px solid rgba(143,208,255,.35);color:var(--silver-bright);
+  border-radius:var(--r-sm);padding:0 12px;font-size:17px;line-height:1;transition:transform .1s;
+}
+.conjure button:active{transform:scale(.92)}
+.conjure-help{font-size:11px;color:var(--text-muted);margin:8px 4px 0;line-height:1.5}
+
+.ritualbtn{
+  width:100%;margin-top:16px;
+  background:linear-gradient(180deg, rgba(231,178,106,.22), rgba(231,178,106,.06));
+  border:1px solid rgba(231,178,106,.45);color:var(--gold);
+  border-radius:var(--r-sm);padding:12px;font-size:13.5px;font-weight:650;letter-spacing:.3px;
+  display:flex;align-items:center;justify-content:center;gap:8px;transition:transform .12s, box-shadow .2s;
+}
+.ritualbtn:hover{transform:translateY(-1px);box-shadow:0 0 24px rgba(231,178,106,.3)}
+
+/* ---------- bench (flasks) ---------- */
+.bench-head{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.lens-note{
+  font-size:12.5px;color:var(--mist);background:rgba(143,208,255,.07);
+  border:1px solid rgba(143,208,255,.2);border-radius:999px;padding:5px 12px;
+  display:inline-flex;align-items:center;gap:8px;
+}
+.lens-note b{color:var(--silver-bright);font-weight:600}
+.lens-note .why{color:var(--text-muted)}
+
+.bench{min-height:300px}
+.rack{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));
+  gap:16px;align-items:end;
+  padding:18px 6px 26px;
+  position:relative;
+}
+/* the wooden bench surface */
+.rack::after{
+  content:"";position:absolute;left:0;right:0;bottom:8px;height:16px;
+  background:linear-gradient(180deg,#2a2115,#160f08);
+  border-top:1px solid #3a2f20;border-radius:3px;
+  box-shadow:0 10px 30px rgba(0,0,0,.5);z-index:0;
+}
+
+/* ---------- a flask ---------- */
+.flask{
+  position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;
+  text-align:center;background:transparent;border:none;padding:6px 6px 14px;
+  border-radius:var(--r);transition:transform .16s;
+  animation:floatIn .5s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes floatIn{from{opacity:0;transform:translateY(14px) scale(.96)}to{opacity:1;transform:none}}
+.flask:hover{transform:translateY(-6px)}
+.flask:hover .glass{filter:drop-shadow(0 0 14px rgba(143,208,255,.45))}
+.flask .glassbox{position:relative}
+.flask .glass{transition:filter .25s, transform .25s}
+.flask:hover .cork{transform:translateY(-3px)}
+.cork{transition:transform .2s}
+
+/* importance → size + brightness handled inline via style/vars */
+.flask .cap{
+  margin-top:8px;font-size:12.5px;line-height:1.35;color:var(--text);
+  max-width:160px;
+}
+.flask .tagrow{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px;justify-content:center}
+.tag{
+  font-size:10px;color:var(--mist);background:rgba(159,176,195,.08);
+  border:1px solid rgba(159,176,195,.18);border-radius:999px;padding:1px 7px;
+}
+.tag.hot{color:var(--accent);border-color:rgba(143,208,255,.4);background:rgba(143,208,255,.1)}
+.flask .pin{
+  position:absolute;top:-4px;right:8px;font-size:13px;
+  filter:drop-shadow(0 0 6px rgba(240,201,135,.7));
+}
+.flask .cat{
+  font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted);
+  margin-top:6px;opacity:.75;
+}
+/* dust on the untouched */
+.flask.dusty .glass{filter:grayscale(.55) brightness(.7) saturate(.5)}
+.flask.dusty::before{
+  content:"";position:absolute;inset:0;z-index:2;pointer-events:none;border-radius:var(--r);
+  background:
+    radial-gradient(1px 1px at 20% 30%, rgba(200,190,170,.5), transparent),
+    radial-gradient(1px 1px at 60% 20%, rgba(200,190,170,.4), transparent),
+    radial-gradient(1px 1px at 40% 50%, rgba(200,190,170,.45), transparent),
+    radial-gradient(1px 1px at 75% 60%, rgba(200,190,170,.4), transparent),
+    radial-gradient(1px 1px at 30% 70%, rgba(200,190,170,.35), transparent),
+    radial-gradient(1px 1px at 85% 40%, rgba(200,190,170,.4), transparent);
+  opacity:.8;
+}
+.flask .dustlabel{
+  font-size:9.5px;color:#b9a989;margin-top:3px;opacity:.85;letter-spacing:.3px
+}
+
+.empty{
+  grid-column:1/-1;text-align:center;color:var(--text-muted);padding:50px 20px;font-size:14px
+}
+
+/* ---------- toast ---------- */
+.toast{
+  position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);
+  background:linear-gradient(180deg, rgba(27,23,17,.96), rgba(20,17,12,.96));
+  border:1px solid rgba(143,208,255,.35);color:var(--text);
+  padding:11px 18px;border-radius:999px;font-size:13.5px;
+  box-shadow:0 10px 40px rgba(0,0,0,.5), 0 0 24px rgba(143,208,255,.15);
+  opacity:0;pointer-events:none;transition:opacity .3s, transform .3s;z-index:90;
+  display:flex;align-items:center;gap:9px;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ---------- review ritual overlay ---------- */
+.ritual{
+  position:fixed;inset:0;z-index:100;display:none;
+  background:
+    radial-gradient(900px 500px at 50% 0%, rgba(143,208,255,.10), transparent 60%),
+    rgba(7,9,13,.92);
+  backdrop-filter:blur(6px);
+  padding:clamp(16px,4vw,48px);
+  overflow-y:auto;
+}
+.ritual.open{display:flex;flex-direction:column;align-items:center}
+.ritual .r-head{
+  display:flex;align-items:center;gap:12px;color:var(--gold);
+  font-size:13px;letter-spacing:1.4px;text-transform:uppercase;margin-bottom:6px;
+}
+.ritual .r-sub{color:var(--text-muted);font-size:13px;margin-bottom:22px}
+.ritual .r-basin{
+  width:min(560px,92vw);height:120px;border-radius:50%/68%;
+  background:radial-gradient(60% 120% at 50% 0%, rgba(207,216,227,.18), transparent 62%), #0a0c11;
+  border:1px solid #20242e;box-shadow:inset 0 10px 40px rgba(0,0,0,.7);
+  overflow:hidden;position:relative;margin-bottom:-28px;
+}
+.ritual .r-basin .mist{position:absolute;inset:0;background:radial-gradient(40% 60% at 50% 45%, rgba(207,216,227,.22), transparent 60%);filter:blur(5px);animation:swirl 10s linear infinite}
+
+.r-card{
+  width:min(560px,92vw);background:linear-gradient(180deg, rgba(24,27,34,.96), rgba(16,18,24,.96));
+  border:1px solid var(--border);border-radius:18px;padding:28px 26px 22px;
+  box-shadow:0 30px 80px rgba(0,0,0,.6);text-align:center;position:relative;
+  animation:risein .45s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes risein{from{opacity:0;transform:translateY(24px) scale(.97)}to{opacity:1;transform:none}}
+.r-card .r-cat{font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--text-muted)}
+.r-card .r-day{font-size:12px;color:var(--amber);margin-top:4px}
+.r-card .r-text{font-size:19px;line-height:1.45;margin:14px 0 10px;color:var(--text)}
+.r-card .r-tags{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:6px}
+.r-card.resurface{border-color:rgba(240,201,135,.5);box-shadow:0 0 0 1px rgba(240,201,135,.3),0 30px 80px rgba(0,0,0,.6)}
+.resurface-flag{
+  display:inline-flex;align-items:center;gap:8px;color:var(--gold);font-size:12px;
+  letter-spacing:.6px;margin-bottom:8px;animation:pulseg 2.2s ease-in-out infinite;
+}
+@keyframes pulseg{0%,100%{opacity:.7}50%{opacity:1}}
+
+.r-progress{display:flex;gap:6px;justify-content:center;margin:18px 0 20px}
+.r-dot{width:7px;height:7px;border-radius:50%;background:var(--border);transition:background .2s, transform .2s}
+.r-dot.done{background:var(--mist)}
+.r-dot.cur{background:var(--accent);transform:scale(1.5);box-shadow:0 0 10px var(--accent)}
+.r-dot.resurf{background:var(--gold)}
+
+.r-controls{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.r-btn{
+  border:1px solid var(--border);background:var(--ink-2);border-radius:10px;
+  padding:10px 18px;font-size:13.5px;font-weight:600;transition:transform .1s, border-color .2s;
+}
+.r-btn:hover{transform:translateY(-1px);border-color:#4a505e}
+.r-btn.primary{border-color:rgba(143,208,255,.45);background:rgba(143,208,255,.14);color:var(--silver-bright)}
+.r-btn.ghost{background:transparent;color:var(--text-muted)}
+.r-btn.keep{border-color:rgba(240,201,135,.4);color:var(--gold)}
+.r-close{position:absolute;top:14px;right:16px;background:none;border:none;color:var(--text-muted);font-size:20px}
+
+/* seal screen */
+.r-seal{text-align:center;width:min(560px,92vw)}
+.r-seal .big{font-size:21px;margin:18px 0 8px}
+.r-seal .muted{color:var(--text-muted);font-size:14px;line-height:1.6;margin-bottom:22px}
+.seal-flask{animation:sealpop .8s cubic-bezier(.2,.9,.2,1)}
+@keyframes sealpop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+.rollup{
+  display:inline-flex;align-items:center;gap:10px;background:rgba(231,178,106,.1);
+  border:1px solid rgba(231,178,106,.35);border-radius:999px;padding:9px 16px;color:var(--gold);
+  font-size:13px;margin-bottom:22px;
+}
+</style>
+</head>
+<body>
+
+<!-- ===================== TOP BAR ===================== -->
+<div class="topbar">
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <ellipse cx="12" cy="13" rx="9" ry="6" stroke="#8fd0ff" stroke-width="1.4"/>
+      <path d="M5 12c2 2.2 12 2.2 14 0" stroke="#cfd8e3" stroke-width="1.2" opacity=".8"/>
+      <circle cx="9" cy="12" r="1" fill="#eef3f9"/><circle cx="14" cy="13" r="1" fill="#eef3f9"/>
+    </svg>
+    <div>Pensieve <small>· the memory desk</small></div>
+  </div>
+  <div class="spacer"></div>
+  <div class="hint">Everything is a basket — a saved lens. <kbd>⌘K</kbd> conjure</div>
+</div>
+
+<!-- ===================== THE BASIN ===================== -->
+<div class="basin-wrap">
+  <div class="basin">
+    <div class="mist"></div>
+    <div class="label">✦ the basin stirs — pour a thought, or draw one out ✦</div>
+  </div>
+</div>
+
+<!-- ===================== CAPTURE ===================== -->
+<div class="pour">
+  <div class="field">
+    <input id="capture" type="text" placeholder="Pour a thought into a flask…  (try: &quot;Follow up fast — momentum is everything #sales-mindset&quot;)" />
+    <button class="pourbtn" id="pourBtn">⚗︎ Pour</button>
+  </div>
+</div>
+
+<!-- ===================== STAGE ===================== -->
+<div class="stage">
+
+  <!-- SHELF: baskets = saved lenses -->
+  <aside class="shelf">
+    <h2>Baskets · saved lenses</h2>
+    <div id="basketList"></div>
+
+    <div class="conjure">
+      <input id="conjureInput" type="text" placeholder="Conjure a basket…" />
+      <button id="conjureBtn" title="Summon basket">+</button>
+    </div>
+    <div class="conjure-help">
+      <b>@topic</b> or <b>#tag</b> → topical shelf · <b>“this week” / “pinned”</b> → time / working set.<br>
+      One gesture. Every basket is just a lens over the flasks.
+    </div>
+
+    <button class="ritualbtn" id="startRitual">🔮 Begin weekly review</button>
+  </aside>
+
+  <!-- BENCH: the flasks -->
+  <section class="bench">
+    <div class="bench-head">
+      <h2 id="benchTitle">The bench · all flasks</h2>
+      <span class="lens-note" id="lensNote"></span>
+    </div>
+    <div class="rack" id="rack"></div>
+  </section>
+</div>
+
+<!-- ===================== TOAST ===================== -->
+<div class="toast" id="toast"></div>
+
+<!-- ===================== REVIEW RITUAL ===================== -->
+<div class="ritual" id="ritual">
+  <button class="r-close" id="ritualClose" title="Close">✕</button>
+  <div class="r-head">🔮 Weekly review · the basin replays your week</div>
+  <div class="r-sub" id="ritualSub"></div>
+  <div class="r-basin"><div class="mist"></div></div>
+  <div id="ritualBody"></div>
+</div>
+
+<script>
+/* =======================================================================
+   DATA — flasks, each with tags, category, importance signals.
+   Importance (0..1) drives SIZE + BRIGHTNESS. "why" explains the score.
+   `day` 0..6 = this week (Mon..Sun). `week` false = older memory.
+   ======================================================================= */
+const TODAY_WEEK = true;
+const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+const flasks = [
+  {id:1, cat:"Work", text:"Closed the Henderson deal by listening more than pitching.",
+   tags:["sales-mindset","wins"], pinned:true, highlighted:true, links:2, revisits:6, week:true, day:1, touched:true,
+   imp:.98, why:"pinned · highlighted · 6 revisits · 2 links"},
+  {id:2, cat:"Ideas", text:"People buy the confidence, not the product.",
+   tags:["sales-mindset"], pinned:false, highlighted:true, links:3, revisits:4, week:true, day:2, touched:true,
+   imp:.86, why:"highlighted · 4 revisits · 3 links"},
+  {id:3, cat:"Work", text:"Discovery calls: ask “what happens if nothing changes?”",
+   tags:["sales-mindset","habits"], pinned:false, highlighted:false, links:1, revisits:2, week:true, day:3, touched:false,
+   imp:.52, why:"2 revisits · 1 link"},
+  {id:4, cat:"Journal", text:"Fear of rejection is just unpracticed asking.",
+   tags:["sales-mindset","mindset"], pinned:false, highlighted:true, links:0, revisits:3, week:true, day:0, touched:true,
+   imp:.6, why:"highlighted · 3 revisits"},
+  {id:5, cat:"Journal", text:"Morning pages cleared my head before the pitch.",
+   tags:["routine"], pinned:false, highlighted:false, links:0, revisits:1, week:true, day:4, touched:false,
+   imp:.34, why:"1 revisit"},
+  {id:6, cat:"Ideas", text:"Voice-note triage on the commute — capture, sort later.",
+   tags:["product","pensieve"], pinned:true, highlighted:false, links:2, revisits:3, week:true, day:2, touched:true,
+   imp:.78, why:"pinned · 3 revisits · 2 links"},
+  {id:7, cat:"Health", text:"Sleep 7h+ and my calls go twice as well.",
+   tags:["energy","sales-mindset"], pinned:false, highlighted:false, links:1, revisits:2, week:true, day:5, touched:false,
+   imp:.47, why:"2 revisits · 1 link"},
+  {id:8, cat:"Relationships", text:"Mum's advice: slow down to go fast.",
+   tags:["family"], pinned:false, highlighted:true, links:0, revisits:2, week:false, day:null, touched:false,
+   imp:.5, why:"highlighted · 2 revisits · older"},
+  {id:9, cat:"Learning", text:"SPIN Selling — implication questions do the heavy lifting.",
+   tags:["sales-mindset","books"], pinned:false, highlighted:false, links:1, revisits:1, week:false, day:null, touched:false,
+   imp:.44, why:"1 revisit · 1 link"},
+  {id:10, cat:"Work", text:"Draft: Q4 pipeline plan — three bets, one focus.",
+   tags:["planning"], pinned:true, highlighted:false, links:1, revisits:4, week:true, day:0, touched:true,
+   imp:.8, why:"pinned · 4 revisits · 1 link"},
+  {id:11, cat:"Journal", text:"Gratitude: the team covered for me when I was sick.",
+   tags:["gratitude"], pinned:false, highlighted:false, links:0, revisits:1, week:true, day:6, touched:false,
+   imp:.32, why:"1 revisit"},
+  {id:12, cat:"Health", text:"Running helps me think through objections before they land.",
+   tags:["running","sales-mindset"], pinned:false, highlighted:false, links:0, revisits:1, week:true, day:3, touched:false,
+   imp:.36, why:"1 revisit"},
+  {id:13, cat:"Ideas", text:"Cold outreach works better as curiosity, not sales.",
+   tags:["sales-mindset"], pinned:false, highlighted:true, links:1, revisits:2, week:false, day:null, touched:false,
+   imp:.55, why:"highlighted · 2 revisits · 1 link"},
+  {id:14, cat:"Journal", text:"Weekend hike cleared a week of noise from my head.",
+   tags:["nature"], pinned:false, highlighted:false, links:0, revisits:0, week:true, day:6, touched:false,
+   imp:.26, why:"fresh · untouched"},
+  {id:15, cat:"Work", text:"Follow up within 24h — momentum is everything.",
+   tags:["sales-mindset","habits"], pinned:false, highlighted:true, links:2, revisits:5, week:true, day:1, touched:true,
+   imp:.84, why:"highlighted · 5 revisits · 2 links"},
+  {id:16, cat:"Learning", text:"Rust ownership finally clicked — borrow, don't copy.",
+   tags:["code"], pinned:false, highlighted:false, links:0, revisits:1, week:true, day:4, touched:false,
+   imp:.3, why:"1 revisit"},
+  {id:17, cat:"Ideas", text:"The Pensieve coach should whisper, never nag.",
+   tags:["product","pensieve"], pinned:false, highlighted:true, links:1, revisits:2, week:false, day:null, touched:false,
+   imp:.5, why:"highlighted · 2 revisits · older"}
+];
+
+/* =======================================================================
+   BASKETS = saved lenses. Each is just {kind, test(flask)}.
+   Working set, topical and temporal are the SAME object, different test.
+   ======================================================================= */
+const baskets = [
+  { id:"all", name:"The bench", kind:"all", ico:"bench",
+    desc:"every flask on the desk", test:()=>true,
+    why:"no lens — the whole desk" },
+  { id:"working", name:"On the bench now", kind:"working set", ico:"pin",
+    desc:"your pinned working set", test:f=>f.pinned,
+    why:"lens = flasks you pinned" },
+  { id:"sales", name:"@Sales Mindset", kind:"topical", ico:"tag",
+    desc:"everything tagged sales-mindset", test:f=>f.tags.includes("sales-mindset"),
+    why:"lens = tag is #sales-mindset" },
+  { id:"week", name:"This Week", kind:"temporal", ico:"clock",
+    desc:"thoughts poured this week", test:f=>f.week===true,
+    why:"lens = poured in the last 7 days" }
+];
+
+let activeBasket = "all";
+
+/* ---------- inline SVG: a glass flask filled with silver memory ---------- */
+function flaskSVG(imp){
+  // size 54..92, brightness/opacity scale with importance
+  const h = Math.round(58 + imp*42);
+  const w = Math.round(h*0.62);
+  const glow = (0.25 + imp*0.75).toFixed(2);
+  const fill = (0.35 + imp*0.6).toFixed(2);
+  const level = 0.30 + imp*0.5; // how full
+  const bodyTop = 46, bodyBot = 112;
+  const liqTop = bodyBot - (bodyBot-bodyTop)*level;
+  return `
+  <svg class="glass" width="${w}" height="${h}" viewBox="0 0 80 128" fill="none" aria-hidden="true">
+    <defs>
+      <linearGradient id="g${imp}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#eef3f9" stop-opacity="${fill}"/>
+        <stop offset="1" stop-color="#8fd0ff" stop-opacity="${(fill*0.8).toFixed(2)}"/>
+      </linearGradient>
+    </defs>
+    <!-- cork -->
+    <rect class="cork" x="31" y="6" width="18" height="12" rx="3" fill="#7a5a34" stroke="#9a7747" stroke-width="1"/>
+    <!-- neck -->
+    <path d="M34 18 L34 40 L18 92 Q10 112 24 120 L56 120 Q70 112 62 92 L46 40 L46 18 Z"
+          fill="rgba(207,216,227,.06)" stroke="rgba(207,216,227,.55)" stroke-width="2"/>
+    <!-- memory liquid -->
+    <clipPath id="c${imp}">
+      <path d="M34 18 L34 40 L18 92 Q10 112 24 120 L56 120 Q70 112 62 92 L46 40 L46 18 Z"/>
+    </clipPath>
+    <g clip-path="url(#c${imp})">
+      <rect x="0" y="${liqTop}" width="80" height="${128-liqTop}" fill="url(#g${imp})"/>
+      <ellipse cx="40" cy="${liqTop}" rx="30" ry="5" fill="#eef3f9" opacity="${glow}"/>
+      <circle cx="30" cy="104" r="2.2" fill="#eef3f9" opacity="${(glow*0.7).toFixed(2)}"/>
+      <circle cx="48" cy="112" r="1.6" fill="#eef3f9" opacity="${(glow*0.6).toFixed(2)}"/>
+    </g>
+    <!-- shine -->
+    <path d="M30 44 L22 90" stroke="#ffffff" stroke-opacity=".25" stroke-width="2" stroke-linecap="round"/>
+  </svg>`;
+}
+
+function basketIco(kind){
+  const m = {
+    bench:'<path d="M3 13h18M5 13l1 6h12l1-6M5 13V9a3 3 0 013-3h8a3 3 0 013 3v4" stroke="#cfd8e3" stroke-width="1.4" fill="none"/>',
+    pin:'<path d="M12 3l2 6 5 1-4 4 1 6-4-3-4 3 1-6-4-4 5-1z" stroke="#f0c987" stroke-width="1.3" fill="rgba(240,201,135,.15)"/>',
+    tag:'<path d="M4 4h7l9 9-7 7-9-9V4z" stroke="#8fd0ff" stroke-width="1.4" fill="none"/><circle cx="8" cy="8" r="1.4" fill="#8fd0ff"/>',
+    clock:'<circle cx="12" cy="12" r="8" stroke="#cfd8e3" stroke-width="1.4" fill="none"/><path d="M12 8v4l3 2" stroke="#cfd8e3" stroke-width="1.4"/>'
+  };
+  return `<svg class="bk-ico" viewBox="0 0 24 24" fill="none" aria-hidden="true">${m[kind]||m.bench}</svg>`;
+}
+
+/* ---------- render baskets ---------- */
+function renderBaskets(){
+  const el = document.getElementById("basketList");
+  el.innerHTML = baskets.map(b=>{
+    const count = flasks.filter(b.test).length;
+    const active = b.id===activeBasket ? "active":"";
+    return `<button class="basket ${active}" data-id="${b.id}">
+      <div class="bk-top">${basketIco(b.ico)}<span class="bk-name">${b.name}</span></div>
+      <div class="bk-meta"><span class="kind">${b.kind}</span><span class="pill">${count} flasks</span></div>
+    </button>`;
+  }).join("");
+  el.querySelectorAll(".basket").forEach(btn=>{
+    btn.onclick = ()=>{ activeBasket = btn.dataset.id; renderBaskets(); renderRack(); };
+  });
+}
+
+/* ---------- render the bench ---------- */
+function renderRack(){
+  const b = baskets.find(x=>x.id===activeBasket);
+  const list = flasks.filter(b.test).sort((a,c)=>c.imp-a.imp);
+  document.getElementById("benchTitle").textContent =
+    b.id==="all" ? "The bench · all flasks" : "Basket · " + b.name;
+
+  const note = document.getElementById("lensNote");
+  note.innerHTML = `✦ <b>${list.length} flasks</b> <span class="why">· ${b.why}</span>`;
+
+  const rack = document.getElementById("rack");
+  if(!list.length){ rack.innerHTML = `<div class="empty">No flasks match this lens yet.</div>`; return; }
+
+  rack.innerHTML = list.map((f,i)=>{
+    const dusty = (!f.touched && (activeBasket!=="all")) ? "dusty":"";
+    const tags = f.tags.map(t=>`<span class="tag ${t==='sales-mindset'?'hot':''}">#${t}</span>`).join("");
+    return `<button class="flask ${dusty}" data-id="${f.id}" style="animation-delay:${i*40}ms">
+      <div class="glassbox">
+        ${f.pinned?'<span class="pin" title="pinned — working set">📌</span>':''}
+        ${flaskSVG(f.imp)}
+      </div>
+      <div class="cap">${f.text}</div>
+      ${dusty?'<div class="dustlabel">· gathering dust ·</div>':''}
+      <div class="tagrow">${tags}</div>
+      <div class="cat">${f.cat} · ${Math.round(f.imp*100)}% ${importanceWord(f.imp)}</div>
+    </button>`;
+  }).join("");
+
+  rack.querySelectorAll(".flask").forEach(el=>{
+    el.onclick = ()=>{
+      const f = flasks.find(x=>x.id==el.dataset.id);
+      toast(`✦ ${f.text.slice(0,42)}…  — ${f.why}`);
+    };
+  });
+}
+function importanceWord(i){ return i>.8?"bright":i>.55?"warm":i>.35?"dim":"faint"; }
+
+/* ---------- conjure a basket (same gesture → any kind) ---------- */
+function conjure(raw){
+  const q = raw.trim();
+  if(!q) return;
+  const low = q.toLowerCase();
+  let b;
+  if(low.includes("week")){
+    b = {id:"c-week", name:"This Week", kind:"temporal", ico:"clock",
+         desc:"this week", test:f=>f.week===true, why:"lens = poured in the last 7 days"};
+  } else if(low.includes("pin")||low.includes("working")){
+    b = {id:"c-work", name:"On the bench now", kind:"working set", ico:"pin",
+         desc:"pinned", test:f=>f.pinned, why:"lens = flasks you pinned"};
+  } else {
+    const tag = low.replace(/^[@#]/,"").replace(/\s+/g,"-");
+    const name = q.replace(/^[@#]/,"");
+    b = {id:"c-"+tag, name:"@"+name, kind:"topical", ico:"tag",
+         test:f=>f.tags.some(t=>t.includes(tag))|| f.text.toLowerCase().includes(low.replace(/^[@#]/,"")),
+         why:`lens = matches “${name}”`};
+  }
+  // replace if same id already conjured
+  const idx = baskets.findIndex(x=>x.id===b.id);
+  if(idx>=0) baskets.splice(idx,1,b); else baskets.push(b);
+  activeBasket = b.id;
+  renderBaskets(); renderRack();
+  const n = flasks.filter(b.test).length;
+  toast(`🧺 Basket conjured: ${b.name} — ${n} flasks floated in`);
+}
+
+/* ---------- pour a new thought ---------- */
+let nid = 100;
+function pour(raw){
+  const text = raw.trim();
+  if(!text) return;
+  const tags = (text.match(/#[\w-]+/g)||[]).map(t=>t.slice(1));
+  const clean = text.replace(/#[\w-]+/g,"").trim();
+  flasks.unshift({id:nid++, cat:"Journal", text:clean||text,
+    tags: tags.length?tags:["unsorted"], pinned:false, highlighted:false,
+    links:0, revisits:0, week:true, day:0, touched:true, imp:.28, why:"just poured · fresh"});
+  renderBaskets(); renderRack();
+  toast("⚗︎ A fresh flask shimmers onto the bench");
+}
+
+/* ---------- toast ---------- */
+let toastT;
+function toast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove("show"), 2600);
+}
+
+/* =======================================================================
+   THE WEEKLY REVIEW RITUAL — step through the This Week TIME-basket.
+   Untouched flasks wear dust. Midway, a forgotten memory RESURFACES.
+   At the end, the review SEALS into a flask that rolls up into the Month.
+   ======================================================================= */
+let rStep = 0, rSteps = [];
+function buildRitualSteps(){
+  const week = flasks.filter(f=>f.week).sort((a,b)=>a.day-b.day)
+                     .map(f=>({type:"flask", f}));
+  // insert a serendipitous resurfaced OLD memory after the 4th step
+  const old = flasks.filter(f=>!f.week);
+  const surprise = old[Math.floor(Math.random()*old.length)];
+  const resurf = {type:"resurface", f:surprise};
+  const at = Math.min(4, week.length);
+  rSteps = [...week.slice(0,at), resurf, ...week.slice(at)];
+}
+
+function openRitual(){
+  buildRitualSteps(); rStep = 0;
+  document.getElementById("ritual").classList.add("open");
+  document.getElementById("ritualSub").textContent =
+    "Step through the week · " + flasks.filter(f=>f.week).length + " thoughts gathered";
+  renderRitual();
+}
+function closeRitual(){ document.getElementById("ritual").classList.remove("open"); }
+
+function renderRitual(){
+  const body = document.getElementById("ritualBody");
+  // seal screen
+  if(rStep>=rSteps.length){ renderSeal(); return; }
+
+  const s = rSteps[rStep];
+  const f = s.f;
+  const dots = rSteps.map((st,i)=>{
+    let cls = i<rStep?"done":i===rStep?"cur":"";
+    if(st.type==="resurface") cls += " resurf";
+    return `<span class="r-dot ${cls}"></span>`;
+  }).join("");
+
+  const dusty = !f.touched;
+  const tags = f.tags.map(t=>`<span class="tag ${t==='sales-mindset'?'hot':''}">#${t}</span>`).join("");
+
+  if(s.type==="resurface"){
+    body.innerHTML = `
+      <div class="r-card resurface">
+        <div class="resurface-flag">✦ a memory resurfaces ✦</div>
+        <div class="r-cat">${f.cat} · older thought · ${f.why}</div>
+        <div class="r-text">${f.text}</div>
+        <div class="r-tags">${tags}</div>
+        <div style="color:var(--text-muted);font-size:12.5px;margin-top:6px">
+          The basin drifted and surfaced this — related to your week. Still true?
+        </div>
+        <div class="r-progress">${dots}</div>
+        <div class="r-controls">
+          <button class="r-btn keep" id="rKeep">📌 Pin it back on the bench</button>
+          <button class="r-btn primary" id="rNext">Let it settle →</button>
+        </div>
+      </div>`;
+    document.getElementById("rKeep").onclick = ()=>{ f.pinned=true; f.week=true; toast("📌 Resurfaced memory pinned to the working set"); next(); };
+  } else {
+    body.innerHTML = `
+      <div class="r-card">
+        <div class="r-cat">${f.cat} ${dusty?'· untouched this week':''}</div>
+        <div class="r-day">${DAYS[f.day]||"this week"}</div>
+        <div class="r-text">${dusty?'🕸 ':''}${f.text}</div>
+        <div class="r-tags">${tags}</div>
+        <div style="color:var(--text-muted);font-size:12px;margin-top:8px">
+          ${dusty?'Gathered a little dust — revisit, pin, or let it fade.':'You came back to this '+f.revisits+' times.'}
+        </div>
+        <div class="r-progress">${dots}</div>
+        <div class="r-controls">
+          <button class="r-btn keep" id="rPin">${f.pinned?'📌 pinned':'📌 Pin'}</button>
+          <button class="r-btn primary" id="rNext">Next thought →</button>
+        </div>
+      </div>`;
+    document.getElementById("rPin").onclick = ()=>{ f.pinned=true; toast("📌 Kept on the working-set bench"); document.getElementById("rPin").textContent="📌 pinned"; };
+  }
+  document.getElementById("rNext").onclick = next;
+}
+function next(){ rStep++; renderRitual(); }
+
+function renderSeal(){
+  const body = document.getElementById("ritualBody");
+  const week = flasks.filter(f=>f.week && f.day!=null);
+  const pins = flasks.filter(f=>f.pinned).length;
+  body.innerHTML = `
+    <div class="r-seal">
+      <div class="seal-flask">${bigSealFlask()}</div>
+      <div class="big">Your week, sealed into a flask ✦</div>
+      <div class="muted">
+        ${week.length} thoughts reviewed · ${pins} kept on the bench · one memory resurfaced.<br>
+        This review is now its own flask — a silver summary of the week.
+      </div>
+      <div class="rollup">⤴ rolls up into <b>&nbsp;October · Monthly basket</b></div>
+      <div class="r-controls">
+        <button class="r-btn primary" id="rDone">Return to the desk</button>
+      </div>
+      <div style="color:var(--text-muted);font-size:12px;margin-top:16px;max-width:460px;margin-left:auto;margin-right:auto;line-height:1.6">
+        Next month you'll step through these weekly flasks the same way — a review of reviews.
+        Same ritual, one level up. The monthly flask rolls into the year.
+      </div>
+    </div>`;
+  document.getElementById("rDone").onclick = ()=>{
+    // seal: create a review flask + ensure a Monthly basket exists
+    flasks.unshift({id:nid++, cat:"Review", text:"Weekly review — "+DAYS[0]+"–"+DAYS[6]+": listened more, followed up fast, a memory resurfaced.",
+      tags:["weekly-review","october"], pinned:true, highlighted:true, links:3, revisits:0, week:true, day:6, touched:true,
+      imp:.9, why:"sealed weekly review · rolls up to month"});
+    if(!baskets.find(b=>b.id==="month")){
+      baskets.push({id:"month", name:"October · Monthly", kind:"temporal", ico:"clock",
+        test:f=>f.tags.includes("october")||f.tags.includes("weekly-review"),
+        why:"lens = this month's weekly-review flasks"});
+    }
+    closeRitual();
+    activeBasket="month"; renderBaskets(); renderRack();
+    toast("✦ Week sealed — a review flask rolled up into October");
+  };
+}
+function bigSealFlask(){
+  return `<svg width="86" height="118" viewBox="0 0 80 128" fill="none" style="filter:drop-shadow(0 0 24px rgba(240,201,135,.6))">
+    <defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f0c987" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#8fd0ff" stop-opacity=".75"/></linearGradient></defs>
+    <rect x="31" y="6" width="18" height="12" rx="3" fill="#7a5a34" stroke="#9a7747"/>
+    <path d="M34 18 L34 40 L18 92 Q10 112 24 120 L56 120 Q70 112 62 92 L46 40 L46 18 Z"
+          fill="rgba(240,201,135,.1)" stroke="rgba(240,201,135,.7)" stroke-width="2"/>
+    <clipPath id="sc"><path d="M34 18 L34 40 L18 92 Q10 112 24 120 L56 120 Q70 112 62 92 L46 40 L46 18 Z"/></clipPath>
+    <g clip-path="url(#sc)"><rect x="0" y="40" width="80" height="88" fill="url(#sg)"/>
+      <ellipse cx="40" cy="42" rx="30" ry="5" fill="#fff" opacity=".6"/></g>
+    <path d="M30 46 L22 90" stroke="#fff" stroke-opacity=".3" stroke-width="2" stroke-linecap="round"/>
+  </svg>`;
+}
+
+/* ---------- wire up ---------- */
+document.getElementById("pourBtn").onclick = ()=>{ const i=document.getElementById("capture"); pour(i.value); i.value=""; };
+document.getElementById("capture").addEventListener("keydown", e=>{ if(e.key==="Enter"){ pour(e.target.value); e.target.value=""; } });
+document.getElementById("conjureBtn").onclick = ()=>{ const i=document.getElementById("conjureInput"); conjure(i.value); i.value=""; };
+document.getElementById("conjureInput").addEventListener("keydown", e=>{ if(e.key==="Enter"){ conjure(e.target.value); e.target.value=""; } });
+document.getElementById("startRitual").onclick = openRitual;
+document.getElementById("ritualClose").onclick = closeRitual;
+document.addEventListener("keydown", e=>{
+  if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==="k"){ e.preventDefault(); document.getElementById("conjureInput").focus(); }
+  if(e.key==="Escape") closeRitual();
+});
+
+renderBaskets();
+renderRack();
+</script>
+</body>
+</html>
