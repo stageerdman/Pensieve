@@ -206,123 +206,133 @@ body {
   font-size: calc(1.1rem * var(--font-scale));
 }
 
-/* --- Gallery preview portal: "looking into the Pensieve" ambient motion ---
-   GPU-cheap (transform/opacity/filter only); all layers sit behind the reading
-   well, never under the text. Reduced-motion stills them (bottom of this block). */
+/* --- Gallery preview portal: "memory in sharp focus, seen through water" ---
+   The FOCUS effect lives on the backdrop (the rest of the app), never inside the
+   memory: the app blurs + darkens toward its edges while the memory stays crisp.
+   Over the memory play only a faint drifting water-light and a sub-pixel heat-haze
+   sway. Everything animated is transform/opacity (GPU); the one backdrop-filter is
+   static. Reduced-motion stills all of it (bottom of this block). */
 
-/* (a) slow circular sheen travelling around the portal rim */
-@keyframes portal-rotate { to { transform: rotate(1turn); } }
-.portal-ring {
-  position: absolute;
-  inset: -40%;
-  z-index: 0;
+/* (1) FOCUS BACKDROP — the rest of the app recedes: blurred + a radial vignette that
+   is clear at the centre (where the memory sits) and darkens/cools toward the edges. */
+.focus-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
   pointer-events: none;
-  border-radius: 50%;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    hsl(var(--accent-glow) / 0.14) 40deg,
-    transparent 120deg,
-    hsl(210 30% 90% / 0.1) 210deg,
-    transparent 300deg,
-    hsl(var(--accent-glow) / 0.14) 360deg
+  backdrop-filter: blur(8px) saturate(104%);
+  -webkit-backdrop-filter: blur(8px) saturate(104%);
+  background: radial-gradient(
+    130% 115% at 50% 46%,
+    transparent 0%,
+    transparent 34%,
+    hsl(216 34% 22% / 0.1) 72%,
+    hsl(216 40% 16% / 0.22) 100%
   );
-  mix-blend-mode: screen;
-  animation: portal-rotate 22s linear infinite;
-  will-change: transform;
+  animation: focus-backdrop-in 220ms ease-out both;
+}
+.dark .focus-backdrop {
+  backdrop-filter: blur(9px) saturate(104%);
+  -webkit-backdrop-filter: blur(9px) saturate(104%);
+  background: radial-gradient(
+    130% 115% at 50% 46%,
+    transparent 0%,
+    transparent 32%,
+    hsl(222 42% 6% / 0.34) 70%,
+    hsl(222 48% 3% / 0.58) 100%
+  );
+}
+@keyframes focus-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-/* (b) soft breathing glow — the pool is alive */
-@keyframes portal-breathe {
-  0%, 100% { opacity: 0.45; }
-  50% { opacity: 0.9; }
+/* (2) OUTER HALO — a soft breathing glow OUTSET around the pane edge (magic lives
+   outside the memory), plus a single 1px glass rim at the top. Never a wash over text. */
+@keyframes portal-halo-breathe {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.95; }
 }
-.portal-glow {
+.portal-halo {
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
   border-radius: inherit;
   box-shadow:
-    0 0 60px -8px hsl(var(--accent-glow) / 0.22),
-    inset 0 1px 0 hsl(210 40% 100% / 0.08);
-  animation: portal-breathe 7s ease-in-out infinite;
+    0 0 72px -10px hsl(var(--accent-glow) / 0.28),
+    inset 0 1px 0 hsl(210 40% 100% / 0.1);
+  animation: portal-halo-breathe 7s ease-in-out infinite;
   will-change: opacity;
 }
-
-/* (c) faint caustic / ripple drifting across the glass */
-@keyframes portal-caustic {
-  0% { transform: translate3d(-2%, -1%, 0) scale(1); }
-  50% { transform: translate3d(2%, 1%, 0) scale(1.05); }
-  100% { transform: translate3d(-2%, -1%, 0) scale(1); }
+.dark .portal-halo {
+  box-shadow:
+    0 0 80px -8px hsl(var(--accent-glow) / 0.22),
+    inset 0 1px 0 hsl(210 40% 100% / 0.06);
 }
-.portal-caustic {
+
+/* (3) WATER SKIN — the "looking through water" light: two very soft caustics that
+   slowly drift + scale, screen-blended at low opacity so they add moving LIGHT, never
+   haze over the text. Sits above the text but is pointer-events-none. */
+@keyframes portal-water-drift {
+  0% { transform: translate3d(-1.5%, -1%, 0) scale(1.04); }
+  50% { transform: translate3d(1.5%, 1%, 0) scale(1.08); }
+  100% { transform: translate3d(-1.5%, -1%, 0) scale(1.04); }
+}
+.portal-water {
   position: absolute;
-  inset: 0;
-  z-index: 0;
+  inset: -8%;
+  z-index: 20;
   pointer-events: none;
   border-radius: inherit;
   opacity: 0.1;
-  background:
-    radial-gradient(42% 30% at 38% 28%, hsl(210 40% 95% / 0.9), transparent 60%),
-    radial-gradient(34% 24% at 70% 66%, hsl(var(--accent-glow) / 0.7), transparent 62%);
   mix-blend-mode: screen;
-  filter: blur(6px);
-  animation: portal-caustic 16s ease-in-out infinite;
+  background:
+    radial-gradient(38% 26% at 34% 26%, hsl(210 45% 97% / 0.9), transparent 60%),
+    radial-gradient(32% 22% at 72% 70%, hsl(var(--accent-glow) / 0.7), transparent 62%);
+  animation: portal-water-drift 18s ease-in-out infinite;
   will-change: transform;
 }
-.portal-caustic { opacity: 0.13; }
-.dark .portal-caustic { opacity: 0.17; }
+.dark .portal-water { opacity: 0.14; }
 
-/* (d) the "dive" — bluish watery light welling in from every edge, as if sinking
-   into the memory. Edge-weighted so the centre stays clear enough to read. */
-@keyframes portal-dive-sway {
-  0%, 100% { opacity: 0.78; }
-  50% { opacity: 1; }
+/* (4) HEAT-HAZE SWAY — the "wiggle." The reading column eases through a sub-pixel
+   translate + <0.35deg shear. Transform-only, kept tiny so text never visibly wobbles. */
+@keyframes memory-sway {
+  0% { transform: translate3d(0, 0, 0) skewX(0deg) skewY(0deg); }
+  25% { transform: translate3d(0.4px, -0.3px, 0) skewX(0.22deg) skewY(-0.1deg); }
+  50% { transform: translate3d(0, 0.4px, 0) skewX(0deg) skewY(0.14deg); }
+  75% { transform: translate3d(-0.4px, -0.2px, 0) skewX(-0.22deg) skewY(-0.08deg); }
+  100% { transform: translate3d(0, 0, 0) skewX(0deg) skewY(0deg); }
 }
-.portal-dive {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  box-shadow:
-    inset 0 0 90px -10px hsl(var(--accent-glow) / 0.38),
-    inset 0 0 28px -2px hsl(210 70% 72% / 0.18);
-  background: radial-gradient(130% 100% at 50% 50%, transparent 46%, hsl(var(--accent-glow) / 0.12) 100%);
-  mix-blend-mode: screen;
-  animation: portal-dive-sway 9s ease-in-out infinite;
-  will-change: opacity;
-}
-.dark .portal-dive {
-  box-shadow:
-    inset 0 0 100px -8px hsl(var(--accent-glow) / 0.3),
-    inset 0 0 30px -2px hsl(210 70% 60% / 0.2);
+.memory-sway {
+  animation: memory-sway 9s ease-in-out infinite;
+  transform-origin: 50% 45%;
+  will-change: transform;
+  backface-visibility: hidden;
 }
 
-/* enter transition (on mount) */
+/* enter + swap crossfade (transform/opacity only — no blur() to re-rasterize) */
 @keyframes portal-in {
-  from { opacity: 0; transform: scale(0.96); filter: blur(6px); }
-  to { opacity: 1; transform: scale(1); filter: blur(0); }
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
 }
-.portal-enter { animation: portal-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.portal-enter { animation: portal-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 
-/* content crossfade when the previewed note swaps inside a steady frame */
 @keyframes well-focus {
-  from { opacity: 0; transform: translateY(4px) scale(0.995); filter: blur(3px); }
-  to { opacity: 1; transform: none; filter: blur(0); }
+  from { opacity: 0; transform: translateY(4px) scale(0.995); }
+  to { opacity: 1; transform: none; }
 }
 .well-focus { animation: well-focus 150ms ease both; }
 
+/* Reduced motion: stop all movement; keep the static focus (blur + vignette) and a
+   faint still water-light so "subject sharp, surroundings receded" still reads. */
 @media (prefers-reduced-motion: reduce) {
-  .portal-ring,
-  .portal-glow,
-  .portal-caustic,
-  .portal-dive,
+  .portal-halo,
+  .portal-water,
+  .memory-sway,
   .portal-enter,
   .well-focus { animation: none !important; }
-  .portal-ring { transform: rotate(35deg); }
-  .portal-glow { opacity: 0.6; }
-  .portal-caustic { transform: none; }
-  .portal-dive { opacity: 0.9; }
+  .portal-halo { opacity: 0.6; }
+  .portal-water { opacity: 0.08; transform: none; }
+  .memory-sway { transform: none; }
 }

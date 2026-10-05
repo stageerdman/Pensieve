@@ -2,15 +2,16 @@ import { useEffect, useState } from "react";
 import { getStore } from "../../lib/store";
 import { NotePreview } from "./NotePreview";
 
-// The preview "portal": a centered, translucent pane that renders the hovered/peeked
-// note FORMATTED (via NotePreview) — "diving into a memory." The whole pane is
-// see-through glass: a heavy backdrop-blur turns the flasks behind it into soft colour
-// washes, and a watery bluish light wells in from every edge. No separate title (the
-// note's first line already is its title). Pointer-events-none so the flasks stay live
-// behind it; the Space-pinned peek makes the content scrollable.
+// The preview "portal": the previewed memory is the sharp focal subject, while the rest
+// of the app recedes — a focus backdrop blurs + darkens the gallery toward its edges
+// (depth-of-field / spotlight). The memory pane itself stays crisp and legible; only a
+// faint drifting water-light and a sub-pixel heat-haze sway play over it, so it reads as
+// "looking at a sharp memory through water." No separate title (the note's first line is
+// the title). Everything is pointer-events-none (flasks stay live behind it, so hovering
+// swaps the preview); the Space-pinned peek makes the reading column scrollable.
 //
-// Watery/circular motion (sheen ring, breathing glow, drifting caustic, the dive edge)
-// lives in index.css; all of it has prefers-reduced-motion stills.
+// The focus backdrop, outer halo, water skin and sway all live in index.css, with
+// prefers-reduced-motion stills.
 
 const bodyCache = new Map<string, string>(); // session cache of note Markdown, by id
 
@@ -46,35 +47,42 @@ export function PreviewPortal({ id, title, theme, interactive }: PreviewPortalPr
   }, [id]);
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center p-6">
-      <div
-        role="region"
-        aria-label={`Preview: ${title || "Untitled"}`}
-        className="portal-enter relative flex max-h-[82vh] w-[min(720px,86vw)] flex-col overflow-hidden rounded-[22px] border border-[hsl(var(--border)/0.45)] bg-[hsl(var(--surface)/0.58)] shadow-[0_40px_120px_-24px_rgba(0,0,0,0.55)] backdrop-blur-[30px] backdrop-saturate-[150%] dark:bg-[hsl(var(--surface)/0.42)]"
-      >
-        {/* Ambient magic — all behind the text. The "dive" is the bluish edge well. */}
-        <span className="portal-ring" aria-hidden />
-        <span className="portal-caustic" aria-hidden />
-        <span className="portal-glow" aria-hidden />
-        <span className="portal-dive" aria-hidden />
+    <>
+      {/* Layer 1: the rest of the app recedes — blurred + vignetted toward the edges. */}
+      <div className="focus-backdrop" aria-hidden />
 
-        <h2 className="sr-only" aria-live="polite">
-          {title || "Untitled"}
-        </h2>
-
+      {/* Layer 2: the sharp memory, centered. */}
+      <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center p-6">
         <div
-          className={
-            "no-scrollbar relative z-10 flex-1 overflow-y-auto overscroll-contain px-8 py-7 " +
-            (interactive ? "pointer-events-auto" : "pointer-events-none")
-          }
+          role="region"
+          aria-label={`Preview: ${title || "Untitled"}`}
+          className="portal-enter relative flex max-h-[82vh] w-[min(720px,86vw)] flex-col overflow-hidden rounded-[22px] border border-[hsl(var(--border)/0.7)] bg-[hsl(var(--surface)/0.92)] shadow-[0_40px_120px_-24px_rgba(0,0,0,0.55)] backdrop-blur-[3px] backdrop-saturate-[120%] dark:bg-[hsl(var(--surface)/0.9)]"
         >
-          {markdown !== null && (
-            <div key={id} className="well-focus">
-              <NotePreview markdown={markdown} theme={theme} />
-            </div>
-          )}
+          {/* Outer glow — magic lives outside the memory, never a wash over the text. */}
+          <span className="portal-halo" aria-hidden />
+
+          <h2 className="sr-only" aria-live="polite">
+            {title || "Untitled"}
+          </h2>
+
+          {/* The memory — crisp, with the sub-pixel heat-haze sway. */}
+          <div
+            className={
+              "no-scrollbar memory-sway relative z-10 flex-1 overflow-y-auto overscroll-contain px-8 py-7 " +
+              (interactive ? "pointer-events-auto" : "pointer-events-none")
+            }
+          >
+            {markdown !== null && (
+              <div key={id} className="well-focus">
+                <NotePreview markdown={markdown} theme={theme} />
+              </div>
+            )}
+          </div>
+
+          {/* Water skin — drifting light over everything; pointer-events pass through. */}
+          <span className="portal-water" aria-hidden />
         </div>
       </div>
-    </div>
+    </>
   );
 }
