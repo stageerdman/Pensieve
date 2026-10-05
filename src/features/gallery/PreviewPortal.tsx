@@ -2,22 +2,23 @@ import { useEffect, useState } from "react";
 import { getStore } from "../../lib/store";
 import { NotePreview } from "./NotePreview";
 
-// The preview "portal": a centered, translucent, gently-animated pane that renders the
-// hovered/peeked note FORMATTED (via NotePreview) — "looking into the Pensieve." The
-// frame is translucent and the whole thing is pointer-events-none, so the flasks stay
-// visible behind it and the owner can keep moving between them while it updates. The
-// Space-pinned peek passes interactive=true so a long note can be scrolled.
+// The preview "portal": a centered, translucent pane that renders the hovered/peeked
+// note FORMATTED (via NotePreview) — "diving into a memory." The whole pane is
+// see-through glass: a heavy backdrop-blur turns the flasks behind it into soft colour
+// washes, and a watery bluish light wells in from every edge. No separate title (the
+// note's first line already is its title). Pointer-events-none so the flasks stay live
+// behind it; the Space-pinned peek makes the content scrollable.
 //
-// Watery/circular motion (rotating sheen ring, breathing glow, drifting caustic) and
-// the enter/swap transitions live in index.css; all have prefers-reduced-motion stills.
+// Watery/circular motion (sheen ring, breathing glow, drifting caustic, the dive edge)
+// lives in index.css; all of it has prefers-reduced-motion stills.
 
 const bodyCache = new Map<string, string>(); // session cache of note Markdown, by id
 
 interface PreviewPortalProps {
   id: string;
-  title: string;
+  title: string; // used only for the screen-reader label (no visible title)
   theme: "light" | "dark";
-  interactive: boolean; // true only for the Space-pinned peek (well becomes scrollable)
+  interactive: boolean; // true only for the Space-pinned peek (content becomes scrollable)
 }
 
 export function PreviewPortal({ id, title, theme, interactive }: PreviewPortalProps) {
@@ -49,24 +50,21 @@ export function PreviewPortal({ id, title, theme, interactive }: PreviewPortalPr
       <div
         role="region"
         aria-label={`Preview: ${title || "Untitled"}`}
-        className="portal-enter relative flex max-h-[82vh] w-[min(760px,88vw)] flex-col overflow-hidden rounded-[20px] border border-[hsl(var(--border)/0.7)] bg-[hsl(var(--surface-raised)/0.66)] shadow-[0_40px_120px_-24px_rgba(0,0,0,0.55)] backdrop-blur-[16px] backdrop-saturate-[120%] dark:bg-[hsl(var(--surface)/0.58)]"
+        className="portal-enter relative flex max-h-[82vh] w-[min(720px,86vw)] flex-col overflow-hidden rounded-[22px] border border-[hsl(var(--border)/0.45)] bg-[hsl(var(--surface)/0.58)] shadow-[0_40px_120px_-24px_rgba(0,0,0,0.55)] backdrop-blur-[30px] backdrop-saturate-[150%] dark:bg-[hsl(var(--surface)/0.42)]"
       >
-        {/* Ambient magic — behind the content, never under the text. */}
+        {/* Ambient magic — all behind the text. The "dive" is the bluish edge well. */}
         <span className="portal-ring" aria-hidden />
         <span className="portal-caustic" aria-hidden />
         <span className="portal-glow" aria-hidden />
+        <span className="portal-dive" aria-hidden />
 
-        {/* Title (static) */}
-        <div className="relative z-10 flex-none px-7 pb-3 pt-6">
-          <p aria-live="polite" className="truncate text-[15px] font-medium tracking-[0.01em] text-text">
-            {title || "Untitled"}
-          </p>
-        </div>
+        <h2 className="sr-only" aria-live="polite">
+          {title || "Untitled"}
+        </h2>
 
-        {/* Reading well — more opaque so the formatted text stays AA-legible. */}
         <div
           className={
-            "no-scrollbar relative z-10 mx-3 mb-3 flex-1 overflow-y-auto overscroll-contain rounded-[14px] bg-[hsl(var(--surface)/0.92)] px-4 pb-6 pt-2 dark:bg-[hsl(var(--surface-raised)/0.82)] " +
+            "no-scrollbar relative z-10 flex-1 overflow-y-auto overscroll-contain px-8 py-7 " +
             (interactive ? "pointer-events-auto" : "pointer-events-none")
           }
         >

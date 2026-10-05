@@ -271,7 +271,34 @@ body {
   animation: portal-caustic 16s ease-in-out infinite;
   will-change: transform;
 }
-.dark .portal-caustic { opacity: 0.14; }
+.portal-caustic { opacity: 0.13; }
+.dark .portal-caustic { opacity: 0.17; }
+
+/* (d) the "dive" — bluish watery light welling in from every edge, as if sinking
+   into the memory. Edge-weighted so the centre stays clear enough to read. */
+@keyframes portal-dive-sway {
+  0%, 100% { opacity: 0.78; }
+  50% { opacity: 1; }
+}
+.portal-dive {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 90px -10px hsl(var(--accent-glow) / 0.38),
+    inset 0 0 28px -2px hsl(210 70% 72% / 0.18);
+  background: radial-gradient(130% 100% at 50% 50%, transparent 46%, hsl(var(--accent-glow) / 0.12) 100%);
+  mix-blend-mode: screen;
+  animation: portal-dive-sway 9s ease-in-out infinite;
+  will-change: opacity;
+}
+.dark .portal-dive {
+  box-shadow:
+    inset 0 0 100px -8px hsl(var(--accent-glow) / 0.3),
+    inset 0 0 30px -2px hsl(210 70% 60% / 0.2);
+}
 
 /* enter transition (on mount) */
 @keyframes portal-in {
@@ -291,9 +318,11 @@ body {
   .portal-ring,
   .portal-glow,
   .portal-caustic,
+  .portal-dive,
   .portal-enter,
   .well-focus { animation: none !important; }
   .portal-ring { transform: rotate(35deg); }
   .portal-glow { opacity: 0.6; }
   .portal-caustic { transform: none; }
+  .portal-dive { opacity: 0.9; }
 }
