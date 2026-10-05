@@ -6,6 +6,7 @@
 //   categories: [Notes & Lessons, In my mind]
 //   tags: [goals, health]
 //   links: [mut123-abc, mut456-def]
+//   icon: round/blue
 //   ---
 //
 //   # the note body…
@@ -14,6 +15,7 @@
 // with no metadata is written WITHOUT a frontmatter block, so plain notes stay plain.
 
 import { EMPTY_FIELDS, type NoteFields } from "../types";
+import { encodeIcon, parseIcon } from "../flasks/icon";
 
 // Matches the leading frontmatter block and the single blank line that separates
 // it from the body, so the captured body starts at the first real content line.
@@ -46,12 +48,18 @@ export function parseFrontmatter(raw: string): { fields: NoteFields; body: strin
     }
     else if (key === "tags") fields.tags = parseList(value);
     else if (key === "links") fields.links = parseList(value);
+    else if (key === "icon") {
+      const icon = parseIcon(value.replace(/^["']|["']$/g, ""));
+      if (icon) fields.icon = icon;
+    }
   }
   return { fields, body: raw.slice(m[0].length) };
 }
 
 function hasMeta(f: NoteFields): boolean {
-  return f.categories.length > 0 || f.tags.length > 0 || f.links.length > 0;
+  return (
+    f.categories.length > 0 || f.tags.length > 0 || f.links.length > 0 || !!f.icon
+  );
 }
 
 /** Compose metadata + body into file text. No metadata → body unchanged (plain). */
@@ -61,6 +69,7 @@ export function composeFrontmatter(fields: NoteFields, body: string): string {
   if (fields.categories.length) lines.push(`categories: [${fields.categories.join(", ")}]`);
   lines.push(`tags: [${fields.tags.join(", ")}]`);
   lines.push(`links: [${fields.links.join(", ")}]`);
+  if (fields.icon) lines.push(`icon: ${encodeIcon(fields.icon)}`);
   lines.push("---", "");
   return lines.join("\n") + "\n" + body;
 }

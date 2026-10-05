@@ -1,7 +1,10 @@
 // Core data model. A note is content (Markdown body, the source of truth) plus
-// small metadata. User metadata (category / tags / links) is persisted as YAML
-// frontmatter in the .md file — see lib/md/frontmatter. Timeline entries are
+// small metadata. User metadata (category / tags / links / icon) is persisted as
+// YAML frontmatter in the .md file — see lib/md/frontmatter. Timeline entries are
 // disposable history kept beside the note.
+
+import type { NoteIcon } from "./flasks/icon";
+export type { NoteIcon } from "./flasks/icon";
 
 /** A category is referenced by NAME in frontmatter — that string is the truth.
  *  The available categories and their colours are defined separately; see
@@ -19,6 +22,9 @@ export interface NoteMeta {
   // frontmatter remains the source of truth.
   categories?: Category[];
   tags?: string[];
+  // The note's chosen flask icon (shape + colour), surfaced for the sidebar row.
+  // Undefined means "not chosen" — the row renders DEFAULT_ICON (see flasks/icon).
+  icon?: NoteIcon;
   // Surfaced into the fast-list sidecar so the sidebar can render pin state and a
   // preview without reading note bodies (see lib/sidebar). Not in .md frontmatter.
   pinned?: boolean; // user-pinned to the top of the sidebar
@@ -31,6 +37,7 @@ export interface Note extends NoteMeta {
   categories: Category[]; // multi-select; empty is a valid resting state
   tags: string[];
   links: string[]; // ids of related notes
+  icon?: NoteIcon; // chosen flask; undefined until the owner picks one
   pinned: boolean; // pinned to the top of the sidebar
 }
 
@@ -39,6 +46,7 @@ export interface NoteFields {
   categories: Category[];
   tags: string[];
   links: string[];
+  icon?: NoteIcon; // optional — only written when the owner has chosen a flask
 }
 
 export const EMPTY_FIELDS: NoteFields = { categories: [], tags: [], links: [] };

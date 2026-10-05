@@ -52,9 +52,11 @@ export class TauriStore implements Store {
       const m = JSON.parse(raw) as Meta;
       // Compute the preview excerpt fresh from the body so it always reflects the
       // current stripping rules (stored excerpts could be stale). One extra small
-      // file read per note — fine at personal-vault scale.
+      // file read per note — fine at personal-vault scale. The frontmatter is the
+      // truth for the flask icon, so read it from here (parse once).
       const file = await readText(notePath(id));
-      const excerpt = file ? excerptFromMarkdown(parseFrontmatter(file).body) : "";
+      const parsed = file ? parseFrontmatter(file) : null;
+      const excerpt = parsed ? excerptFromMarkdown(parsed.body) : "";
       metas.push({
         id,
         title: m.title,
@@ -63,6 +65,7 @@ export class TauriStore implements Store {
         updatedAt: m.updatedAt,
         categories: m.categories ?? [],
         tags: m.tags ?? [],
+        icon: parsed?.fields.icon,
         pinned: m.pinned ?? false,
         excerpt,
       });
@@ -89,6 +92,7 @@ export class TauriStore implements Store {
       categories: fields.categories,
       tags: fields.tags,
       links: fields.links,
+      icon: fields.icon,
       pinned: m.pinned ?? false,
     };
   }
@@ -104,7 +108,7 @@ export class TauriStore implements Store {
       pinned: note.pinned,
     };
     const file = composeFrontmatter(
-      { categories: note.categories, tags: note.tags, links: note.links },
+      { categories: note.categories, tags: note.tags, links: note.links, icon: note.icon },
       note.markdown,
     );
     await writeText(notePath(note.id), file);

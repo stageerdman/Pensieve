@@ -48,4 +48,32 @@ describe("frontmatter", () => {
     expect(parsed.fields.tags).toEqual([]);
     expect(parsed.fields.links).toEqual([]);
   });
+
+  it("round-trips the flask icon (shape/color)", () => {
+    const fields: NoteFields = {
+      categories: [],
+      tags: [],
+      links: [],
+      icon: { shape: "vial", color: "purple" },
+    };
+    const parsed = parseFrontmatter(composeFrontmatter(fields, "# body\n"));
+    expect(parsed.fields.icon).toEqual({ shape: "vial", color: "purple" });
+  });
+
+  it("writes a frontmatter block for an icon even with no other metadata", () => {
+    const fields: NoteFields = {
+      categories: [],
+      tags: [],
+      links: [],
+      icon: { shape: "round-bottom", color: "blue" },
+    };
+    const out = composeFrontmatter(fields, "plain\n");
+    expect(out).toContain("icon: round-bottom/blue");
+    expect(out.startsWith("---\n")).toBe(true);
+  });
+
+  it("ignores an unknown icon value (hand-edited) and leaves icon undefined", () => {
+    const { fields } = parseFrontmatter("---\nicon: teapot/chartreuse\n---\nx");
+    expect(fields.icon).toBeUndefined();
+  });
 });
