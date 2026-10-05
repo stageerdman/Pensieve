@@ -24,6 +24,7 @@ const timelinePath = (id: string) => `timelines/${id}.json`;
 interface Meta {
   title: string;
   createdAt: number;
+  addedAt?: number; // immutable original log time; back-compat: falls back to createdAt
   updatedAt: number;
   // Mirrored from the frontmatter for fast listing (whispering, filters). The
   // .md frontmatter stays the source of truth.
@@ -58,6 +59,7 @@ export class TauriStore implements Store {
         id,
         title: m.title,
         createdAt: m.createdAt,
+        addedAt: m.addedAt ?? m.createdAt,
         updatedAt: m.updatedAt,
         categories: m.categories ?? [],
         tags: m.tags ?? [],
@@ -82,6 +84,7 @@ export class TauriStore implements Store {
       markdown: body,
       title: m.title,
       createdAt: m.createdAt,
+      addedAt: m.addedAt ?? m.createdAt,
       updatedAt: m.updatedAt,
       categories: fields.categories,
       tags: fields.tags,
@@ -94,6 +97,7 @@ export class TauriStore implements Store {
     const meta: Meta = {
       title: titleFromMarkdown(note.markdown),
       createdAt: note.createdAt,
+      addedAt: note.addedAt ?? note.createdAt, // immutable — never reset to now
       updatedAt: Date.now(),
       categories: note.categories,
       tags: note.tags,
@@ -115,6 +119,7 @@ export class TauriStore implements Store {
       title: "Untitled",
       markdown: "",
       createdAt: now,
+      addedAt: now,
       updatedAt: now,
       categories: [],
       tags: [],

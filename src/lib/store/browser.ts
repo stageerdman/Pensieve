@@ -29,6 +29,7 @@ function readNote(id: string): Note | null {
     tags: n.tags ?? [],
     links: n.links ?? [],
     pinned: n.pinned ?? false,
+    addedAt: n.addedAt ?? n.createdAt, // back-compat for notes predating addedAt
   };
 }
 
@@ -43,6 +44,7 @@ export class BrowserStore implements Store {
         id: n.id,
         title: n.title,
         createdAt: n.createdAt,
+        addedAt: n.addedAt,
         updatedAt: n.updatedAt,
         categories: n.categories,
         tags: n.tags,
@@ -75,6 +77,7 @@ export class BrowserStore implements Store {
       title: "Untitled",
       markdown: "",
       createdAt: now,
+      addedAt: now,
       updatedAt: now,
       categories: [],
       tags: [],

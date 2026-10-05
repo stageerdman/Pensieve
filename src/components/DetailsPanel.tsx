@@ -93,6 +93,21 @@ export function DetailsPanel({
             aria-label="Creation date"
             className="w-full rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm text-text focus:border-text-muted focus:outline-none"
           />
+          <p className="mt-1 text-xs text-text-muted">
+            Added {new Date(note.addedAt).toLocaleDateString(undefined, {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+            })}
+            {note.createdAt !== note.addedAt && (
+              <button
+                onClick={() => onSetCreatedAt(note.addedAt)}
+                className="ml-2 text-accent hover:underline"
+              >
+                Restore
+              </button>
+            )}
+          </p>
         </Section>
         <Section label="Relationships">
           <RelationshipList

@@ -11,7 +11,9 @@ export type Category = string;
 export interface NoteMeta {
   id: string; // stable id (also the .md basename in the Tauri vault)
   title: string; // derived from the first line
-  createdAt: number;
+  createdAt: number; // the note's real creation date — user-editable (see Details)
+  addedAt?: number; // when it was actually logged into the app — immutable; the
+  // fallback to restore createdAt to. Older notes without it fall back to createdAt.
   updatedAt: number;
   // Surfaced in listings for fast cross-note use (e.g. tag whispering). The .md
   // frontmatter remains the source of truth.
@@ -24,6 +26,7 @@ export interface NoteMeta {
 }
 
 export interface Note extends NoteMeta {
+  addedAt: number; // always present on a loaded note (backfilled from createdAt)
   markdown: string; // the body only (no frontmatter) — what the editor edits
   categories: Category[]; // multi-select; empty is a valid resting state
   tags: string[];

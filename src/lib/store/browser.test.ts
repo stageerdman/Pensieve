@@ -39,6 +39,15 @@ describe("BrowserStore", () => {
     expect((await store.load(n.id))?.title).toBe("Deadlines");
   });
 
+  it("keeps addedAt immutable when createdAt is edited", async () => {
+    const n = await store.create();
+    const added = n.addedAt;
+    await store.save({ ...n, markdown: "# Note", createdAt: 1000 }); // backdate creation
+    const loaded = await store.load(n.id);
+    expect(loaded?.createdAt).toBe(1000);
+    expect(loaded?.addedAt).toBe(added); // the real log time is preserved
+  });
+
   it("setPinned toggles pin state without changing updatedAt", async () => {
     const n = await store.create();
     await store.save({ ...n, markdown: "# Note" });
