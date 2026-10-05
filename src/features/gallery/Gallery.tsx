@@ -108,21 +108,27 @@ export function Gallery({
       aria-label="Memories"
     >
       {/* The liquid-ripple filter, applied to the background (below) while a peek is
-          open — never to the memory itself. Turbulence slowly travels so it never sits
-          still. Defined here (outside the rippled wrapper) so the ref resolves. */}
-      <svg aria-hidden className="pointer-events-none fixed left-0 top-0 h-0 w-0">
-        <filter id="memory-ripple" x="-4%" y="-4%" width="108%" height="108%" colorInterpolationFilters="sRGB">
-          <feTurbulence type="fractalNoise" baseFrequency="0.009 0.013" numOctaves="2" seed="4" result="noise">
-            <animate
-              attributeName="baseFrequency"
-              dur="22s"
-              values="0.009 0.013;0.013 0.009;0.009 0.013"
-              repeatCount="indefinite"
-            />
-          </feTurbulence>
-          <feDisplacementMap in="SourceGraphic" in2="noise" scale="6" xChannelSelector="R" yChannelSelector="G" />
-        </filter>
-      </svg>
+          open — never to the memory itself. A single low-frequency octave gives a few
+          big, slow undulations (not many small ones); the turbulence slowly travels so
+          it never sits still, and the displacement eases up from 0 on open for a smooth
+          ramp-in. Rendered only while peeking (so the ramp runs each time). */}
+      {peekTarget && peekNote && (
+        <svg aria-hidden className="pointer-events-none fixed left-0 top-0 h-0 w-0">
+          <filter id="memory-ripple" x="-12%" y="-12%" width="124%" height="124%" colorInterpolationFilters="sRGB">
+            <feTurbulence type="fractalNoise" baseFrequency="0.0045 0.006" numOctaves="1" seed="4" result="noise">
+              <animate
+                attributeName="baseFrequency"
+                dur="28s"
+                values="0.0045 0.006;0.006 0.0045;0.0045 0.006"
+                repeatCount="indefinite"
+              />
+            </feTurbulence>
+            <feDisplacementMap in="SourceGraphic" in2="noise" xChannelSelector="R" yChannelSelector="G" scale="11">
+              <animate attributeName="scale" dur="520ms" values="0;11" keyTimes="0;1" keySplines="0.2 0.8 0.2 1" calcMode="spline" fill="freeze" />
+            </feDisplacementMap>
+          </filter>
+        </svg>
+      )}
 
       {/* The background: everything behind the portal. It ripples (and the portal's
           backdrop blurs its edges) while a peek is open; the portal is a sibling, so the
