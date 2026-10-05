@@ -92,6 +92,14 @@ body {
   outline-offset: 2px;
 }
 
+/* Hide the scrollbar but keep scrolling (the tab strip scrolls horizontally). */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Editor typography — a small, deliberate scale (design.md). The .md file stays
    plain; these styles only shape how the blocks render on screen. */
 .prose-editor {

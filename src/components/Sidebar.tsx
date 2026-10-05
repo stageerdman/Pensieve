@@ -17,7 +17,7 @@ interface SidebarProps {
   state: SidebarState;
   categoryDefs: CategoryDef[];
   currentId?: string;
-  onOpen: (id: string) => void;
+  onOpen: (id: string, newTab?: boolean) => void;
   onNew: () => void;
   onTogglePin: (id: string) => void;
   onChangeState: (state: SidebarState) => void;
