@@ -220,30 +220,30 @@ body {
   inset: 0;
   z-index: 30;
   pointer-events: none;
-  backdrop-filter: blur(7px) saturate(104%);
-  -webkit-backdrop-filter: blur(7px) saturate(104%);
+  backdrop-filter: blur(12px) saturate(104%);
+  -webkit-backdrop-filter: blur(12px) saturate(104%);
   background: radial-gradient(
-    130% 115% at 50% 46%,
+    120% 108% at 50% 46%,
     transparent 0%,
-    transparent 52%,
-    hsl(216 34% 22% / 0.1) 80%,
-    hsl(216 40% 16% / 0.2) 100%
+    transparent 26%,
+    hsl(216 34% 22% / 0.14) 62%,
+    hsl(216 40% 16% / 0.28) 100%
   );
-  /* Only the SIDES recede: the mask keeps the centre fully clear (no blur, no dim) so
-     most of the UI stays visible; blur + vignette feather in toward the edges only. */
-  -webkit-mask: radial-gradient(118% 108% at 50% 46%, transparent 48%, black 92%);
-  mask: radial-gradient(118% 108% at 50% 46%, transparent 48%, black 92%);
+  /* The focus reaches well toward the centre: only a smallish core stays fully clear,
+     then blur + a cool vignette ramp in across most of the frame toward the edges. */
+  -webkit-mask: radial-gradient(118% 108% at 50% 46%, transparent 22%, black 76%);
+  mask: radial-gradient(118% 108% at 50% 46%, transparent 22%, black 76%);
   animation: focus-backdrop-in 220ms ease-out both;
 }
 .dark .focus-backdrop {
-  backdrop-filter: blur(8px) saturate(104%);
-  -webkit-backdrop-filter: blur(8px) saturate(104%);
+  backdrop-filter: blur(13px) saturate(104%);
+  -webkit-backdrop-filter: blur(13px) saturate(104%);
   background: radial-gradient(
-    130% 115% at 50% 46%,
+    120% 108% at 50% 46%,
     transparent 0%,
-    transparent 50%,
-    hsl(222 42% 6% / 0.32) 78%,
-    hsl(222 48% 3% / 0.52) 100%
+    transparent 24%,
+    hsl(222 42% 6% / 0.4) 60%,
+    hsl(222 48% 3% / 0.62) 100%
   );
 }
 @keyframes focus-backdrop-in {
@@ -289,29 +289,28 @@ body {
   z-index: 20;
   pointer-events: none;
   border-radius: inherit;
-  opacity: 0.18;
+  opacity: 0.1;
   mix-blend-mode: screen;
   background:
-    radial-gradient(40% 28% at 32% 24%, hsl(210 45% 98% / 0.95), transparent 60%),
-    radial-gradient(34% 24% at 74% 72%, hsl(var(--accent-glow) / 0.8), transparent 62%),
-    radial-gradient(28% 20% at 58% 46%, hsl(200 60% 92% / 0.6), transparent 64%);
-  animation: portal-water-drift 11s ease-in-out infinite;
+    radial-gradient(38% 26% at 34% 26%, hsl(210 45% 97% / 0.9), transparent 60%),
+    radial-gradient(32% 22% at 72% 70%, hsl(var(--accent-glow) / 0.7), transparent 62%);
+  animation: portal-water-drift 18s ease-in-out infinite;
   will-change: transform;
 }
-.dark .portal-water { opacity: 0.24; }
+.dark .portal-water { opacity: 0.14; }
 
-/* (4) HEAT-HAZE SWAY — the "wiggle": the memory gently warps as if seen through moving
-   water. Big enough to read as playful, still transform-only (GPU) and under ~0.9deg so
-   the text stays legible. */
+/* (4) HEAT-HAZE SWAY — a ripple of hot air that passes by only now and then. Mostly
+   dead still; once per long cycle a gentle, subtle warp drifts through, then calm again.
+   Transform-only (GPU), tiny amplitude so the text never visibly distorts. */
 @keyframes memory-sway {
-  0% { transform: translate3d(0, 0, 0) skewX(0deg) skewY(0deg) scale(1); }
-  20% { transform: translate3d(1.3px, -0.9px, 0) skewX(0.75deg) skewY(-0.3deg) scale(1.005); }
-  45% { transform: translate3d(-0.8px, 1px, 0) skewX(-0.6deg) skewY(0.4deg) scale(1.008); }
-  70% { transform: translate3d(1px, 0.5px, 0) skewX(0.6deg) skewY(-0.25deg) scale(1.005); }
-  100% { transform: translate3d(0, 0, 0) skewX(0deg) skewY(0deg) scale(1); }
+  0%, 34% { transform: none; }
+  43% { transform: translate3d(0.5px, -0.4px, 0) skewX(0.28deg) skewY(-0.12deg); }
+  52% { transform: translate3d(-0.4px, 0.4px, 0) skewX(-0.24deg) skewY(0.14deg); }
+  61% { transform: translate3d(0.3px, 0.2px, 0) skewX(0.16deg) skewY(-0.08deg); }
+  70%, 100% { transform: none; }
 }
 .memory-sway {
-  animation: memory-sway 6.5s ease-in-out infinite;
+  animation: memory-sway 17s ease-in-out infinite;
   transform-origin: 50% 45%;
   will-change: transform;
   backface-visibility: hidden;
