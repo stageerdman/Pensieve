@@ -97,3 +97,37 @@ an action, not a pre-built feature. Fuses Basin (visual + all-at-once) + The Sur
 (importance) + Summon (fast fluid lens) + shelf-as-lens (the model, made ephemeral).
 
 **Status: PAUSED — owner will continue later.**
+
+## Round-4 — owner's locked likes (2026-10-05)
+Owner reviewed four concepts and named exactly what to build around:
+
+1. **The Basin** (`concepts/01-the-basin.html`) — **loves the visual feel.** The real
+   Pensieve experience. PROBLEM: orientation is poor — drifting dots don't help, text-
+   only labels don't aid recognition, and you lose track of which you've opened. This
+   is the concept we are now trying to make **genuinely useful** (see brief below).
+2. **Shelves** (`shelves/01-shelves.html`) — **extremely useful.** Separating thoughts
+   into shelves is a keeper. (Model = saved lens, delivered fluidly — see round 3.)
+3. **Summon / Accio** (`orientation/03-summon.html`) — **incredibly useful + intuitive**
+   for fast summoning/search. BUT the search must be **much smarter**: understand not
+   just plain text, but **time ranges** ("last week"), **tags** (`#Sales Training`), and
+   **combinations** ("#Sales Training from last week"). Natural-language + structured.
+4. **The Surface** (`orientation/01-the-surface.html`) — **the default-view idea is
+   excellent:** thoughts organised by **importance signals** — revisit count, starred,
+   number of links referencing the note, etc. Also loves the **"shake things up"**
+   serendipity gesture, and the **visual of the bottles/flasks is very attractive.**
+
+### Basin brief — make the real-Pensieve findable (current focus)
+How the owner actually works with thoughts, and what the Basin must make trivial:
+- **Content types:** notes (most common), often with **images**, sometimes **video**,
+  sometimes **audio** — media carry **transcripts** (text/video most common) so AI and
+  search can work with them.
+- **The core job:** *very quickly find what I need, or be reminded of something that
+  matters to me right now.*
+- **Fast recognition is the #1 requirement.** At a glance I must grasp (a) **what the
+  note was about**, and (b) **what phase of my life I was in** when I wrote it.
+- **Seen/unseen tracking:** when scanning through thoughts I must clearly see **which
+  I've already opened and which I haven't** — never get lost in the set.
+- **Keep the Basin's magic** (silver/stone/mist, the dive) while fixing orientation.
+  Moving dots + text-only labels are NOT enough; we need a real recognition model.
+
+**Status: ACTIVE — Basin findability concept round in progress.**
