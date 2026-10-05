@@ -1,5 +1,5 @@
 import { memo, useId } from "react";
-import type { FlaskShape, NoteIcon } from "../lib/flasks/icon";
+import { DEFAULT_ICON, type FlaskShape, type NoteIcon } from "../lib/flasks/icon";
 import type { CategoryColor } from "../lib/categories/palette";
 
 // A magical "memory flask": a glass vessel with coloured liquid, a soft glow and a
@@ -72,8 +72,8 @@ interface FlaskProps {
 }
 
 function FlaskBase({
-  shape = "round-bottom",
-  color = "blue",
+  shape = DEFAULT_ICON.shape,
+  color = DEFAULT_ICON.color,
   size = 16,
   className,
   label,
@@ -198,7 +198,9 @@ function FlaskBase({
 /** Props are primitives, so memo keeps rows from re-rendering on unrelated updates. */
 export const Flask = memo(FlaskBase);
 
-/** Render a note's chosen icon, falling back to the default when none is set. */
+/** Render a note's chosen icon, falling back to DEFAULT_ICON when none is set — so
+ *  the sidebar row and the note header always show the same default flask. */
 export function FlaskFor({ icon, ...rest }: { icon?: NoteIcon } & Omit<FlaskProps, "shape" | "color">) {
-  return <Flask shape={icon?.shape} color={icon?.color} {...rest} />;
+  const resolved = icon ?? DEFAULT_ICON;
+  return <Flask shape={resolved.shape} color={resolved.color} {...rest} />;
 }
