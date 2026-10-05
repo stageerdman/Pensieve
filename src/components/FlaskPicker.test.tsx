@@ -37,8 +37,8 @@ describe("FlaskPicker", () => {
 
   it("falls back to the default icon when none is set", () => {
     render(<FlaskPicker onChange={() => {}} />);
-    // DEFAULT_ICON = round-bottom / blue
-    expect(screen.getByRole("radio", { name: "Round-bottom flask" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: "blue" })).toBeChecked();
+    // DEFAULT_ICON = vial / gray
+    expect(screen.getByRole("radio", { name: "Vial" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "gray" })).toBeChecked();
   });
 });

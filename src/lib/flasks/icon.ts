@@ -40,10 +40,10 @@ export interface NoteIcon {
   color: CategoryColor;
 }
 
-/** Rendered for any note that hasn't chosen an icon yet — a calm magical-blue
- *  round flask. Never persisted (plain notes stay plain in frontmatter); it is a
- *  render-time fallback only. */
-export const DEFAULT_ICON: NoteIcon = { shape: "round-bottom", color: "blue" };
+/** Rendered for any note that hasn't chosen an icon yet — a calm neutral gray vial.
+ *  Never persisted (plain notes stay plain in frontmatter); it is a render-time
+ *  fallback only, so an un-iconned note reads as "unset" until the owner chooses. */
+export const DEFAULT_ICON: NoteIcon = { shape: "vial", color: "gray" };
 
 const SHAPES = new Set<string>(FLASK_SHAPES);
 const COLORS = new Set<string>(CATEGORY_COLORS);
