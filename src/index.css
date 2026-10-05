@@ -238,9 +238,9 @@ body {
   background: radial-gradient(
     120% 108% at 50% 46%,
     transparent 0%,
-    transparent 24%,
-    hsl(216 34% 22% / 0.16) 60%,
-    hsl(216 40% 16% / 0.3) 100%
+    transparent 20%,
+    hsl(216 34% 18% / 0.3) 52%,
+    hsl(216 44% 10% / 0.56) 100%
   );
 }
 .dark .focus-backdrop-fx {
@@ -249,9 +249,9 @@ body {
   background: radial-gradient(
     120% 108% at 50% 46%,
     transparent 0%,
-    transparent 22%,
-    hsl(222 42% 6% / 0.42) 58%,
-    hsl(222 48% 3% / 0.64) 100%
+    transparent 18%,
+    hsl(222 44% 5% / 0.58) 50%,
+    hsl(222 52% 2% / 0.85) 100%
   );
 }
 @keyframes focus-backdrop-in {
