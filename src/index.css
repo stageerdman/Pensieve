@@ -307,11 +307,12 @@ body {
 }
 .dark .portal-water { opacity: 0.14; }
 
-/* (4) HEAT-HAZE RIPPLE — a subtle, CONSTANT liquid warp, like a gentle "Minecraft
-   nausea": the memory ripples as if seen through slowly moving water. A real SVG
-   displacement (the filter + its traveling turbulence are defined inline in the portal);
-   this just applies it. Reduced-motion drops the filter entirely (see below). */
-.memory-ripple {
+/* (4) HEAT-HAZE RIPPLE — a subtle, CONSTANT liquid warp on the BACKGROUND (the app/
+   flasks behind the portal), never on the memory: you look through slowly moving water
+   AT a still, sharp memory. A real SVG displacement (filter + traveling turbulence
+   defined inline in Gallery); this applies it to the gallery content while a peek is
+   open. Reduced-motion drops the filter entirely (see below). */
+.water-bg {
   filter: url(#memory-ripple);
 }
 
@@ -337,5 +338,5 @@ body {
   .well-focus { animation: none !important; }
   .portal-halo { opacity: 0.6; }
   .portal-water { opacity: 0.08; transform: none; }
-  .memory-ripple { filter: none; } /* no liquid warp when motion is reduced */
+  .water-bg { filter: none; } /* no liquid warp when motion is reduced */
 }

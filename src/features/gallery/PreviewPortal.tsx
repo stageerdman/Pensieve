@@ -48,25 +48,9 @@ export function PreviewPortal({ id, title, theme, interactive }: PreviewPortalPr
 
   return (
     <>
-      {/* Inline SVG filter for the constant subtle liquid "nausea" ripple over the
-          memory. Turbulence slowly travels so the warp never sits still. */}
-      <svg aria-hidden className="pointer-events-none fixed left-0 top-0 h-0 w-0">
-        <filter id="memory-ripple" x="-6%" y="-6%" width="112%" height="112%" colorInterpolationFilters="sRGB">
-          <feTurbulence type="fractalNoise" baseFrequency="0.009 0.013" numOctaves="2" seed="4" result="noise">
-            <animate
-              attributeName="baseFrequency"
-              dur="22s"
-              values="0.009 0.013;0.013 0.009;0.009 0.013"
-              repeatCount="indefinite"
-            />
-          </feTurbulence>
-          <feDisplacementMap in="SourceGraphic" in2="noise" scale="5" xChannelSelector="R" yChannelSelector="G" />
-        </filter>
-      </svg>
-
       {/* Layer 1: the rest of the app recedes — mask on the parent clips the child's
           backdrop blur + vignette to the edges (WebKit won't mask a backdrop-filter on
-          the same element). */}
+          the same element). The background ripple is applied by Gallery, not here. */}
       <div className="focus-backdrop" aria-hidden>
         <div className="focus-backdrop-fx" />
       </div>
@@ -93,7 +77,7 @@ export function PreviewPortal({ id, title, theme, interactive }: PreviewPortalPr
             }
           >
             {markdown !== null && (
-              <div key={id} className="well-focus memory-ripple">
+              <div key={id} className="well-focus">
                 <NotePreview markdown={markdown} theme={theme} />
               </div>
             )}

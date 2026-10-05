@@ -107,52 +107,74 @@ export function Gallery({
       role="region"
       aria-label="Memories"
     >
-      <WorkingSetStrip
-        items={wsItems}
-        onOpen={onOpen}
-        onRemove={onRemoveFromWorkingSet}
-        onMove={onMoveInWorkingSet}
-        onContextMenu={(e, id) => openContextMenu(e, id)}
-      />
+      {/* The liquid-ripple filter, applied to the background (below) while a peek is
+          open — never to the memory itself. Turbulence slowly travels so it never sits
+          still. Defined here (outside the rippled wrapper) so the ref resolves. */}
+      <svg aria-hidden className="pointer-events-none fixed left-0 top-0 h-0 w-0">
+        <filter id="memory-ripple" x="-4%" y="-4%" width="108%" height="108%" colorInterpolationFilters="sRGB">
+          <feTurbulence type="fractalNoise" baseFrequency="0.009 0.013" numOctaves="2" seed="4" result="noise">
+            <animate
+              attributeName="baseFrequency"
+              dur="22s"
+              values="0.009 0.013;0.013 0.009;0.009 0.013"
+              repeatCount="indefinite"
+            />
+          </feTurbulence>
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="6" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+      </svg>
 
-      {sections.length === 0 ? (
-        <Empty />
-      ) : (
-        <div className="grid grid-cols-[80px_minmax(0,1fr)] gap-y-10">
-          {sections.map((s) => (
-            <Fragment key={s.key}>
-              <div className="relative pt-1">
-                <span
-                  aria-hidden
-                  className="sticky top-4 block whitespace-nowrap pr-3 text-right text-[11px] font-medium tracking-wide text-text-muted"
-                >
-                  {s.label}
-                </span>
-              </div>
-              <section aria-label={s.label} className="border-l border-border pl-5">
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(176px,224px))] justify-start gap-x-4 gap-y-6">
-                  {s.notes.map((n) => (
-                    <FlaskCard
-                      key={n.id}
-                      note={n}
-                      fields={state.fields}
-                      snippetLines={state.snippetLines}
-                      categoryDefs={categoryDefs}
-                      now={now}
-                      inWorkingSet={wsSet.has(n.id)}
-                      onOpen={onOpen}
-                      onContextMenu={openContextMenu}
-                      onHoverChange={setHovered}
-                      onPeekToggle={onPeekToggle}
-                      onToggleWorkingSet={onToggleWorkingSet}
-                    />
-                  ))}
+      {/* The background: everything behind the portal. It ripples (and the portal's
+          backdrop blurs its edges) while a peek is open; the portal is a sibling, so the
+          memory stays sharp and untouched. */}
+      <div className={peekTarget && peekNote ? "water-bg" : undefined}>
+        <WorkingSetStrip
+          items={wsItems}
+          onOpen={onOpen}
+          onRemove={onRemoveFromWorkingSet}
+          onMove={onMoveInWorkingSet}
+          onContextMenu={(e, id) => openContextMenu(e, id)}
+        />
+
+        {sections.length === 0 ? (
+          <Empty />
+        ) : (
+          <div className="grid grid-cols-[80px_minmax(0,1fr)] gap-y-10">
+            {sections.map((s) => (
+              <Fragment key={s.key}>
+                <div className="relative pt-1">
+                  <span
+                    aria-hidden
+                    className="sticky top-4 block whitespace-nowrap pr-3 text-right text-[11px] font-medium tracking-wide text-text-muted"
+                  >
+                    {s.label}
+                  </span>
                 </div>
-              </section>
-            </Fragment>
-          ))}
-        </div>
-      )}
+                <section aria-label={s.label} className="border-l border-border pl-5">
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(176px,224px))] justify-start gap-x-4 gap-y-6">
+                    {s.notes.map((n) => (
+                      <FlaskCard
+                        key={n.id}
+                        note={n}
+                        fields={state.fields}
+                        snippetLines={state.snippetLines}
+                        categoryDefs={categoryDefs}
+                        now={now}
+                        inWorkingSet={wsSet.has(n.id)}
+                        onOpen={onOpen}
+                        onContextMenu={openContextMenu}
+                        onHoverChange={setHovered}
+                        onPeekToggle={onPeekToggle}
+                        onToggleWorkingSet={onToggleWorkingSet}
+                      />
+                    ))}
+                  </div>
+                </section>
+              </Fragment>
+            ))}
+          </div>
+        )}
+      </div>
 
       {peekTarget && peekNote && (
         <PreviewPortal
