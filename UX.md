@@ -34,8 +34,10 @@ recency). This is the locked foundation that the orientation UX is built on.
 From the vision exploration (`updates/2026-10-05 PENSIEVE-VISION/`):
 - **The Surface** — *home.* Importance rises: a calm pool of flasks where what matters
   floats to the top. The practical reimagining of The Basin. **Keep.**
-- **The Basin** — the **visual / atmospheric north star** (silver memory-mist on ink
-  dark; the pour ritual). **Keep as the look.**
+- **The Basin** — **loved; keep AND maximise (do NOT drop it).** Not just the look —
+  explore making it the centrepiece / home canvas that actually shows memories. Strong
+  candidate: the Basin IS the overview that shows *all* flasks at once (see round-3
+  notes below).
 - **Summon** — an *Accio*-style, keyboard-fast, super-fast magical **search**. Not the
   home — a ⌘K retrieval layer. **Keep as inspiration for the search engine (later).**
 - **The Mind Map** — fascinating but not actually useful. **Dropped.**
@@ -61,3 +63,37 @@ one universal container** = a saved lens over the flasks. Pinned (working set), 
 automatic, some made on demand — and **reviews are simply stepping through time-shelves**.
 Must be easy, scalable, and not bespoke per use case. This is the brief for the
 two-concept round that follows.
+
+## Round-3 review — owner notes (2026-10-05, continue later)
+Reactions to the two "shelves" concepts (`shelves/01-shelves.html`,
+`shelves/02-memory-desk.html`):
+
+1. **No hardcoded baskets/buttons.** The "basket" framing felt a bit annoying because
+   it reads as pre-baked features (a "Weekly review" button, pre-made baskets). The
+   owner does NOT want fixed features per use case. Instead: **one fast, fluid
+   interaction that quickly pulls up exactly the info asked for**, on the fly. ("This
+   week" as a *lens* is fine; "This Week" as a hardcoded basket/button is not.) So:
+   keep **shelf = saved lens** as the underlying MODEL, but deliver it as an **ephemeral,
+   summoned, on-demand interaction** (closer in spirit to **Summon**) — not a rail of
+   permanent baskets or dedicated review buttons.
+
+2. **Keep and MAXIMISE the Basin.** The owner really loves the Basin visual and felt it
+   got dropped. Decision: **do not drop it — find how to make the most of it.** Leading
+   idea: the Basin is the **home overview that shows all the flasks** (the memory pool),
+   with importance surfacing what matters.
+
+3. **The overview must show ALL flasks at once.** The Shelves rail was *comfortable to
+   work with*, BUT only showing one shelf's flasks at a time isn't useful — the owner
+   wants to **see everything simultaneously** (a true overview of all memories), then
+   fluidly focus/filter down. Seeing-everything is a requirement, not optional.
+
+### Working synthesis for next round (to validate, ≤2 concepts)
+A **Basin-centred home that shows ALL flasks at once** (importance surfaces the ones
+that matter), combined with a **single fluid "summon a lens" interaction** that
+instantly narrows to what you need (pinned / a #tag like @Sales Mindset / a time range
+like this week) — lenses applied live and ephemerally, **no hardcoded baskets or
+review buttons**. Reviews = narrow to a time-lens and step through; sealing a review is
+an action, not a pre-built feature. Fuses Basin (visual + all-at-once) + The Surface
+(importance) + Summon (fast fluid lens) + shelf-as-lens (the model, made ephemeral).
+
+**Status: PAUSED — owner will continue later.**
