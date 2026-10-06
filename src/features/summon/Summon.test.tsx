@@ -140,6 +140,23 @@ describe("Summon surface", () => {
     await waitFor(() => expect(screen.getByTitle(/click to edit/i)).toHaveTextContent(/10\s*–\s*20/));
   });
 
+  it("calendar drill-down navigates year → month → day", async () => {
+    render(<Harness />);
+    const input = type("last month");
+    await screen.findByText("Created · last month");
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.click(await screen.findByTitle(/click to edit/i));
+    fireEvent.click(await screen.findByText(/custom range/i));
+    // header label (contains a year) → months grid
+    fireEvent.click(await screen.findByRole("button", { name: /\d{4}/ }));
+    expect(await screen.findByRole("button", { name: "Mar" })).toBeInTheDocument();
+    // year label → years grid → pick 2026 → months → March → back to days
+    fireEvent.click(screen.getByRole("button", { name: /^\d{4}$/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "2026" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mar" }));
+    expect(await screen.findByRole("button", { name: /Mar 2026/ })).toBeInTheDocument();
+  });
+
   it("right-click pops (removes) a chip", async () => {
     render(<Harness />);
     const input = type("pinned");
