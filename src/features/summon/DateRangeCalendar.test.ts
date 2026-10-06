@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatRange } from "./DateRangeCalendar";
+import { formatRange, goldBg } from "./DateRangeCalendar";
 
 const NOW = new Date(2026, 1, 18).getTime();
 const at = (y: number, m: number, d: number) => new Date(y, m, d).getTime();
@@ -21,5 +21,20 @@ describe("formatRange", () => {
     const s = formatRange(at(2025, 11, 30), at(2026, 0, 5), NOW);
     expect(s).toContain("Dec 30 '25");
     expect(s).toContain("Jan 5 '26");
+  });
+});
+
+describe("goldBg heatmap intensity", () => {
+  it("is undefined for empty periods", () => {
+    expect(goldBg(0, 5)).toBeUndefined();
+  });
+
+  it("is a golden hsl whose alpha grows with count", () => {
+    const low = goldBg(1, 10)!;
+    const high = goldBg(10, 10)!;
+    expect(low).toMatch(/^hsl\(43 92% 55% \/ /);
+    expect(high).toMatch(/^hsl\(43 92% 55% \/ /);
+    const alpha = (s: string) => Number(s.match(/\/ ([\d.]+)\)/)![1]);
+    expect(alpha(high)).toBeGreaterThan(alpha(low));
   });
 });

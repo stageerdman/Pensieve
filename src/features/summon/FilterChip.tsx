@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Filter, FilterLeaf } from "../../lib/search/types";
 import { filterLabel } from "../../lib/search/label";
-import { FilterEditPopover } from "./FilterEditPopover";
+import { FilterEditPopover, type EditContext } from "./FilterEditPopover";
 
 // One stacked filter as a pill.
 //   • left-click  → edit the filter (popover)
@@ -15,7 +15,7 @@ interface Props {
   leaf: FilterLeaf;
   selected: boolean;
   editing: boolean;
-  ctx: { tags: string[]; categories: string[]; now: number };
+  ctx: EditContext;
   onClick: (id: string, shift: boolean) => void;
   onPointerDown: (id: string, label: string, e: React.PointerEvent) => void;
   onEditClose: () => void;

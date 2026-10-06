@@ -2,6 +2,7 @@ import type { Filter, FilterGroup, FilterNode, Relation } from "../../lib/search
 import { isGroup } from "../../lib/search/types";
 import { groupPalette, isOuterGroup } from "../../lib/search/label";
 import { FilterChip } from "./FilterChip";
+import type { EditContext } from "./FilterEditPopover";
 
 // A group of filters, its colour encoding the logic (inner OR=blue/AND=orange, outer
 // OR=purple/AND=red). The AND/OR badge is the single relation selector — no connector
@@ -13,7 +14,7 @@ export interface GroupHandlers {
   editingId: string | null;
   dragging: string | null; // id of the chip being dragged, or null
   dropId: string | null | undefined; // the group id currently hovered (null = top level)
-  ctx: { tags: string[]; categories: string[]; now: number };
+  ctx: EditContext;
   onChipClick: (id: string, shift: boolean) => void;
   onChipPointerDown: (id: string, label: string, e: React.PointerEvent) => void;
   onEditClose: () => void;

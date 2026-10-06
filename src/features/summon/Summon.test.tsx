@@ -157,6 +157,17 @@ describe("Summon surface", () => {
     expect(await screen.findByRole("button", { name: /Mar 2026/ })).toBeInTheDocument();
   });
 
+  it("marks today in the calendar with a golden ring", async () => {
+    render(<Harness />);
+    const input = type("this month");
+    await screen.findByText("Created · this month");
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.click(await screen.findByTitle(/click to edit/i));
+    fireEvent.click(await screen.findByText(/custom range/i));
+    const todayCell = await screen.findByRole("button", { name: String(new Date().getDate()) });
+    expect(todayCell.style.boxShadow).toContain("hsl(43"); // golden today ring
+  });
+
   it("right-click pops (removes) a chip", async () => {
     render(<Harness />);
     const input = type("pinned");

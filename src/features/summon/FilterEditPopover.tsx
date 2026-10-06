@@ -8,9 +8,18 @@ import { DateRangeCalendar, formatRange } from "./DateRangeCalendar";
 // adapts to the filter kind: swap a date phrase / field, toggle which tags or categories
 // are in the one-of set, or edit free text. Closes on outside-mousedown or Esc.
 
+/** Everything the edit popover needs about the vault: vocabulary + note timestamps (for
+ *  the calendar's density heatmap) + a stable "now". Shared by the chip/shelf plumbing. */
+export interface EditContext {
+  tags: string[];
+  categories: string[];
+  now: number;
+  dates: { created: number[]; updated: number[] };
+}
+
 interface Props {
   filter: Filter;
-  ctx: { tags: string[]; categories: string[]; now: number };
+  ctx: EditContext;
   onReplace: (filter: Filter) => void;
   onClose: () => void;
 }
@@ -42,7 +51,14 @@ export function FilterEditPopover({ filter, ctx, onReplace, onClose }: Props) {
       className="absolute left-0 top-full z-40 mt-1.5 max-h-[320px] w-60 overflow-auto rounded-xl border border-border bg-surface-raised p-2 shadow-xl"
       onClick={(e) => e.stopPropagation()}
     >
-      {filter.kind === "date" && <DateEdit filter={filter} now={ctx.now} onReplace={onReplace} />}
+      {filter.kind === "date" && (
+        <DateEdit
+          filter={filter}
+          now={ctx.now}
+          stamps={filter.field === "updated" ? ctx.dates.updated : ctx.dates.created}
+          onReplace={onReplace}
+        />
+      )}
       {filter.kind === "tag" && <SetEdit options={ctx.tags.map((t) => t.replace(/^#/, ""))} selected={filter.tags} prefix="#" onChange={(tags) => onReplace({ kind: "tag", tags })} />}
       {filter.kind === "category" && <SetEdit options={ctx.categories} selected={filter.categories} onChange={(categories) => onReplace({ kind: "category", categories })} />}
       {(filter.kind === "title" || filter.kind === "text") && (
@@ -60,10 +76,12 @@ function Label({ children }: { children: React.ReactNode }) {
 function DateEdit({
   filter,
   now,
+  stamps,
   onReplace,
 }: {
   filter: Extract<Filter, { kind: "date" }>;
   now: number;
+  stamps: number[];
   onReplace: (f: Filter) => void;
 }) {
   const isCustom = !(DATE_PHRASES as readonly string[]).includes(filter.phrase);
@@ -129,7 +147,13 @@ function DateEdit({
         <span className="text-text-muted">{showCal ? "▾" : "▸"}</span>
       </button>
       {showCal && (
-        <DateRangeCalendar start={filter.range.start} end={filter.range.end} now={now} onPick={setRange} />
+        <DateRangeCalendar
+          start={filter.range.start}
+          end={filter.range.end}
+          now={now}
+          stamps={stamps}
+          onPick={setRange}
+        />
       )}
     </div>
   );

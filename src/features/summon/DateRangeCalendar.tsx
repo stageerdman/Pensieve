@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 // A compact calendar for picking a custom date range, with a drill-down header for fast
 // navigation: the month/year label opens a months grid; the year opens a years grid —
@@ -15,6 +15,13 @@ const startOfDay = (ts: number) => {
   return d.getTime();
 };
 const endOfDay = (ts: number) => startOfDay(ts) + DAY - 1;
+
+// Magical golden heatmap (Harry-Potter Pensieve). A translucent gold overlay so it reads
+// the same on light + dark; intensity scales with how many notes fall in the period.
+export const goldBg = (count: number, max: number): string | undefined =>
+  count > 0 ? `hsl(43 92% 55% / ${(0.14 + 0.52 * (count / max)).toFixed(3)})` : undefined;
+// Today's marker: a golden ring with a soft glow.
+const TODAY_RING = "0 0 0 1.5px hsl(43 90% 55%), 0 0 7px hsl(43 95% 60% / 0.55)";
 
 /** A concise label for a [start,end] range, e.g. "Jan 3", "Jan 3 – 18", "Dec 30 – Jan 5",
  *  adding a 2-digit year when the range isn't in the current year. */
@@ -36,12 +43,13 @@ interface Props {
   start: number; // current range endpoints (ms)
   end: number;
   now: number;
+  stamps: number[]; // note timestamps (for the active field) → density heatmap
   onPick: (start: number, end: number) => void; // startOfDay(min) .. endOfDay(max)
 }
 
 type Mode = "days" | "months" | "years";
 
-export function DateRangeCalendar({ start, end, now, onPick }: Props) {
+export function DateRangeCalendar({ start, end, now, stamps, onPick }: Props) {
   const [view, setView] = useState(() => {
     const d = new Date(start || now);
     return { y: d.getFullYear(), m: d.getMonth() };
@@ -50,6 +58,35 @@ export function DateRangeCalendar({ start, end, now, onPick }: Props) {
   const [anchor, setAnchor] = useState<number | null>(null);
   const [hover, setHover] = useState<number | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const today = startOfDay(now);
+  const nowD = new Date(now);
+
+  // Note-density counts for the current view (per day / per month / per year).
+  const heat = useMemo(() => {
+    const map = new Map<number, number>();
+    if (mode === "days") {
+      const mStart = new Date(view.y, view.m, 1).getTime();
+      const mEnd = new Date(view.y, view.m + 1, 1).getTime();
+      for (const t of stamps) if (t >= mStart && t < mEnd) {
+        const d = startOfDay(t);
+        map.set(d, (map.get(d) ?? 0) + 1);
+      }
+    } else if (mode === "months") {
+      for (const t of stamps) {
+        const d = new Date(t);
+        if (d.getFullYear() === view.y) map.set(d.getMonth(), (map.get(d.getMonth()) ?? 0) + 1);
+      }
+    } else {
+      const base = Math.floor(view.y / 12) * 12;
+      for (const t of stamps) {
+        const y = new Date(t).getFullYear();
+        if (y >= base && y < base + 12) map.set(y, (map.get(y) ?? 0) + 1);
+      }
+    }
+    return { map, max: Math.max(1, ...map.values()) };
+  }, [mode, view.y, view.m, stamps]);
+
+  const noteTitle = (count: number) => (count > 0 ? `${count} note${count > 1 ? "s" : ""}` : undefined);
 
   // Scroll the calendar into view the moment it opens, so you don't have to scroll.
   useEffect(() => {
@@ -92,22 +129,31 @@ export function DateRangeCalendar({ start, end, now, onPick }: Props) {
           onNext={() => setView((v) => ({ ...v, y: v.y + 12 }))}
         />
         <div className="grid grid-cols-3 gap-1">
-          {years.map((y) => (
-            <button
-              key={y}
-              type="button"
-              onClick={() => {
-                setView((v) => ({ ...v, y }));
-                setMode("months");
-              }}
-              className={
-                "rounded-md px-2 py-1.5 text-[12px] " +
-                (y === view.y ? "bg-accent/20 text-text" : "text-text-muted hover:bg-surface hover:text-text")
-              }
-            >
-              {y}
-            </button>
-          ))}
+          {years.map((y) => {
+            const count = heat.map.get(y) ?? 0;
+            const selected = y === view.y;
+            return (
+              <button
+                key={y}
+                type="button"
+                title={noteTitle(count)}
+                onClick={() => {
+                  setView((v) => ({ ...v, y }));
+                  setMode("months");
+                }}
+                style={{
+                  background: selected ? undefined : goldBg(count, heat.max),
+                  boxShadow: y === nowD.getFullYear() ? TODAY_RING : undefined,
+                }}
+                className={
+                  "rounded-md px-2 py-1.5 text-[12px] " +
+                  (selected ? "bg-accent/20 text-text" : count ? "text-text" : "text-text-muted hover:bg-surface hover:text-text")
+                }
+              >
+                {y}
+              </button>
+            );
+          })}
         </div>
       </div>
     );
@@ -123,22 +169,32 @@ export function DateRangeCalendar({ start, end, now, onPick }: Props) {
           onNext={() => setView((v) => ({ ...v, y: v.y + 1 }))}
         />
         <div className="grid grid-cols-3 gap-1">
-          {MON.map((mName, m) => (
-            <button
-              key={mName}
-              type="button"
-              onClick={() => {
-                setView((v) => ({ ...v, m }));
-                setMode("days");
-              }}
-              className={
-                "rounded-md px-2 py-1.5 text-[12px] " +
-                (m === view.m ? "bg-accent/20 text-text" : "text-text-muted hover:bg-surface hover:text-text")
-              }
-            >
-              {mName}
-            </button>
-          ))}
+          {MON.map((mName, m) => {
+            const count = heat.map.get(m) ?? 0;
+            const selected = m === view.m;
+            const isToday = view.y === nowD.getFullYear() && m === nowD.getMonth();
+            return (
+              <button
+                key={mName}
+                type="button"
+                title={noteTitle(count)}
+                onClick={() => {
+                  setView((v) => ({ ...v, m }));
+                  setMode("days");
+                }}
+                style={{
+                  background: selected ? undefined : goldBg(count, heat.max),
+                  boxShadow: isToday ? TODAY_RING : undefined,
+                }}
+                className={
+                  "rounded-md px-2 py-1.5 text-[12px] " +
+                  (selected ? "bg-accent/20 text-text" : count ? "text-text" : "text-text-muted hover:bg-surface hover:text-text")
+                }
+              >
+                {mName}
+              </button>
+            );
+          })}
         </div>
       </div>
     );
@@ -193,19 +249,27 @@ export function DateRangeCalendar({ start, end, now, onPick }: Props) {
           const day = startOfDay(ts);
           const inRange = day >= lo && day <= hi;
           const isEnd = day === lo || day === hi;
+          const count = heat.map.get(day) ?? 0;
           return (
             <button
               key={i}
               type="button"
+              title={noteTitle(count)}
               onPointerEnter={() => anchor !== null && setHover(ts)}
               onClick={() => clickDay(ts)}
+              style={{
+                background: isEnd || inRange ? undefined : goldBg(count, heat.max),
+                boxShadow: day === today ? TODAY_RING : undefined,
+              }}
               className={
                 "mx-auto flex h-6 w-6 items-center justify-center rounded text-[12px] " +
                 (isEnd
                   ? "bg-accent text-surface"
                   : inRange
                     ? "bg-accent/20 text-text"
-                    : "text-text-muted hover:bg-surface hover:text-text")
+                    : count
+                      ? "text-text"
+                      : "text-text-muted hover:bg-surface hover:text-text")
               }
             >
               {new Date(ts).getDate()}

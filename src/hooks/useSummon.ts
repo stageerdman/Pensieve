@@ -5,6 +5,7 @@ import { parseQuery, type Suggestion } from "../lib/search/grammar";
 import { runSearch, type SearchResult } from "../lib/search/search";
 import { appendLeaf, group, moveLeaf, removeNode, replaceFilter, setRelation, ungroup } from "../lib/search/tree";
 import { useSearchIndex } from "./useSearchIndex";
+import type { EditContext } from "../features/summon/FilterEditPopover";
 import { log } from "../lib/logger";
 
 let _uid = 0;
@@ -28,7 +29,7 @@ export interface SummonApi {
   match: Map<string, SearchResult>;
   total: number;
   active: boolean; // any chip or live text in play
-  editCtx: { tags: string[]; categories: string[]; now: number }; // for the edit popover
+  editCtx: EditContext; // vocabulary + note timestamps for the edit popover/calendar
   // actions
   confirm: (s: Suggestion) => void;
   pickTag: (tag: string) => void;
@@ -57,6 +58,10 @@ export function useSummon(notes: NoteMeta[], categoryNames: string[]): SummonApi
     [notes],
   );
   const ctx = useMemo(() => ({ tags: tagsInUse, categories: categoryNames }), [tagsInUse, categoryNames]);
+  const dates = useMemo(
+    () => ({ created: notes.map((n) => n.createdAt), updated: notes.map((n) => n.updatedAt) }),
+    [notes],
+  );
 
   const parse = useMemo(() => parseQuery(input, ctx, now, caret), [input, ctx, now, caret]);
   const query = useMemo(() => ({ text: parse.text, items }), [parse.text, items]);
@@ -147,7 +152,7 @@ export function useSummon(notes: NoteMeta[], categoryNames: string[]): SummonApi
     match: outcome.match,
     total: notes.length,
     active,
-    editCtx: { tags: tagsInUse, categories: categoryNames, now },
+    editCtx: { tags: tagsInUse, categories: categoryNames, now, dates },
     confirm,
     pickTag,
     addFilter,

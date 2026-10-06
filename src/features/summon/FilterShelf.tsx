@@ -4,6 +4,7 @@ import { isGroup } from "../../lib/search/types";
 import { canGroup, findNode } from "../../lib/search/tree";
 import { Sparkles } from "../../components/icons";
 import { Node, type GroupHandlers } from "./FilterGroupView";
+import type { EditContext } from "./FilterEditPopover";
 
 // The stacked-filter shelf under the summon bar. Top-level chips/groups are AND-combined
 // (no connector words). Shift-click 2+ chips → one combine control offers AND/OR, fusing
@@ -12,7 +13,7 @@ import { Node, type GroupHandlers } from "./FilterGroupView";
 
 interface Props {
   items: FilterNode[];
-  ctx: { tags: string[]; categories: string[]; now: number };
+  ctx: EditContext;
   onReplace: (id: string, filter: Filter) => void;
   onPop: (id: string) => void;
   onFuse: (ids: string[], relation: Relation) => void;
