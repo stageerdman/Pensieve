@@ -5,11 +5,23 @@
 # src-tauri/target/.../bundle/macos that Spotlight/Launchpad index as a duplicate.
 set -euo pipefail
 
-SRC="src-tauri/target/release/bundle/macos/Pensieve.app"
 DEST="/Applications/Pensieve.app"
 
-if [ ! -d "$SRC" ]; then
-  echo "install-app: no bundle at $SRC — did 'tauri build' run?" >&2
+# The bundle lands under the cargo target dir, which may be relocated (CARGO_TARGET_DIR
+# or a global cargo config, e.g. ~/.cargo-shared-target). Resolve the first bundle that
+# exists across the known candidate roots.
+CANDIDATES=(
+  "src-tauri/target/release/bundle/macos/Pensieve.app"
+  "${CARGO_TARGET_DIR:-/dev/null}/release/bundle/macos/Pensieve.app"
+  "$HOME/.cargo-shared-target/release/bundle/macos/Pensieve.app"
+)
+SRC=""
+for c in "${CANDIDATES[@]}"; do
+  if [ -d "$c" ]; then SRC="$c"; break; fi
+done
+
+if [ -z "$SRC" ]; then
+  echo "install-app: no Pensieve.app bundle found (looked in: ${CANDIDATES[*]}) — did 'tauri build' run?" >&2
   exit 1
 fi
 
