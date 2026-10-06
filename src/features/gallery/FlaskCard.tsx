@@ -37,7 +37,7 @@ interface FlaskCardProps {
   categoryDefs: CategoryDef[];
   now: number;
   inWorkingSet: boolean;
-  /** How many lines the title may use before it ellipsises (default 1). */
+  /** How many lines the title may use before it ellipsises (default 2). */
   titleLines?: 1 | 2;
   onOpen: (id: string, background: boolean) => void;
   onContextMenu: (e: MenuAnchor, id: string) => void;
@@ -59,7 +59,7 @@ export function FlaskCard({
   categoryDefs,
   now,
   inWorkingSet,
-  titleLines = 1,
+  titleLines = 2,
   onOpen,
   onContextMenu,
   onHoverChange,
@@ -127,8 +127,8 @@ export function FlaskCard({
         />
       </span>
 
-      {/* Title line: category dots · title. The title may wrap to two lines (working
-          set) — dots then top-align with the first line. */}
+      {/* Title line: category dots · title. The title wraps to two lines when long —
+          dots then top-align with the first line. */}
       <span className={`mt-2 flex gap-1.5 ${titleLines === 2 ? "items-start" : "items-center"}`}>
         {showDots && (
           <span className={`flex shrink-0 -space-x-0.5 ${titleLines === 2 ? "mt-[5px]" : ""}`}>
