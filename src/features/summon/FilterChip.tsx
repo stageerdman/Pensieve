@@ -1,18 +1,26 @@
 import { useState } from "react";
-import type { FilterLeaf } from "../../lib/search/types";
+import type { Filter, FilterLeaf } from "../../lib/search/types";
 import { filterLabel } from "../../lib/search/label";
+import { FilterEditPopover } from "./FilterEditPopover";
 
-// One stacked filter as a pill. Left-click toggles selection (for shift-fuse). Right-
-// click (release) pops it like a bubble and removes it. Draggable so it can be moved in
-// and out of groups. Dumb: all state changes go up through callbacks.
+// One stacked filter as a pill.
+//   • left-click  → edit the filter (popover)
+//   • shift-click → select it (for shift-fusing two chips into a group)
+//   • drag        → move it into/out of a group (pointer-based, so it works in the
+//                   native WKWebView where HTML5 drag-and-drop is unreliable)
+//   • right-click → pop it like a bubble and remove it
+// Dumb: all state changes go up through callbacks.
 
 interface Props {
   leaf: FilterLeaf;
   selected: boolean;
-  onToggleSelect: (id: string, additive: boolean) => void;
+  editing: boolean;
+  ctx: { tags: string[]; categories: string[]; now: number };
+  onClick: (id: string, shift: boolean) => void;
+  onPointerDown: (id: string, label: string, e: React.PointerEvent) => void;
+  onEditClose: () => void;
+  onReplace: (id: string, filter: Filter) => void;
   onPop: (id: string) => void;
-  onDragStart: (id: string) => void;
-  onDragEnd: () => void;
 }
 
 const BUBBLES = [
@@ -23,8 +31,19 @@ const BUBBLES = [
   { dx: "0px", dy: "-18px" },
 ];
 
-export function FilterChip({ leaf, selected, onToggleSelect, onPop, onDragStart, onDragEnd }: Props) {
+export function FilterChip({
+  leaf,
+  selected,
+  editing,
+  ctx,
+  onClick,
+  onPointerDown,
+  onEditClose,
+  onReplace,
+  onPop,
+}: Props) {
   const [popping, setPopping] = useState(false);
+  const label = filterLabel(leaf.filter);
 
   const pop = () => {
     if (popping) return;
@@ -33,35 +52,40 @@ export function FilterChip({ leaf, selected, onToggleSelect, onPop, onDragStart,
   };
 
   return (
-    <span className="relative inline-flex">
+    <span className="relative inline-flex" data-leaf-id={leaf.id}>
       <button
         type="button"
-        draggable={!popping}
-        data-leaf-id={leaf.id}
-        onClick={(e) => onToggleSelect(leaf.id, e.shiftKey)}
+        onPointerDown={(e) => onPointerDown(leaf.id, label, e)}
+        onClick={(e) => onClick(leaf.id, e.shiftKey)}
         onContextMenu={(e) => {
           e.preventDefault();
           pop();
         }}
-        onDragStart={(e) => {
-          e.dataTransfer.setData("text/plain", leaf.id);
-          e.dataTransfer.effectAllowed = "move";
-          onDragStart(leaf.id);
-        }}
-        onDragEnd={onDragEnd}
-        title={`${filterLabel(leaf.filter)} — click to select, right-click to remove, drag to group`}
+        title={`${label} — click to edit · shift-click to group · drag to move · right-click to remove`}
         className={
-          "summon-chip-in inline-flex cursor-grab items-center gap-1.5 rounded-full border px-3 py-1 text-[13px] " +
+          "summon-chip-in inline-flex cursor-grab touch-none items-center gap-1.5 rounded-full border px-3 py-1 text-[13px] " +
           "transition-colors active:cursor-grabbing " +
           (popping ? "summon-popping " : "") +
           (selected
             ? "border-accent bg-accent/15 text-text"
-            : "border-border bg-surface-raised text-text-muted hover:text-text hover:border-accent/40")
+            : editing
+              ? "border-accent/60 bg-surface text-text"
+              : "border-border bg-surface-raised text-text-muted hover:text-text hover:border-accent/40")
         }
       >
         {selected && <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />}
-        {filterLabel(leaf.filter)}
+        {label}
       </button>
+
+      {editing && (
+        <FilterEditPopover
+          filter={leaf.filter}
+          ctx={ctx}
+          onReplace={(f) => onReplace(leaf.id, f)}
+          onClose={onEditClose}
+        />
+      )}
+
       {popping &&
         BUBBLES.map((b, i) => (
           <span

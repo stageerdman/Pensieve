@@ -201,11 +201,15 @@ export default function App() {
         e.preventDefault();
         askDelete();
       } else if (k === "s") {
-        // ⌘S summons: jump Home and focus the summon bar (autosave already persists, so
-        // we repurpose the old no-op save shortcut).
+        // ⌘S summons: jump Home, scroll the summon bar back into view, and focus it
+        // (the bar scrolls away with content, so this is how you get back to it).
         e.preventDefault();
         setActiveTab(HOME);
-        requestAnimationFrame(() => summonInputRef.current?.focus());
+        requestAnimationFrame(() => {
+          const el = summonInputRef.current;
+          el?.focus({ preventScroll: true });
+          el?.scrollIntoView({ block: "start", behavior: "smooth" });
+        });
       }
     };
     window.addEventListener("keydown", onKey);
@@ -282,24 +286,20 @@ export default function App() {
 
         <div className="flex min-h-0 flex-1">
           {onHome ? (
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              <div className="shrink-0 px-6 pt-5">
-                <Summon summon={summon} inputRef={summonInputRef} />
-              </div>
-              <Gallery
-                notes={summon.results}
-                state={gallery.state}
-                categoryDefs={categories.defs}
-                match={summon.match}
-                searchActive={summon.active}
-                theme={theme}
-                onOpen={openNote}
-                onToggleWorkingSet={gallery.toggleWorkingSet}
-                onRemoveFromWorkingSet={gallery.removeFromWorkingSet}
-                onMoveInWorkingSet={gallery.moveInWorkingSet}
-                onReorderWorkingSet={gallery.reorderWorkingSet}
-              />
-            </div>
+            <Gallery
+              notes={summon.results}
+              state={gallery.state}
+              categoryDefs={categories.defs}
+              header={<Summon summon={summon} inputRef={summonInputRef} />}
+              match={summon.match}
+              searchActive={summon.active}
+              theme={theme}
+              onOpen={openNote}
+              onToggleWorkingSet={gallery.toggleWorkingSet}
+              onRemoveFromWorkingSet={gallery.removeFromWorkingSet}
+              onMoveInWorkingSet={gallery.moveInWorkingSet}
+              onReorderWorkingSet={gallery.reorderWorkingSet}
+            />
           ) : (
             <>
               <section className="flex-1 overflow-y-auto">

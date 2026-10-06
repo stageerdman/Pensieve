@@ -163,6 +163,19 @@ export function appendLeaf(items: FilterNode[], leaf: FilterLeaf): FilterNode[] 
   return [...items, leaf];
 }
 
+/** Replace the filter carried by a leaf (editing a chip in place), keeping its id/position. */
+export function replaceFilter(
+  items: FilterNode[],
+  id: string,
+  filter: FilterLeaf["filter"],
+): FilterNode[] {
+  return items.map((node) => {
+    if (node.id === id && !isGroup(node)) return { ...node, filter };
+    if (isGroup(node)) return { ...node, children: replaceFilter(node.children, id, filter) };
+    return node;
+  });
+}
+
 /** A compact human-readable boolean summary, for debugging + a live hint line. */
 export function describe(items: FilterNode[], labelOf: (leaf: FilterLeaf) => string): string {
   const node = (n: FilterNode): string => {

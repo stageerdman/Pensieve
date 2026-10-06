@@ -1,15 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { NoteMeta } from "../lib/types";
 import { getStore } from "../lib/store";
 import { plainTextFromMarkdown } from "../lib/text";
 import { MemoryIndex } from "../lib/search/indexer";
 import { log } from "../lib/logger";
 
-// Builds and maintains the full-text index for Summon. A one-shot cold build (reads all
-// bodies once) runs when notes first arrive — off the gallery's critical path. After that
-// it's incremental: a note whose updatedAt changed is re-read and re-indexed; a removed
-// note is dropped. The index object is a stable ref that mutates in place, so `version`
-// bumps on every change to let consumers recompute their search.
+// Builds and maintains the full-text index for Summon — but LAZILY. Structured filters
+// (tags / dates / categories / flags) never touch note bodies, so we only read all bodies
+// once the user actually types free text (`ensureBuilt`). After the first build it stays
+// warm and updates incrementally (a note whose updatedAt changed is re-read; a removed
+// note is dropped). The index is a stable ref that mutates in place, so `version` bumps on
+// every change to let consumers recompute their search.
 export function useSearchIndex(notes: NoteMeta[]) {
   const store = getStore();
   const indexRef = useRef(new MemoryIndex());
@@ -18,34 +19,29 @@ export function useSearchIndex(notes: NoteMeta[]) {
   const [ready, setReady] = useState(false);
   const [version, setVersion] = useState(0);
 
-  // Cold build — once, when the first notes land.
-  useEffect(() => {
-    if (builtRef.current || notes.length === 0) return;
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
+
+  // Kick off the one-shot cold build the first time full-text search is needed.
+  const ensureBuilt = useCallback(() => {
+    if (builtRef.current) return;
     builtRef.current = true;
-    let cancelled = false;
     void (async () => {
       try {
         const docs = await store.bodies();
-        if (cancelled) return;
         indexRef.current.set(docs);
-        stampRef.current = new Map(docs.map((d) => [d.id, 0])); // real stamps set below
-        for (const n of notes) stampRef.current.set(n.id, n.updatedAt);
+        stampRef.current = new Map(notesRef.current.map((n) => [n.id, n.updatedAt]));
         log.info("search", "index.built", { count: docs.length });
       } catch {
         log.warn("search", "index.build.failed", {});
       } finally {
-        if (!cancelled) {
-          setReady(true);
-          setVersion((v) => v + 1);
-        }
+        setReady(true);
+        setVersion((v) => v + 1);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, [notes, store]);
+  }, [store]);
 
-  // Incremental updates after the cold build.
+  // Once built, keep it in sync as notes change.
   useEffect(() => {
     if (!builtRef.current || !ready) return;
     const stamp = stampRef.current;
@@ -76,5 +72,5 @@ export function useSearchIndex(notes: NoteMeta[]) {
     };
   }, [notes, ready, store]);
 
-  return { index: indexRef.current, ready, version };
+  return { index: indexRef.current, ready, version, ensureBuilt };
 }

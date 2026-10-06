@@ -1,50 +1,43 @@
-import { Fragment, useState } from "react";
-import type { FilterGroup, FilterNode, Relation } from "../../lib/search/types";
+import type { Filter, FilterGroup, FilterNode, Relation } from "../../lib/search/types";
 import { isGroup } from "../../lib/search/types";
 import { groupPalette, isOuterGroup } from "../../lib/search/label";
 import { FilterChip } from "./FilterChip";
 
 // A group of filters, its colour encoding the logic (inner OR=blue/AND=orange, outer
-// OR=purple/AND=red). The AND/OR badge toggles the relation; faint connectors between
-// children give a second read of the boolean. Accepts a dragged chip as a drop target.
+// OR=purple/AND=red). The AND/OR badge is the single relation selector — no connector
+// words between chips. Marked as a pointer-drag drop target (`data-drop-group`) and
+// highlighted when a dragged chip hovers it or any drag is active.
 
-interface Handlers {
+export interface GroupHandlers {
   selected: Set<string>;
-  onToggleSelect: (id: string, additive: boolean) => void;
+  editingId: string | null;
+  dragging: string | null; // id of the chip being dragged, or null
+  dropId: string | null | undefined; // the group id currently hovered (null = top level)
+  ctx: { tags: string[]; categories: string[]; now: number };
+  onChipClick: (id: string, shift: boolean) => void;
+  onChipPointerDown: (id: string, label: string, e: React.PointerEvent) => void;
+  onEditClose: () => void;
+  onReplace: (id: string, filter: Filter) => void;
   onPop: (id: string) => void;
   onRelate: (groupId: string, relation: Relation) => void;
-  onDragStart: (id: string) => void;
-  onDragEnd: () => void;
-  onMove: (leafId: string, target: string | null, index: number) => void;
 }
 
-export function FilterGroupView({ group, h }: { group: FilterGroup; h: Handlers }) {
-  const [over, setOver] = useState(false);
+export function FilterGroupView({ group, h }: { group: FilterGroup; h: GroupHandlers }) {
   const key = groupPalette(group.relation, isOuterGroup(group));
   const fg = `hsl(var(--cat-${key}-fg))`;
   const bg = `hsl(var(--cat-${key}-bg) / 0.28)`;
+  const over = h.dropId === group.id;
+  const droppable = h.dragging !== null && !group.children.some((c) => c.id === h.dragging);
 
   return (
     <span
+      data-drop-group={group.id}
       className={"inline-flex items-center gap-1.5 rounded-xl border px-1.5 py-1 " + (over ? "summon-drop-active" : "")}
-      style={{ borderColor: fg, background: bg }}
-      onDragOver={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        e.dataTransfer.dropEffect = "move";
-        if (!over) setOver(true);
-      }}
-      onDragLeave={() => setOver(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setOver(false);
-        const id = e.dataTransfer.getData("text/plain");
-        if (id) h.onMove(id, group.id, group.children.length);
-      }}
+      style={{ borderColor: fg, background: bg, borderStyle: droppable && !over ? "dashed" : "solid" }}
     >
       <button
         type="button"
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={() => h.onRelate(group.id, group.relation === "and" ? "or" : "and")}
         title="Toggle AND / OR"
         className="rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
@@ -52,33 +45,27 @@ export function FilterGroupView({ group, h }: { group: FilterGroup; h: Handlers 
       >
         {group.relation}
       </button>
-      {group.children.map((child, i) => (
-        <Fragment key={child.id}>
-          {i > 0 && (
-            <span className="select-none text-[10px] italic" style={{ color: fg, opacity: 0.8 }}>
-              {group.relation}
-            </span>
-          )}
-          <Node node={child} h={h} />
-        </Fragment>
+      {group.children.map((child) => (
+        <Node key={child.id} node={child} h={h} />
       ))}
     </span>
   );
 }
 
 /** A child is either a leaf (chip) or a nested group. */
-export function Node({ node, h }: { node: FilterNode; h: Handlers }) {
+export function Node({ node, h }: { node: FilterNode; h: GroupHandlers }) {
   if (isGroup(node)) return <FilterGroupView group={node} h={h} />;
   return (
     <FilterChip
       leaf={node}
       selected={h.selected.has(node.id)}
-      onToggleSelect={h.onToggleSelect}
+      editing={h.editingId === node.id}
+      ctx={h.ctx}
+      onClick={h.onChipClick}
+      onPointerDown={h.onChipPointerDown}
+      onEditClose={h.onEditClose}
+      onReplace={h.onReplace}
       onPop={h.onPop}
-      onDragStart={h.onDragStart}
-      onDragEnd={h.onDragEnd}
     />
   );
 }
-
-export type { Handlers as GroupHandlers };

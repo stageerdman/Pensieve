@@ -374,6 +374,14 @@ body {
   pointer-events: none;
 }
 
+/* The summon text inputs never show the global focus-visible box — the ring/halo on the
+   surrounding pill is the focus affordance. */
+.summon-input:focus,
+.summon-input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 /* The focused summon ring gets a gentle halo. */
 .summon-ring-focus {
   border-color: hsl(var(--accent) / 0.5) !important;

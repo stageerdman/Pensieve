@@ -20,6 +20,8 @@ interface GalleryProps {
   notes: NoteMeta[];
   state: GalleryState;
   categoryDefs: CategoryDef[];
+  /** Rendered at the top of the scroll region (the Summon bar) — scrolls away with content. */
+  header?: React.ReactNode;
   /** Per-note search match info (snippet + reason) when a summon query is active. */
   match?: Map<string, SearchResult>;
   /** True when a summon query is narrowing the gallery — changes the empty state. */
@@ -36,6 +38,7 @@ export function Gallery({
   notes,
   state,
   categoryDefs,
+  header,
   match,
   searchActive,
   theme,
@@ -121,6 +124,8 @@ export function Gallery({
       role="region"
       aria-label="Memories"
     >
+      {header && <div className="mb-6">{header}</div>}
+
       {/* The liquid-ripple filter, applied to the background (below) while a peek is
           open — never to the memory itself. A single low-frequency octave gives a few
           big, slow undulations (not many small ones); the turbulence slowly travels so

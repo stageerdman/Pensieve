@@ -1,9 +1,9 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { NoteMeta } from "../lib/types";
 import type { Filter, FilterLeaf, FilterNode, Relation } from "../lib/search/types";
 import { parseQuery, type Suggestion } from "../lib/search/grammar";
 import { runSearch, type SearchResult } from "../lib/search/search";
-import { appendLeaf, group, moveLeaf, removeNode, setRelation, ungroup } from "../lib/search/tree";
+import { appendLeaf, group, moveLeaf, removeNode, replaceFilter, setRelation, ungroup } from "../lib/search/tree";
 import { useSearchIndex } from "./useSearchIndex";
 import { log } from "../lib/logger";
 
@@ -28,10 +28,12 @@ export interface SummonApi {
   match: Map<string, SearchResult>;
   total: number;
   active: boolean; // any chip or live text in play
+  editCtx: { tags: string[]; categories: string[]; now: number }; // for the edit popover
   // actions
   confirm: (s: Suggestion) => void;
   pickTag: (tag: string) => void;
   addFilter: (filter: Filter) => void;
+  replace: (id: string, filter: Filter) => void;
   remove: (id: string) => void;
   fuse: (ids: string[], relation: Relation) => void;
   explode: (groupId: string) => void;
@@ -43,7 +45,7 @@ export interface SummonApi {
 /** The Summon brain: owns the input text, the committed filter tree, the parse, and the
  *  derived search outcome. Components stay dumb and call these actions. */
 export function useSummon(notes: NoteMeta[], categoryNames: string[]): SummonApi {
-  const { index, version } = useSearchIndex(notes);
+  const { index, version, ensureBuilt } = useSearchIndex(notes);
   const [input, setInputRaw] = useState("");
   const [caret, setCaret] = useState(0);
   const [items, setItems] = useState<FilterNode[]>([]);
@@ -58,6 +60,11 @@ export function useSummon(notes: NoteMeta[], categoryNames: string[]): SummonApi
 
   const parse = useMemo(() => parseQuery(input, ctx, now, caret), [input, ctx, now, caret]);
   const query = useMemo(() => ({ text: parse.text, items }), [parse.text, items]);
+
+  // Full-text search needs the body index — build it the first time there's free text.
+  useEffect(() => {
+    if (parse.text.trim()) ensureBuilt();
+  }, [parse.text, ensureBuilt]);
 
   // version is a dep so a background index update re-runs the search.
   const outcome = useMemo(
@@ -99,6 +106,10 @@ export function useSummon(notes: NoteMeta[], categoryNames: string[]): SummonApi
     [addFilter, parse.whisper],
   );
 
+  const replace = useCallback(
+    (id: string, filter: Filter) => setItems((prev) => replaceFilter(prev, id, filter)),
+    [],
+  );
   const remove = useCallback((id: string) => setItems((prev) => removeNode(prev, id)), []);
   const fuse = useCallback(
     (ids: string[], relation: Relation) =>
@@ -136,9 +147,11 @@ export function useSummon(notes: NoteMeta[], categoryNames: string[]): SummonApi
     match: outcome.match,
     total: notes.length,
     active,
+    editCtx: { tags: tagsInUse, categories: categoryNames, now },
     confirm,
     pickTag,
     addFilter,
+    replace,
     remove,
     fuse,
     explode,

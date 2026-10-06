@@ -37,7 +37,7 @@ describe("Summon surface", () => {
     // a chip with the same label is stacked; input cleared
     await waitFor(() => expect(input.value).toBe(""));
     // the chip (a button) now exists
-    const chips = screen.getAllByTitle(/click to select/i);
+    const chips = screen.getAllByTitle(/click to edit/i);
     expect(chips.some((c) => c.textContent?.includes("last month"))).toBe(true);
   });
 
@@ -54,7 +54,7 @@ describe("Summon surface", () => {
     expect(await screen.findByText("Execution")).toBeInTheDocument();
     fireEvent.keyDown(input, { key: "Tab" });
     await waitFor(() => expect(input.value).toBe(""));
-    expect(screen.getByTitle(/click to select/i)).toHaveTextContent("Execution");
+    expect(screen.getByTitle(/click to edit/i)).toHaveTextContent("Execution");
   });
 
   it("clear-all wipes the chips", async () => {
@@ -62,9 +62,9 @@ describe("Summon surface", () => {
     const input = type("pinned");
     expect(await screen.findByText("Pinned")).toBeInTheDocument();
     fireEvent.keyDown(input, { key: "Enter" });
-    await screen.findByTitle(/click to select/i);
+    await screen.findByTitle(/click to edit/i);
     fireEvent.click(screen.getByLabelText(/clear all filters/i));
-    await waitFor(() => expect(screen.queryByTitle(/click to select/i)).toBeNull());
+    await waitFor(() => expect(screen.queryByTitle(/click to edit/i)).toBeNull());
   });
 
   it("shift-fuses two chips into an OR group (boolean summary updates)", async () => {
@@ -77,14 +77,51 @@ describe("Summon surface", () => {
     fireEvent.keyDown(input, { key: "Enter" });
 
     // two chips now
-    await waitFor(() => expect(screen.getAllByTitle(/click to select/i).length).toBe(2));
-    const chips = screen.getAllByTitle(/click to select/i);
-    fireEvent.click(chips[0]);
-    fireEvent.click(chips[1]);
+    await waitFor(() => expect(screen.getAllByTitle(/click to edit/i).length).toBe(2));
+    const chips = screen.getAllByTitle(/click to edit/i);
+    // shift-click selects (plain click edits)
+    fireEvent.click(chips[0], { shiftKey: true });
+    fireEvent.click(chips[1], { shiftKey: true });
     // combine control appears → choose OR
     fireEvent.click(await screen.findByRole("button", { name: /^or$/i }));
-    // boolean summary line shows an OR group
-    await waitFor(() => expect(screen.getByText(/\bOR\b/)).toBeInTheDocument());
+    // a group forms with a single relation selector (the AND/OR badge)
+    await screen.findByTitle("Toggle AND / OR");
+  });
+
+  it("left-click opens the edit popover and swaps a date range", async () => {
+    render(<Harness />);
+    const input = type("last month");
+    await screen.findByText("Created · last month");
+    fireEvent.keyDown(input, { key: "Enter" });
+    const chip = await screen.findByTitle(/click to edit/i);
+    fireEvent.click(chip); // plain click = edit
+    // popover lists date phrases; pick a different one
+    const option = await screen.findByText("this week");
+    fireEvent.click(option);
+    await waitFor(() => expect(screen.getByTitle(/click to edit/i)).toHaveTextContent("Created · this week"));
+  });
+
+  it("full-text search lazily builds the index and counts body matches", async () => {
+    // Seed a note body in storage so the lazy index build (store.bodies) finds it.
+    localStorage.setItem(
+      "pensieve:note:a",
+      JSON.stringify({
+        id: "a",
+        title: "Summon bar",
+        markdown: "# Summon bar\n\nThe pensieve metaphor is the whole product.",
+        createdAt: NOW,
+        addedAt: NOW,
+        updatedAt: NOW,
+        categories: ["Execution"],
+        tags: ["#walk"],
+        links: [],
+        pinned: false,
+      }),
+    );
+    render(<Harness />);
+    type("pensieve");
+    // count reflects the single body match once the index has built (2 notes total)
+    expect(await screen.findByText("1 / 2")).toBeInTheDocument();
   });
 
   it("right-click pops (removes) a chip", async () => {
@@ -92,9 +129,9 @@ describe("Summon surface", () => {
     const input = type("pinned");
     await screen.findByText("Pinned");
     fireEvent.keyDown(input, { key: "Enter" });
-    const chip = await screen.findByTitle(/click to select/i);
+    const chip = await screen.findByTitle(/click to edit/i);
     fireEvent.contextMenu(chip);
-    await waitFor(() => expect(screen.queryByTitle(/click to select/i)).toBeNull(), { timeout: 1500 });
+    await waitFor(() => expect(screen.queryByTitle(/click to edit/i)).toBeNull(), { timeout: 1500 });
   });
 
   void within;

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type RefObject } from "react";
 import type { SummonApi } from "../../hooks/useSummon";
 import { SummonBar } from "./SummonBar";
 import { SuggestionList, isCategoryRow, type Row } from "./SuggestionList";
+import { SummonHelp } from "./SummonHelp";
 import { FilterShelf } from "./FilterShelf";
 
 // Composes the summon surface: the bar, the suggestion dropdown, and the filter shelf.
@@ -14,10 +15,13 @@ export function Summon({ summon, inputRef }: { summon: SummonApi; inputRef: RefO
   const [focused, setFocused] = useState(false);
   const [highlight, setHighlight] = useState(0);
 
+  const helpMode = summon.input.startsWith("/");
+
   const rows: Row[] = useMemo(() => {
+    if (helpMode) return [];
     if (summon.whisper) return summon.whisper.matches.map((tag) => ({ kind: "tag", tag }));
     return summon.suggestions.map((s) => ({ kind: "suggestion", s }));
-  }, [summon.whisper, summon.suggestions]);
+  }, [helpMode, summon.whisper, summon.suggestions]);
 
   // Keep the highlight in range as rows change.
   useEffect(() => {
@@ -79,7 +83,7 @@ export function Summon({ summon, inputRef }: { summon: SummonApi; inputRef: RefO
     }
   };
 
-  const showDropdown = focused && (rows.length > 0 || summon.liveText !== "");
+  const showDropdown = focused && !helpMode && (rows.length > 0 || summon.liveText !== "");
 
   return (
     <div className="mx-auto w-full max-w-[720px]">
@@ -90,13 +94,16 @@ export function Summon({ summon, inputRef }: { summon: SummonApi; inputRef: RefO
           focused={focused}
           count={summon.results.length}
           total={summon.total}
-          showCount={summon.active}
+          showCount={summon.active && !helpMode}
           onChange={summon.setInput}
           onCaret={(c) => summon.setInput(summon.input, c)}
           onKeyDown={onKeyDown}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
         />
+        {focused && helpMode && (
+          <SummonHelp onPick={(ex) => summon.setInput(ex, ex.length)} />
+        )}
         {showDropdown && (
           <SuggestionList
             rows={rows}
@@ -111,6 +118,8 @@ export function Summon({ summon, inputRef }: { summon: SummonApi; inputRef: RefO
 
       <FilterShelf
         items={summon.items}
+        ctx={summon.editCtx}
+        onReplace={summon.replace}
         onPop={summon.remove}
         onFuse={summon.fuse}
         onRelate={summon.relate}
