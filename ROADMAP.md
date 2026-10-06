@@ -32,10 +32,13 @@ Legend: [ ] not started · [~] in progress · [x] done
 - [ ] **IMAGES** — embed images freely; multiple media per note; light captions/labels.
 
 ## Then (organization & intelligence — desktop AI)
-- [ ] **SEARCH** — a minimal but *smart* "super search": search by name / date /
-  tags / text-inside; typing a date phrase ("last month") or tag suggests a
-  selectable filter, stacking filters as you go. Likely where SQLite finally lands.
-  See `updates/2026-10-04 SEARCH - OPEN/`. (Deferred — not needed yet.)
+- [x] **SEARCH** — the "Summon" super-search atop Home: a local NL grammar turns typed
+  text into stacking filter chips (name / date / #tags / categories / flags), with tag &
+  keyword whispering, full-text inside notes (highlighted snippets), a visual AND/OR
+  filter-group canvas, and a custom-range calendar with a golden note-density heatmap.
+  Timeline grouping preserved. Stayed in-memory (inverted index behind a `SearchIndex`
+  seam — SQLite deferred until it's actually needed). See
+  `updates/2026-10-04 SEARCH - CLOSED/`.
 - [ ] **LABELS** — auto-labeling on capture; browse by label / date / source.
 - [ ] **AI COACH** — desktop-only, via Claude Code CLI: reads your thoughts,
   surfaces past lessons, connects entries to your goals. For organizing, planning,

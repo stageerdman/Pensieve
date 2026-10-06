@@ -1,7 +1,8 @@
 # Update v1 — SEARCH ("Summon": a smart, magical super-search)
 
-Status: **IN PROGRESS.** Started 2026-10-06 (owner greenlit; brief below supersedes the
-2026-10-04 deferred stub). Branch `update/search`.
+Status: **CLOSED — owner-verified 2026-10-06.** Built end-to-end, iterated on owner
+feedback (pointer-drag, click-to-edit, keyword whispering, custom-range calendar with a
+golden density heatmap + today marker), merged to `main`. Branch `update/search` pruned.
 
 ## Goal
 A **Summon** bar living at the top of Home that turns typing into real, stacking,
