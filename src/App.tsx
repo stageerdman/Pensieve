@@ -279,6 +279,7 @@ export default function App() {
               onToggleWorkingSet={gallery.toggleWorkingSet}
               onRemoveFromWorkingSet={gallery.removeFromWorkingSet}
               onMoveInWorkingSet={gallery.moveInWorkingSet}
+              onReorderWorkingSet={gallery.reorderWorkingSet}
             />
           ) : (
             <>

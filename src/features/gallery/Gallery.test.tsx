@@ -34,6 +34,7 @@ function renderGallery(
     onToggleWorkingSet: vi.fn(),
     onRemoveFromWorkingSet: vi.fn(),
     onMoveInWorkingSet: vi.fn(),
+    onReorderWorkingSet: vi.fn(),
     ...overrides,
   };
   return { ...render(<Gallery {...props} />), props };
@@ -70,6 +71,7 @@ describe("Gallery — layout", () => {
         onToggleWorkingSet={() => {}}
         onRemoveFromWorkingSet={() => {}}
         onMoveInWorkingSet={() => {}}
+        onReorderWorkingSet={() => {}}
       />,
     );
     expect(screen.queryByText("hello world")).toBeNull();
@@ -149,17 +151,37 @@ describe("Gallery — working set", () => {
         onToggleWorkingSet={() => {}}
         onRemoveFromWorkingSet={() => {}}
         onMoveInWorkingSet={() => {}}
+        onReorderWorkingSet={() => {}}
       />,
     );
     const strip = screen.getByRole("list", { name: /working set/i });
     expect(within(strip).getByText("Alpha")).toBeInTheDocument();
   });
 
-  it("marks a card that is in the working set", () => {
+  it("pins a working-set memory to the strip and hides it from the grid", () => {
     renderGallery([note({ id: "a", title: "Alpha", createdAt: NOW })], {
       state: { ...DEFAULT_GALLERY_STATE, workingSet: ["a"] },
     });
-    // The strip title and the grid card title both read "Alpha".
-    expect(screen.getAllByText("Alpha").length).toBeGreaterThanOrEqual(2);
+    // It lives only in the strip now — not duplicated in the grid below.
+    const matches = screen.getAllByText("Alpha");
+    expect(matches).toHaveLength(1);
+    const strip = screen.getByRole("list", { name: /working set/i });
+    expect(within(strip).getByText("Alpha")).toBeInTheDocument();
+  });
+
+  it("reorders the strip when a card is dragged onto another", () => {
+    const { props } = renderGallery(
+      [
+        note({ id: "a", title: "Alpha", createdAt: NOW }),
+        note({ id: "b", title: "Beta", createdAt: NOW }),
+      ],
+      { state: { ...DEFAULT_GALLERY_STATE, workingSet: ["a", "b"] } },
+    );
+    const strip = screen.getByRole("list", { name: /working set/i });
+    const items = within(strip).getAllByRole("listitem");
+    fireEvent.dragStart(items[0]);
+    fireEvent.dragOver(items[1]);
+    fireEvent.drop(items[1]);
+    expect(props.onReorderWorkingSet).toHaveBeenCalledWith(0, 1);
   });
 });

@@ -24,6 +24,7 @@ interface GalleryProps {
   onToggleWorkingSet: (id: string) => void;
   onRemoveFromWorkingSet: (id: string) => void;
   onMoveInWorkingSet: (id: string, delta: number) => void;
+  onReorderWorkingSet: (fromIndex: number, toIndex: number) => void;
 }
 
 export function Gallery({
@@ -35,9 +36,16 @@ export function Gallery({
   onToggleWorkingSet,
   onRemoveFromWorkingSet,
   onMoveInWorkingSet,
+  onReorderWorkingSet,
 }: GalleryProps) {
   const now = useMemo(() => Date.now(), []);
-  const sections = useMemo(() => bucketize(notes, now), [notes, now]);
+  const wsSet = useMemo(() => new Set(state.workingSet), [state.workingSet]);
+  // Working-set memories are pinned to the strip above and hidden from the grid here —
+  // the strip is their only home while pinned (like a note moved to the top).
+  const sections = useMemo(
+    () => bucketize(notes.filter((n) => !wsSet.has(n.id)), now),
+    [notes, wsSet, now],
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const [altHeld, setAltHeld] = useState(false);
@@ -46,7 +54,6 @@ export function Gallery({
   const [menu, setMenu] = useState<CardMenuTarget | null>(null);
 
   const byId = useMemo(() => new Map(notes.map((n) => [n.id, n])), [notes]);
-  const wsSet = useMemo(() => new Set(state.workingSet), [state.workingSet]);
   // Working-set items in saved order, dropping any that no longer map to a live note.
   const wsItems = useMemo(
     () => state.workingSet.map((id) => byId.get(id)).filter(Boolean) as NoteMeta[],
@@ -136,10 +143,18 @@ export function Gallery({
       <div className={peekTarget && peekNote ? "water-bg" : undefined}>
         <WorkingSetStrip
           items={wsItems}
+          fields={state.fields}
+          snippetLines={state.snippetLines}
+          categoryDefs={categoryDefs}
+          now={now}
           onOpen={onOpen}
+          onContextMenu={openContextMenu}
+          onHoverChange={setHovered}
+          onPeekToggle={onPeekToggle}
+          onToggleWorkingSet={onToggleWorkingSet}
           onRemove={onRemoveFromWorkingSet}
           onMove={onMoveInWorkingSet}
-          onContextMenu={(e, id) => openContextMenu(e, id)}
+          onReorder={onReorderWorkingSet}
         />
 
         {sections.length === 0 ? (

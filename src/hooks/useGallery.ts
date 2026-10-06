@@ -83,6 +83,24 @@ export function useGallery() {
       }),
     [mutateWorkingSet],
   );
+  // Move an item from one index to another (drag-to-reorder within the strip).
+  const reorderWorkingSet = useCallback(
+    (fromIndex: number, toIndex: number) =>
+      mutateWorkingSet((ids) => {
+        if (
+          fromIndex === toIndex ||
+          fromIndex < 0 ||
+          toIndex < 0 ||
+          fromIndex >= ids.length ||
+          toIndex >= ids.length
+        )
+          return ids;
+        const next = [...ids];
+        next.splice(toIndex, 0, next.splice(fromIndex, 1)[0]);
+        return next;
+      }),
+    [mutateWorkingSet],
+  );
   // Drop ids that no longer map to a live note (self-healing after deletes).
   const pruneWorkingSet = useCallback(
     (liveIds: Set<string>) =>
@@ -101,6 +119,7 @@ export function useGallery() {
     removeFromWorkingSet,
     toggleWorkingSet,
     moveInWorkingSet,
+    reorderWorkingSet,
     pruneWorkingSet,
   };
 }
