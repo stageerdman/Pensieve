@@ -14,6 +14,7 @@ import { contentCharCount } from "./lib/text";
 import { useNotes } from "./hooks/useNotes";
 import { useGallery } from "./hooks/useGallery";
 import { useTheme } from "./hooks/useTheme";
+import { useFullscreen } from "./hooks/useFullscreen";
 import { useFontScale } from "./hooks/useFontScale";
 import { useCategoryDefs } from "./hooks/useCategoryDefs";
 
@@ -25,6 +26,7 @@ export default function App() {
   const { notes, current, status, open, create, remove, change, updateMeta, togglePin, setCreatedAt } =
     useNotes();
   const { theme, toggle } = useTheme();
+  const fullscreen = useFullscreen();
   useFontScale();
   const categories = useCategoryDefs();
   const gallery = useGallery();
@@ -208,7 +210,9 @@ export default function App() {
             data-tauri-drag-region
             className={
               "flex h-12 items-center gap-2 border-b border-border bg-surface-sunken pr-3 " +
-              (IS_TAURI ? "pl-20" : "pl-3")
+              // Clear the macOS traffic lights only in windowed mode. In fullscreen they
+              // are gone, so the home button + tabs start flush-left like in the browser.
+              (IS_TAURI && !fullscreen ? "pl-20" : "pl-3")
             }
           >
             <TabBar
