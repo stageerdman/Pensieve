@@ -49,7 +49,7 @@ export function SummonBar({
         value={value}
         spellCheck={false}
         autoComplete="off"
-        placeholder="Accio a thought…   ⌘S"
+        placeholder="Accio a memory…   ⌘A"
         className="summon-input min-w-0 flex-1 bg-transparent text-[15px] text-text outline-none placeholder:text-text-muted"
         onChange={(e) => onChange(e.target.value, e.target.selectionStart ?? e.target.value.length)}
         onSelect={(e) => onCaret((e.target as HTMLInputElement).selectionStart ?? 0)}

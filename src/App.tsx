@@ -33,7 +33,7 @@ export default function App() {
   const categories = useCategoryDefs();
   const gallery = useGallery();
 
-  // Summon (search). Lives atop Home; ⌘S focuses it. Filters the gallery live while the
+  // Summon (search). Lives atop Home; ⌘A (⌘⇧A while typing) focuses it. Filters the gallery live while the
   // timeline grouping is preserved (we only hand it a filtered note list + match info).
   const categoryNames = useMemo(() => categories.defs.map((d) => d.name), [categories.defs]);
   const summon = useSummon(notes, categoryNames);
@@ -200,8 +200,14 @@ export default function App() {
       } else if (e.key === "Backspace") {
         e.preventDefault();
         askDelete();
-      } else if (k === "s") {
-        // ⌘S summons: jump Home, scroll the gallery all the way to the top (so the bar is
+      } else if (k === "a") {
+        // ⌘A summons. While writing text (input / textarea / editor), plain ⌘A must stay
+        // "select all", so there we require ⌘⇧A; anywhere else plain ⌘A summons.
+        const t = e.target as HTMLElement | null;
+        const editing =
+          !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+        if (editing && !e.shiftKey) return;
+        // Summon: jump Home, scroll the gallery all the way to the top (so the bar is
         // fully in view, not mid-screen), and focus it.
         e.preventDefault();
         setActiveTab(HOME);
