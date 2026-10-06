@@ -74,11 +74,17 @@
    ProseMirror node decoration (blockSelectionDecorations), so it persists when focus
    leaves the editor to grab the drag handle. We also blank the native text ::selection
    inside selected rows so it reads as whole blocks, not highlighted text. */
-.pensieve-editor [data-node-type="blockContainer"].pensieve-block-selected > .bn-block {
+/* The node decoration's class lands on the block's nodeView DOM, which in BlockNote is
+   the `.bn-block-outer` wrapper (its contentDOM is the inner `.bn-block`). We wash the
+   inner `.bn-block` so the highlight hugs the row (content + any nested children, which
+   move with it). The second selector is a safety net in case the class ever lands on the
+   inner block directly. */
+.pensieve-editor .bn-block-outer.pensieve-block-selected > .bn-block,
+.pensieve-editor .bn-block.pensieve-block-selected {
   background: hsl(var(--accent) / 0.14);
   border-radius: 6px;
 }
-.pensieve-editor [data-node-type="blockContainer"].pensieve-block-selected ::selection {
+.pensieve-editor .pensieve-block-selected ::selection {
   background: transparent;
 }
 
