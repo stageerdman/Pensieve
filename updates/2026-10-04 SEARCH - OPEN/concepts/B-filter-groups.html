@@ -1,0 +1,843 @@
+<!--
+================================================================================
+  Pensieve · Search concept B — MAGICAL VISUAL FILTER-GROUP SYSTEM
+================================================================================
+
+  RATIONALE
+  ---------
+  Search power-users think in boolean logic, but nobody wants to type
+  parentheses. This prototype makes the boolean expression a *physical* object:
+  filter chips are tiles you can shift-select, fuse into coloured groups, drag
+  between groups, and pop like bubbles. The colour of a group IS its logic, so
+  you never have to decode an expression — you just read the hue.
+
+  The default relationship between every ungrouped chip (and every sibling) is
+  AND; faint lowercase "and"/"or" connectors are drawn between siblings so the
+  arrangement literally reads as a live boolean sentence. A human-readable
+  summary line at the bottom mirrors the exact same logic for verification.
+
+  COLOUR LOGIC  (fg HSL values are the app tokens)
+  ------------
+    A "leaf" group — one that contains only chips (or is nested inside another):
+        OR  -> BLUE    (212 70% 68%)
+        AND -> ORANGE  (24 85% 68%)
+    An "outer" group — one that CONTAINS another group (depth-2 nesting):
+        OR  -> PURPLE  (270 55% 74%)
+        AND -> RED     (0 70% 70%)
+    The moment a group swallows another group it recolours blue/orange ->
+    purple/red, so nesting is felt instantly. Nesting is capped at depth 2
+    (a group inside a group); a deeper attempt is refused with a shake.
+
+  GESTURES
+  --------
+    shift-click chips (same level)  -> select; floating control offers AND / OR
+    click AND / OR                  -> fuse selection into a group
+    click a group's operator badge  -> flip AND<->OR (recolours live)
+    drag a chip                     -> move it into / out of a group
+                                       (target group "breathes" open to accept)
+    right-click press+release a chip-> it POPS like a bubble and disappears;
+                                       a group left with one chip dissolves,
+                                       returning that chip to the parent level
+                                       (there is never a group of one).
+
+  LEFT FOR THE REAL BUILD
+  -----------------------
+    - Only chips are drag-draggable here; groups are re-parented via selection
+      instead. Real build may allow dragging whole groups (with depth guards).
+    - Chip data / autocomplete / result count are mocked; this is purely the
+      filter-composition surface.
+================================================================================
+-->
+<style>
+  :root{
+    --surface:         hsl(222 24% 11%);
+    --surface-sunken:  hsl(222 22% 13%);
+    --surface-raised:  hsl(222 18% 17%);
+    --text:            hsl(216 18% 84%);
+    --text-muted:      hsl(218 12% 60%);
+    --border:          hsl(222 16% 21%);
+    --accent:          hsl(215 85% 74%);
+    --accent-glow:     hsl(218 100% 72%);
+    --radius: 6px;
+    --font: ui-sans-serif, -apple-system, system-ui, sans-serif;
+  }
+
+  html,body{height:100%;}
+  body{
+    margin:0; background:
+      radial-gradient(1200px 700px at 70% -10%, hsl(222 30% 15%), transparent 60%),
+      var(--surface);
+    color:var(--text); font-family:var(--font);
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+
+  .app{
+    height:100vh; display:flex; flex-direction:column;
+    max-width:980px; margin:0 auto; padding:28px 28px 0;
+    box-sizing:border-box;
+  }
+
+  /* ---- header / search bar ---- */
+  .top{display:flex; align-items:center; gap:14px; margin-bottom:22px;}
+  .search{
+    flex:1; display:flex; align-items:center; gap:10px;
+    background:var(--surface-sunken); border:1px solid var(--border);
+    border-radius:var(--radius); padding:11px 14px;
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / .02);
+  }
+  .search svg{flex:none; opacity:.6;}
+  .search input{
+    flex:1; background:none; border:none; outline:none; color:var(--text);
+    font:inherit; font-size:14px;
+  }
+  .search .kbd{color:var(--text-muted); font-size:11px; border:1px solid var(--border);
+    border-radius:4px; padding:2px 6px; background:var(--surface);}
+  .hint-btn{
+    font-size:12px; color:var(--text-muted); background:var(--surface-sunken);
+    border:1px solid var(--border); border-radius:var(--radius);
+    padding:9px 12px; cursor:pointer; white-space:nowrap;
+  }
+  .hint-btn:hover{color:var(--text); border-color:hsl(222 16% 30%);}
+
+  /* ---- canvas ---- */
+  .canvas-wrap{flex:1; min-height:0; position:relative;}
+  .canvas{
+    position:absolute; inset:0; overflow:auto;
+    border:1px solid var(--border); border-radius:12px;
+    background:
+      radial-gradient(600px 400px at 20% 0%, hsl(222 24% 14% / .6), transparent 70%),
+      var(--surface-sunken);
+    padding:22px;
+  }
+  .canvas-label{
+    position:absolute; top:12px; left:16px; font-size:11px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--text-muted); pointer-events:none;
+  }
+
+  /* the root container holds top-level items, joined by AND */
+  .root-body{
+    display:flex; flex-wrap:wrap; align-items:center; gap:4px;
+    min-height:60px; padding:22px 6px 6px;
+    border-radius:10px; transition:background .18s, box-shadow .18s;
+  }
+
+  /* ---- connectors (live boolean text between siblings) ---- */
+  .conn{
+    font-size:11px; letter-spacing:.03em; color:var(--text-muted);
+    padding:0 4px; user-select:none; opacity:.75; font-style:italic;
+    pointer-events:none;
+  }
+
+  /* ---- chips ---- */
+  .chip{
+    position:relative; display:inline-flex; align-items:center; gap:7px;
+    background:var(--surface-raised);
+    border:1px solid var(--border); border-radius:var(--radius);
+    padding:7px 11px 7px 9px; font-size:13px; color:var(--text);
+    cursor:grab; user-select:none; white-space:nowrap;
+    box-shadow: 0 1px 2px hsl(0 0% 0% / .25);
+    transition: transform .14s cubic-bezier(.2,.9,.3,1.3),
+                box-shadow .18s, border-color .18s, background .18s;
+  }
+  .chip:hover{border-color:hsl(222 16% 32%); transform:translateY(-1px);}
+  .chip:active{cursor:grabbing;}
+  .chip .ico{
+    display:inline-flex; width:16px; height:16px; align-items:center;
+    justify-content:center; font-size:12px; color:var(--text-muted);
+    border-radius:4px; background:hsl(222 20% 22%);
+  }
+  .chip.sel{
+    border-color:var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 0 16px hsl(218 100% 72% / .45);
+    background:hsl(215 40% 20%);
+  }
+  .chip.dragging{opacity:.28; filter:saturate(.4);}
+
+  /* ---- groups ---- */
+  .group{
+    position:relative; display:inline-flex; align-items:stretch;
+    border-radius:9px;
+    /* --h --s --l set inline per group colour */
+    background: hsl(var(--h) var(--s) var(--l) / .09);
+    border:1px solid hsl(var(--h) var(--s) var(--l) / .55);
+    box-shadow: 0 0 0 1px hsl(var(--h) var(--s) var(--l) / .08),
+                0 0 22px hsl(var(--h) var(--s) var(--l) / .18),
+                inset 0 0 20px hsl(var(--h) var(--s) var(--l) / .05);
+    padding:5px; gap:4px;
+    transition: box-shadow .22s, border-color .22s, background .22s,
+                transform .18s cubic-bezier(.2,.9,.3,1.3), padding .2s;
+  }
+  .op-badge{
+    align-self:center; flex:none;
+    font-size:10px; font-weight:700; letter-spacing:.06em;
+    color:hsl(var(--h) 45% 12%);
+    background:hsl(var(--h) var(--s) var(--l) / .92);
+    border-radius:5px; padding:4px 7px; margin-right:1px;
+    cursor:pointer; user-select:none;
+    box-shadow:0 0 10px hsl(var(--h) var(--s) var(--l) / .5);
+    transition:transform .14s, box-shadow .18s;
+  }
+  .op-badge:hover{transform:scale(1.08);}
+  .op-badge:active{transform:scale(.94);}
+  .group-body{
+    display:flex; flex-wrap:wrap; align-items:center; gap:4px;
+    border-radius:6px; padding:2px; min-width:30px;
+    transition:background .18s, box-shadow .18s, padding .2s;
+  }
+
+  /* breathing-open drop target */
+  .drop-target{
+    background:hsl(var(--h,215) var(--s,85%) var(--l,74%) / .16) !important;
+    box-shadow: inset 0 0 0 1.5px hsl(var(--h,215) var(--s,85%) var(--l,74%) / .7),
+                0 0 26px hsl(var(--h,215) var(--s,85%) var(--l,74%) / .35) !important;
+    padding:10px !important;
+  }
+  .root-body.drop-target{
+    --h:215; --s:85%; --l:74%;
+  }
+  .group.breathe{ transform:scale(1.035); }
+
+  .shake{ animation:shake .4s cubic-bezier(.36,.07,.19,.97); }
+  @keyframes shake{
+    10%,90%{transform:translateX(-2px);}
+    20%,80%{transform:translateX(3px);}
+    30%,50%,70%{transform:translateX(-5px);}
+    40%,60%{transform:translateX(5px);}
+  }
+
+  /* ---- floating group control ---- */
+  .control{
+    position:fixed; z-index:60; transform:translate(-50%,-100%);
+    display:flex; align-items:center; gap:6px;
+    background:var(--surface-raised); border:1px solid var(--border);
+    border-radius:9px; padding:6px; opacity:0; pointer-events:none;
+    box-shadow:0 10px 30px hsl(0 0% 0% / .5), 0 0 0 1px hsl(0 0% 100% /.03);
+    transition:opacity .16s, transform .16s;
+    margin-top:-10px;
+  }
+  .control.show{opacity:1; pointer-events:auto;}
+  .control .lead{font-size:11px; color:var(--text-muted); padding:0 4px 0 6px;}
+  .control button{
+    font:inherit; font-size:12px; font-weight:600; letter-spacing:.03em;
+    border:none; border-radius:6px; padding:7px 13px; cursor:pointer;
+    color:hsl(220 40% 12%);
+    transition:transform .12s, filter .15s;
+  }
+  .control button:hover{transform:translateY(-1px); filter:brightness(1.08);}
+  .control button:active{transform:translateY(0) scale(.97);}
+  .control .or{ background:hsl(212 70% 68%); box-shadow:0 0 14px hsl(212 70% 68% / .5);}
+  .control .and{ background:hsl(24 85% 68%); box-shadow:0 0 14px hsl(24 85% 68% / .5);}
+  .control .arrow{
+    position:absolute; bottom:-6px; left:50%; width:10px; height:10px;
+    transform:translateX(-50%) rotate(45deg);
+    background:var(--surface-raised); border-right:1px solid var(--border);
+    border-bottom:1px solid var(--border);
+  }
+
+  /* ---- summary bar ---- */
+  .summary{
+    flex:none; margin:16px 0 20px; padding:14px 18px;
+    background:var(--surface-sunken); border:1px solid var(--border);
+    border-radius:var(--radius); display:flex; align-items:baseline; gap:14px;
+  }
+  .summary .tag{font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--text-muted); flex:none;}
+  .summary .expr{font-size:14px; line-height:1.5; color:var(--text);
+    font-family:ui-monospace, SFMono-Regular, Menlo, monospace;}
+  .summary .expr .op{color:var(--accent); font-weight:600;}
+  .summary .expr .paren{color:var(--text-muted);}
+  .summary .count{margin-left:auto; flex:none; font-size:12px; color:var(--text-muted);}
+  .summary .count b{color:var(--accent); font-weight:600;}
+
+  /* ---- fx layers ---- */
+  #fx{position:fixed; inset:0; pointer-events:none; z-index:80;}
+  .ghost{
+    position:fixed; z-index:90; pointer-events:none; margin:0;
+    transform:translate(-50%,-50%) rotate(-2deg) scale(1.04);
+    box-shadow:0 14px 34px hsl(0 0% 0% / .55), 0 0 22px hsl(218 100% 72% / .4);
+    opacity:.96;
+  }
+  .trail{position:fixed; z-index:79; pointer-events:none; border-radius:50%;
+    background:radial-gradient(circle, hsl(218 100% 72% / .6), transparent 70%);}
+  .particle{position:fixed; border-radius:50%; pointer-events:none; z-index:85;}
+
+  /* ---- legend popover ---- */
+  .legend{
+    position:fixed; right:28px; top:76px; z-index:70; width:300px;
+    background:var(--surface-raised); border:1px solid var(--border);
+    border-radius:10px; padding:16px 18px; font-size:12.5px; line-height:1.6;
+    box-shadow:0 20px 50px hsl(0 0% 0% / .55);
+    opacity:0; transform:translateY(-6px) scale(.98); pointer-events:none;
+    transition:opacity .18s, transform .18s;
+  }
+  .legend.show{opacity:1; transform:none; pointer-events:auto;}
+  .legend h4{margin:0 0 10px; font-size:12px; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--text-muted);}
+  .legend .row{display:flex; align-items:center; gap:9px; margin:6px 0;}
+  .legend .sw{width:26px; height:14px; border-radius:4px; flex:none;}
+  .legend ul{margin:12px 0 0; padding-left:16px; color:var(--text-muted);}
+  .legend li{margin:5px 0;}
+  .legend b{color:var(--text);}
+</style>
+
+<div class="app">
+  <div class="top">
+    <div class="search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input placeholder="Search your thoughts…" value="" />
+      <span class="kbd">⌘K</span>
+    </div>
+    <button class="hint-btn" id="legendBtn">How it works</button>
+  </div>
+
+  <div class="canvas-wrap">
+    <div class="canvas" id="canvas">
+      <span class="canvas-label">Filters · default relationship is AND</span>
+      <div class="root-body" id="root" data-container data-id="root"></div>
+    </div>
+  </div>
+
+  <div class="summary">
+    <span class="tag">Logic</span>
+    <span class="expr" id="expr"></span>
+    <span class="count">matching <b id="count">—</b></span>
+  </div>
+</div>
+
+<div class="control" id="control">
+  <span class="lead">Join as</span>
+  <button class="or"  data-op="OR">OR</button>
+  <button class="and" data-op="AND">AND</button>
+  <div class="arrow"></div>
+</div>
+
+<div class="legend" id="legend">
+  <h4>Colour = logic</h4>
+  <div class="row"><span class="sw" style="background:hsl(212 70% 68%)"></span> <b>Blue</b> — OR group</div>
+  <div class="row"><span class="sw" style="background:hsl(24 85% 68%)"></span> <b>Orange</b> — AND group</div>
+  <div class="row"><span class="sw" style="background:hsl(270 55% 74%)"></span> <b>Purple</b> — OR group that nests another</div>
+  <div class="row"><span class="sw" style="background:hsl(0 70% 70%)"></span> <b>Red</b> — AND group that nests another</div>
+  <ul>
+    <li><b>Shift-click</b> chips, then pick AND / OR to fuse them.</li>
+    <li><b>Click a badge</b> to flip a group's operator.</li>
+    <li><b>Drag</b> a chip into or out of a group.</li>
+    <li><b>Right-click</b> a chip to pop it like a bubble.</li>
+    <li>Nesting stops at depth 2; a group of one dissolves.</li>
+  </ul>
+</div>
+
+<div id="fx"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ------------------------------------------------------------------ *
+   *  COLOUR TOKENS (group fg HSL)                                      *
+   * ------------------------------------------------------------------ */
+  const COLORS = {
+    blue:   {h:212, s:70, l:68},
+    orange: {h:24,  s:85, l:68},
+    purple: {h:270, s:55, l:74},
+    red:    {h:0,   s:70, l:70},
+  };
+
+  /* ------------------------------------------------------------------ *
+   *  STATE  (a tree; root is an implicit AND of its children)          *
+   * ------------------------------------------------------------------ */
+  let uid = 0;
+  const nid = () => "n" + (++uid);
+
+  function chip(kind, label){ return {id:nid(), type:"chip", kind, label}; }
+
+  const root = {
+    id:"root", type:"root", children:[
+      chip("tag",  "#Weekly Review"),
+      chip("cat",  "Notes"),
+      chip("date", "created last month"),
+      chip("flag", "Pinned"),
+      chip("tag",  "#Bug"),
+      chip("tag",  "#Ideas"),
+      chip("cat",  "Journal"),
+    ]
+  };
+
+  const KIND_ICON = { tag:"#", cat:"◫", date:"◷", flag:"⚑" };
+
+  /* selection lives at one container level at a time */
+  let sel = new Set();
+  let selContainer = null;
+
+  /* ------------------------------------------------------------------ *
+   *  TREE HELPERS                                                       *
+   * ------------------------------------------------------------------ */
+  function find(id, node=root){
+    if(node.id===id) return node;
+    if(node.children) for(const c of node.children){ const r=find(id,c); if(r) return r; }
+    return null;
+  }
+  function parentOf(id, node=root){
+    if(node.children){
+      for(const c of node.children){
+        if(c.id===id) return node;
+        const r=parentOf(id,c); if(r) return r;
+      }
+    }
+    return null;
+  }
+  function isOuter(group){ return group.children.some(c=>c.type==="group"); }
+  function colorName(group){
+    if(isOuter(group)) return group.op==="OR" ? "purple" : "red";
+    return group.op==="OR" ? "blue" : "orange";
+  }
+  // nesting validity: no group deeper than level 2 (group inside a group)
+  function validDepth(node=root, level=0){
+    let lv = level;
+    if(node.type==="group"){ lv++; if(lv>2) return false; }
+    if(node.children) return node.children.every(c=>validDepth(c, lv));
+    return true;
+  }
+  // flatten away any group left with <2 children (no group of one)
+  function cleanup(node=root){
+    if(node.type==="chip") return node;
+    node.children = node.children.map(cleanup);
+    const out=[];
+    for(const c of node.children){
+      if(c.type==="group" && c.children.length<2) out.push(...c.children);
+      else out.push(c);
+    }
+    node.children = out;
+    return node;
+  }
+  function removeNode(id){
+    const p = parentOf(id);
+    if(!p) return null;
+    const i = p.children.findIndex(c=>c.id===id);
+    const [n] = p.children.splice(i,1);
+    return n;
+  }
+
+  /* ------------------------------------------------------------------ *
+   *  RENDER                                                             *
+   * ------------------------------------------------------------------ */
+  const rootEl = document.getElementById("root");
+
+  function connEl(word){
+    const s=document.createElement("span");
+    s.className="conn"; s.textContent=word; return s;
+  }
+
+  function renderChip(node){
+    const el=document.createElement("div");
+    el.className="chip" + (sel.has(node.id)?" sel":"");
+    el.dataset.item=""; el.dataset.id=node.id; el.dataset.kind=node.kind;
+    el.innerHTML =
+      '<span class="ico">'+(KIND_ICON[node.kind]||"•")+'</span>'+
+      '<span class="lbl"></span>';
+    el.querySelector(".lbl").textContent = node.label;
+    return el;
+  }
+
+  function renderGroup(node){
+    const c = COLORS[colorName(node)];
+    const el=document.createElement("div");
+    el.className="group"; el.dataset.item=""; el.dataset.id=node.id;
+    el.style.setProperty("--h", c.h);
+    el.style.setProperty("--s", c.s+"%");
+    el.style.setProperty("--l", c.l+"%");
+
+    const badge=document.createElement("span");
+    badge.className="op-badge"; badge.dataset.badge=node.id;
+    badge.textContent=node.op;
+    el.appendChild(badge);
+
+    const body=document.createElement("div");
+    body.className="group-body"; body.dataset.container=""; body.dataset.id=node.id;
+    renderChildren(node, body);
+    el.appendChild(body);
+    return el;
+  }
+
+  function renderChildren(node, container){
+    const word = node.type==="root" ? "and" : (node.op==="OR" ? "or" : "and");
+    node.children.forEach((child,i)=>{
+      if(i>0) container.appendChild(connEl(word));
+      container.appendChild(child.type==="group" ? renderGroup(child) : renderChip(child));
+    });
+  }
+
+  function render(){
+    cleanup();
+    rootEl.innerHTML="";
+    renderChildren(root, rootEl);
+    renderSummary();
+    updateControl();
+  }
+
+  /* ------------------------------------------------------------------ *
+   *  SUMMARY LINE                                                       *
+   * ------------------------------------------------------------------ */
+  function exprHTML(node){
+    if(node.type==="chip") return escapeHTML(node.label);
+    const op = node.type==="root" ? "AND" : node.op;
+    const sep = ' <span class="op">'+op+'</span> ';
+    const parts = node.children.map(exprHTML);
+    if(node.type==="root") return parts.join(sep) || "<em style='color:var(--text-muted)'>no filters</em>";
+    return '<span class="paren">(</span>'+parts.join(sep)+'<span class="paren">)</span>';
+  }
+  function escapeHTML(s){return s.replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));}
+  function countChips(node=root){
+    if(node.type==="chip") return 1;
+    return node.children.reduce((a,c)=>a+countChips(c),0);
+  }
+  function renderSummary(){
+    document.getElementById("expr").innerHTML = exprHTML(root);
+    const n = countChips();
+    // playful mock result count, deterministic from filter count
+    document.getElementById("count").textContent = n===0 ? "all notes" : (12 + n*37) + " notes";
+  }
+
+  /* ------------------------------------------------------------------ *
+   *  FLOATING GROUP CONTROL                                             *
+   * ------------------------------------------------------------------ */
+  const control = document.getElementById("control");
+  function groupableSelection(){
+    // valid when 2+ selected AND all share selContainer
+    if(sel.size<2 || !selContainer) return false;
+    const cont = find(selContainer);
+    if(!cont) return false;
+    return [...sel].every(id => cont.children.some(c=>c.id===id));
+  }
+  function updateControl(){
+    if(!groupableSelection()){ control.classList.remove("show"); return; }
+    // centroid of selected elements
+    let x=0,y=0,top=1e9,n=0;
+    sel.forEach(id=>{
+      const el=rootEl.querySelector('[data-id="'+id+'"]');
+      if(!el) return;
+      const r=el.getBoundingClientRect();
+      x+=r.left+r.width/2; top=Math.min(top,r.top); n++;
+    });
+    if(!n){ control.classList.remove("show"); return; }
+    control.style.left=(x/n)+"px";
+    control.style.top=(top-6)+"px";
+    control.classList.add("show");
+  }
+
+  function clearSelection(){ sel.clear(); selContainer=null; }
+
+  function toggleSelect(id){
+    const p = parentOf(id);
+    if(!p) return;
+    if(selContainer && selContainer!==p.id){ sel.clear(); }  // new level -> fresh
+    selContainer = p.id;
+    if(sel.has(id)) sel.delete(id); else sel.add(id);
+    if(sel.size===0) selContainer=null;
+    render();
+  }
+
+  // fuse current selection into a new group
+  function fuse(op){
+    if(!groupableSelection()) return;
+    const cont = find(selContainer);
+    // collect selected in their current order
+    const picks = cont.children.filter(c=>sel.has(c.id));
+    const insertAt = cont.children.findIndex(c=>sel.has(c.id));
+    // build candidate: remove picks, splice group in
+    const remaining = cont.children.filter(c=>!sel.has(c.id));
+    const grp = {id:nid(), type:"group", op, children:picks};
+    remaining.splice(insertAt, 0, grp);
+    const backup = cont.children;
+    cont.children = remaining;
+    if(!validDepth()){            // would nest too deep -> refuse
+      cont.children = backup;
+      refuse(rootEl.querySelector('[data-id="'+picks[0].id+'"]'));
+      return;
+    }
+    clearSelection();
+    render();
+    // pop-in flourish on the new group
+    const gEl=rootEl.querySelector('[data-id="'+grp.id+'"]');
+    if(gEl) gEl.animate(
+      [{transform:"scale(.6)",opacity:0},{transform:"scale(1.06)",opacity:1},{transform:"scale(1)"}],
+      {duration:360, easing:"cubic-bezier(.2,.9,.3,1.3)"});
+  }
+
+  function refuse(el){
+    const box = el ? el.closest(".group")||el : null;
+    if(box){ box.classList.remove("shake"); void box.offsetWidth; box.classList.add("shake"); }
+    toast("Can't nest deeper than two levels");
+  }
+
+  /* lightweight toast */
+  let toastT=null;
+  function toast(msg){
+    let t=document.getElementById("toast");
+    if(!t){
+      t=document.createElement("div"); t.id="toast";
+      t.style.cssText="position:fixed;left:50%;bottom:92px;transform:translateX(-50%);"+
+        "background:var(--surface-raised);border:1px solid var(--border);color:var(--text);"+
+        "padding:9px 15px;border-radius:8px;font-size:12.5px;z-index:95;opacity:0;"+
+        "transition:opacity .2s, transform .2s;box-shadow:0 10px 30px hsl(0 0% 0% /.5)";
+      document.body.appendChild(t);
+    }
+    t.textContent=msg; t.style.opacity="1"; t.style.transform="translateX(-50%) translateY(0)";
+    clearTimeout(toastT);
+    toastT=setTimeout(()=>{ t.style.opacity="0"; t.style.transform="translateX(-50%) translateY(6px)"; },1600);
+  }
+
+  control.querySelectorAll("button").forEach(b=>{
+    b.addEventListener("click", ()=> fuse(b.dataset.op));
+  });
+
+  /* ------------------------------------------------------------------ *
+   *  BUBBLE POP  (right-click press+release)                            *
+   * ------------------------------------------------------------------ */
+  const fx = document.getElementById("fx");
+
+  function popChip(id){
+    const el = rootEl.querySelector('.chip[data-id="'+id+'"]');
+    if(!el) return;
+    const r = el.getBoundingClientRect();
+    const cx=r.left+r.width/2, cy=r.top+r.height/2;
+
+    // the chip itself swells then bursts
+    const ghost = el.cloneNode(true);
+    ghost.className="chip";
+    ghost.style.cssText="position:fixed;left:"+r.left+"px;top:"+r.top+"px;margin:0;z-index:86;";
+    fx.appendChild(ghost);
+    el.style.visibility="hidden";
+    ghost.animate(
+      [{transform:"scale(1)",opacity:1,filter:"blur(0)"},
+       {transform:"scale(1.25)",opacity:.9,offset:.35},
+       {transform:"scale(1.4)",opacity:0,filter:"blur(3px)"}],
+      {duration:300, easing:"cubic-bezier(.3,.6,.2,1)"}
+    ).onfinish=()=>ghost.remove();
+
+    // bubble burst particles
+    const hues=[212,218,24,270];
+    const N=14;
+    for(let i=0;i<N;i++){
+      const p=document.createElement("div");
+      p.className="particle";
+      const size=4+Math.random()*7;
+      const hue=hues[i%hues.length];
+      p.style.width=p.style.height=size+"px";
+      p.style.left=(cx-size/2)+"px"; p.style.top=(cy-size/2)+"px";
+      p.style.background="radial-gradient(circle, hsl("+hue+" 90% 72%), hsl("+hue+" 80% 60% / .3))";
+      p.style.boxShadow="0 0 8px hsl("+hue+" 90% 70% / .7)";
+      fx.appendChild(p);
+      const ang=(i/N)*Math.PI*2 + Math.random()*0.5;
+      const dist=26+Math.random()*44;
+      p.animate(
+        [{transform:"translate(0,0) scale(1)",opacity:1},
+         {transform:"translate("+Math.cos(ang)*dist+"px,"+(Math.sin(ang)*dist+10)+"px) scale(0)",opacity:0}],
+        {duration:420+Math.random()*220, easing:"cubic-bezier(.2,.7,.3,1)"}
+      ).onfinish=()=>p.remove();
+    }
+    // a soft ring
+    const ring=document.createElement("div");
+    ring.className="particle";
+    ring.style.cssText="left:"+(cx-6)+"px;top:"+(cy-6)+"px;width:12px;height:12px;"+
+      "border:2px solid hsl(218 100% 72% / .8);background:transparent;box-shadow:0 0 14px hsl(218 100% 72% /.6)";
+    fx.appendChild(ring);
+    ring.animate([{transform:"scale(1)",opacity:.9},{transform:"scale(4.5)",opacity:0}],
+      {duration:420,easing:"ease-out"}).onfinish=()=>ring.remove();
+
+    // commit removal mid-animation so a stranded group dissolves in sync
+    if(sel.has(id)){ sel.delete(id); if(sel.size===0) selContainer=null; }
+    setTimeout(()=>{ removeNode(id); render(); }, 150);
+  }
+
+  /* ------------------------------------------------------------------ *
+   *  DRAG  (chips only) — custom pointer drag with ghost + trail        *
+   * ------------------------------------------------------------------ */
+  let drag=null;   // {id, startX, startY, active, ghost, srcEl, lastTrail}
+
+  function onPointerDown(e){
+    const badge = e.target.closest(".op-badge");
+    if(badge){ // flip operator
+      e.preventDefault();
+      const g=find(badge.dataset.badge);
+      if(g){ g.op = g.op==="OR" ? "AND" : "OR"; render();
+        const gEl=rootEl.querySelector('[data-id="'+g.id+'"]');
+        if(gEl) gEl.animate([{filter:"brightness(1.5)"},{filter:"brightness(1)"}],{duration:300});
+      }
+      return;
+    }
+
+    const chipEl = e.target.closest(".chip");
+
+    // RIGHT button -> arm a pop
+    if(e.button===2){
+      if(chipEl){ chipEl.dataset.rcArm="1"; }
+      return;
+    }
+    if(e.button!==0) return;
+
+    // click on empty canvas -> clear selection
+    if(!chipEl){
+      if(sel.size){ clearSelection(); render(); }
+      return;
+    }
+
+    // SHIFT -> toggle selection (no drag)
+    if(e.shiftKey){
+      e.preventDefault();
+      toggleSelect(chipEl.dataset.id);
+      return;
+    }
+
+    // otherwise arm a possible drag
+    drag = {
+      id: chipEl.dataset.id, srcEl: chipEl,
+      startX:e.clientX, startY:e.clientY, active:false, ghost:null, lastTrail:0
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp, {once:false});
+  }
+
+  function beginDrag(e){
+    drag.active=true;
+    const r=drag.srcEl.getBoundingClientRect();
+    const g=drag.srcEl.cloneNode(true);
+    g.className="chip ghost";
+    g.style.width=r.width+"px";
+    drag.ghost=g; fx.appendChild(g);
+    drag.srcEl.classList.add("dragging");
+    // dragging a selected chip? drop the selection for clarity
+    if(sel.size){ clearSelection(); render(); drag.srcEl=rootEl.querySelector('.chip[data-id="'+drag.id+'"]'); if(drag.srcEl) drag.srcEl.classList.add("dragging"); }
+    moveGhost(e.clientX,e.clientY);
+  }
+  function moveGhost(x,y){
+    if(drag.ghost){ drag.ghost.style.left=x+"px"; drag.ghost.style.top=y+"px"; }
+    // trail
+    const now=performance.now();
+    if(now-drag.lastTrail>26){
+      drag.lastTrail=now;
+      const t=document.createElement("div");
+      const s=10+Math.random()*8;
+      t.className="trail";
+      t.style.width=t.style.height=s+"px";
+      t.style.left=(x-s/2)+"px"; t.style.top=(y-s/2)+"px";
+      fx.appendChild(t);
+      t.animate([{opacity:.5,transform:"scale(1)"},{opacity:0,transform:"scale(.3)"}],
+        {duration:360,easing:"ease-out"}).onfinish=()=>t.remove();
+    }
+  }
+
+  function containerUnder(x,y){
+    // hide ghost from hit-test
+    const prev = drag.ghost ? drag.ghost.style.display : null;
+    if(drag.ghost) drag.ghost.style.display="none";
+    const el = document.elementFromPoint(x,y);
+    if(drag.ghost) drag.ghost.style.display=prev;
+    if(!el) return null;
+    const cont = el.closest("[data-container]");
+    return cont;
+  }
+
+  function clearDropHints(){
+    document.querySelectorAll(".drop-target").forEach(e=>e.classList.remove("drop-target"));
+    document.querySelectorAll(".group.breathe").forEach(e=>e.classList.remove("breathe"));
+  }
+
+  function onPointerMove(e){
+    if(!drag) return;
+    if(!drag.active){
+      const d=Math.hypot(e.clientX-drag.startX, e.clientY-drag.startY);
+      if(d<5) return;
+      beginDrag(e);
+    }
+    moveGhost(e.clientX,e.clientY);
+    clearDropHints();
+    const cont = containerUnder(e.clientX,e.clientY);
+    if(cont){
+      cont.classList.add("drop-target");
+      const grp=cont.closest(".group");
+      if(grp) grp.classList.add("breathe");
+    }
+  }
+
+  function dropIndex(containerEl, px, py){
+    const items=[...containerEl.querySelectorAll(":scope > [data-item]")]
+      .filter(el=>el.dataset.id!==drag.id);
+    if(!items.length) return 0;
+    let bestI=0,bestD=Infinity,bestEl=items[0];
+    items.forEach((el,i)=>{
+      const r=el.getBoundingClientRect();
+      const cx=r.left+r.width/2, cy=r.top+r.height/2;
+      const d=(cx-px)**2+(cy-py)**2;
+      if(d<bestD){bestD=d; bestI=i; bestEl=el;}
+    });
+    const r=bestEl.getBoundingClientRect();
+    return (px > r.left+r.width/2) ? bestI+1 : bestI;
+  }
+
+  function onPointerUp(e){
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+    if(!drag) return;
+    const d=drag; drag=null;
+
+    if(!d.active){ return; } // was just a click, nothing to do
+
+    const cont = containerUnder(e.clientX,e.clientY);
+    clearDropHints();
+    if(d.ghost) d.ghost.remove();
+
+    if(!cont){ render(); return; }  // dropped nowhere -> snap back
+    const destId = cont.dataset.id;
+    const idx = dropIndex(cont, e.clientX, e.clientY);
+
+    const node = removeNode(d.id);
+    const dest = find(destId);
+    if(!node || !dest){ render(); return; }
+    dest.children.splice(Math.min(idx,dest.children.length), 0, node);
+
+    // chips never deepen nesting, but keep the guard honest
+    if(!validDepth()){ /* shouldn't happen for chips */ }
+
+    render();
+    const moved=rootEl.querySelector('.chip[data-id="'+d.id+'"]');
+    if(moved) moved.animate(
+      [{transform:"scale(1.18)",boxShadow:"0 0 20px hsl(218 100% 72% /.6)"},{transform:"scale(1)"}],
+      {duration:300, easing:"cubic-bezier(.2,.9,.3,1.3)"});
+  }
+
+  /* right-click press+release on the SAME chip -> pop */
+  function onPointerUpGlobal(e){
+    if(e.button!==2) return;
+    const chipEl = e.target.closest(".chip");
+    if(chipEl && chipEl.dataset.rcArm==="1"){
+      popChip(chipEl.dataset.id);
+    }
+    // clear all arms
+    rootEl.querySelectorAll('.chip[data-rc-arm="1"]').forEach(c=>delete c.dataset.rcArm);
+  }
+
+  /* ------------------------------------------------------------------ *
+   *  WIRING                                                             *
+   * ------------------------------------------------------------------ */
+  rootEl.addEventListener("pointerdown", onPointerDown);
+  window.addEventListener("pointerup", onPointerUpGlobal);
+  window.addEventListener("contextmenu", e=>{ if(e.target.closest("#canvas")) e.preventDefault(); });
+  window.addEventListener("resize", updateControl);
+  document.getElementById("canvas").addEventListener("scroll", updateControl);
+
+  // legend toggle
+  const legend=document.getElementById("legend");
+  document.getElementById("legendBtn").addEventListener("click", ()=>legend.classList.toggle("show"));
+  document.addEventListener("pointerdown",(e)=>{
+    if(legend.classList.contains("show") && !legend.contains(e.target) &&
+       e.target.id!=="legendBtn") legend.classList.remove("show");
+  }, true);
+
+  // escape clears selection
+  window.addEventListener("keydown", e=>{ if(e.key==="Escape"){ clearSelection(); legend.classList.remove("show"); render(); }});
+
+  render();
+})();
+</script>

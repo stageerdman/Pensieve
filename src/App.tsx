@@ -10,6 +10,8 @@ import { Clock, PanelRight, Plus, Trash } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
 import { Gallery } from "./features/gallery/Gallery";
 import { GalleryCustomise } from "./features/gallery/GalleryCustomise";
+import { Summon } from "./features/summon/Summon";
+import { useSummon } from "./hooks/useSummon";
 import { contentCharCount } from "./lib/text";
 import { useNotes } from "./hooks/useNotes";
 import { useGallery } from "./hooks/useGallery";
@@ -30,6 +32,12 @@ export default function App() {
   useFontScale();
   const categories = useCategoryDefs();
   const gallery = useGallery();
+
+  // Summon (search). Lives atop Home; ⌘S focuses it. Filters the gallery live while the
+  // timeline grouping is preserved (we only hand it a filtered note list + match info).
+  const categoryNames = useMemo(() => categories.defs.map((d) => d.name), [categories.defs]);
+  const summon = useSummon(notes, categoryNames);
+  const summonInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (IS_TAURI) document.documentElement.classList.add("tauri");
@@ -193,7 +201,11 @@ export default function App() {
         e.preventDefault();
         askDelete();
       } else if (k === "s") {
-        e.preventDefault(); // reassurance no-op; autosave already handles it
+        // ⌘S summons: jump Home and focus the summon bar (autosave already persists, so
+        // we repurpose the old no-op save shortcut).
+        e.preventDefault();
+        setActiveTab(HOME);
+        requestAnimationFrame(() => summonInputRef.current?.focus());
       }
     };
     window.addEventListener("keydown", onKey);
@@ -270,17 +282,24 @@ export default function App() {
 
         <div className="flex min-h-0 flex-1">
           {onHome ? (
-            <Gallery
-              notes={notes}
-              state={gallery.state}
-              categoryDefs={categories.defs}
-              theme={theme}
-              onOpen={openNote}
-              onToggleWorkingSet={gallery.toggleWorkingSet}
-              onRemoveFromWorkingSet={gallery.removeFromWorkingSet}
-              onMoveInWorkingSet={gallery.moveInWorkingSet}
-              onReorderWorkingSet={gallery.reorderWorkingSet}
-            />
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              <div className="shrink-0 px-6 pt-5">
+                <Summon summon={summon} inputRef={summonInputRef} />
+              </div>
+              <Gallery
+                notes={summon.results}
+                state={gallery.state}
+                categoryDefs={categories.defs}
+                match={summon.match}
+                searchActive={summon.active}
+                theme={theme}
+                onOpen={openNote}
+                onToggleWorkingSet={gallery.toggleWorkingSet}
+                onRemoveFromWorkingSet={gallery.removeFromWorkingSet}
+                onMoveInWorkingSet={gallery.moveInWorkingSet}
+                onReorderWorkingSet={gallery.reorderWorkingSet}
+              />
+            </div>
           ) : (
             <>
               <section className="flex-1 overflow-y-auto">

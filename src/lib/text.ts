@@ -62,6 +62,30 @@ export function excerptFromMarkdown(md: string, max = 140): string {
   return out.length > max ? out.slice(0, max).trimEnd() + "…" : out;
 }
 
+/** Full plain-text of a note body for the search index: ALL content (unlike the capped
+ *  preview), with Markdown marks, code fences, link syntax and our colour/note-link
+ *  sentinels stripped to their readable text. Line structure is preserved (snippets
+ *  collapse whitespace themselves). Used to build the full-text haystack. */
+export function plainTextFromMarkdown(md: string): string {
+  const out: string[] = [];
+  for (const raw of md.split("\n")) {
+    let line = raw.replace(/​/g, ""); // ZWSP blank-line placeholders
+    if (/^\s*(```|~~~)/.test(line)) continue; // fence delimiters (keep the code lines)
+    line = line
+      .replace(/^#{1,6}\s*/, "") // heading marks
+      .replace(/^\s*[-*+]\s+/, "") // bullet marks
+      .replace(/^\s*>\s*/, "") // blockquote
+      .replace(/^\s*\d+\.\s+/, "") // ordered list
+      .replace(/`([^`]*)`/g, "$1") // inline code → text
+      .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1") // links/images → text
+      .replace(/\{(?:fg|bg):[^}]*\}|\{\/\}/g, "") // colour sentinels
+      .replace(/\{@[^|}]*\|([^}]*)\}/g, "$1") // note links → their title
+      .replace(/[*_~]/g, ""); // remaining emphasis marks
+    out.push(line);
+  }
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 /** Non-space character count of the note's CONTENT — everything after the title
  *  line, with whitespace removed. Drives the flask fill level (a title-only note
  *  has zero content → an empty flask). Cheap; computed once per note in list(). */

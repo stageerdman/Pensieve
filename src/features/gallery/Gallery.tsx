@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { NoteMeta } from "../../lib/types";
+import type { SearchResult } from "../../lib/search/search";
 import type { CategoryDef } from "../../lib/categories/defs";
 import type { GalleryState } from "../../lib/gallery/view";
 import { bucketize } from "../../lib/gallery/buckets";
@@ -19,6 +20,10 @@ interface GalleryProps {
   notes: NoteMeta[];
   state: GalleryState;
   categoryDefs: CategoryDef[];
+  /** Per-note search match info (snippet + reason) when a summon query is active. */
+  match?: Map<string, SearchResult>;
+  /** True when a summon query is narrowing the gallery — changes the empty state. */
+  searchActive?: boolean;
   theme: "light" | "dark";
   onOpen: (id: string, background: boolean) => void;
   onToggleWorkingSet: (id: string) => void;
@@ -31,6 +36,8 @@ export function Gallery({
   notes,
   state,
   categoryDefs,
+  match,
+  searchActive,
   theme,
   onOpen,
   onToggleWorkingSet,
@@ -157,7 +164,7 @@ export function Gallery({
         />
 
         {sections.length === 0 ? (
-          <Empty />
+          <Empty searchActive={searchActive} />
         ) : (
           <div className="grid grid-cols-[80px_minmax(0,1fr)] gap-y-10">
             {sections.map((s) => (
@@ -181,6 +188,7 @@ export function Gallery({
                         categoryDefs={categoryDefs}
                         now={now}
                         inWorkingSet={wsSet.has(n.id)}
+                        searchMatch={match?.get(n.id)}
                         onOpen={onOpen}
                         onContextMenu={openContextMenu}
                         onHoverChange={setHovered}
@@ -221,12 +229,16 @@ export function Gallery({
   );
 }
 
-function Empty() {
+function Empty({ searchActive }: { searchActive?: boolean }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
       <FlaskFor chars={0} size={72} className="text-text-muted/40" />
-      <p className="text-sm text-text">No memories yet</p>
-      <p className="text-[13px] text-text-muted">Capture your first thought.</p>
+      <p className="text-sm text-text">
+        {searchActive ? "No thoughts answer that summons" : "No memories yet"}
+      </p>
+      <p className="text-[13px] text-text-muted">
+        {searchActive ? "Try fewer filters, or press Esc to recall them all." : "Capture your first thought."}
+      </p>
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import { useRef, type KeyboardEvent, type MouseEvent } from "react";
 import type { NoteMeta } from "../../lib/types";
+import type { SearchResult } from "../../lib/search/search";
+import type { Snippet } from "../../lib/search/snippet";
 import type { CategoryDef } from "../../lib/categories/defs";
 import { colorOf } from "../../lib/categories/defs";
 import { catFg } from "../../lib/categories/palette";
@@ -37,6 +39,8 @@ interface FlaskCardProps {
   categoryDefs: CategoryDef[];
   now: number;
   inWorkingSet: boolean;
+  /** Why this card matched the active summon query (snippet + reason), if any. */
+  searchMatch?: SearchResult | null;
   /** How many lines the title may use before it ellipsises (default 2). */
   titleLines?: 1 | 2;
   onOpen: (id: string, background: boolean) => void;
@@ -59,6 +63,7 @@ export function FlaskCard({
   categoryDefs,
   now,
   inWorkingSet,
+  searchMatch,
   titleLines = 2,
   onOpen,
   onContextMenu,
@@ -70,8 +75,17 @@ export function FlaskCard({
   const cats = note.categories ?? [];
   const tags = note.tags ?? [];
   const showDots = fields.category && cats.length > 0;
+  const matchSnippet = searchMatch?.where === "text" ? searchMatch.snippet : null;
   const showSnippet = fields.snippet && !!note.excerpt;
   const showTags = fields.tags && tags.length > 0;
+  const reason =
+    searchMatch?.where === "title"
+      ? "in title"
+      : searchMatch?.where === "tag"
+        ? "in tag"
+        : searchMatch?.where === "text"
+          ? "in note"
+          : null;
 
   const times: string[] = [];
   if (fields.createdRelative) times.push(relativeTime(note.createdAt, now));
@@ -151,11 +165,24 @@ export function FlaskCard({
         </span>
       </span>
 
-      {/* No `block` on the snippet: line-clamp needs display:-webkit-box, which
-          `block` would override (then the clamp is ignored and all lines show). */}
-      {showSnippet && (
+      {/* A body-text match shows the matched context (highlighted) in place of the
+          preview; otherwise the normal excerpt. No `block`: line-clamp needs
+          display:-webkit-box, which `block` would override. */}
+      {matchSnippet ? (
         <span className={`mt-1 text-[13px] leading-snug text-text-muted ${CLAMP[snippetLines]}`}>
-          {note.excerpt}
+          <Highlighted snippet={matchSnippet} />
+        </span>
+      ) : (
+        showSnippet && (
+          <span className={`mt-1 text-[13px] leading-snug text-text-muted ${CLAMP[snippetLines]}`}>
+            {note.excerpt}
+          </span>
+        )
+      )}
+
+      {reason && (
+        <span className="mt-1 select-none text-[10px] uppercase tracking-wider text-accent/80">
+          {reason}
         </span>
       )}
 
@@ -175,4 +202,23 @@ export function FlaskCard({
       )}
     </button>
   );
+}
+
+/** Render a snippet with its matched ranges wrapped in a subtle accent highlight. */
+function Highlighted({ snippet }: { snippet: Snippet }) {
+  const { text, marks } = snippet;
+  if (marks.length === 0) return <>{text}</>;
+  const parts: React.ReactNode[] = [];
+  let cursor = 0;
+  marks.forEach(([start, end], i) => {
+    if (start > cursor) parts.push(text.slice(cursor, start));
+    parts.push(
+      <mark key={i} className="rounded bg-accent/25 px-0.5 text-text">
+        {text.slice(start, end)}
+      </mark>,
+    );
+    cursor = end;
+  });
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return <>{parts}</>;
 }
