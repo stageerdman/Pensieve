@@ -50,33 +50,46 @@ export interface Thread {
 }
 
 const f = (n: number) => n.toFixed(2);
-const KAPPA = 0.5522847498; // circle-arc control-point constant
 
 type Pt = [number, number];
 
-// A full loop (an "O" twist) that starts and ends at P, bulging to one side so the pen
-// returns exactly where it began and the strand can carry on. side +1 bulges right (P is
-// the circle's left point), -1 bulges left.
-function loopPath(px: number, py: number, r: number, side: number): string {
-  const cx = px + r * side;
-  const cy = py;
-  const k = KAPPA * r;
-  if (side >= 0) {
-    // P = left point; traverse left → top → right → bottom → left.
-    return (
-      `C ${f(cx - r)} ${f(cy - k)} ${f(cx - k)} ${f(cy - r)} ${f(cx)} ${f(cy - r)} ` +
-      `C ${f(cx + k)} ${f(cy - r)} ${f(cx + r)} ${f(cy - k)} ${f(cx + r)} ${f(cy)} ` +
-      `C ${f(cx + r)} ${f(cy + k)} ${f(cx + k)} ${f(cy + r)} ${f(cx)} ${f(cy + r)} ` +
-      `C ${f(cx - k)} ${f(cy + r)} ${f(cx - r)} ${f(cy + k)} ${f(px)} ${f(py)}`
-    );
+// A cursive loop that the strand flows *through*: it starts and ends at P, with entry and
+// exit tangents aligned to the travel direction (ux,uy), so it reads like a handwriting
+// loop that curls and crosses itself — not a circle bolted onto the side. The loop is an
+// ellipse built in a local frame (x = travel, y = perpendicular), offset to one `side`,
+// then mapped back to world. `aspect` squashes it (rounder ↔ teardrop), `dir` is the
+// winding. Four cubic quarter-arcs, so it stays smooth.
+function loopPath(
+  px: number,
+  py: number,
+  ux: number,
+  uy: number,
+  r: number,
+  aspect: number,
+  side: number,
+  dir: number,
+): string {
+  const nx = -uy; // perpendicular to travel
+  const ny = ux;
+  const rx = r; // radius along travel
+  const ry = r * aspect; // radius across travel
+  const cy = side * ry; // ellipse centre in local frame (P sits on its rim)
+  const phi0 = -side * (Math.PI / 2); // local angle of P (tangent there = travel dir)
+  const delta = dir * (Math.PI / 2);
+  const k = (4 / 3) * Math.tan(delta / 4); // cubic-arc control factor
+  const toWorld = (lx: number, ly: number): Pt => [px + lx * ux + ly * nx, py + lx * uy + ly * ny];
+
+  let out = "";
+  let a = phi0;
+  for (let q = 0; q < 4; q++) {
+    const b = a + delta;
+    const p1 = toWorld(rx * Math.cos(a) + k * -rx * Math.sin(a), cy + ry * Math.sin(a) + k * ry * Math.cos(a));
+    const p2 = toWorld(rx * Math.cos(b) - k * -rx * Math.sin(b), cy + ry * Math.sin(b) - k * ry * Math.cos(b));
+    const e = toWorld(rx * Math.cos(b), cy + ry * Math.sin(b));
+    out += `C ${f(p1[0])} ${f(p1[1])} ${f(p2[0])} ${f(p2[1])} ${f(e[0])} ${f(e[1])} `;
+    a = b;
   }
-  // P = right point; traverse right → top → left → bottom → right.
-  return (
-    `C ${f(cx + r)} ${f(cy - k)} ${f(cx + k)} ${f(cy - r)} ${f(cx)} ${f(cy - r)} ` +
-    `C ${f(cx - k)} ${f(cy - r)} ${f(cx - r)} ${f(cy - k)} ${f(cx - r)} ${f(cy)} ` +
-    `C ${f(cx - r)} ${f(cy + k)} ${f(cx - k)} ${f(cy + r)} ${f(cx)} ${f(cy + r)} ` +
-    `C ${f(cx + k)} ${f(cy + r)} ${f(cx + r)} ${f(cy + k)} ${f(px)} ${f(py)}`
-  );
+  return out.trim();
 }
 
 /** Build the memory thread for a seed within the vertical band [yTop, yBottom]. The
@@ -127,9 +140,17 @@ export function memoryThread({ seed, yTop, yBottom, cx = 12 }: ThreadInput): Thr
   let d = `M ${f(pts[0][0])} ${f(pts[0][1])}`;
   for (let i = 0; i < nodes; i++) {
     if (loops[i]) {
-      const r = 0.8 + rnd() * 1.2; // loop radius
-      const side = i % 2 === 0 ? start : -start; // bulge to the swinging side
-      d += ` ${loopPath(pts[i][0], pts[i][1], r, side)}`;
+      // Tangent through the node (prev → next): the loop follows the path here.
+      const prev = pts[i - 1] ?? pts[i];
+      const next = pts[i + 1] ?? pts[i];
+      const ul = Math.hypot(next[0] - prev[0], next[1] - prev[1]) || 1;
+      const ux = (next[0] - prev[0]) / ul;
+      const uy = (next[1] - prev[1]) / ul;
+      const r = 0.7 + rnd() * 0.85; // size varies
+      const aspect = 0.7 + rnd() * 0.55; // round ↔ teardrop
+      const side = rnd() < 0.5 ? 1 : -1; // which side it curls
+      const dir = rnd() < 0.5 ? 1 : -1; // winding
+      d += ` ${loopPath(pts[i][0], pts[i][1], ux, uy, r, aspect, side, dir)}`;
     }
     const p0 = pts[i - 1] ?? pts[i];
     const p1 = pts[i];

@@ -243,28 +243,35 @@ function FlaskBase({
       )}
 
       {/* 7 · the memory thread — a white strand whose shape is the note's DNA (seeded by
-          its id), clipped to the glass and rising with the liquid. A soft white halo under
-          the crisp core makes it "shine"; the Shine knob sets how much (cheap: just a wider
-          low-opacity stroke, no blur filter, so long lists stay fast). */}
+          its id), clipped to the glass and rising with the liquid. Shine governs both the
+          core's opacity (dim/translucent → bright/solid) AND a stacked soft glow that
+          widens and brightens with it, so a high-shine flask glows white all over. Stacked
+          translucent strokes fake a blur cheaply (no filter) so long lists stay fast. */}
       {thread && contentA > 0 && (
         <g clipPath={`url(#${clipId})`} opacity={contentA}>
-          {detailed && sh > 0.02 && (
-            <path
-              d={thread.d}
-              fill="none"
-              stroke="#fff"
-              strokeOpacity={0.1 + 0.42 * sh}
-              strokeWidth={thread.width + 1.6}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
-            />
-          )}
+          {detailed &&
+            sh > 0.02 &&
+            [
+              { w: thread.width + 5.5, o: 0.05 + 0.3 * sh },
+              { w: thread.width + 2.6, o: 0.07 + 0.4 * sh },
+            ].map((g, i) => (
+              <path
+                key={i}
+                d={thread.d}
+                fill="none"
+                stroke="#fff"
+                strokeOpacity={g.o}
+                strokeWidth={g.w}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
           <path
             d={thread.d}
             fill="none"
             stroke="#fff"
-            strokeOpacity={0.85}
+            strokeOpacity={0.35 + 0.6 * sh}
             strokeWidth={thread.width}
             strokeLinecap="round"
             strokeLinejoin="round"
