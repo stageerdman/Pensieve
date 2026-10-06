@@ -144,7 +144,6 @@ export function Gallery({
         <WorkingSetStrip
           items={wsItems}
           fields={state.fields}
-          snippetLines={state.snippetLines}
           categoryDefs={categoryDefs}
           now={now}
           onOpen={onOpen}

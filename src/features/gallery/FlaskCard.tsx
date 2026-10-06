@@ -37,6 +37,8 @@ interface FlaskCardProps {
   categoryDefs: CategoryDef[];
   now: number;
   inWorkingSet: boolean;
+  /** How many lines the title may use before it ellipsises (default 1). */
+  titleLines?: 1 | 2;
   onOpen: (id: string, background: boolean) => void;
   onContextMenu: (e: MenuAnchor, id: string) => void;
   onHoverChange: (target: PeekTarget | null) => void;
@@ -57,6 +59,7 @@ export function FlaskCard({
   categoryDefs,
   now,
   inWorkingSet,
+  titleLines = 1,
   onOpen,
   onContextMenu,
   onHoverChange,
@@ -103,7 +106,7 @@ export function FlaskCard({
       onPointerEnter={() => ref.current && onHoverChange({ id: note.id, el: ref.current })}
       onPointerLeave={() => onHoverChange(null)}
       aria-label={`${note.title || "Untitled"}, created ${absoluteDate(note.createdAt, now)}`}
-      className="group relative flex select-none flex-col rounded-lg p-3 text-left transition-colors hover:bg-surface-raised"
+      className="group relative flex w-full select-none flex-col overflow-hidden rounded-lg p-3 text-left transition-colors hover:bg-surface-raised"
     >
       {inWorkingSet && (
         <Bookmark
@@ -124,10 +127,11 @@ export function FlaskCard({
         />
       </span>
 
-      {/* Title line: category dots · title */}
-      <span className="mt-2 flex items-center gap-1.5">
+      {/* Title line: category dots · title. The title may wrap to two lines (working
+          set) — dots then top-align with the first line. */}
+      <span className={`mt-2 flex gap-1.5 ${titleLines === 2 ? "items-start" : "items-center"}`}>
         {showDots && (
-          <span className="flex shrink-0 -space-x-0.5">
+          <span className={`flex shrink-0 -space-x-0.5 ${titleLines === 2 ? "mt-[5px]" : ""}`}>
             {cats.slice(0, 2).map((c) => (
               <span
                 key={c}
@@ -137,7 +141,12 @@ export function FlaskCard({
             ))}
           </span>
         )}
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-text">
+        <span
+          className={
+            "min-w-0 flex-1 text-sm font-medium text-text " +
+            (titleLines === 2 ? "line-clamp-2" : "truncate")
+          }
+        >
           {note.title || "Untitled"}
         </span>
       </span>

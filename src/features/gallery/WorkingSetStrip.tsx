@@ -2,7 +2,7 @@ import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
 import type { NoteMeta } from "../../lib/types";
 import type { CategoryDef } from "../../lib/categories/defs";
-import type { GalleryFields, SnippetLines } from "../../lib/gallery/view";
+import type { GalleryFields } from "../../lib/gallery/view";
 import { FlaskCard, type MenuAnchor, type PeekTarget } from "./FlaskCard";
 import { FlaskFor } from "../../components/Flask";
 import { X } from "../../components/icons";
@@ -25,7 +25,6 @@ import { X } from "../../components/icons";
 interface WorkingSetStripProps {
   items: NoteMeta[]; // resolved from the working-set ids, in order
   fields: GalleryFields;
-  snippetLines: SnippetLines;
   categoryDefs: CategoryDef[];
   now: number;
   onOpen: (id: string, background: boolean) => void;
@@ -57,7 +56,6 @@ interface DragState {
 export function WorkingSetStrip({
   items,
   fields,
-  snippetLines,
   categoryDefs,
   now,
   onOpen,
@@ -189,7 +187,10 @@ export function WorkingSetStrip({
             <FlaskCard
               note={n}
               fields={fields}
-              snippetLines={snippetLines}
+              // Give the title up to two lines; spend description space for it so the
+              // card stays compact and the strip never collides.
+              snippetLines={1}
+              titleLines={2}
               categoryDefs={categoryDefs}
               now={now}
               inWorkingSet={false}
