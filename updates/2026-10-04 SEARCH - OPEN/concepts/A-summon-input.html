@@ -1,0 +1,849 @@
+<!--
+  ============================================================================
+  PENSIEVE · Concept A — SMART SUMMON INPUT BAR
+  ============================================================================
+  Design rationale
+  ----------------
+  ONE always-visible bar. By default it is a plain full-text search over
+  title + tags + body. The magic is progressive: as you type, a suggestion
+  dropdown proposes *concrete, resolved* filters. You never learn a query
+  syntax — you type the way you'd speak, and the bar offers to pin the
+  structured parts as chips.
+
+  Three filter kinds, one mental model ("confirm the suggestion → it becomes
+  a chip that stacks under the bar"):
+    • DATE phrases  → a `created` chip naming the CALENDAR-correct range
+                      (e.g. "Created · Oct 1–31"), so it's obviously not a
+                      rolling window. "last 30 days" is shown as rolling on
+                      purpose, to contrast with "last month" (calendar).
+    • #TAGS         → '#' opens tag-whispering over existing tags (incl.
+                      multi-word "#Weekly Review"); "# " (hash + space)
+                      escapes to a literal "#" text search.
+    • CATEGORY      → a category name is DUAL: Tab+Enter pins it as a filter
+                      chip, plain Enter searches the word as text. The row
+                      shows both affordances.
+
+  Free text is deliberately NOT chipped — it stays live in the bar and is
+  surfaced in the dropdown as a "Full-text" row, making the chip / text
+  distinction visible. A combination like
+      #Weekly Review created last month
+  yields TWO suggested filters at once (tag + date) and leaves nothing as
+  stray text.
+
+  Keyboard-first: "/" (or ⌘/Ctrl-K) focuses the bar, ↑/↓ move through
+  suggestions, Enter confirms, Tab+Enter pins a category, Esc clears. A
+  faint hint line keeps this discoverable without a manual.
+
+  Aesthetic: dark "magical mode". Magic lives on backdrops / halos / trails
+  (silver mist, a soft glow when focused, chips that settle with a pop, a
+  sparkle flourish on clear-all) — never as a wash over text. One accent,
+  legibility first. Practicality is the hero.
+
+  Left for the real build: debounced index queries (SQLite FTS), fuzzy tag
+  ranking, locale-aware week start, relative-date NLP beyond this phrase set,
+  and persistence of recent filters.
+  ============================================================================
+-->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pensieve · Summon</title>
+<style>
+  :root{
+    --surface:         hsl(222 24% 11%);
+    --surface-sunken:  hsl(222 22% 13%);
+    --surface-raised:  hsl(222 18% 17%);
+    --text:            hsl(216 18% 84%);
+    --text-muted:      hsl(218 12% 60%);
+    --border:          hsl(222 16% 21%);
+    --accent:          hsl(215 85% 74%);
+    --accent-glow:     hsl(218 100% 72%);
+    --c-blue:   hsl(212 70% 68%);
+    --c-orange: hsl(24 85% 68%);
+    --c-green:  hsl(145 50% 62%);
+    --c-purple: hsl(270 55% 74%);
+    --c-red:    hsl(0 70% 70%);
+    --c-yellow: hsl(45 80% 66%);
+    --c-gray:   hsl(220 10% 72%);
+    --radius: 6px;
+    --font: ui-sans-serif, -apple-system, "SF Pro Text", system-ui, sans-serif;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    font-family:var(--font);
+    color:var(--text);
+    background:
+      radial-gradient(900px 520px at 18% -10%, hsl(218 60% 24% / .22), transparent 60%),
+      radial-gradient(1100px 620px at 92% 4%, hsl(260 50% 26% / .16), transparent 62%),
+      var(--surface);
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* faint drifting silver mist on the backdrop (never over text) */
+  body::before{
+    content:"";
+    position:fixed; inset:-20% -20% auto -20%; height:70%;
+    background:
+      radial-gradient(600px 300px at 30% 30%, hsl(210 40% 70% / .05), transparent 60%),
+      radial-gradient(520px 260px at 70% 50%, hsl(220 40% 75% / .04), transparent 60%);
+    filter:blur(10px);
+    animation:mist 34s ease-in-out infinite alternate;
+    pointer-events:none; z-index:0;
+  }
+  @keyframes mist{
+    0%  { transform:translate3d(-2%, 0, 0) scale(1.02); opacity:.8; }
+    100%{ transform:translate3d(3%, 2%, 0) scale(1.06); opacity:1; }
+  }
+
+  .app{ position:relative; z-index:1; max-width:760px; margin:0 auto; padding:56px 24px 96px; }
+
+  .masthead{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:22px; }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand .glyph{
+    width:26px; height:26px; border-radius:50%;
+    background:radial-gradient(circle at 50% 38%, hsl(218 100% 80% / .9), hsl(218 70% 46% / .35) 60%, transparent 72%);
+    box-shadow:0 0 18px hsl(218 100% 72% / .45);
+  }
+  .brand h1{ font-size:15px; font-weight:600; letter-spacing:.2px; margin:0; color:var(--text); }
+  .today{ font-size:12px; color:var(--text-muted); }
+  .today b{ color:hsl(216 18% 90%); font-weight:600; }
+
+  /* ---- Summon bar ---- */
+  .summon{ position:relative; }
+  .bar{
+    position:relative;
+    display:flex; align-items:center; gap:10px;
+    background:var(--surface-sunken);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:0 12px;
+    height:52px;
+    transition:border-color .18s ease, box-shadow .25s ease, background .2s ease;
+  }
+  .bar.focused{
+    border-color:hsl(215 70% 50% / .65);
+    background:hsl(222 24% 14%);
+    box-shadow:
+      0 0 0 1px hsl(215 85% 74% / .18),
+      0 0 32px hsl(218 100% 72% / .22),
+      0 8px 30px hsl(220 50% 4% / .5);
+  }
+  .bar .sigil{
+    width:18px; height:18px; flex:0 0 auto; opacity:.85;
+    color:var(--accent);
+  }
+  .bar input{
+    flex:1 1 auto; min-width:0;
+    background:transparent; border:0; outline:0;
+    color:var(--text); font-size:15.5px; font-family:var(--font);
+    caret-color:var(--accent);
+  }
+  .bar input::placeholder{ color:var(--text-muted); }
+  .kbd-focus{
+    flex:0 0 auto; display:inline-flex; align-items:center; gap:5px;
+    font-size:11px; color:var(--text-muted);
+    border:1px solid var(--border); border-radius:5px; padding:3px 7px;
+    background:hsl(222 20% 15%);
+    transition:opacity .18s ease;
+  }
+  .bar.focused .kbd-focus{ opacity:0; }
+  .kbd-focus kbd{
+    font-family:var(--font); font-size:11px; color:var(--text);
+    background:transparent; padding:0;
+  }
+
+  /* ---- Chip row ---- */
+  .chiprow{
+    display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+    margin-top:12px; min-height:4px;
+  }
+  .chip{
+    display:inline-flex; align-items:center; gap:7px;
+    height:30px; padding:0 10px;
+    background:var(--surface-raised);
+    border:1px solid var(--border);
+    border-radius:999px;
+    font-size:13px; color:var(--text);
+    animation:pop .26s cubic-bezier(.2,.9,.3,1.3) both;
+    box-shadow:0 2px 10px hsl(220 50% 4% / .35);
+  }
+  @keyframes pop{
+    from{ transform:scale(.82) translateY(5px); opacity:0; }
+    to  { transform:scale(1) translateY(0); opacity:1; }
+  }
+  .chip .lead{ font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; }
+  .chip .dot{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; box-shadow:0 0 8px currentColor; }
+  .chip .ic{ width:13px; height:13px; opacity:.8; }
+  .chip .x{
+    cursor:pointer; margin-left:2px; width:16px; height:16px; border-radius:50%;
+    display:inline-flex; align-items:center; justify-content:center;
+    color:var(--text-muted); font-size:13px; line-height:1;
+    transition:background .15s ease, color .15s ease;
+  }
+  .chip .x:hover{ background:hsl(0 0% 100% / .08); color:var(--text); }
+  .chip.tag{ color:hsl(216 18% 88%); }
+  .chip.tag .hash{ color:var(--accent); font-weight:600; }
+
+  .clearall{
+    position:relative;
+    display:inline-flex; align-items:center; justify-content:center;
+    width:30px; height:30px; border-radius:50%;
+    cursor:pointer; color:var(--text-muted);
+    border:1px dashed hsl(222 16% 30%);
+    background:transparent;
+    transition:color .15s ease, border-color .15s ease, transform .15s ease;
+    animation:pop .26s cubic-bezier(.2,.9,.3,1.3) both;
+  }
+  .clearall:hover{ color:var(--accent); border-color:hsl(215 70% 55% / .6); transform:rotate(-8deg); }
+  .clearall svg{ width:15px; height:15px; }
+
+  .spark{
+    position:absolute; width:5px; height:5px; border-radius:50%;
+    background:var(--accent-glow);
+    box-shadow:0 0 8px var(--accent-glow);
+    pointer-events:none;
+    animation:spark .55s ease-out forwards;
+  }
+  @keyframes spark{
+    from{ transform:translate(0,0) scale(1); opacity:1; }
+    to  { transform:translate(var(--dx), var(--dy)) scale(.2); opacity:0; }
+  }
+
+  /* ---- Dropdown ---- */
+  .panel{
+    position:absolute; left:0; right:0; top:calc(100% + 8px);
+    background:hsl(222 22% 12.5%);
+    border:1px solid var(--border);
+    border-radius:10px;
+    box-shadow:0 20px 60px hsl(220 55% 3% / .6), 0 0 0 1px hsl(0 0% 100% / .02) inset;
+    overflow:hidden; z-index:20;
+    opacity:0; transform:translateY(-4px); pointer-events:none;
+    transition:opacity .14s ease, transform .14s ease;
+  }
+  .panel.open{ opacity:1; transform:translateY(0); pointer-events:auto; }
+
+  .sect-label{
+    font-size:10.5px; letter-spacing:.7px; text-transform:uppercase;
+    color:var(--text-muted); padding:10px 14px 4px;
+  }
+  .opt{
+    display:flex; align-items:center; gap:11px;
+    padding:9px 14px; cursor:pointer;
+    border-left:2px solid transparent;
+  }
+  .opt + .opt{ border-top:1px solid hsl(222 16% 21% / .5); }
+  .opt.sel{ background:hsl(215 60% 40% / .14); border-left-color:var(--accent); }
+  .opt .oic{
+    width:26px; height:26px; flex:0 0 auto; border-radius:7px;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:hsl(222 18% 18%); color:var(--accent);
+  }
+  .opt .oic svg{ width:15px; height:15px; }
+  .opt .otxt{ flex:1 1 auto; min-width:0; }
+  .opt .otitle{ font-size:14px; color:var(--text); display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+  .opt .otitle .mono{ color:var(--accent); font-weight:600; }
+  .opt .osub{ font-size:12px; color:var(--text-muted); margin-top:2px; }
+  .opt .cdot{ width:9px; height:9px; border-radius:50%; box-shadow:0 0 8px currentColor; }
+  .opt .enterpill{
+    flex:0 0 auto; font-size:11px; color:var(--text-muted);
+    border:1px solid var(--border); border-radius:5px; padding:3px 7px;
+    opacity:0; transition:opacity .14s ease;
+  }
+  .opt.sel .enterpill{ opacity:1; }
+  .opt .enterpill b{ color:var(--text); font-weight:600; }
+
+  .dual{ display:flex; gap:6px; flex:0 0 auto; }
+  .dual .seg{
+    font-size:11px; color:var(--text-muted);
+    border:1px solid var(--border); border-radius:5px; padding:3px 7px;
+    transition:all .14s ease;
+  }
+  .dual .seg.armed{ color:var(--text); border-color:hsl(215 70% 55% / .7); background:hsl(215 60% 40% / .18); box-shadow:0 0 12px hsl(218 100% 72% / .2); }
+  .dual .seg b{ color:var(--text); font-weight:600; }
+
+  .info{
+    display:flex; align-items:center; gap:11px;
+    padding:9px 14px; background:hsl(222 20% 10.5%);
+  }
+  .info .oic{ background:hsl(222 18% 16%); color:var(--text-muted); }
+  .info .otitle .txt{ color:var(--text); }
+  .info .tagch{ color:var(--text-muted); }
+
+  .examples{ padding:4px 8px 8px; display:flex; flex-wrap:wrap; gap:7px; }
+  .ex{
+    font-size:12.5px; color:var(--text-muted);
+    border:1px solid var(--border); border-radius:999px; padding:5px 11px;
+    cursor:pointer; background:hsl(222 18% 15%);
+    transition:color .14s ease, border-color .14s ease;
+  }
+  .ex:hover{ color:var(--text); border-color:hsl(215 70% 55% / .5); }
+  .ex .mono{ color:var(--accent); }
+
+  .hintbar{
+    display:flex; flex-wrap:wrap; gap:14px; align-items:center;
+    padding:9px 14px; border-top:1px solid var(--border);
+    background:hsl(222 24% 10%); font-size:11.5px; color:var(--text-muted);
+  }
+  .hintbar span{ display:inline-flex; align-items:center; gap:5px; }
+  .hintbar kbd{
+    font-family:var(--font); font-size:11px; color:var(--text);
+    background:hsl(222 18% 17%); border:1px solid var(--border);
+    border-bottom-width:2px; border-radius:4px; padding:1px 6px; line-height:1.5;
+  }
+
+  .toast{
+    position:fixed; left:50%; bottom:34px; transform:translateX(-50%) translateY(12px);
+    background:var(--surface-raised); border:1px solid var(--border);
+    color:var(--text); font-size:13px; padding:9px 15px; border-radius:8px;
+    box-shadow:0 12px 40px hsl(220 55% 3% / .6);
+    opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease; z-index:40;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast .mono{ color:var(--accent); font-weight:600; }
+
+  /* ---- Results ---- */
+  .results{ margin-top:30px; }
+  .rhead{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .rhead .count{ font-size:13px; color:var(--text-muted); }
+  .rhead .count b{ color:var(--text); font-weight:600; }
+  .rhead .live{ font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:6px; }
+  .rhead .live .mono{ color:var(--accent); }
+
+  .note{
+    border:1px solid var(--border); border-radius:10px;
+    background:hsl(222 22% 12.5%);
+    padding:13px 15px; margin-bottom:9px;
+    transition:border-color .15s ease, transform .15s ease;
+  }
+  .note:hover{ border-color:hsl(222 16% 30%); transform:translateY(-1px); }
+  .ntop{ display:flex; align-items:center; gap:9px; margin-bottom:5px; }
+  .ntop .cdot{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; box-shadow:0 0 8px currentColor; }
+  .ntop .ntitle{ font-size:14.5px; font-weight:600; color:var(--text); }
+  .ntop .ndate{ margin-left:auto; font-size:12px; color:var(--text-muted); }
+  .nbody{ font-size:13px; color:var(--text-muted); line-height:1.5; }
+  .ntags{ margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; }
+  .ntag{ font-size:11.5px; color:var(--text-muted); }
+  .ntag b{ color:var(--accent); font-weight:600; }
+  mark{ background:hsl(215 85% 74% / .22); color:var(--text); border-radius:3px; padding:0 2px; }
+
+  .empty{
+    text-align:center; padding:48px 20px; color:var(--text-muted); font-size:13.5px;
+    border:1px dashed var(--border); border-radius:10px; background:hsl(222 22% 11%);
+  }
+</style>
+
+<div class="app">
+  <div class="masthead">
+    <div class="brand">
+      <div class="glyph"></div>
+      <h1>Pensieve</h1>
+    </div>
+    <div class="today" id="today"></div>
+  </div>
+
+  <div class="summon">
+    <div class="bar" id="bar">
+      <svg class="sigil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>
+      </svg>
+      <input id="input" type="text" autocomplete="off" spellcheck="false"
+             placeholder="Summon a thought — words, #tags, a date, a category…" />
+      <span class="kbd-focus"><kbd>/</kbd> to summon</span>
+    </div>
+
+    <div class="panel" id="panel"></div>
+  </div>
+
+  <div class="chiprow" id="chiprow"></div>
+
+  <div class="results">
+    <div class="rhead">
+      <div class="count" id="count"></div>
+      <div class="live" id="live"></div>
+    </div>
+    <div id="notes"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- fixed "now" so ranges are demonstrably calendar-correct ----------
+  const NOW = new Date(2026, 9, 6); // Tue Oct 6, 2026
+  const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const d0 = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const fmtDay = d => MON[d.getMonth()] + ' ' + d.getDate();
+  function fmtRange(a,b){
+    if(a.getTime()===b.getTime()) return fmtDay(a);
+    if(a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth())
+      return MON[a.getMonth()] + ' ' + a.getDate() + '–' + b.getDate();
+    return fmtDay(a) + ' – ' + fmtDay(b);
+  }
+  function weekStart(d){ const x=d0(d); const wd=(x.getDay()+6)%7; x.setDate(x.getDate()-wd); return x; }
+  function rangeFor(key){
+    const t=d0(NOW);
+    switch(key){
+      case 'today': return [t,t];
+      case 'yesterday':{ const y=new Date(t); y.setDate(t.getDate()-1); return [y,y]; }
+      case 'today_or_yesterday':{ const y=new Date(t); y.setDate(t.getDate()-1); return [y,t]; }
+      case 'this_week':{ const s=weekStart(t); const e=new Date(s); e.setDate(s.getDate()+6); return [s,e]; }
+      case 'last_week':{ const s=weekStart(t); s.setDate(s.getDate()-7); const e=new Date(s); e.setDate(s.getDate()+6); return [s,e]; }
+      case 'this_month':{ return [ new Date(t.getFullYear(),t.getMonth(),1), new Date(t.getFullYear(),t.getMonth()+1,0) ]; }
+      case 'last_month':{ return [ new Date(t.getFullYear(),t.getMonth()-1,1), new Date(t.getFullYear(),t.getMonth(),0) ]; }
+      case 'last_30':{ const s=new Date(t); s.setDate(t.getDate()-29); return [s,t]; }
+    }
+  }
+  // longest / most specific phrases first
+  const DATE_PHRASES = [
+    { p:'today or yesterday', key:'today_or_yesterday' },
+    { p:'last 30 days',       key:'last_30', rolling:true },
+    { p:'last week',          key:'last_week' },
+    { p:'this week',          key:'this_week' },
+    { p:'last month',         key:'last_month' },
+    { p:'this month',         key:'this_month' },
+    { p:'yesterday',          key:'yesterday' },
+    { p:'today',              key:'today' },
+  ];
+
+  // ---------- mock vault ----------
+  const CATS = [
+    { name:'Notes & Lessons', color:'var(--c-blue)' },
+    { name:'Execution',       color:'var(--c-orange)' },
+    { name:'In my mind',      color:'var(--c-purple)' },
+    { name:'Journal',         color:'var(--c-green)' },
+    { name:'People',          color:'var(--c-red)' },
+  ];
+  const TAGS = ['Weekly Review','gratitude','ideas','deep-work','health','family','reading','money'];
+
+  const NOTES = [
+    { t:'Morning pages — clarity on the launch', c:'Journal', tags:['deep-work'], date:new Date(2026,9,6),
+      b:'Poured everything out about the launch. The fear is just unfinished thinking; writing it down shrank it.' },
+    { t:'Weekly Review — week 40', c:'Notes & Lessons', tags:['Weekly Review'], date:new Date(2026,9,5),
+      b:'Shipped the editor. Biggest lesson: momentum beats a perfect plan. Next week: search.' },
+    { t:'Idea: a summon bar for search', c:'In my mind', tags:['ideas'], date:new Date(2026,9,2),
+      b:'What if search felt like summoning a memory — type naturally, the bar offers the structure as chips.' },
+    { t:'Gratitude: dinner with family', c:'Journal', tags:['gratitude','family'], date:new Date(2026,8,29),
+      b:'Slow evening, no phones. Remember this is the point of all the work.' },
+    { t:'Lesson: shipping beats polishing', c:'Notes & Lessons', tags:['deep-work'], date:new Date(2026,8,15),
+      b:'Spent too long on a detail nobody sees. Define "done" before starting next time.' },
+    { t:'Execution plan — Q4 roadmap', c:'Execution', tags:[], date:new Date(2026,8,3),
+      b:'Three bets for the quarter. Cut the fourth — focus is a filter, not a wish list.' },
+    { t:'Reading notes — Deep Work', c:'Notes & Lessons', tags:['reading','deep-work'], date:new Date(2026,7,20),
+      b:'Attention is the asset. Schedule depth like a meeting you cannot move.' },
+    { t:'Weekly Review — week 36', c:'Notes & Lessons', tags:['Weekly Review'], date:new Date(2026,8,7),
+      b:'Reset the tag taxonomy. Fewer, truer labels. Review itself is the ritual.' },
+    { t:'Money: savings check', c:'Execution', tags:['money'], date:new Date(2026,9,6),
+      b:'On track. Automate the transfer so willpower is never in the loop.' },
+    { t:'In my mind: a half-formed thought on rest', c:'In my mind', tags:['health'], date:new Date(2026,9,5),
+      b:'Rest is not the reward for deep work — it is part of it. Hold that lightly.' },
+  ];
+
+  // ---------- state ----------
+  const state = { text:'', chips:[], open:false, sel:0, armed:false };
+  const sugState = { list:[] }; // last computed suggestions
+
+  const el = id => document.getElementById(id);
+  const bar=el('bar'), input=el('input'), panel=el('panel'),
+        chiprow=el('chiprow'), notesEl=el('notes'), countEl=el('count'),
+        liveEl=el('live'), toastEl=el('toast');
+
+  el('today').innerHTML = 'Today is <b>' + DOW[NOW.getDay()] + ', ' + MON[NOW.getMonth()] + ' ' + NOW.getDate() + '</b>';
+
+  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const hasChip = (type,val) => state.chips.some(c => c.type===type && c.val===val);
+
+  // ---------- suggestion engine ----------
+  function compute(text){
+    const sug = [];
+    let work = ' ' + text + ' ';            // padding for word-boundary matching
+    let dateRemove = null;
+
+    // 1) date phrase (optionally prefixed with "created")
+    for(const dp of DATE_PHRASES){
+      const re = new RegExp('(?:created\\s+)?' + esc(dp.p) + '(?=\\s|$)', 'i');
+      const m = work.match(re);
+      if(m){
+        const [a,b] = rangeFor(dp.key);
+        sug.push({
+          kind:'date', selectable:true,
+          title:'Created · ' + fmtRange(a,b),
+          sub: dp.rolling ? 'rolling 30 days from today — not a calendar month'
+                          : 'from "' + m[0].trim() + '"' ,
+          val: dp.key,
+          remove: m[0].trim()
+        });
+        dateRemove = m[0].trim();
+        break;
+      }
+    }
+
+    // 2) hash handling — compute on a copy with the date phrase stripped
+    let hwork = text;
+    if(dateRemove) hwork = hwork.replace(new RegExp(esc(dateRemove),'i'), ' ');
+    const hashIdx = hwork.indexOf('#');
+    let tagRemovals = [];
+    if(hashIdx >= 0){
+      const next = hwork[hashIdx+1];
+      if(next === undefined || /\s/.test(next)){
+        // "# " or trailing "#" → escape to literal text search
+        sug.push({ kind:'literal', selectable:false });
+      } else {
+        let frag = hwork.slice(hashIdx+1).replace(/^\s+/,'');
+        const fragL = frag.toLowerCase();
+        const seen = new Set();
+        // full tag typed (fragment starts with a known tag)
+        for(const tag of TAGS){
+          const tl = tag.toLowerCase();
+          if(fragL.startsWith(tl) && !seen.has(tl)){
+            seen.add(tl);
+            const removeText = '#' + frag.slice(0, tag.length);
+            sug.push({ kind:'tag', selectable:true, title:tag, mono:'#', sub:'filter to notes tagged this', val:tag, remove:removeText });
+            tagRemovals.push(removeText);
+          }
+        }
+        // whisper (known tag starts with the fragment)
+        if(seen.size === 0){
+          const matches = TAGS.filter(tag => tag.toLowerCase().startsWith(fragL));
+          const list = (frag === '' ? TAGS : matches).slice(0,6);
+          for(const tag of list){
+            sug.push({ kind:'tag', selectable:true, title:tag, mono:'#', sub:'tag', val:tag, remove:'#'+frag, whisper:true });
+          }
+          if(list.length) tagRemovals.push('#'+frag);
+        }
+      }
+    }
+
+    // 3) remaining free text = original minus date + minus tag removals
+    let rem = text;
+    if(dateRemove) rem = rem.replace(new RegExp(esc(dateRemove),'i'),' ');
+    for(const r of tagRemovals) rem = rem.replace(new RegExp(esc(r),'i'),' ');
+    rem = rem.replace(/\s+/g,' ').trim();
+
+    // 4) category suggestion from remaining text (dual: filter vs text)
+    if(rem.length >= 2){
+      const rl = rem.toLowerCase();
+      const starts = CATS.filter(c => c.name.toLowerCase().startsWith(rl));
+      const incl   = CATS.filter(c => !starts.includes(c) && c.name.toLowerCase().includes(rl));
+      const cat = starts[0] || incl[0];
+      if(cat){
+        sug.push({ kind:'category', selectable:true, title:cat.name, color:cat.color,
+                   sub:'category', val:cat.name, remove:rem });
+      }
+    }
+
+    // 5) free-text info row (the live, un-chipped part)
+    const freeText = rem;
+    return { sug, freeText };
+  }
+
+  // ---------- render dropdown ----------
+  function renderPanel(){
+    if(!state.open){ panel.classList.remove('open'); return; }
+    panel.classList.add('open');
+
+    const { sug, freeText } = compute(state.text);
+    sugState.list = sug;
+    sugState.freeText = freeText;
+
+    const selectable = sug.filter(s => s.selectable);
+    if(state.sel >= selectable.length) state.sel = Math.max(0, selectable.length-1);
+
+    let html = '';
+
+    // empty + focused: show example seeds
+    if(state.text.trim() === ''){
+      html += '<div class="sect-label">Summon examples</div>';
+      html += '<div class="examples">';
+      [['#Weekly Review','#'],['created last month',''],['this week',''],['Execution',''],['gratitude','']].forEach(([t,m])=>{
+        const disp = m ? '<span class="mono">'+m+'</span>'+t.slice(1) : t;
+        html += '<span class="ex" data-ex="'+t.replace(/"/g,'&quot;')+'">'+disp+'</span>';
+      });
+      html += '</div>';
+      html += keyboardHint();
+      panel.innerHTML = html;
+      wire();
+      return;
+    }
+
+    let selIdx = 0;
+    const group = (label, items) => {
+      if(!items.length) return '';
+      let h = '<div class="sect-label">'+label+'</div>';
+      items.forEach(s => { h += renderOpt(s, selectable.indexOf(s) === state.sel); });
+      return h;
+    };
+
+    const dates = sug.filter(s=>s.kind==='date');
+    const tags  = sug.filter(s=>s.kind==='tag');
+    const cats  = sug.filter(s=>s.kind==='category');
+    const lit   = sug.filter(s=>s.kind==='literal');
+
+    if(dates.length) html += group('Suggested date filter', dates);
+    if(tags.length)  html += group(tags[0].whisper ? 'Tags — whispering' : 'Suggested tag filter', tags);
+    if(cats.length)  html += group('Category — pin or search', cats);
+
+    // literal-# escape info
+    if(lit.length){
+      html += '<div class="info"><div class="oic">'+icHash()+'</div><div class="otxt">'+
+        '<div class="otitle"><span class="txt">Searching literal “#” as text</span></div>'+
+        '<div class="osub">a space after # escapes tag-whispering</div></div></div>';
+    }
+
+    // free-text row (never chipped)
+    if(freeText){
+      html += '<div class="info"><div class="oic">'+icText()+'</div><div class="otxt">'+
+        '<div class="otitle"><span class="txt">Full-text · “'+escapeHtml(freeText)+'”</span></div>'+
+        '<div class="osub">stays live in the bar — not a chip</div></div></div>';
+    }
+
+    if(!dates.length && !tags.length && !cats.length && !lit.length && !freeText){
+      html += '<div class="info"><div class="otxt"><div class="osub" style="padding:4px 0">No filter matched — searching everything as text.</div></div></div>';
+    }
+
+    html += keyboardHint();
+    panel.innerHTML = html;
+    wire();
+  }
+
+  function renderOpt(s, isSel){
+    let icon, titleHtml, rightHtml='';
+    if(s.kind==='date'){ icon = icCal(); titleHtml = escapeHtml(s.title); }
+    else if(s.kind==='tag'){ icon = icHash(); titleHtml = '<span class="mono">#</span>'+escapeHtml(s.title); }
+    else if(s.kind==='category'){
+      icon = '<span class="cdot" style="color:'+s.color+';background:'+s.color+'"></span>';
+      titleHtml = escapeHtml(s.title);
+    }
+
+    if(s.kind==='category'){
+      rightHtml = '<div class="dual">'+
+        '<span class="seg'+(isSel && state.armed?' armed':'')+'"><b>Tab</b>+<b>Enter</b> filter</span>'+
+        '<span class="seg"><b>Enter</b> text</span></div>';
+    } else {
+      rightHtml = '<span class="enterpill"><b>Enter</b> · add chip</span>';
+    }
+
+    const oicWrap = s.kind==='category'
+      ? '<div class="oic" style="background:transparent;color:'+s.color+';box-shadow:none">'+icon+'</div>'
+      : '<div class="oic">'+icon+'</div>';
+
+    return '<div class="opt'+(isSel?' sel':'')+'" data-sel="'+sugState.list.filter(x=>x.selectable).indexOf(s)+'">'+
+      oicWrap+
+      '<div class="otxt"><div class="otitle">'+titleHtml+'</div><div class="osub">'+escapeHtml(s.sub||'')+'</div></div>'+
+      rightHtml+'</div>';
+  }
+
+  function keyboardHint(){
+    return '<div class="hintbar">'+
+      '<span><kbd>↑</kbd><kbd>↓</kbd> move</span>'+
+      '<span><kbd>↵</kbd> confirm</span>'+
+      '<span><kbd>Tab</kbd>+<kbd>↵</kbd> category as filter</span>'+
+      '<span><kbd>Esc</kbd> clear</span>'+
+      '<span><kbd>/</kbd> focus</span>'+
+      '</div>';
+  }
+
+  function wire(){
+    panel.querySelectorAll('.opt').forEach(o=>{
+      o.addEventListener('mousemove', ()=>{ const i=+o.dataset.sel; if(i!==state.sel){ state.sel=i; renderPanel(); } });
+      o.addEventListener('mousedown', e=>{ e.preventDefault(); state.sel=+o.dataset.sel; confirmSel(true /*click chips categories*/); });
+    });
+    panel.querySelectorAll('.ex').forEach(x=>{
+      x.addEventListener('mousedown', e=>{ e.preventDefault(); input.value=x.dataset.ex; state.text=x.dataset.ex; state.sel=0; state.armed=false; input.focus(); renderPanel(); });
+    });
+  }
+
+  // ---------- confirm / chips ----------
+  function currentSelectable(){ return sugState.list.filter(s=>s.selectable); }
+
+  function confirmSel(fromClick){
+    const sel = currentSelectable()[state.sel];
+    if(!sel){ return; }
+    if(sel.kind==='category' && !state.armed && !fromClick){
+      // plain Enter on a category → search as text (do NOT chip)
+      toast('Searching <span class="mono">'+escapeHtml(sel.title)+'</span> as text · press <b>Tab</b> then <b>Enter</b> to filter');
+      state.open=false; renderPanel(); return;
+    }
+    addChip(sel);
+  }
+
+  function addChip(sel){
+    let chip;
+    if(sel.kind==='date'){
+      const [a,b]=rangeFor(sel.val);
+      chip = { type:'date', val:sel.val, label:'Created · '+fmtRange(a,b), range:[a,b] };
+    } else if(sel.kind==='tag'){
+      chip = { type:'tag', val:sel.title, label:sel.title };
+    } else if(sel.kind==='category'){
+      const cat = CATS.find(c=>c.name===sel.val);
+      chip = { type:'category', val:sel.val, label:sel.val, color:cat.color };
+    }
+    if(hasChip(chip.type, chip.val)){ // date is single-valued: replace
+      if(chip.type==='date') state.chips = state.chips.filter(c=>c.type!=='date');
+      else { pruneText(sel.remove); state.armed=false; renderPanel(); return; }
+    }
+    if(chip.type==='date') state.chips = state.chips.filter(c=>c.type!=='date'); // one date filter at a time
+    state.chips.push(chip);
+    pruneText(sel.remove);
+    state.armed=false;
+    state.sel=0;
+    render();
+  }
+
+  function pruneText(removeStr){
+    if(removeStr){
+      state.text = state.text.replace(new RegExp(esc(removeStr),'i'),' ').replace(/\s+/g,' ').trim();
+    }
+    input.value = state.text;
+  }
+
+  function removeChip(i){ state.chips.splice(i,1); render(); }
+
+  function clearAll(iconEl){
+    // sparkle flourish from the icon
+    const r = iconEl.getBoundingClientRect();
+    for(let k=0;k<10;k++){
+      const s=document.createElement('span'); s.className='spark';
+      const ang=(k/10)*Math.PI*2, dist=18+Math.random()*16;
+      s.style.left='14px'; s.style.top='14px';
+      s.style.setProperty('--dx',(Math.cos(ang)*dist).toFixed(1)+'px');
+      s.style.setProperty('--dy',(Math.sin(ang)*dist).toFixed(1)+'px');
+      iconEl.appendChild(s);
+    }
+    setTimeout(()=>{ state.chips=[]; state.text=''; input.value=''; state.armed=false; render(); }, 360);
+  }
+
+  // ---------- chip row ----------
+  function renderChips(){
+    chiprow.innerHTML='';
+    state.chips.forEach((c,i)=>{
+      const chip=document.createElement('span');
+      chip.className='chip '+c.type;
+      let inner='';
+      if(c.type==='date'){
+        inner = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>'+
+                '<span class="lead">created</span>'+escapeHtml(c.label.replace('Created · ',''));
+      } else if(c.type==='tag'){
+        inner = '<span class="hash">#</span>'+escapeHtml(c.label);
+      } else if(c.type==='category'){
+        inner = '<span class="dot" style="color:'+c.color+';background:'+c.color+'"></span>'+escapeHtml(c.label);
+      }
+      chip.innerHTML = inner + '<span class="x" data-i="'+i+'" title="Remove">×</span>';
+      chiprow.appendChild(chip);
+    });
+    if(state.chips.length){
+      const clr=document.createElement('button');
+      clr.className='clearall'; clr.title='Clear all filters';
+      clr.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m-9 4v8m4-8v8M5 6l1 14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-14"/></svg>';
+      clr.addEventListener('click', ()=>clearAll(clr));
+      chiprow.appendChild(clr);
+    }
+    chiprow.querySelectorAll('.x').forEach(x=> x.addEventListener('click', ()=>removeChip(+x.dataset.i)));
+  }
+
+  // ---------- results ----------
+  function filterNotes(){
+    const cats = state.chips.filter(c=>c.type==='category').map(c=>c.val);
+    const tags = state.chips.filter(c=>c.type==='tag').map(c=>c.val.toLowerCase());
+    const dateChip = state.chips.find(c=>c.type==='date');
+    const q = (sugState.freeText !== undefined ? sugState.freeText : state.text).trim().toLowerCase();
+
+    return NOTES.filter(n=>{
+      if(cats.length && !cats.includes(n.c)) return false;
+      if(tags.length && !tags.every(t=> n.tags.map(x=>x.toLowerCase()).includes(t))) return false;
+      if(dateChip){ const d=d0(n.date); if(d < dateChip.range[0] || d > dateChip.range[1]) return false; }
+      if(q){
+        const hay = (n.t+' '+n.b+' '+n.tags.join(' ')).toLowerCase();
+        if(!hay.includes(q)) return false;
+      }
+      return true;
+    }).sort((a,b)=> b.date - a.date);
+  }
+
+  function renderResults(){
+    const list = filterNotes();
+    countEl.innerHTML = '<b>'+list.length+'</b> '+(list.length===1?'memory':'memories');
+
+    const q = (sugState.freeText !== undefined ? sugState.freeText : state.text).trim();
+    liveEl.innerHTML = q ? 'live text · <span class="mono">“'+escapeHtml(q)+'”</span>' : '';
+
+    if(!list.length){
+      notesEl.innerHTML = '<div class="empty">Nothing surfaces for these filters yet.</div>';
+      return;
+    }
+    notesEl.innerHTML = list.map(n=>{
+      const cat = CATS.find(c=>c.name===n.c);
+      const title = q ? highlight(n.t,q) : escapeHtml(n.t);
+      const body  = q ? highlight(n.b,q) : escapeHtml(n.b);
+      const tags = n.tags.map(t=>'<span class="ntag"><b>#</b>'+escapeHtml(t)+'</span>').join('');
+      return '<div class="note"><div class="ntop">'+
+        '<span class="cdot" style="color:'+cat.color+';background:'+cat.color+'"></span>'+
+        '<span class="ntitle">'+title+'</span>'+
+        '<span class="ndate">'+fmtDay(n.date)+'</span></div>'+
+        '<div class="nbody">'+body+'</div>'+
+        (tags?'<div class="ntags">'+tags+'</div>':'')+'</div>';
+    }).join('');
+  }
+
+  // ---------- helpers ----------
+  function escapeHtml(s){ return String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+  function highlight(s,q){
+    if(!q) return escapeHtml(s);
+    try{
+      const re=new RegExp('('+esc(q)+')','ig');
+      return escapeHtml(s).replace(new RegExp('('+esc(escapeHtml(q))+')','ig'),'<mark>$1</mark>');
+    }catch(e){ return escapeHtml(s); }
+  }
+  let toastTimer;
+  function toast(html){
+    toastEl.innerHTML=html; toastEl.classList.add('show');
+    clearTimeout(toastTimer); toastTimer=setTimeout(()=>toastEl.classList.remove('show'),2600);
+  }
+
+  // icons
+  function icCal(){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>'; }
+  function icHash(){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18"/></svg>'; }
+  function icText(){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7V5h16v2M9 5v14M7 19h4"/></svg>'; }
+
+  // ---------- master render ----------
+  function render(){ renderChips(); renderPanel(); renderResults(); }
+
+  // ---------- events ----------
+  input.addEventListener('focus', ()=>{ bar.classList.add('focused'); state.open=true; renderPanel(); });
+  input.addEventListener('blur',  ()=>{ bar.classList.remove('focused'); setTimeout(()=>{ state.open=false; renderPanel(); },120); });
+  input.addEventListener('input', ()=>{ state.text=input.value; state.sel=0; state.armed=false; state.open=true; render(); });
+
+  input.addEventListener('keydown', e=>{
+    const sel = currentSelectable();
+    if(e.key==='ArrowDown'){ if(sel.length){ state.sel=Math.min(sel.length-1,state.sel+1); state.armed=false; renderPanel(); } e.preventDefault(); }
+    else if(e.key==='ArrowUp'){ if(sel.length){ state.sel=Math.max(0,state.sel-1); state.armed=false; renderPanel(); } e.preventDefault(); }
+    else if(e.key==='Tab'){
+      const cur = sel[state.sel];
+      if(cur && cur.kind==='category'){ state.armed=!state.armed; renderPanel(); e.preventDefault(); }
+      else e.preventDefault(); // keep focus in the bar
+    }
+    else if(e.key==='Enter'){ if(sel.length){ confirmSel(false); } e.preventDefault(); }
+    else if(e.key==='Escape'){
+      if(state.text){ state.text=''; input.value=''; state.sel=0; state.armed=false; render(); }
+      else if(state.chips.length){ state.chips=[]; render(); }
+      else { input.blur(); }
+      e.preventDefault();
+    }
+  });
+
+  // global focus key
+  document.addEventListener('keydown', e=>{
+    const typing = document.activeElement===input;
+    if(!typing && e.key==='/' && !e.metaKey && !e.ctrlKey){ input.focus(); e.preventDefault(); }
+    if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k'){ input.focus(); e.preventDefault(); }
+  });
+
+  // initial paint
+  render();
+})();
+</script>
