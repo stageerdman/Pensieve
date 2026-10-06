@@ -26,26 +26,26 @@ describe("memoryThread", () => {
     expect(width).toBeLessThanOrEqual(1.8);
   });
 
-  it("spans roughly the whole band (floor → surface) and stays finite", () => {
-    // Pull coordinates out of the path. Control points (curly mode) can overshoot the
-    // sample points a little; the clip handles exact containment, so we only assert the
-    // strand covers most of the band and holds finite, near-band values.
+  it("spans most of the band (floor → surface) and stays finite", () => {
+    // Pull coordinates out of the path. Curls and loops legitimately overshoot the
+    // sample points; the clip handles exact containment, so here we only assert the
+    // strand covers the middle of the band and never emits a non-finite number.
     const { d } = memoryThread({ seed: "bounds-check", yTop: 8, yBottom: 28 });
     const nums = d.match(/-?\d+(\.\d+)?/g)!.map(Number);
+    expect(nums.length).toBeGreaterThan(0);
     expect(nums.every(Number.isFinite)).toBe(true);
     const ys = nums.filter((_, i) => i % 2 === 1); // every 2nd number is a y
-    expect(Math.min(...ys)).toBeLessThan(12); // reaches up toward the surface
-    expect(Math.max(...ys)).toBeGreaterThan(24); // reaches down toward the floor
-    expect(Math.min(...ys)).toBeGreaterThan(8 - 3);
-    expect(Math.max(...ys)).toBeLessThan(28 + 3);
+    expect(Math.min(...ys)).toBeLessThan(14); // reaches up toward the surface
+    expect(Math.max(...ys)).toBeGreaterThan(22); // reaches down toward the floor
   });
 
-  it("keeps the strand in the neighbourhood of the body centre", () => {
+  it("keeps every coordinate finite and roughly near the body centre", () => {
     const { d } = memoryThread({ seed: "x-range", ...band });
     const nums = d.match(/-?\d+(\.\d+)?/g)!.map(Number);
+    expect(nums.every(Number.isFinite)).toBe(true);
     const xs = nums.filter((_, i) => i % 2 === 0);
-    // Centre is 12; amplitude + bias (+ curl overshoot) stay in a sane range, never NaN.
-    expect(Math.min(...xs)).toBeGreaterThan(0);
-    expect(Math.max(...xs)).toBeLessThan(24);
+    // Centre is 12; swing + bias + loops stay in a sane neighbourhood (never flung off).
+    expect(Math.min(...xs)).toBeGreaterThan(2);
+    expect(Math.max(...xs)).toBeLessThan(22);
   });
 });

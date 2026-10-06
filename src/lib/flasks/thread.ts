@@ -50,52 +50,112 @@ export interface Thread {
 }
 
 const f = (n: number) => n.toFixed(2);
+const KAPPA = 0.5522847498; // circle-arc control-point constant
 
-/** Build the memory thread for a seed within the vertical band [yTop, yBottom]. */
+type Pt = [number, number];
+
+// A full loop (an "O" twist) that starts and ends at P, bulging to one side so the pen
+// returns exactly where it began and the strand can carry on. side +1 bulges right (P is
+// the circle's left point), -1 bulges left.
+function loopPath(px: number, py: number, r: number, side: number): string {
+  const cx = px + r * side;
+  const cy = py;
+  const k = KAPPA * r;
+  if (side >= 0) {
+    // P = left point; traverse left → top → right → bottom → left.
+    return (
+      `C ${f(cx - r)} ${f(cy - k)} ${f(cx - k)} ${f(cy - r)} ${f(cx)} ${f(cy - r)} ` +
+      `C ${f(cx + k)} ${f(cy - r)} ${f(cx + r)} ${f(cy - k)} ${f(cx + r)} ${f(cy)} ` +
+      `C ${f(cx + r)} ${f(cy + k)} ${f(cx + k)} ${f(cy + r)} ${f(cx)} ${f(cy + r)} ` +
+      `C ${f(cx - k)} ${f(cy + r)} ${f(cx - r)} ${f(cy + k)} ${f(px)} ${f(py)}`
+    );
+  }
+  // P = right point; traverse right → top → left → bottom → right.
+  return (
+    `C ${f(cx + r)} ${f(cy - k)} ${f(cx + k)} ${f(cy - r)} ${f(cx)} ${f(cy - r)} ` +
+    `C ${f(cx - k)} ${f(cy - r)} ${f(cx - r)} ${f(cy - k)} ${f(cx - r)} ${f(cy)} ` +
+    `C ${f(cx - r)} ${f(cy + k)} ${f(cx - k)} ${f(cy + r)} ${f(cx)} ${f(cy + r)} ` +
+    `C ${f(cx + k)} ${f(cy + r)} ${f(cx + r)} ${f(cy + k)} ${f(px)} ${f(py)}`
+  );
+}
+
+/** Build the memory thread for a seed within the vertical band [yTop, yBottom]. The
+ *  strand mixes styles *within itself* — some segments sharp, some round, some wiggly,
+ *  with the occasional loop — so no two reads as one repeating pattern. */
 export function memoryThread({ seed, yTop, yBottom, cx = 12 }: ThreadInput): Thread {
   const rnd = mulberry32(hashSeed(seed));
 
-  const nodes = 3 + Math.floor(rnd() * 5); // 3..7 turning points
-  const amp = 1.1 + rnd() * 2.9; // 1.1..4.0 horizontal swing (how wide)
-  const bias = (rnd() * 2 - 1) * 2.3; // -2.3..2.3 sideways offset (which side)
-  const sharp = rnd(); // 0 smooth .. 1 sharp corners
+  const nodes = 4 + Math.floor(rnd() * 4); // 4..7 turning points (enough for variety)
+  const ampBase = 1.2 + rnd() * 2.6; // overall horizontal swing (how wide)
+  const bias = (rnd() * 2 - 1) * 2.1; // sideways offset (which side)
   const skew = rnd() * 2 - 1; // -1 bottom-heavy .. +1 top-heavy (amplitude envelope)
   const start = rnd() < 0.5 ? 1 : -1; // which way it first leaves the centre
-  const width = 1.0 + rnd() * 0.8; // 1.0..1.8 stroke width
-  const taper = 0.2 + rnd() * 0.45; // how strongly the ends pull back to centre
+  const width = 1.0 + rnd() * 0.7; // stroke width
+  const taper = 0.2 + rnd() * 0.4; // how strongly the ends pull back to centre
+  const loopChance = 0.1 + rnd() * 0.32; // some strands loopy, some not
 
   const centerX = cx + bias;
   const span = Math.max(0.0001, yBottom - yTop);
-  const peak = 0.5 + 0.38 * skew; // where the swing is widest along the strand
+  const peak = 0.5 + 0.35 * skew;
 
-  // Sample the turning points, alternating sides, amplitude shaped by the envelope.
-  const pts: [number, number][] = [];
+  // Turning points: alternating sides, amplitude shaped by the envelope and jittered
+  // per node so the swing is uneven (not a tidy sine).
+  const pts: Pt[] = [];
   for (let i = 0; i <= nodes; i++) {
     const t = i / nodes; // 0 at the floor, 1 at the surface
     const y = yBottom - t * span;
     const env = Math.max(0, 1 - Math.abs(t - peak) / Math.max(peak, 1 - peak));
+    const jitter = 0.55 + rnd() * 0.85; // 0.55..1.4
     const side = start * (i % 2 === 0 ? 1 : -1);
     const edge = i === 0 || i === nodes ? taper : 1; // tuck the ends toward centre
-    pts.push([centerX + side * amp * env * edge, y]);
+    pts.push([centerX + side * ampBase * env * edge * jitter, y]);
   }
 
-  // Sharp strands are a polyline (zigzag); smoother ones are a Catmull-Rom spline whose
-  // tension rises as sharpness falls, so low-sharp reads as "super curly" (slight
-  // overshoot), mid as a gentle wave.
+  // Pick an independent style per segment (sharp line / round curve / wiggly S) and a
+  // loop flag per interior node — this is what breaks the regularity.
+  const styles: ("line" | "curve" | "wiggle")[] = [];
+  const loops: boolean[] = [];
+  for (let i = 0; i < nodes; i++) {
+    const r = rnd();
+    styles.push(r < 0.3 ? "line" : r < 0.62 ? "wiggle" : "curve");
+    loops.push(false);
+  }
+  loops.push(false);
+  for (let i = 1; i < nodes; i++) loops[i] = rnd() < loopChance;
+
+  const K = 0.42; // curl tension for round segments (strong → curly)
   let d = `M ${f(pts[0][0])} ${f(pts[0][1])}`;
-  if (sharp > 0.62) {
-    for (let i = 1; i < pts.length; i++) d += ` L ${f(pts[i][0])} ${f(pts[i][1])}`;
-  } else {
-    const k = (1 + (1 - sharp) * 1.6) / 6; // 0.17 (sharp≈0.6) .. 0.43 (sharp=0): curlier
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[i - 1] ?? pts[i];
-      const p1 = pts[i];
-      const p2 = pts[i + 1];
-      const p3 = pts[i + 2] ?? p2;
-      const c1x = p1[0] + (p2[0] - p0[0]) * k;
-      const c1y = p1[1] + (p2[1] - p0[1]) * k;
-      const c2x = p2[0] - (p3[0] - p1[0]) * k;
-      const c2y = p2[1] - (p3[1] - p1[1]) * k;
+  for (let i = 0; i < nodes; i++) {
+    if (loops[i]) {
+      const r = 0.8 + rnd() * 1.2; // loop radius
+      const side = i % 2 === 0 ? start : -start; // bulge to the swinging side
+      d += ` ${loopPath(pts[i][0], pts[i][1], r, side)}`;
+    }
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    if (styles[i] === "line") {
+      d += ` L ${f(p2[0])} ${f(p2[1])}`;
+    } else if (styles[i] === "curve") {
+      const c1x = p1[0] + (p2[0] - p0[0]) * K;
+      const c1y = p1[1] + (p2[1] - p0[1]) * K;
+      const c2x = p2[0] - (p3[0] - p1[0]) * K;
+      const c2y = p2[1] - (p3[1] - p1[1]) * K;
+      d += ` C ${f(c1x)} ${f(c1y)} ${f(c2x)} ${f(c2y)} ${f(p2[0])} ${f(p2[1])}`;
+    } else {
+      // Wiggle: an S inside the segment — control points thrown to opposite sides of
+      // the chord along its perpendicular.
+      const dx = p2[0] - p1[0];
+      const dy = p2[1] - p1[1];
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+      const off = 1.1 + rnd() * 1.6;
+      const c1x = p1[0] + dx * 0.25 + nx * off;
+      const c1y = p1[1] + dy * 0.25 + ny * off;
+      const c2x = p1[0] + dx * 0.75 - nx * off;
+      const c2y = p1[1] + dy * 0.75 - ny * off;
       d += ` C ${f(c1x)} ${f(c1y)} ${f(c2x)} ${f(c2y)} ${f(p2[0])} ${f(p2[1])}`;
     }
   }
