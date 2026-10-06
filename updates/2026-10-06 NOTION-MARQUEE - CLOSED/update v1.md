@@ -1,8 +1,16 @@
 # Update v1 — NOTION-MARQUEE (click blank space, drag-select & move multiple rows)
 
-Status: **v2 — pointer-based drag.** First cut relied on BlockNote's built-in handle
-drag; owner testing (2026-10-06) showed it can't drop in the WKWebView shell (HTML5 DnD),
-so the drag was rewritten as a pointer-based move. Awaiting owner re-verification.
+Status: **CLOSED — owner-verified 2026-10-06 ("works just perfectly").** Marquee multi-row
+selection + a pointer-based block drag (own gutter handle, drop indicator, nesting), all
+WKWebView-safe. Merged to `main`; branch `update/notion-marquee` pruned.
+
+Path to done (v1 → v3):
+- v1: marquee select + rely on BlockNote's handle drag.
+- v2: BlockNote's drag is HTML5 (dead in WKWebView) → rewrote as a pointer drag; fixed
+  marquee scroll-deselect (anchor to the starting row) + edge auto-scroll.
+- v3: BlockNote's SideMenu render prop passes empty props in v0.55 (block is in context),
+  so the handle couldn't grab and showed on every row → replaced it with our own
+  `GutterHandle`. Owner-verified.
 
 ## v2 fixes (owner feedback 2026-10-06)
 - **Couldn't drop anywhere / no drop lines** → BlockNote's drag is HTML5 (dead in
