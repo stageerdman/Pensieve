@@ -253,56 +253,64 @@ function categoryMatchesFor(fragment: string, ctx: ParseContext): Suggestion[] {
 // phrase so you don't have to type it out. Completions carry a `source` span so picking
 // one splices just the partial word out of the bar.
 
-interface Vocab {
-  phrase: string;
-  hint: string;
-  build: (now: number) => Filter | null;
-}
-
-const STATIC_VOCAB: Vocab[] = [
-  ...DATE_PHRASES.map((p) => ({
-    phrase: p,
-    hint: "date",
-    build: (now: number): Filter | null => {
-      const r = resolveDatePhrase(p, now);
-      return r ? { kind: "date", field: "created", range: r.range, phrase: r.label } : null;
-    },
-  })),
-  { phrase: "pinned", hint: "flag", build: () => ({ kind: "flag", flag: "pinned" }) },
-];
-
-/** Dynamic "last N days/weeks/months" completions for a numeric fragment. */
-function numericCompletions(sub: string, now: number): Suggestion[] {
-  const m = sub.match(/^(?:last|past)\s+(\d{1,4})(?:\s+(d\w*|w\w*|m\w*))?\s*$/);
-  if (!m) return [];
-  const n = m[1];
-  const unitFrag = (m[2] ?? "")[0]; // match by first letter: d/w/m
+/** Date-phrase completions for a phrase-prefix, optionally led by a field word (so the
+ *  label reads "created last week" and the filter binds the field). `labelPrefix` is ""
+ *  for a bare phrase or "created "/"updated " for the field-led form. */
+function datePhraseCompletions(
+  prefix: string,
+  field: "created" | "updated",
+  labelPrefix: string,
+  now: number,
+): Suggestion[] {
   const out: Suggestion[] = [];
-  for (const u of ["days", "weeks", "months"]) {
-    if (unitFrag && u[0] !== unitFrag) continue;
-    const phrase = `last ${n} ${u}`;
+  const add = (phrase: string) => {
+    if (phrase === prefix) return; // complete phrase → the claim handles it
     const r = resolveDatePhrase(phrase, now);
-    if (r && phrase !== sub)
+    if (r)
       out.push({
-        key: `comp:${phrase}`,
-        filter: { kind: "date", field: "created", range: r.range, phrase: r.label },
-        label: phrase,
+        key: `comp:${labelPrefix}${phrase}`,
+        filter: { kind: "date", field, range: r.range, phrase: r.label },
+        label: `${labelPrefix}${phrase}`,
         hint: "date",
       });
+  };
+  for (const p of DATE_PHRASES) if (prefix === "" || p.startsWith(prefix)) add(p);
+  // dynamic "last N days/weeks/months"
+  const m = prefix.match(/^(?:last|past)\s+(\d{1,4})(?:\s+(d\w*|w\w*|m\w*))?\s*$/);
+  if (m) {
+    const n = m[1];
+    const uf = (m[2] ?? "")[0];
+    for (const u of ["days", "weeks", "months"]) {
+      if (uf && u[0] !== uf) continue;
+      add(`last ${n} ${u}`);
+    }
   }
   return out;
 }
 
-/** Completions for a single normalized fragment (static prefix matches + numeric). */
+const LEAD_FIELDS: Array<"created" | "updated"> = ["created", "updated"];
+
+/** If the fragment begins with a (prefix of a) field word, split it into field + phrase
+ *  prefix so we can offer "created <phrase>" / "updated <phrase>" completions. */
+function fieldLead(sub: string): { field: "created" | "updated"; rest: string; labelPrefix: string } | null {
+  const sp = sub.indexOf(" ");
+  const head = sp === -1 ? sub : sub.slice(0, sp);
+  const name = LEAD_FIELDS.find((w) => w.startsWith(head));
+  if (!name) return null;
+  if (sp !== -1 && head !== name) return null; // "crea last" — need the full field word first
+  const rest = sp === -1 ? "" : sub.slice(sp + 1).trim();
+  return { field: name, rest, labelPrefix: `${name} ` };
+}
+
+/** Completions for a single normalized fragment. */
 function completionsFor(sub: string, now: number): Suggestion[] {
   const out: Suggestion[] = [];
-  for (const v of STATIC_VOCAB) {
-    if (v.phrase !== sub && v.phrase.startsWith(sub)) {
-      const f = v.build(now);
-      if (f) out.push({ key: `comp:${v.phrase}`, filter: f, label: v.phrase, hint: v.hint });
-    }
-  }
-  out.push(...numericCompletions(sub, now));
+  if ("pinned".startsWith(sub) && "pinned" !== sub)
+    out.push({ key: "comp:pinned", filter: { kind: "flag", flag: "pinned" }, label: "pinned", hint: "flag" });
+
+  const lead = fieldLead(sub);
+  if (lead) out.push(...datePhraseCompletions(lead.rest, lead.field, lead.labelPrefix, now));
+  else out.push(...datePhraseCompletions(sub, "created", "", now));
   return out;
 }
 

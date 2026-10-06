@@ -9,7 +9,7 @@ const at = (y: number, m: number, d: number, h = 0, mi = 0, s = 0, ms = 0) =>
 const endOf = (y: number, m: number, d: number) => at(y, m, d, 23, 59, 59, 999);
 
 describe("resolveDatePhrase", () => {
-  it("today / yesterday / today or yesterday", () => {
+  it("today / yesterday", () => {
     expect(resolveDatePhrase("today", NOW)!.range).toEqual({
       start: at(2026, 1, 18),
       end: endOf(2026, 1, 18),
@@ -18,10 +18,8 @@ describe("resolveDatePhrase", () => {
       start: at(2026, 1, 17),
       end: endOf(2026, 1, 17),
     });
-    expect(resolveDatePhrase("today or yesterday", NOW)!.range).toEqual({
-      start: at(2026, 1, 17),
-      end: endOf(2026, 1, 18),
-    });
+    // "today or yesterday" is no longer a baked-in phrase — "or" means the OR relation.
+    expect(resolveDatePhrase("today or yesterday", NOW)).toBeNull();
   });
 
   it("this week / last week (Monday start)", () => {

@@ -143,6 +143,21 @@ describe("parseQuery — keyword whispering (completions)", () => {
     expect(comp!.source).toEqual([9, 13]);
   });
 
+  it("'created' / 'updated' whisper field-led date phrases", () => {
+    const c = parse("created").suggestions.find((s) => s.label === "created this week");
+    expect(c).toBeTruthy();
+    expect(c!.filter.kind === "date" && c!.filter.field).toBe("created");
+
+    const u = parse("updated last mo").suggestions.find((s) => s.label === "updated last month");
+    expect(u).toBeTruthy();
+    expect(u!.filter.kind === "date" && u!.filter.field).toBe("updated");
+  });
+
+  it("'crea' (partial field word) still whispers created phrases", () => {
+    const ls = parse("crea").suggestions.map((s) => s.label);
+    expect(ls.some((l) => l.startsWith("created "))).toBe(true);
+  });
+
   it("confirming a completion resolves a real date range", () => {
     const comp = parse("last mon").suggestions.find((s) => s.label === "last monday")!;
     expect(comp.filter.kind).toBe("date");

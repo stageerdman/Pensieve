@@ -77,9 +77,6 @@ export function resolveDatePhrase(phrase: string, now: number): ResolvedDate | n
       return { range: range(startOfDay(now), endOfDay(now)), label: "today" };
     case "yesterday":
       return { range: range(startOfDay(now) - DAY, startOfDay(now) - 1), label: "yesterday" };
-    case "today or yesterday":
-    case "yesterday or today":
-      return { range: range(startOfDay(now) - DAY, endOfDay(now)), label: "today or yesterday" };
     case "this week":
       return { range: range(startOfWeek(now), endOfDay(now)), label: "this week" };
     case "last week": {
@@ -140,7 +137,6 @@ export function resolveDatePhrase(phrase: string, now: number): ResolvedDate | n
 export const DATE_PHRASES = [
   "today",
   "yesterday",
-  "today or yesterday",
   "this week",
   "last week",
   "this month",
