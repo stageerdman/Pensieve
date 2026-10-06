@@ -69,6 +69,43 @@
   pointer-events: auto;
 }
 
+/* Multi-row block selection (marquee or a cross-block text drag): a calm, full-width
+   accent wash on every selected row — the Notion block-selection look. Painted by a
+   ProseMirror node decoration (blockSelectionDecorations), so it persists when focus
+   leaves the editor to grab the drag handle. We also blank the native text ::selection
+   inside selected rows so it reads as whole blocks, not highlighted text. */
+/* The node decoration's class lands on the block's nodeView DOM, which in BlockNote is
+   the `.bn-block-outer` wrapper (its contentDOM is the inner `.bn-block`). We wash the
+   inner `.bn-block` so the highlight hugs the row (content + any nested children, which
+   move with it). The second selector is a safety net in case the class ever lands on the
+   inner block directly. */
+.pensieve-editor .bn-block-outer.pensieve-block-selected > .bn-block,
+.pensieve-editor .bn-block.pensieve-block-selected {
+  background: hsl(var(--accent) / 0.14);
+  border-radius: 6px;
+}
+.pensieve-editor .pensieve-block-selected ::selection {
+  background: transparent;
+}
+
+/* The rubber-band rectangle dragged in the blank margin to pick rows (viewport-fixed,
+   positioned from pointer coords — no wrapper-relative math needed). */
+.pensieve-marquee {
+  position: fixed;
+  z-index: 40;
+  pointer-events: none;
+  background: hsl(var(--accent) / 0.1);
+  border: 1px solid hsl(var(--accent) / 0.5);
+  border-radius: 3px;
+}
+/* While marqueeing, kill text selection across the surface so the drag can't smear a
+   caret selection through the rows it passes over. */
+.pensieve-editor.pensieve-marqueeing,
+.pensieve-editor.pensieve-marqueeing * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
 /* Remove BlockNote's nested-block guide line — a 1px left border it draws on
    indented blocks that reads as a stray quote bar when you Tab/nest. Indentation
    stays (the nested group keeps its left margin); only the bar goes. */

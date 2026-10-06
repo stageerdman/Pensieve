@@ -12,8 +12,6 @@ import {
   ColorStyleButton,
   CreateLinkButton,
   SideMenuController,
-  SideMenu,
-  DragHandleButton,
 } from "@blocknote/react";
 import { AllSelection, TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
@@ -21,6 +19,9 @@ import { useEffect, useRef } from "react";
 import { blocksToExtendedMd, extendedMdToBlocks } from "../lib/md/extended";
 import { setNoteLinkOpen, setNoteLinkResolve } from "./noteLink";
 import { editorSchema } from "./editorSchema";
+import { BlockSelectionDecorations } from "./blockSelectionDecorations";
+import { EditorSideMenu } from "./EditorSideMenu";
+import { useBlockMarquee } from "./useBlockMarquee";
 import { FlaskFor } from "./Flask";
 import type { NoteMeta } from "../lib/types";
 
@@ -66,11 +67,21 @@ interface EditorProps {
 }
 
 export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, onOpenNote }: EditorProps) {
-  const editor = useCreateBlockNote({ schema: editorSchema });
+  // `_tiptapOptions.extensions` is BlockNote's escape hatch to add raw TipTap/ProseMirror
+  // extensions — here, the multi-row block-selection highlight (blockSelectionDecorations).
+  const editor = useCreateBlockNote({
+    schema: editorSchema,
+    _tiptapOptions: { extensions: [BlockSelectionDecorations] },
+  });
   const loading = useRef(true);
   const wrapRef = useRef<HTMLDivElement>(null);
   const notesRef = useRef(notes);
   notesRef.current = notes;
+
+  // Notion-style marquee: drag in the blank margin to select multiple rows, then move
+  // them together with the drag handle (useBlockMarquee sets the selection; BlockNote's
+  // handle does the move).
+  useBlockMarquee(editor, wrapRef);
 
   // Wire note-link clicks to open the note (the inline spec's render is module-level).
   useEffect(() => setNoteLinkOpen(onOpenNote), [onOpenNote]);
@@ -135,15 +146,10 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
         formattingToolbar={false}
         sideMenu={false}
       >
-        {/* Block side menu reduced to the drag handle only — no "+" add button
-            (the "/" slash menu already covers adding blocks). Calmer left gutter. */}
-        <SideMenuController
-          sideMenu={(props) => (
-            <SideMenu {...props}>
-              <DragHandleButton {...props} />
-            </SideMenu>
-          )}
-        />
+        {/* Side menu reduced to the drag handle only — no "+" add button (the "/" slash
+            menu already covers adding blocks). EditorSideMenu also collapses the handle
+            to a single one on the top row when several rows are selected (marquee). */}
+        <SideMenuController sideMenu={(props) => <EditorSideMenu menuProps={props} editor={editor} />} />
         <FormattingToolbarController
           formattingToolbar={() => (
             <FormattingToolbar>
