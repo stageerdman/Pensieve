@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { Search } from "../../components/icons";
+import { Sigil } from "../../components/icons";
 
 // The always-visible summon input ring. Presentational: Summon owns the state + keyboard.
 
@@ -37,13 +37,19 @@ export function SummonBar({
         (focused ? "summon-ring-focus" : "")
       }
     >
-      <Search size={18} className={focused ? "text-accent" : "text-text-muted"} />
+      <Sigil
+        size={18}
+        className={
+          "summon-sigil " +
+          (focused ? "summon-sigil-spin text-accent" : "text-text-muted")
+        }
+      />
       <input
         ref={inputRef}
         value={value}
         spellCheck={false}
         autoComplete="off"
-        placeholder="Summon a thought…   ⌘S"
+        placeholder="Accio a thought…   ⌘S"
         className="summon-input min-w-0 flex-1 bg-transparent text-[15px] text-text outline-none placeholder:text-text-muted"
         onChange={(e) => onChange(e.target.value, e.target.selectionStart ?? e.target.value.length)}
         onSelect={(e) => onCaret((e.target as HTMLInputElement).selectionStart ?? 0)}

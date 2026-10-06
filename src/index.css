@@ -393,8 +393,14 @@ body {
   box-shadow: 0 0 0 2px hsl(var(--accent) / 0.55), 0 0 22px -6px hsl(var(--accent-glow) / 0.7);
 }
 
+/* The summon sigil slowly rotates while the bar is focused (see the Summon concept). */
+.summon-sigil { transform-origin: center; transition: color 0.2s; }
+.summon-sigil-spin { animation: summon-spin 9s linear infinite; }
+@keyframes summon-spin { to { transform: rotate(360deg); } }
+
 @media (prefers-reduced-motion: reduce) {
   .summon-chip-in,
   .summon-popping,
   .summon-bubble { animation-duration: 0.001s !important; }
+  .summon-sigil-spin { animation: none; }
 }

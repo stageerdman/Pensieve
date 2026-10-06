@@ -116,6 +116,18 @@ export const Search = (p: IconProps) =>
     p,
   );
 
+// The summon "sigil" — concentric rings + compass ticks. Slowly rotates while the
+// summon bar is focused (see .summon-sigil in index.css). Matches the Summon concept.
+export const Sigil = (p: IconProps) =>
+  svg(
+    <>
+      <circle cx="12" cy="12" r="9" opacity={0.5} />
+      <circle cx="12" cy="12" r="4.5" />
+      <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+    </>,
+    p,
+  );
+
 // A little "magic"/dissolve mark for the clear-all control.
 export const Sparkles = (p: IconProps) =>
   svg(

@@ -19,7 +19,7 @@ function Harness() {
 }
 
 const type = (value: string) => {
-  const input = screen.getByPlaceholderText(/summon/i) as HTMLInputElement;
+  const input = screen.getByPlaceholderText(/accio/i) as HTMLInputElement;
   input.focus();
   fireEvent.change(input, { target: { value, selectionStart: value.length } });
   return input;
