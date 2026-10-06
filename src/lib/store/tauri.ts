@@ -6,8 +6,8 @@
 //   timelines/<id>.json   TimelineEntry[]
 
 import { invoke } from "@tauri-apps/api/core";
-import type { Category, Note, NoteMeta, Store, TimelineEntry } from "../types";
-import { titleFromMarkdown, excerptFromMarkdown, contentCharCount } from "../text";
+import type { Category, Note, NoteBody, NoteMeta, Store, TimelineEntry } from "../types";
+import { titleFromMarkdown, excerptFromMarkdown, contentCharCount, plainTextFromMarkdown } from "../text";
 import { parseFrontmatter, composeFrontmatter } from "../md/frontmatter";
 import { log } from "../logger";
 
@@ -74,6 +74,20 @@ export class TauriStore implements Store {
     }
     // Order is a view concern now (see lib/sidebar/arrange) — return unsorted.
     return metas;
+  }
+
+  async bodies(): Promise<NoteBody[]> {
+    const files = await listDir("notes");
+    const ids = files.filter((f) => f.endsWith(".md")).map((f) => f.slice(0, -3));
+    const out: NoteBody[] = [];
+    for (const id of ids) {
+      const file = await readText(notePath(id));
+      if (!file) continue;
+      const { body } = parseFrontmatter(file);
+      out.push({ id, text: plainTextFromMarkdown(body) });
+    }
+    log.debug("search", "bodies.read", { count: out.length });
+    return out;
   }
 
   async load(id: string): Promise<Note | null> {

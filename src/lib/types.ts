@@ -60,8 +60,17 @@ export interface TimelineEntry {
 }
 
 /** Storage backend. Implemented by the browser adapter (dev) and Tauri (native). */
+/** A note's full plain-text body, for building the search index. */
+export interface NoteBody {
+  id: string;
+  text: string; // Markdown-stripped full body (see text.plainTextFromMarkdown)
+}
+
 export interface Store {
   list(): Promise<NoteMeta[]>;
+  // All note bodies as stripped plain text, for the full-text search index. Separate
+  // from list() so the (larger) body text is only pulled when search needs it.
+  bodies(): Promise<NoteBody[]>;
   load(id: string): Promise<Note | null>;
   save(note: Note): Promise<void>;
   create(): Promise<Note>;

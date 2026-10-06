@@ -44,14 +44,22 @@ if the owner prefers Sunday.
 
 ## Index decision (3000 notes incl. transcripts)
 - Structured fields are already in memory (`NoteMeta`) → no index; instant.
-- Full-text bodies → **in-memory inverted index**, built lazily in the background after
-  load so startup/capture latency is untouched; persisted to a vault cache keyed by
-  `id + updatedAt` (so launches don't re-read every `.md`); updated incrementally on save.
-- Why not SQLite now: 3000 docs is small for an inverted index (index structure ~ single-
-  digit MB); SQLite adds Rust + migration cost against "extremely lightweight". Kept
-  behind a `SearchIndex` interface. **Swap-in trigger:** if cold build > ~1.5s, memory
-  pressure, or vault grows past ~10–20k docs / heavy media transcripts, move the index to
-  **SQLite FTS5** in the Rust layer (the UI/query layer won't change).
+- Full-text bodies → **in-memory inverted index** (`token → Set<id>`) plus a stripped-
+  text **haystack** (`id → text`) for substring confirmation + snippet offsets. Built
+  once after load, updated incrementally on save, removed on delete. Behind a
+  `SearchIndex` interface (`MemoryIndex` today).
+- Size reality check: 3000 notes are mostly short thoughts; only *some* are transcripts.
+  Realistic total stripped text is single-digit MB (worst case tens of MB) — trivial to
+  hold in memory, and an inverted index over it is a few MB. The native `list()` already
+  reads every body for excerpts, so a one-shot index build on load is cheap; no startup
+  blocker. (Note revises an earlier 180 MB worst-case that assumed *every* note is a 60 KB
+  transcript — unrealistic.)
+- Why not SQLite now: adds Rust + migration cost against "extremely lightweight", for no
+  felt benefit at this scale. **Swap-in trigger:** if the cold build is ever felt (> ~1s),
+  memory pressure shows, or the vault grows past ~15–20k docs / many large transcripts,
+  move the index to **SQLite FTS5** in the Rust layer — the UI/query layer won't change.
+- Persisted on-disk cache (keyed by `id+updatedAt`) is **deferred**: only worth it once
+  the cold in-memory build is actually slow. Documented here so we don't forget the seam.
 
 ## Lessons
 _(append as we learn — what worked, what didn't.)_

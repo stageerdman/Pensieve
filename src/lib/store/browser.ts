@@ -3,8 +3,8 @@
 // The Tauri adapter (native .app) implements the same Store interface over the
 // on-disk .md vault + sidecar timeline files.
 
-import type { Note, NoteMeta, Store, TimelineEntry } from "../types";
-import { titleFromMarkdown, excerptFromMarkdown, contentCharCount } from "../text";
+import type { Note, NoteBody, NoteMeta, Store, TimelineEntry } from "../types";
+import { titleFromMarkdown, excerptFromMarkdown, contentCharCount, plainTextFromMarkdown } from "../text";
 import { log } from "../logger";
 
 const NOTE_PREFIX = "pensieve:note:";
@@ -56,6 +56,17 @@ export class BrowserStore implements Store {
     }
     // Order is a view concern now (see lib/sidebar/arrange) — return unsorted.
     return metas;
+  }
+
+  async bodies(): Promise<NoteBody[]> {
+    const out: NoteBody[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith(NOTE_PREFIX)) continue;
+      const n = readNote(key.slice(NOTE_PREFIX.length))!;
+      out.push({ id: n.id, text: plainTextFromMarkdown(n.markdown) });
+    }
+    return out;
   }
 
   async load(id: string): Promise<Note | null> {
