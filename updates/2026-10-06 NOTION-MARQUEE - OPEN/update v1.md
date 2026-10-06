@@ -1,6 +1,18 @@
 # Update v1 — NOTION-MARQUEE (click blank space, drag-select & move multiple rows)
 
-Status: **Built end-to-end; awaiting owner verification in the native app.**
+Status: **v2 — pointer-based drag.** First cut relied on BlockNote's built-in handle
+drag; owner testing (2026-10-06) showed it can't drop in the WKWebView shell (HTML5 DnD),
+so the drag was rewritten as a pointer-based move. Awaiting owner re-verification.
+
+## v2 fixes (owner feedback 2026-10-06)
+- **Couldn't drop anywhere / no drop lines** → BlockNote's drag is HTML5 (dead in
+  WKWebView). Replaced with a pointer-based drag (`useBlockDrag`) + our own drop
+  indicator; commit via BlockNote's block API. Reorder + nest-under-a-block supported.
+- **Scrolling deselected rows above** → the marquee anchored to a viewport Y. Now anchored
+  to the starting **row** (by id); added edge auto-scroll so you can select past the
+  viewport.
+- **Multiple handles** → one pointer-driven group handle, pinned to the TOP selected row.
+
 
 ## Goal
 Add the one Notion editor interaction that was missing: when the mouse is **outside the

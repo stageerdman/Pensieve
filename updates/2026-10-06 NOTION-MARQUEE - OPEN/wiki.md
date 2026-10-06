@@ -6,11 +6,26 @@ ProseMirror via `editor.prosemirrorView`. Inject raw TipTap/PM extensions with
 `useCreateBlockNote({ _tiptapOptions: { extensions: [...] } })` — the supported escape
 hatch (core merges them into its tiptap extension list).
 
-## BlockNote already drags a multi-block selection — don't reinvent dragging
-BlockNote's side-menu drag (`SideMenu/dragging.ts`) checks whether the grabbed block sits
-inside the current selection; if so and the selection spans multiple blocks (or is a
-`MultipleNodeSelection`), it drags the whole range and shows a multi-block drag preview.
-So to "move N rows together" you only need to **create** a multi-block selection first.
+## BlockNote's drag is HTML5 drag-and-drop → it does NOT work in the WKWebView shell
+**Owner-confirmed (2026-10-06):** in the native app you can pick up a block with
+BlockNote's handle, but no drop line ever appears and releasing snaps it back. BlockNote's
+`SideMenu/dragging.ts` uses `dragstart`/`dataTransfer`/`setDragImage` + a `dropcursor`
+plugin — exactly the HTML5 DnD that WKWebView fires unreliably (same reason the gallery
+rolls its own pointer-drag). So we **do not use BlockNote's drag at all**. We render our
+own pointer-driven handle and move blocks ourselves:
+- `useBlockDrag.ts` — pointer drag + a drop indicator; commit via the block API below.
+- Commit = `insertBlocks(copies, reference, before/after)` then `removeBlocks(originalIds)`.
+  Nest under a block = insert before its first child if it has one, else insert as the
+  next sibling(s) and `nestBlock()`. Copies have their ids stripped so there's no
+  duplicate-id window. Cursor is parked on an inserted block before the remove.
+- `blockDrag.ts` — pure `computeDrop(blocks, x, y, moving)`: reckons only against
+  stationary blocks (can't drop into the moving subtree); Y picks the gap, X past
+  `NEST_INDENT` nests.
+
+Historical note (why the first cut failed): BlockNote's handle drag *does* expand a
+multi-block selection to a `MultipleNodeSelection` and move the whole range — but only if
+the HTML5 drop lands, which it never does here. The selection plumbing was right; the
+transport was dead.
 
 - `editor.setSelection(firstBlockId, lastBlockId)` makes a cross-block **TextSelection**
   from inside the first block's content to inside the last — exactly what the drag path
