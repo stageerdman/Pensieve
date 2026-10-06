@@ -62,4 +62,17 @@ if the owner prefers Sunday.
   the cold in-memory build is actually slow. Documented here so we don't forget the seam.
 
 ## Lessons
-_(append as we learn — what worked, what didn't.)_
+- **Pure logic first, React thin.** Every hard part (date math, boolean eval, parser,
+  index, snippet, tree mutations) is a pure module with its own tests (98 tests) before
+  any component existed. The components became thin and the invariants (no-group-of-one,
+  depth-2) live in `tree.ts`, not scattered across event handlers.
+- **Whisper vs. tag-set conflict.** A trailing `#Bug` inside "tag one of #A, #B" would
+  trigger a single-tag whisper and mask the list. Fix: suppress the whisper when the caret
+  sits inside a tag-set claim (`grammar.ts`). Caret position genuinely matters to parsing.
+- **Suggestion source spans** let confirming a chip splice just its text out of the bar
+  (incremental compose) instead of clearing the whole query.
+- **Async index build → act() warnings** in RTL are benign but can flake a loaded parallel
+  run. The cold build is cancellable (guarded setState on unmount); tests use `findBy`
+  to flush. If it ever flakes hard, inject the store/index into `useSummon` for tests.
+- **HTML5 drag** (not pointer math) for moving chips in/out of groups — simpler and works
+  in the Tauri webview; right-click `contextmenu` is the bubble-pop trigger.

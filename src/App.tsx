@@ -282,8 +282,8 @@ export default function App() {
 
         <div className="flex min-h-0 flex-1">
           {onHome ? (
-            <div className="flex min-w-0 flex-1 flex-col">
-              <div className="px-6 pt-5">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              <div className="shrink-0 px-6 pt-5">
                 <Summon summon={summon} inputRef={summonInputRef} />
               </div>
               <Gallery

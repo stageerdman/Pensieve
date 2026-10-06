@@ -73,12 +73,23 @@ Stacked chips default to **AND** between them. Visual grouping:
 
 ## Live status
 - [x] Branch + plan.
-- [ ] Phase 0 — UX concepts + NL spike.
-- [ ] Phase 1 — query model + grammar.
-- [ ] Phase 2 — full-text index.
-- [ ] Phase 3 — summon bar UI.
-- [ ] Phase 4 — visual filter groups.
-- [ ] Phase 5 — polish + verify + build.
+- [x] Phase 0 — UX concepts (`concepts/A,B,C`) + NL phrase table (`wiki.md`).
+- [x] Phase 1 — query model + grammar (`lib/search/{types,dates,evaluate,grammar}`).
+- [x] Phase 2 — full-text index + orchestrator (`tokenize,indexer,snippet,search`).
+- [x] Phase 3 — summon bar UI + suggestions (`features/summon`, `hooks/useSummon`).
+- [x] Phase 4 — visual filter groups (`tree.ts` + `FilterShelf/Chip/GroupView`).
+- [x] Phase 5 — render tests + web build; **native build for owner testing**.
+- **204 tests green, tsc + web build clean.** Awaiting owner testing of the native app.
+
+## Product decisions made during build (worth a look)
+- **Timeline grouping wins over relevance ordering.** The owner asked for both "timeline
+  grouping still applies" AND "title > tag > text ranking". These conflict for ordering,
+  so: results stay grouped by date (createdAt) as the gallery always does, and ranking is
+  surfaced as a per-card **match reason** ("in title / in tag / in note") + the highlighted
+  snippet — rather than re-sorting within a bucket. A relevance-first sort toggle is an easy
+  follow-up if wanted.
+- **Working-set strip follows the filter** (a search narrows everything, strip included).
+- **⌘S** repurposed from the no-op save to "summon" (jump Home + focus the bar).
 
 ## Integration notes (from code map)
 - Home renders `Gallery` with `notes: NoteMeta[]` (`App.tsx:273`), grouped by
