@@ -52,6 +52,7 @@ describe("useBlockDrag", () => {
   afterEach(() => {
     cleanup();
     document.querySelector(".pensieve-drop-indicator")?.remove();
+    document.body.innerHTML = "";
   });
 
   it("drags a block below the last one → insert after c, remove original", () => {

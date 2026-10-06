@@ -11,7 +11,6 @@ import {
   BasicTextStyleButton,
   ColorStyleButton,
   CreateLinkButton,
-  SideMenuController,
 } from "@blocknote/react";
 import { AllSelection, TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
@@ -20,7 +19,7 @@ import { blocksToExtendedMd, extendedMdToBlocks } from "../lib/md/extended";
 import { setNoteLinkOpen, setNoteLinkResolve } from "./noteLink";
 import { editorSchema } from "./editorSchema";
 import { BlockSelectionDecorations } from "./blockSelectionDecorations";
-import { EditorSideMenu } from "./EditorSideMenu";
+import { GutterHandle } from "./GutterHandle";
 import { useBlockMarquee } from "./useBlockMarquee";
 import { useBlockDrag } from "./useBlockDrag";
 import { FlaskFor } from "./Flask";
@@ -151,12 +150,9 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
         formattingToolbar={false}
         sideMenu={false}
       >
-        {/* Side menu reduced to the drag handle only — no "+" add button (the "/" slash
-            menu already covers adding blocks). EditorSideMenu also collapses the handle
-            to a single one on the top row when several rows are selected (marquee). */}
-        <SideMenuController
-          sideMenu={(props) => <EditorSideMenu menuProps={props} editor={editor} startDrag={startBlockDrag} />}
-        />
+        {/* BlockNote's own side menu is disabled (sideMenu={false}); its handle uses HTML5
+            drag, which can't drop in the WKWebView shell. GutterHandle (below) is our own
+            pointer-driven handle instead. */}
         <FormattingToolbarController
           formattingToolbar={() => (
             <FormattingToolbar>
@@ -191,6 +187,12 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
           }}
         />
       </BlockNoteView>
+      {/* Our pointer-driven drag handle in the left gutter (replaces BlockNote's). */}
+      <GutterHandle
+        editor={editor as unknown as Parameters<typeof GutterHandle>[0]["editor"]}
+        wrapRef={wrapRef}
+        startDrag={startBlockDrag}
+      />
     </div>
   );
 }

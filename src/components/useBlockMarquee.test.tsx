@@ -50,6 +50,7 @@ describe("useBlockMarquee", () => {
   afterEach(() => {
     cleanup();
     document.querySelector(".pensieve-marquee")?.remove();
+    document.body.innerHTML = "";
   });
 
   it("drag from the blank margin across rows selects first→last", () => {
