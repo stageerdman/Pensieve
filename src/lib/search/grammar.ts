@@ -23,6 +23,8 @@ export interface Suggestion {
   filter: Filter;
   label: string; // chip/display label
   hint: string; // "date" | "tag" | "tags" | "category" | "flag"
+  source?: [number, number]; // span in the input this came from (so confirm can splice
+  // it out). Omitted for prefix suggestions that don't consume text (e.g. partial category).
 }
 
 export interface TagWhisper {
@@ -83,6 +85,7 @@ function detectDates(input: string, now: number, claims: Claim[]): void {
         filter: { kind: "date", field, range: resolved.range, phrase: resolved.label },
         label: `${field === "updated" ? "Updated" : "Created"} · ${resolved.label}`,
         hint: "date",
+        source: [start, end],
       },
     });
   }
@@ -111,6 +114,7 @@ function detectTagSet(input: string, ctx: ParseContext, claims: Claim[]): void {
       filter: { kind: "tag", tags },
       label: tags.map((t) => `#${t}`).join(" or "),
       hint: "tags",
+      source: [m.index, input.length],
     },
   });
 }
@@ -150,6 +154,7 @@ function detectHashTags(input: string, ctx: ParseContext, claims: Claim[]): void
         filter: { kind: "tag", tags: [bare] },
         label: `#${bare}`,
         hint: "tag",
+        source: [i, end],
       },
     });
     i = end - 1;
@@ -185,6 +190,7 @@ function detectFlags(input: string, claims: Claim[]): void {
         filter: { kind: "flag", flag: "pinned" },
         label: "Pinned",
         hint: "flag",
+        source: [m.index, m.index + m[0].length],
       },
     });
   }
@@ -211,6 +217,7 @@ function detectCategories(input: string, ctx: ParseContext, claims: Claim[]): vo
             filter: { kind: "category", categories: [c] },
             label: c,
             hint: "category",
+            source: [idx, idx + name.length],
           },
         });
       }

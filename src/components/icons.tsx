@@ -93,6 +93,25 @@ export const Plus = (p: IconProps) =>
     p,
   );
 
+export const Search = (p: IconProps) =>
+  svg(
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </>,
+    p,
+  );
+
+// A little "magic"/dissolve mark for the clear-all control.
+export const Sparkles = (p: IconProps) =>
+  svg(
+    <>
+      <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3Z" />
+      <path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z" />
+    </>,
+    p,
+  );
+
 export const Bookmark = ({ filled, ...p }: IconProps & { filled?: boolean }) =>
   svg(
     <path
