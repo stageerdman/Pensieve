@@ -233,6 +233,7 @@ export function WorkingSetStrip({
               <FlaskFor
                 icon={dragItem.icon}
                 chars={dragItem.chars}
+                seed={dragItem.id}
                 size={56}
                 label={dragItem.title || "Untitled"}
               />

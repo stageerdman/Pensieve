@@ -11,6 +11,7 @@ import {
   type NoteIcon,
 } from "../lib/flasks/icon";
 import type { CategoryColor } from "../lib/categories/palette";
+import { memoryThread } from "../lib/flasks/thread";
 
 // A magical "memory flask": a glass vessel with coloured liquid, a soft glow and a
 // glass highlight. The note's icon (see lib/flasks/icon). Six distinct silhouettes
@@ -99,6 +100,8 @@ interface FlaskProps {
   vibrancy?: number;
   /** Glass gloss 0..1 (matte → glossy). 0.5 = original. */
   shine?: number;
+  /** Seed for the memory thread (the note's id) — its shape is derived from this. */
+  seed?: string;
   size?: number;
   className?: string;
   label?: string;
@@ -110,6 +113,7 @@ function FlaskBase({
   fill = NORMAL_FILL,
   vibrancy = DEFAULT_VIBRANCY,
   shine = DEFAULT_SHINE,
+  seed,
   size = 16,
   className,
   label,
@@ -153,9 +157,13 @@ function FlaskBase({
   const glowA = (0.18 + 0.4 * v) * (detailed ? 1 : 0.79);
   const glassA = 0.06 + 0.08 * v;
   // Shine = glass gloss (all detailed-gated below).
-  const streakA = 0.9 * sh;
   const corkA = 0.09 + 0.12 * sh;
   const menHiA = 0.5 * sh;
+
+  // The memory thread: a white strand rising from the floor to the liquid surface, its
+  // shape seeded by the note's id. Drawn only at detailed sizes and when there's liquid
+  // (so the white reads against colour). See lib/flasks/thread.
+  const thread = seed && detailed ? memoryThread({ seed, yTop: level, yBottom: 28 }) : null;
 
   return (
     <svg
@@ -234,18 +242,24 @@ function FlaskBase({
         />
       )}
 
-      {/* 7 · gloss — highlight streak + a specular glint, scaled by shine (large only) */}
-      {detailed && streakA > 0.04 && (
-        <path
-          d="M8 13 q-1.6 4 0.5 8"
-          fill="none"
-          stroke="#fff"
-          strokeOpacity={streakA}
-          strokeWidth="1.25"
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-        />
+      {/* 7 · the memory thread — a white strand whose shape is the note's DNA (seeded by
+          its id), clipped to the glass and rising with the liquid */}
+      {thread && contentA > 0 && (
+        <g clipPath={`url(#${clipId})`} opacity={contentA}>
+          <path
+            d={thread.d}
+            fill="none"
+            stroke="#fff"
+            strokeOpacity={0.82}
+            strokeWidth={thread.width}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        </g>
       )}
+
+      {/* 7b · a small specular glint, scaled by shine (large only) */}
       {size >= 28 && sh > 0.4 && (
         <ellipse cx="9" cy="14" rx="1.2" ry="2.6" fill="#fff" opacity={0.6 * sh} transform="rotate(-18 9 14)" />
       )}

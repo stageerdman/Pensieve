@@ -118,6 +118,7 @@ export function FlaskCard({
         <FlaskFor
           icon={note.icon}
           chars={note.chars}
+          seed={note.id}
           size={64}
           label={note.title || "Untitled"}
         />

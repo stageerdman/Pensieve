@@ -12,10 +12,11 @@ import { FlaskPicker } from "./FlaskPicker";
 interface FlaskButtonProps {
   icon?: NoteIcon;
   chars?: number; // the open note's content length — drives the flask's fill level
+  seed?: string; // the note's id — seeds the memory thread
   onChange: (icon: NoteIcon) => void;
 }
 
-export function FlaskButton({ icon, chars, onChange }: FlaskButtonProps) {
+export function FlaskButton({ icon, chars, seed, onChange }: FlaskButtonProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -52,12 +53,12 @@ export function FlaskButton({ icon, chars, onChange }: FlaskButtonProps) {
         title="Change flask"
         className="-ml-1 flex h-10 w-10 items-center justify-center rounded-lg text-text transition-colors hover:bg-surface-raised"
       >
-        <FlaskFor icon={icon} chars={chars} size={28} />
+        <FlaskFor icon={icon} chars={chars} seed={seed} size={28} />
       </button>
 
       {open && (
         <div className="absolute left-0 top-full z-20 mt-1 rounded-lg border border-border bg-surface-raised shadow-lg">
-          <FlaskPicker icon={icon} onChange={onChange} />
+          <FlaskPicker icon={icon} seed={seed} onChange={onChange} />
         </div>
       )}
     </div>

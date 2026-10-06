@@ -30,6 +30,7 @@ const stepIndex = (value: number) => {
 
 interface FlaskPickerProps {
   icon?: NoteIcon;
+  seed?: string; // the note's id — seeds the memory thread in the preview
   onChange: (icon: NoteIcon) => void;
 }
 
@@ -50,7 +51,7 @@ function step(
   return to;
 }
 
-export function FlaskPicker({ icon, onChange }: FlaskPickerProps) {
+export function FlaskPicker({ icon, seed, onChange }: FlaskPickerProps) {
   const current = icon ?? DEFAULT_ICON;
   const curVib = iconVibrancy(current);
   const curShine = iconShine(current);
@@ -92,6 +93,7 @@ export function FlaskPicker({ icon, onChange }: FlaskPickerProps) {
           color={current.color}
           vibrancy={curVib}
           shine={curShine}
+          seed={seed}
           size={52}
           className="text-text"
         />

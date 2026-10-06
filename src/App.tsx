@@ -296,6 +296,7 @@ export default function App() {
                         <FlaskButton
                           icon={current.icon}
                           chars={contentCharCount(current.markdown)}
+                          seed={current.id}
                           onChange={(icon) => updateMeta({ icon })}
                         />
                       </div>
