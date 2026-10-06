@@ -89,6 +89,22 @@ describe("resolveDatePhrase", () => {
     });
   });
 
+  it("last <weekday> → the most recent past occurrence (never today)", () => {
+    // NOW is Wed 18 Feb 2026.
+    expect(resolveDatePhrase("last sunday", NOW)!.range).toEqual({
+      start: at(2026, 1, 15), // Sun 15 Feb
+      end: endOf(2026, 1, 15),
+    });
+    expect(resolveDatePhrase("last wednesday", NOW)!.range).toEqual({
+      start: at(2026, 1, 11), // previous Wed, not today
+      end: endOf(2026, 1, 11),
+    });
+    expect(resolveDatePhrase("last monday", NOW)!.range).toEqual({
+      start: at(2026, 1, 16), // Mon 16 Feb
+      end: endOf(2026, 1, 16),
+    });
+  });
+
   it("is case/space insensitive and labels canonically", () => {
     const r = resolveDatePhrase("  Last   Month ", NOW)!;
     expect(r.label).toBe("last month");

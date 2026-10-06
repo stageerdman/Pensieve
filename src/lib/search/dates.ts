@@ -9,6 +9,16 @@ import type { DateRange } from "./types";
 
 const DAY = 86_400_000;
 
+const WEEKDAYS: Record<string, number> = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+};
+
 function startOfDay(ts: number): number {
   const d = new Date(ts);
   d.setHours(0, 0, 0, 0);
@@ -89,6 +99,18 @@ export function resolveDatePhrase(phrase: string, now: number): ResolvedDate | n
     }
   }
 
+  // "last <weekday>" → the most recent PAST occurrence of that weekday (never today).
+  const wd = p.match(/^last (sunday|monday|tuesday|wednesday|thursday|friday|saturday)$/);
+  if (wd) {
+    const target = WEEKDAYS[wd[1]];
+    const today = startOfDay(now);
+    const dow = new Date(now).getDay();
+    let back = (dow - target + 7) % 7;
+    if (back === 0) back = 7; // "last monday" on a Monday means the previous one
+    const day = today - back * DAY;
+    return { range: range(day, day + DAY - 1), label: `last ${wd[1]}` };
+  }
+
   // Rolling "last/past N day|week|month(s)". N calendar days INCLUDING today, i.e.
   // "last 7 days" = today + the previous 6 days.
   const m = p.match(/^(?:last|past) (\d{1,4}) (day|days|week|weeks|month|months)$/);
@@ -114,7 +136,7 @@ export function resolveDatePhrase(phrase: string, now: number): ResolvedDate | n
   return null;
 }
 
-/** All canonical date phrases we offer as suggestions (for the dropdown). */
+/** All canonical date phrases we offer as suggestions (for the dropdown + whispering). */
 export const DATE_PHRASES = [
   "today",
   "yesterday",
@@ -127,4 +149,11 @@ export const DATE_PHRASES = [
   "last 30 days",
   "this year",
   "last year",
+  "last monday",
+  "last tuesday",
+  "last wednesday",
+  "last thursday",
+  "last friday",
+  "last saturday",
+  "last sunday",
 ] as const;

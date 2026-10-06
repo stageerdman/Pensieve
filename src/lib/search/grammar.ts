@@ -248,6 +248,91 @@ function categoryMatchesFor(fragment: string, ctx: ParseContext): Suggestion[] {
   return out;
 }
 
+// ---- keyword whispering -----------------------------------------------------------
+// As you type a prefix ("pin", "last", "last su", "last 2"), suggest the full keyword
+// phrase so you don't have to type it out. Completions carry a `source` span so picking
+// one splices just the partial word out of the bar.
+
+interface Vocab {
+  phrase: string;
+  hint: string;
+  build: (now: number) => Filter | null;
+}
+
+const STATIC_VOCAB: Vocab[] = [
+  ...DATE_PHRASES.map((p) => ({
+    phrase: p,
+    hint: "date",
+    build: (now: number): Filter | null => {
+      const r = resolveDatePhrase(p, now);
+      return r ? { kind: "date", field: "created", range: r.range, phrase: r.label } : null;
+    },
+  })),
+  { phrase: "pinned", hint: "flag", build: () => ({ kind: "flag", flag: "pinned" }) },
+];
+
+/** Dynamic "last N days/weeks/months" completions for a numeric fragment. */
+function numericCompletions(sub: string, now: number): Suggestion[] {
+  const m = sub.match(/^(?:last|past)\s+(\d{1,4})(?:\s+(d\w*|w\w*|m\w*))?\s*$/);
+  if (!m) return [];
+  const n = m[1];
+  const unitFrag = (m[2] ?? "")[0]; // match by first letter: d/w/m
+  const out: Suggestion[] = [];
+  for (const u of ["days", "weeks", "months"]) {
+    if (unitFrag && u[0] !== unitFrag) continue;
+    const phrase = `last ${n} ${u}`;
+    const r = resolveDatePhrase(phrase, now);
+    if (r && phrase !== sub)
+      out.push({
+        key: `comp:${phrase}`,
+        filter: { kind: "date", field: "created", range: r.range, phrase: r.label },
+        label: phrase,
+        hint: "date",
+      });
+  }
+  return out;
+}
+
+/** Completions for a single normalized fragment (static prefix matches + numeric). */
+function completionsFor(sub: string, now: number): Suggestion[] {
+  const out: Suggestion[] = [];
+  for (const v of STATIC_VOCAB) {
+    if (v.phrase !== sub && v.phrase.startsWith(sub)) {
+      const f = v.build(now);
+      if (f) out.push({ key: `comp:${v.phrase}`, filter: f, label: v.phrase, hint: v.hint });
+    }
+  }
+  out.push(...numericCompletions(sub, now));
+  return out;
+}
+
+/** Offer keyword completions for the word(s) the user is typing just before the caret. */
+export function completionsAt(input: string, caret: number, now: number): Suggestion[] {
+  // The trailing run of letters/digits/spaces ending at the caret.
+  let start = caret;
+  while (start > 0 && /[\p{L}\p{N} ]/u.test(input[start - 1])) start--;
+  while (start < caret && input[start] === " ") start++;
+  const region = input.slice(start, caret);
+  if (!region.trim()) return [];
+
+  // Try each word-boundary start within the region, longest (leftmost) first, and return
+  // the first that yields matches — so "find calm last" matches on "last", not the lot.
+  const offsets = [0];
+  for (let k = 1; k < region.length; k++) {
+    if (region[k - 1] === " " && region[k] !== " ") offsets.push(k);
+  }
+  for (const off of offsets) {
+    const sub = region.slice(off).toLowerCase().replace(/\s+/g, " ");
+    if (sub.replace(/\s/g, "").length < 2) continue;
+    const matches = completionsFor(sub, now);
+    if (matches.length) {
+      const absStart = start + off;
+      return matches.slice(0, 7).map((s) => ({ ...s, source: [absStart, caret] as [number, number] }));
+    }
+  }
+  return [];
+}
+
 /** The active tag-whisper: if the caret sits inside a live "#…" token (the token under
  *  the caret starts with "#" and has no space after the #), offer matching known tags. */
 export function tagWhisperAt(input: string, caret: number, ctx: ParseContext): TagWhisper | undefined {
@@ -339,27 +424,22 @@ export function parseQuery(
     whisper ? c.start < whisper.end && c.end > whisper.start : false;
 
   const claims = resolved.filter((c) => !inWhisper(c));
-  // de-dupe suggestions by key, preserving order
-  const seen = new Set<string>();
-  const suggestions: Suggestion[] = [];
-  for (const c of claims) {
-    if (seen.has(c.suggestion.key)) continue;
-    seen.add(c.suggestion.key);
-    suggestions.push(c.suggestion);
-  }
 
   const spans: Array<{ start: number; end: number }> = claims.map((c) => ({ start: c.start, end: c.end }));
   if (whisper) spans.push({ start: whisper.start, end: whisper.end });
   const text = leftoverText(input, spans);
 
-  // Prefix/substring category suggestions from the leftover text (don't consume it).
-  if (!whisper && text) {
-    for (const s of categoryMatchesFor(text, ctx)) {
-      if (!seen.has(s.key)) {
-        seen.add(s.key);
-        suggestions.push(s);
-      }
-    }
+  // Order: keyword completions for what's being typed, then recognized full-phrase claims,
+  // then prefix category suggestions from the leftover text. De-duped by key.
+  const completions = whisper ? [] : completionsAt(input, caret, now);
+  const categoryS = !whisper && text ? categoryMatchesFor(text, ctx) : [];
+
+  const seen = new Set<string>();
+  const suggestions: Suggestion[] = [];
+  for (const s of [...completions, ...claims.map((c) => c.suggestion), ...categoryS]) {
+    if (seen.has(s.key)) continue;
+    seen.add(s.key);
+    suggestions.push(s);
   }
 
   return { suggestions, text, whisper };

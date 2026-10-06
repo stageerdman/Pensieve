@@ -102,6 +102,56 @@ describe("parseQuery — tag whisper & # escape", () => {
   });
 });
 
+describe("parseQuery — keyword whispering (completions)", () => {
+  const labels = (q: string, caret?: number) => parse(q, caret).suggestions.map((s) => s.label);
+
+  it("'pin' whispers 'pinned'", () => {
+    const sugs = parse("pin").suggestions;
+    const flag = sugs.find((s) => s.filter.kind === "flag");
+    expect(flag).toBeTruthy();
+    expect(flag!.source).toEqual([0, 3]); // splices "pin"
+  });
+
+  it("'last' whispers date phrases", () => {
+    const ls = labels("last");
+    expect(ls).toContain("last week");
+    expect(ls).toContain("last month");
+  });
+
+  it("'last su' narrows to 'last sunday'", () => {
+    const ls = labels("last su");
+    expect(ls).toContain("last sunday");
+    expect(ls).not.toContain("last week");
+  });
+
+  it("'last 2' whispers rolling day/week/month variants", () => {
+    const ls = labels("last 2");
+    expect(ls).toEqual(expect.arrayContaining(["last 2 days", "last 2 weeks", "last 2 months"]));
+  });
+
+  it("'last 2 w' narrows to weeks", () => {
+    const ls = labels("last 2 w");
+    expect(ls).toContain("last 2 weeks");
+    expect(ls).not.toContain("last 2 days");
+  });
+
+  it("completes only the trailing fragment, keeping earlier words", () => {
+    const r = parse("ambition last");
+    const comp = r.suggestions.find((s) => s.label === "last week");
+    expect(comp).toBeTruthy();
+    // source splices just "last" (indices 9..13), not "ambition"
+    expect(comp!.source).toEqual([9, 13]);
+  });
+
+  it("confirming a completion resolves a real date range", () => {
+    const comp = parse("last mon").suggestions.find((s) => s.label === "last monday")!;
+    expect(comp.filter.kind).toBe("date");
+    if (comp.filter.kind === "date") {
+      expect(comp.filter.range.start).toBe(new Date(2026, 1, 16).getTime());
+    }
+  });
+});
+
 describe("parseQuery — categories", () => {
   it("full category name → category claim, leftover empty", () => {
     const r = parse("Execution");

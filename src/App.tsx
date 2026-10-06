@@ -201,14 +201,23 @@ export default function App() {
         e.preventDefault();
         askDelete();
       } else if (k === "s") {
-        // ⌘S summons: jump Home, scroll the summon bar back into view, and focus it
-        // (the bar scrolls away with content, so this is how you get back to it).
+        // ⌘S summons: jump Home, scroll the gallery all the way to the top (so the bar is
+        // fully in view, not mid-screen), and focus it.
         e.preventDefault();
         setActiveTab(HOME);
         requestAnimationFrame(() => {
           const el = summonInputRef.current;
           el?.focus({ preventScroll: true });
-          el?.scrollIntoView({ block: "start", behavior: "smooth" });
+          // Walk up to the nearest scrollable ancestor (the gallery scroll region) and
+          // scroll it fully to the top.
+          let p = el?.parentElement ?? null;
+          while (p) {
+            if (p.scrollHeight > p.clientHeight && getComputedStyle(p).overflowY !== "visible") {
+              p.scrollTo({ top: 0, behavior: "smooth" });
+              break;
+            }
+            p = p.parentElement;
+          }
         });
       }
     };
