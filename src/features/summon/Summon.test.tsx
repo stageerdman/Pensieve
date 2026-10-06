@@ -124,6 +124,22 @@ describe("Summon surface", () => {
     expect(await screen.findByText("1 / 2")).toBeInTheDocument();
   });
 
+  it("date editor offers a custom-range calendar that sets the chip", async () => {
+    render(<Harness />);
+    const input = type("last month");
+    await screen.findByText("Created · last month");
+    fireEvent.keyDown(input, { key: "Enter" });
+    const chip = await screen.findByTitle(/click to edit/i);
+    fireEvent.click(chip);
+    // expand the custom-range calendar
+    fireEvent.click(await screen.findByText(/custom range/i));
+    // pick a start and end day within the shown month
+    fireEvent.click(await screen.findByRole("button", { name: "10" }));
+    fireEvent.click(await screen.findByRole("button", { name: "20" }));
+    // the chip now shows a custom range (…10 – 20)
+    await waitFor(() => expect(screen.getByTitle(/click to edit/i)).toHaveTextContent(/10\s*–\s*20/));
+  });
+
   it("right-click pops (removes) a chip", async () => {
     render(<Harness />);
     const input = type("pinned");

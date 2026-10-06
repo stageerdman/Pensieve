@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Filter } from "../../lib/search/types";
 import { DATE_PHRASES, resolveDatePhrase } from "../../lib/search/dates";
 import { normTag } from "../../lib/search/evaluate";
+import { DateRangeCalendar, formatRange } from "./DateRangeCalendar";
 
 // A small popover for editing a filter chip in place (left-click a chip). The shape
 // adapts to the filter kind: swap a date phrase / field, toggle which tags or categories
@@ -65,14 +66,22 @@ function DateEdit({
   now: number;
   onReplace: (f: Filter) => void;
 }) {
+  const isCustom = !(DATE_PHRASES as readonly string[]).includes(filter.phrase);
+  const [showCal, setShowCal] = useState(isCustom);
+
   const setPhrase = (phrase: string) => {
     const r = resolveDatePhrase(phrase, now);
     if (r) onReplace({ kind: "date", field: filter.field, range: r.range, phrase: r.label });
   };
   const setField = (field: "created" | "updated") => {
     const r = resolveDatePhrase(filter.phrase, now);
+    // Keep a custom range as-is when flipping the field; re-resolve a named phrase.
     onReplace({ kind: "date", field, range: r?.range ?? filter.range, phrase: filter.phrase });
   };
+  const setRange = (start: number, end: number) => {
+    onReplace({ kind: "date", field: filter.field, range: { start, end }, phrase: formatRange(start, end, now) });
+  };
+
   return (
     <div>
       <Label>Field</Label>
@@ -107,6 +116,21 @@ function DateEdit({
           </button>
         ))}
       </div>
+
+      <button
+        type="button"
+        onClick={() => setShowCal((v) => !v)}
+        className={
+          "mt-1 flex w-full items-center justify-between rounded-md px-2 py-1 text-left text-[13px] " +
+          (isCustom ? "bg-accent/15 text-text" : "text-text-muted hover:text-text")
+        }
+      >
+        <span>Custom range{isCustom ? ` · ${filter.phrase}` : "…"}</span>
+        <span className="text-text-muted">{showCal ? "▾" : "▸"}</span>
+      </button>
+      {showCal && (
+        <DateRangeCalendar start={filter.range.start} end={filter.range.end} now={now} onPick={setRange} />
+      )}
     </div>
   );
 }
