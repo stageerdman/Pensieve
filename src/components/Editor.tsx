@@ -22,6 +22,7 @@ import { editorSchema } from "./editorSchema";
 import { BlockSelectionDecorations } from "./blockSelectionDecorations";
 import { EditorSideMenu } from "./EditorSideMenu";
 import { useBlockMarquee } from "./useBlockMarquee";
+import { useBlockDrag } from "./useBlockDrag";
 import { FlaskFor } from "./Flask";
 import type { NoteMeta } from "../lib/types";
 
@@ -82,6 +83,10 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
   // them together with the drag handle (useBlockMarquee sets the selection; BlockNote's
   // handle does the move).
   useBlockMarquee(editor, wrapRef);
+  // Pointer-based block drag (BlockNote's HTML5 drag can't drop in the WKWebView shell).
+  // Cast: the hook needs only a small slice of the editor; BlockNote's full generic type
+  // over-constrains insertBlocks' argument, so we adapt to the hook's minimal interface.
+  const startBlockDrag = useBlockDrag(editor as unknown as Parameters<typeof useBlockDrag>[0], wrapRef);
 
   // Wire note-link clicks to open the note (the inline spec's render is module-level).
   useEffect(() => setNoteLinkOpen(onOpenNote), [onOpenNote]);
@@ -149,7 +154,9 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
         {/* Side menu reduced to the drag handle only — no "+" add button (the "/" slash
             menu already covers adding blocks). EditorSideMenu also collapses the handle
             to a single one on the top row when several rows are selected (marquee). */}
-        <SideMenuController sideMenu={(props) => <EditorSideMenu menuProps={props} editor={editor} />} />
+        <SideMenuController
+          sideMenu={(props) => <EditorSideMenu menuProps={props} editor={editor} startDrag={startBlockDrag} />}
+        />
         <FormattingToolbarController
           formattingToolbar={() => (
             <FormattingToolbar>

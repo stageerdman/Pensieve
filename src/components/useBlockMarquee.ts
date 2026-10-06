@@ -2,7 +2,7 @@ import { useEffect, type RefObject } from "react";
 import { NodeSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { log } from "../lib/logger";
-import { blocksInBand, isBlankMarqueeTarget, rectBetween, type BlockRect } from "./blockMarquee";
+import { blocksInBand, isBlankMarqueeTarget, nearestRowId, rectBetween, type BlockRect } from "./blockMarquee";
 
 // Minimal shape we need from the BlockNote editor — avoids leaking its full generic type.
 interface MarqueeEditor {
@@ -13,31 +13,47 @@ interface MarqueeEditor {
 type Row = BlockRect & { el: HTMLElement };
 
 // Pointer must travel this far before a press becomes a marquee (below it, it's a plain
-// click — placing a caret, grabbing the handle — left untouched). Matches the gallery's
-// drag threshold for a consistent feel.
+// click — placing a caret, grabbing the handle — left untouched).
 const DRAG_THRESHOLD = 5;
+// Auto-scroll kicks in within this many px of the scroll edge; speed scales with depth.
+const EDGE = 56;
+const MAX_SPEED = 18;
+
+// The nearest scrollable ancestor — the surface the editor actually scrolls inside.
+function findScrollParent(el: HTMLElement | null): HTMLElement | null {
+  let e = el?.parentElement ?? null;
+  while (e) {
+    const oy = getComputedStyle(e).overflowY;
+    if ((oy === "auto" || oy === "scroll" || oy === "overlay") && e.scrollHeight > e.clientHeight) return e;
+    e = e.parentElement;
+  }
+  return null;
+}
 
 // Notion-style marquee (rubber-band) block selection. Press in the blank editor margin
-// and drag: a band rectangle picks every row it reaches, and we set a multi-block
-// selection across them. BlockNote's own drag handle then moves the whole selection as a
-// group — so this hook only needs to *create* the selection, not re-implement dragging.
+// and drag: a band picks every row it reaches, and we set a multi-block selection across
+// them. BlockNote's drag handle then moves the whole selection as a group.
 //
 // Pointer-based (not HTML5 drag) for the same reason as the gallery strip: WKWebView
 // fires HTML5 drop unreliably. See blockMarquee.ts for the pure geometry/targeting.
+//
+// The selection is anchored to the *starting row* (by id), not a screen coordinate — so
+// scrolling mid-drag extends the selection instead of dropping rows that scrolled away.
+// Dragging near an edge auto-scrolls so you can select beyond what's on screen.
 export function useBlockMarquee(editor: MarqueeEditor, wrapRef: RefObject<HTMLElement | null>) {
   useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap) return;
 
-    // The live press: start point + whether it has crossed into an actual marquee. A
-    // closure variable (not state) so the window handlers read fresh values cheaply.
     let press: { startX: number; startY: number; active: boolean } | null = null;
+    let anchorId: string | null = null; // the row the marquee started in
+    let lastX = 0;
+    let lastY = 0;
     let band: HTMLDivElement | null = null;
+    let scroller: HTMLElement | null = null;
+    let raf = 0;
     let suppressClick = false;
 
-    // Every top-level row's id + vertical extent, read fresh at drag time (the doc can
-    // change between drags). Nested blocks are excluded so a parent and its children
-    // aren't double-counted — we select whole top-level rows, like Notion.
     const topRows = (): Row[] => {
       const view = editor.prosemirrorView;
       if (!view) return [];
@@ -50,10 +66,6 @@ export function useBlockMarquee(editor: MarqueeEditor, wrapRef: RefObject<HTMLEl
         });
     };
 
-    // Set a multi-row selection spanning ids[first..last]. setSelection needs both
-    // endpoints to be content blocks; if an endpoint is a no-content block (image,
-    // divider), we trim the range inward until it takes — the in-between blocks are still
-    // carried along by BlockNote's drag (it expands to block boundaries).
     const setRange = (ids: string[]): boolean => {
       for (let lo = 0; lo < ids.length; lo++) {
         for (let hi = ids.length - 1; hi > lo; hi--) {
@@ -68,8 +80,6 @@ export function useBlockMarquee(editor: MarqueeEditor, wrapRef: RefObject<HTMLEl
       return false;
     };
 
-    // Single row in the band → a node selection on it (BlockNote highlights node
-    // selections itself and its handle drags the one block).
     const selectSingle = (el: HTMLElement) => {
       const view = editor.prosemirrorView;
       if (!view) return;
@@ -82,60 +92,92 @@ export function useBlockMarquee(editor: MarqueeEditor, wrapRef: RefObject<HTMLEl
       }
     };
 
-    const applySelection = (curY: number): number => {
+    // Select from the anchor row to whatever row sits at the current pointer Y. Anchoring
+    // by the row's *live* position (not the press coordinate) is what makes scrolling
+    // extend the selection rather than lose the top of it.
+    const applySelection = () => {
       const rows = topRows();
-      const ids = blocksInBand(rows, { top: press!.startY, bottom: curY });
+      if (rows.length === 0) return 0;
+      const anchor = rows.find((r) => r.id === anchorId);
+      const anchorY = anchor ? (anchor.top + anchor.bottom) / 2 : press!.startY;
+      const ids = blocksInBand(rows, { top: anchorY, bottom: lastY });
       if (ids.length >= 2) setRange(ids);
       else if (ids.length === 1) {
         const row = rows.find((r) => r.id === ids[0]);
         if (row) selectSingle(row.el);
       }
+      drawBand(anchorY);
       return ids.length;
     };
 
-    const drawBand = (ax: number, ay: number, bx: number, by: number) => {
+    const drawBand = (anchorY: number) => {
       if (!band) {
         band = document.createElement("div");
         band.className = "pensieve-marquee";
         document.body.appendChild(band);
       }
-      const r = rectBetween(ax, ay, bx, by);
+      const r = rectBetween(press!.startX, anchorY, lastX, lastY);
       band.style.left = `${r.left}px`;
       band.style.top = `${r.top}px`;
       band.style.width = `${r.width}px`;
       band.style.height = `${r.height}px`;
     };
 
+    // While the pointer sits near a scroll edge, keep scrolling and re-selecting so the
+    // band can reach rows off-screen. Runs itself on rAF until it leaves the edge zone.
+    const autoScroll = () => {
+      raf = 0;
+      if (!press?.active) return;
+      const top = scroller ? scroller.getBoundingClientRect().top : 0;
+      const bottom = scroller ? scroller.getBoundingClientRect().bottom : window.innerHeight;
+      let dy = 0;
+      if (lastY < top + EDGE) dy = -MAX_SPEED * Math.min(1, (top + EDGE - lastY) / EDGE);
+      else if (lastY > bottom - EDGE) dy = MAX_SPEED * Math.min(1, (lastY - (bottom - EDGE)) / EDGE);
+      if (dy !== 0) {
+        if (scroller) scroller.scrollBy(0, dy);
+        else window.scrollBy(0, dy);
+        applySelection();
+        raf = requestAnimationFrame(autoScroll);
+      }
+    };
+
     const endDrag = () => {
       window.removeEventListener("pointermove", onMove, true);
       window.removeEventListener("pointerup", onUp, true);
       window.removeEventListener("pointercancel", onUp, true);
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
       if (band) {
         band.remove();
         band = null;
       }
       wrap.classList.remove("pensieve-marqueeing");
       press = null;
+      anchorId = null;
+      scroller = null;
     };
 
     const onMove = (e: PointerEvent) => {
       if (!press) return;
+      lastX = e.clientX;
+      lastY = e.clientY;
       if (!press.active) {
         if (Math.abs(e.clientX - press.startX) < DRAG_THRESHOLD && Math.abs(e.clientY - press.startY) < DRAG_THRESHOLD) return;
         press.active = true;
         wrap.classList.add("pensieve-marqueeing");
-        log.debug("editor", "marquee.start", {});
+        scroller = findScrollParent(wrap);
+        anchorId = nearestRowId(topRows(), press.startY);
+        log.debug("editor", "marquee.start", { anchor: anchorId });
       }
-      // Suppress native text selection/caret while the band is live.
       e.preventDefault();
-      drawBand(press.startX, press.startY, e.clientX, e.clientY);
-      applySelection(e.clientY);
+      applySelection();
+      if (!raf) raf = requestAnimationFrame(autoScroll);
     };
 
-    const onUp = (e: PointerEvent) => {
+    const onUp = () => {
       const wasActive = press?.active ?? false;
       if (wasActive) {
-        const n = applySelection(e.clientY);
+        const n = applySelection();
         suppressClick = true; // swallow the click the browser fires after the drag
         log.debug("editor", "marquee.end", { rows: n });
       }
@@ -146,6 +188,8 @@ export function useBlockMarquee(editor: MarqueeEditor, wrapRef: RefObject<HTMLEl
       if (e.button !== 0) return; // primary button only
       if (!isBlankMarqueeTarget(e.target as Element | null, wrap)) return;
       press = { startX: e.clientX, startY: e.clientY, active: false };
+      lastX = e.clientX;
+      lastY = e.clientY;
       window.addEventListener("pointermove", onMove, true);
       window.addEventListener("pointerup", onUp, true);
       window.addEventListener("pointercancel", onUp, true);

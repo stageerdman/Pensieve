@@ -30,6 +30,24 @@ export function blocksInBand(blocks: BlockRect[], band: Band): string[] {
   return blocks.filter((b) => b.top < hi && b.bottom > lo).map((b) => b.id);
 }
 
+// The row that vertical position `y` falls in — or the nearest row if `y` is in a gap
+// or past the ends (above → first row, below → last). Used to anchor a marquee to a
+// *block*, not a screen coordinate, so scrolling mid-drag never drops the anchor.
+export function nearestRowId(rows: BlockRect[], y: number): string | null {
+  if (rows.length === 0) return null;
+  for (const b of rows) if (y >= b.top && y <= b.bottom) return b.id;
+  let best = rows[0];
+  let bestDist = Infinity;
+  for (const b of rows) {
+    const dist = y < b.top ? b.top - y : y - b.bottom;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = b;
+    }
+  }
+  return best.id;
+}
+
 // Would a press at this element begin a marquee? Only in genuinely blank editor space —
 // not on real text (that stays a text selection), not the drag-handle gutter, and not an
 // interactive control (buttons, links, inputs, file blocks). This is what lets a drag

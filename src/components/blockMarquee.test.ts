@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { blocksInBand, isBlankMarqueeTarget, rectBetween } from "./blockMarquee";
+import { blocksInBand, isBlankMarqueeTarget, nearestRowId, rectBetween } from "./blockMarquee";
 
 describe("blocksInBand", () => {
   const blocks = [
@@ -28,6 +28,25 @@ describe("blocksInBand", () => {
 
   it("returns nothing when the band is above all rows", () => {
     expect(blocksInBand(blocks, { top: -30, bottom: -10 })).toEqual([]);
+  });
+});
+
+describe("nearestRowId", () => {
+  const rows = [
+    { id: "a", top: 0, bottom: 20 },
+    { id: "b", top: 20, bottom: 40 },
+    { id: "c", top: 40, bottom: 60 },
+  ];
+  it("returns the row a position falls inside", () => {
+    expect(nearestRowId(rows, 10)).toBe("a");
+    expect(nearestRowId(rows, 50)).toBe("c");
+  });
+  it("snaps to the first row when above everything, last when below", () => {
+    expect(nearestRowId(rows, -100)).toBe("a");
+    expect(nearestRowId(rows, 999)).toBe("c");
+  });
+  it("returns null when there are no rows", () => {
+    expect(nearestRowId([], 10)).toBeNull();
   });
 });
 

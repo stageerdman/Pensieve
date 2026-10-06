@@ -88,6 +88,55 @@
   background: transparent;
 }
 
+/* Our pointer-driven drag handle (replaces BlockNote's HTML5-drag handle, which can't
+   drop in the WKWebView shell). Calm and muted; grab cursor. */
+.pensieve-editor .pensieve-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: none;
+  background: transparent;
+  color: hsl(var(--text-muted));
+  border-radius: var(--bn-border-radius-small, 6px);
+  cursor: grab;
+  touch-action: none;
+}
+.pensieve-editor .pensieve-drag-handle:hover {
+  color: hsl(var(--text));
+  background: hsl(var(--surface-raised));
+}
+.pensieve-editor.pensieve-block-dragging,
+.pensieve-editor.pensieve-block-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* The drop indicator: a horizontal accent line at the gap where blocks will land. When
+   nesting, it's inset to the child indent and gets a small lead dot. */
+.pensieve-drop-indicator {
+  position: fixed;
+  z-index: 45;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 2px;
+  background: hsl(var(--accent));
+  pointer-events: none;
+  box-shadow: 0 0 0 1px hsl(var(--accent) / 0.25);
+}
+.pensieve-drop-indicator.is-nest::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: hsl(var(--accent));
+}
+
 /* The rubber-band rectangle dragged in the blank margin to pick rows (viewport-fixed,
    positioned from pointer coords — no wrapper-relative math needed). */
 .pensieve-marquee {

@@ -36,6 +36,20 @@ export const MoreHorizontal = (p: IconProps) =>
     p,
   );
 
+// Six-dot grip — the drag handle in the editor gutter (Notion-style).
+export const GripVertical = (p: IconProps) =>
+  svg(
+    <>
+      <circle cx="9" cy="6" r="1" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="18" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="6" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="18" r="1" fill="currentColor" stroke="none" />
+    </>,
+    p,
+  );
+
 export const PanelRight = (p: IconProps) =>
   svg(
     <>

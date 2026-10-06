@@ -1,26 +1,54 @@
-import { SideMenu, DragHandleButton } from "@blocknote/react";
-import type { ComponentProps } from "react";
+import { SideMenu } from "@blocknote/react";
+import type { ComponentProps, PointerEvent } from "react";
+import { GripVertical } from "./icons";
 
 type MenuProps = ComponentProps<typeof SideMenu>;
 
-// Minimal view of the editor: we only read the current block selection to decide where
-// the handle belongs.
 interface SelectionReader {
   getSelection: () => { blocks: Array<{ id: string }> } | undefined;
 }
 
-// The left-gutter side menu, reduced to the drag handle — but selection-aware: when
-// several rows are selected (via the marquee), BlockNote would otherwise offer a handle
-// on whichever row you hover. Notion shows a single group handle at the top of the
-// selection, so we render the handle only on the topmost selected row and suppress it on
-// the others. Grabbing it still moves the whole selection (BlockNote's drag expands to
-// the full selection when the grabbed block is inside it).
-export function EditorSideMenu({ menuProps, editor }: { menuProps: MenuProps; editor: SelectionReader }) {
+type StartDrag = (
+  e: { clientX: number; clientY: number; button: number; pointerId?: number; currentTarget?: Element },
+  ids: string[],
+) => void;
+
+// The left-gutter drag handle — our own, pointer-driven (BlockNote's built-in handle uses
+// HTML5 drag, which can't drop in the WKWebView shell). BlockNote's SideMenu still
+// positions it against the hovered block.
+//
+// Selection-aware so a multi-row (marquee) selection shows a single group handle on the
+// TOP selected row — not one per hovered row. Grabbing it drags the whole selection;
+// grabbing an unselected row's handle drags just that row.
+export function EditorSideMenu({
+  menuProps,
+  editor,
+  startDrag,
+}: {
+  menuProps: MenuProps;
+  editor: SelectionReader;
+  startDrag: StartDrag;
+}) {
   const hovered = (menuProps as { block?: { id?: string } }).block?.id;
   const ids = editor.getSelection()?.blocks.map((b) => b.id) ?? [];
   const multi = ids.length >= 2;
-  // Show the handle normally for any non-multi state or a row outside the selection;
-  // within a multi-row selection, only the top row carries it.
-  const showHandle = !multi || !hovered || !ids.includes(hovered) || hovered === ids[0];
-  return <SideMenu {...menuProps}>{showHandle ? <DragHandleButton {...menuProps} /> : <></>}</SideMenu>;
+
+  // Within a multi-row selection, suppress the handle on every selected row except the
+  // top one → a single group handle.
+  if (multi && hovered && ids.includes(hovered) && hovered !== ids[0]) return null;
+
+  const onPointerDown = (e: PointerEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const dragIds = multi && hovered && ids.includes(hovered) ? ids : hovered ? [hovered] : [];
+    startDrag(e, dragIds);
+  };
+
+  return (
+    <SideMenu {...menuProps}>
+      <button type="button" className="pensieve-drag-handle" aria-label="Drag to move" onPointerDown={onPointerDown}>
+        <GripVertical size={16} />
+      </button>
+    </SideMenu>
+  );
 }
