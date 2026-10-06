@@ -84,6 +84,8 @@ describe("Gallery — open", () => {
     expect(props.onOpen).toHaveBeenLastCalledWith("a", false);
     fireEvent.click(card, { metaKey: true });
     expect(props.onOpen).toHaveBeenLastCalledWith("a", true);
+    fireEvent.click(card, { altKey: true });
+    expect(props.onOpen).toHaveBeenLastCalledWith("a", true);
   });
 
   it("Enter opens, Space does NOT open (it peeks instead)", async () => {

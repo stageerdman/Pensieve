@@ -78,7 +78,7 @@ export function FlaskCard({
   const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      onOpen(note.id, e.metaKey || e.ctrlKey);
+      onOpen(note.id, e.metaKey || e.ctrlKey || e.altKey);
     } else if (e.key === " ") {
       // Space would otherwise activate the button (= open); instead it peeks.
       e.preventDefault();
@@ -97,7 +97,7 @@ export function FlaskCard({
     <button
       ref={ref}
       data-note-id={note.id}
-      onClick={(e: MouseEvent) => onOpen(note.id, e.metaKey || e.ctrlKey)}
+      onClick={(e: MouseEvent) => onOpen(note.id, e.metaKey || e.ctrlKey || e.altKey)}
       onContextMenu={(e) => onContextMenu(e, note.id)}
       onKeyDown={onKeyDown}
       onPointerEnter={() => ref.current && onHoverChange({ id: note.id, el: ref.current })}
