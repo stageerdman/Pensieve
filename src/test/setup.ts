@@ -28,3 +28,15 @@ Object.defineProperty(globalThis, "localStorage", {
   value: new MemoryStorage(),
   writable: true,
 });
+
+// jsdom ships no PointerEvent, so testing-library downgrades fireEvent.pointer* to a
+// bare Event that drops clientX/clientY — which breaks any handler that reads pointer
+// coordinates (e.g. the working-set drag). Alias it to MouseEvent, which carries them.
+if (typeof window !== "undefined" && typeof window.PointerEvent === "undefined") {
+  window.PointerEvent = class PointerEvent extends MouseEvent {} as unknown as typeof window.PointerEvent;
+  // Pointer capture is a no-op in jsdom; stub it so guarded calls don't need to throw.
+  if (!window.HTMLElement.prototype.setPointerCapture) {
+    window.HTMLElement.prototype.setPointerCapture = () => {};
+    window.HTMLElement.prototype.releasePointerCapture = () => {};
+  }
+}

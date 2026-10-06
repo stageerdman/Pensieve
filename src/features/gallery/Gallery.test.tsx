@@ -169,7 +169,7 @@ describe("Gallery — working set", () => {
     expect(within(strip).getByText("Alpha")).toBeInTheDocument();
   });
 
-  it("reorders the strip when a card is dragged onto another", () => {
+  it("reorders the strip when a card is dragged past another", () => {
     const { props } = renderGallery(
       [
         note({ id: "a", title: "Alpha", createdAt: NOW }),
@@ -179,9 +179,29 @@ describe("Gallery — working set", () => {
     );
     const strip = screen.getByRole("list", { name: /working set/i });
     const items = within(strip).getAllByRole("listitem");
-    fireEvent.dragStart(items[0]);
-    fireEvent.dragOver(items[1]);
-    fireEvent.drop(items[1]);
+    // jsdom has no layout, so give the two cards explicit side-by-side rects: Alpha at
+    // x∈[0,100] (center 50), Beta at x∈[120,220] (center 170).
+    items[0].getBoundingClientRect = () =>
+      ({ left: 0, right: 100, width: 100, top: 0, height: 120 }) as DOMRect;
+    items[1].getBoundingClientRect = () =>
+      ({ left: 120, right: 220, width: 100, top: 0, height: 120 }) as DOMRect;
+    // Grab Alpha and drag it past Beta's center, then release.
+    fireEvent.pointerDown(items[0], { button: 0, clientX: 40, clientY: 10 });
+    fireEvent.pointerMove(items[0], { clientX: 200, clientY: 10 });
+    fireEvent.pointerUp(items[0], { clientX: 200, clientY: 10 });
     expect(props.onReorderWorkingSet).toHaveBeenCalledWith(0, 1);
+  });
+
+  it("a plain click (no drag) still opens the memory", () => {
+    const { props } = renderGallery([note({ id: "a", title: "Alpha", createdAt: NOW })], {
+      state: { ...DEFAULT_GALLERY_STATE, workingSet: ["a"] },
+    });
+    const strip = screen.getByRole("list", { name: /working set/i });
+    const card = within(strip).getByText("Alpha");
+    fireEvent.pointerDown(card, { button: 0, clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(card, { clientX: 10, clientY: 10 });
+    fireEvent.click(card);
+    expect(props.onOpen).toHaveBeenCalledWith("a", false);
+    expect(props.onReorderWorkingSet).not.toHaveBeenCalled();
   });
 });
