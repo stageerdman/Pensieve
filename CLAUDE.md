@@ -27,6 +27,9 @@ Planned layout — created as the project grows, kept flat until it needs folder
 - Deploy: n/a (local `.app`); future: notarize & distribute the build
 - Logs: query the central log store (`log.query({...})`, see Debugging) — filtered, never full dumps
 
+## Build environment: shared Cargo target
+Cargo builds go to a **shared target dir** (`~/.cargo-shared-target`, set globally in `~/.cargo/config.toml`), not a per-project `src-tauri/target/`. The common dependency tree compiles once and is reused across all Rust/Tauri projects instead of duplicating 3–10 GB each. So: a missing local `target/` is **correct** (not a broken build); the first `cargo`/`npm run tauri` build after a clean is a **full rebuild** (a few minutes), then incremental is normal speed; and **never** add a per-project `[build] target-dir`/`CARGO_TARGET_DIR` pointing back inside the repo — it defeats the shared cache. Full rationale: `~/.ai-control/wiki/shared-cargo-target.md`.
+
 ## User Preferences
 - Build mode: **auto-build the full update without waiting** — run all phases end to end; only check in when genuine feedback is needed (a real decision, a blocker, or the update is done).
 - Execution pacing: **phase by phase internally** — commit + push and verify each phase, but keep moving through the whole update on my own.
