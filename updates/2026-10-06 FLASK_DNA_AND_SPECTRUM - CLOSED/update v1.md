@@ -1,5 +1,7 @@
 # Flask DNA (memory thread) + colour spectrum
 
+Status: **CLOSED — owner-verified in the native app (2026-10-06).**
+
 ## Goal
 Make each memory flask feel alive and unique, and give the owner free colour choice.
 

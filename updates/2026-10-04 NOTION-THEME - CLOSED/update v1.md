@@ -1,7 +1,8 @@
 # Update v1 — NOTION-THEME (Notion look + customisation)
 
-Status: **BUILDING → verifying.** From owner feedback after using the native app.
-Work landed on `main` (follow-up on the already-merged sidebar/editor work).
+Status: **CLOSED — owner-verified in the native app (2026-10-06).** From owner feedback
+after using the native app. Work landed on `main` (follow-up on the already-merged
+sidebar/editor work).
 
 ## Goal
 Make Pensieve feel like Notion and more adjustable: Notion colour scheme, typography
