@@ -10,7 +10,7 @@ import {
   type FlaskShape,
   type NoteIcon,
 } from "../lib/flasks/icon";
-import type { CategoryColor } from "../lib/categories/palette";
+import { colorChannels, type FlaskColor } from "../lib/categories/palette";
 import { memoryThread } from "../lib/flasks/thread";
 
 // A magical "memory flask": a glass vessel with coloured liquid, a soft glow and a
@@ -93,7 +93,7 @@ const NORMAL_Y = 12; // liquid surface at the normal fill (today's look)
 
 interface FlaskProps {
   shape?: FlaskShape;
-  color?: CategoryColor;
+  color?: FlaskColor;
   /** Liquid fraction 0..1. 0 = empty & colourless. Default = the normal look. */
   fill?: number;
   /** Liquid richness 0..1 (soft → vivid). 0.5 = original. */
@@ -125,7 +125,7 @@ function FlaskBase({
   const s = SHAPES[shape];
   const detailed = size >= 20;
   const big = size >= 40;
-  const C = (a: number) => `hsl(var(--cat-${color}-fg) / ${clamp01(a).toFixed(3)})`;
+  const C = (a: number) => `hsl(${colorChannels(color)} / ${clamp01(a).toFixed(3)})`;
   const [mL, mR] = s.mouth;
   const sw = detailed ? 1.25 : 1;
 
@@ -243,14 +243,28 @@ function FlaskBase({
       )}
 
       {/* 7 · the memory thread — a white strand whose shape is the note's DNA (seeded by
-          its id), clipped to the glass and rising with the liquid */}
+          its id), clipped to the glass and rising with the liquid. A soft white halo under
+          the crisp core makes it "shine"; the Shine knob sets how much (cheap: just a wider
+          low-opacity stroke, no blur filter, so long lists stay fast). */}
       {thread && contentA > 0 && (
         <g clipPath={`url(#${clipId})`} opacity={contentA}>
+          {detailed && sh > 0.02 && (
+            <path
+              d={thread.d}
+              fill="none"
+              stroke="#fff"
+              strokeOpacity={0.1 + 0.42 * sh}
+              strokeWidth={thread.width + 1.6}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
           <path
             d={thread.d}
             fill="none"
             stroke="#fff"
-            strokeOpacity={0.82}
+            strokeOpacity={0.85}
             strokeWidth={thread.width}
             strokeLinecap="round"
             strokeLinejoin="round"

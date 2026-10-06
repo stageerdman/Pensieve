@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DEFAULT_ICON, SHAPE_LABELS, type NoteIcon } from "../lib/flasks/icon";
+import { colorLabel } from "../lib/categories/palette";
 import { FlaskFor } from "./Flask";
 import { FlaskPicker } from "./FlaskPicker";
 
@@ -49,7 +50,7 @@ export function FlaskButton({ icon, chars, seed, onChange }: FlaskButtonProps) {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`Flask — ${SHAPE_LABELS[shown.shape]}, ${shown.color}. Click to change`}
+        aria-label={`Flask — ${SHAPE_LABELS[shown.shape]}, ${colorLabel(shown.color)}. Click to change`}
         title="Change flask"
         className="-ml-1 flex h-10 w-10 items-center justify-center rounded-lg text-text transition-colors hover:bg-surface-raised"
       >

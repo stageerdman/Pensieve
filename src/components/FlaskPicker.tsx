@@ -8,8 +8,9 @@ import {
   type FlaskShape,
   type NoteIcon,
 } from "../lib/flasks/icon";
-import { CATEGORY_COLORS, catFg, type CategoryColor } from "../lib/categories/palette";
+import { colorFg, colorLabel, hueOfColor } from "../lib/categories/palette";
 import { Flask } from "./Flask";
+import { HueSpectrum } from "./HueSpectrum";
 
 /** The five discrete steps for the vibrancy / shine taste knobs. */
 const STEPS = [0, 0.25, 0.5, 0.75, 1];
@@ -56,15 +57,11 @@ export function FlaskPicker({ icon, seed, onChange }: FlaskPickerProps) {
   const curVib = iconVibrancy(current);
   const curShine = iconShine(current);
   const shapeRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const colorRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const vibRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const shineRefs = useRef<(HTMLButtonElement | null)[]>([]);
   // Roving focus index per group (independent of the committed value).
   const [shapeFocus, setShapeFocus] = useState(() =>
     Math.max(0, FLASK_SHAPES.indexOf(current.shape)),
-  );
-  const [colorFocus, setColorFocus] = useState(() =>
-    Math.max(0, CATEGORY_COLORS.indexOf(current.color)),
   );
   const [vibFocus, setVibFocus] = useState(() => stepIndex(curVib));
   const [shineFocus, setShineFocus] = useState(() => stepIndex(curShine));
@@ -76,7 +73,7 @@ export function FlaskPicker({ icon, seed, onChange }: FlaskPickerProps) {
   }, []);
 
   const pickShape = (shape: FlaskShape) => onChange({ ...current, shape });
-  const pickColor = (color: CategoryColor) => onChange({ ...current, color });
+  const pickColor = (color: number) => onChange({ ...current, color });
   const pickVibrancy = (vibrancy: number) => onChange({ ...current, vibrancy });
   const pickShine = (shine: number) => onChange({ ...current, shine });
 
@@ -86,7 +83,7 @@ export function FlaskPicker({ icon, seed, onChange }: FlaskPickerProps) {
       <div
         className="mb-2 flex items-center justify-center rounded-md bg-surface py-3"
         aria-live="polite"
-        aria-label={`Flask: ${SHAPE_LABELS[current.shape]}, ${current.color}, vibrancy ${vibFocus + 1} of 5, shine ${shineFocus + 1} of 5`}
+        aria-label={`Flask: ${SHAPE_LABELS[current.shape]}, ${colorLabel(current.color)}, vibrancy ${vibFocus + 1} of 5, shine ${shineFocus + 1} of 5`}
       >
         <Flask
           shape={current.shape}
@@ -140,44 +137,12 @@ export function FlaskPicker({ icon, seed, onChange }: FlaskPickerProps) {
         })}
       </div>
 
-      {/* Colour */}
-      <p className="px-0.5 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-muted/70">
+      {/* Colour — a draggable spectrum (any hue), not a fixed set of swatches */}
+      <p className="px-0.5 pb-1.5 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-muted/70">
         Colour
       </p>
-      <div role="radiogroup" aria-label="Colour" className="flex justify-between px-0.5">
-        {CATEGORY_COLORS.map((color, i) => {
-          const selected = color === current.color;
-          return (
-            <button
-              key={color}
-              ref={(el) => (colorRefs.current[i] = el)}
-              role="radio"
-              aria-checked={selected}
-              aria-label={color}
-              title={color}
-              tabIndex={i === colorFocus ? 0 : -1}
-              onClick={() => pickColor(color)}
-              onFocus={() => setColorFocus(i)}
-              onKeyDown={(e) => {
-                if (e.key === " " || e.key === "Enter") {
-                  e.preventDefault();
-                  pickColor(color);
-                } else {
-                  const to = step(colorRefs.current, i, e.key, CATEGORY_COLORS.length);
-                  if (to !== i) {
-                    e.preventDefault();
-                    setColorFocus(to);
-                  }
-                }
-              }}
-              className={
-                "h-5 w-5 rounded-full ring-offset-2 ring-offset-surface-raised " +
-                (selected ? "ring-2 ring-text" : "")
-              }
-              style={{ background: catFg(color) }}
-            />
-          );
-        })}
+      <div className="px-0.5">
+        <HueSpectrum hue={hueOfColor(current.color)} onChange={pickColor} />
       </div>
 
       {/* Vibrancy — five steps, each a swatch of the current colour at that richness */}
@@ -213,7 +178,7 @@ export function FlaskPicker({ icon, seed, onChange }: FlaskPickerProps) {
                 "h-6 flex-1 rounded-md ring-offset-1 ring-offset-surface-raised " +
                 (selected ? "ring-2 ring-accent" : "ring-1 ring-border")
               }
-              style={{ background: `hsl(var(--cat-${current.color}-fg) / ${0.2 + 0.7 * val})` }}
+              style={{ background: colorFg(current.color, 0.2 + 0.7 * val) }}
             />
           );
         })}
@@ -252,7 +217,7 @@ export function FlaskPicker({ icon, seed, onChange }: FlaskPickerProps) {
                 "flex h-6 flex-1 items-center justify-center rounded-md ring-offset-1 ring-offset-surface-raised " +
                 (selected ? "ring-2 ring-accent" : "ring-1 ring-border")
               }
-              style={{ background: `hsl(var(--cat-${current.color}-fg) / 0.5)` }}
+              style={{ background: colorFg(current.color, 0.5) }}
             >
               <span
                 className="block h-1.5 w-3/4 rounded-full bg-white"

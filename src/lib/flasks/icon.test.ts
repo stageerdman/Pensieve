@@ -59,3 +59,28 @@ describe("icon encode/parse with vibrancy + shine", () => {
     expect(parseIcon("teapot/blue/50/50")).toBeUndefined();
   });
 });
+
+describe("icon encode/parse with a spectrum hue", () => {
+  it("encodes a free hue as h<deg> and round-trips it", () => {
+    expect(encodeIcon({ shape: "vial", color: 212 })).toBe("vial/h212");
+    const back = parseIcon("vial/h212")!;
+    expect(back).toEqual({ shape: "vial", color: 212 });
+  });
+
+  it("normalises an out-of-range hue when encoding", () => {
+    expect(encodeIcon({ shape: "vial", color: 365 })).toBe("vial/h5");
+    expect(encodeIcon({ shape: "vial", color: 0 })).toBe("vial/h0");
+  });
+
+  it("keeps the hue alongside non-default vibrancy/shine", () => {
+    const enc = encodeIcon({ shape: "teardrop", color: 300, vibrancy: 1, shine: 0 });
+    expect(enc).toBe("teardrop/h300/100/0");
+    expect(parseIcon(enc)!.color).toBe(300);
+  });
+
+  it("rejects a malformed hue but still accepts palette keys", () => {
+    expect(parseIcon("vial/h999")).toBeUndefined(); // 999 > 359
+    expect(parseIcon("vial/hxyz")).toBeUndefined();
+    expect(parseIcon("vial/blue")!.color).toBe("blue");
+  });
+});

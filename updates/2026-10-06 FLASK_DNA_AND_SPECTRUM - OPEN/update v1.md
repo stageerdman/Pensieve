@@ -33,12 +33,20 @@ Make each memory flask feel alive and unique, and give the owner free colour cho
   knob keeps controlling them. Only the side streak becomes the thread.
 
 ## Roadmap / status
-- [ ] **Phase 1 — Memory thread.** `lib/flasks/thread.ts` generator + unit tests; integrate in
-  `Flask.tsx` (replace streak); plumb `seed` through `FlaskFor`/`Flask` and callers
-  (FlaskCard, WorkingSetStrip bottle, FlaskButton/FlaskPicker preview). Build + eyeball.
-- [ ] **Phase 2 — Colour spectrum.** `--flask-s/-l` tokens; `FlaskColor` + channels helper in
-  palette; hue encode/parse in `icon.ts`; `HueSpectrum` control; swap into `FlaskPicker`;
-  update Flask + picker previews to the channels helper. Tests. Build + eyeball.
+- [x] **Phase 1 — Memory thread.** Generator + tests; integrated in `Flask.tsx` (streak →
+  thread); `seed` plumbed through `FlaskFor`/`Flask` + callers. Previewed via artifact.
+- [x] **Phase 1b — Thread revision (owner feedback).** Mixed styles *within one strand*
+  (sharp/round/wiggly) + occasional loops/twists + per-node amplitude jitter (less
+  regularity); a soft white halo makes the thread **shine**, amount driven by the Shine knob.
+- [x] **Phase 2 — Colour spectrum.** `--flask-s/-l` tokens (light/dark); `FlaskColor` + channels
+  helper in palette; hue `h<deg>` encode/parse in `icon.ts` (keys still work); `HueSpectrum`
+  draggable slider; swapped into `FlaskPicker`; Flask + picker previews via the channels
+  helper. Tests updated/added (126 passing).
+
+## Owner feedback (round 1, on the preview artifact)
+- Thread should shine a little, with the amount user-adjustable → wired to the Shine knob. ✓
+- No twists/loops → added "O" loops. ✓
+- Too regular (one style repeats) → per-segment style mix + jitter. ✓
 
 ## Notes
 - Browser automation can't reach the dev server, so verify via build + render tests and the

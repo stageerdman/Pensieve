@@ -4,7 +4,7 @@
 // only the MODEL (types + frontmatter encode/decode); the SVG rendering lives in
 // the Flask component (components/Flask).
 
-import { CATEGORY_COLORS, type CategoryColor } from "../categories/palette";
+import { CATEGORY_COLORS, type CategoryColor, type FlaskColor } from "../categories/palette";
 
 /** The flask silhouettes the picker offers. Each is distinct by shape alone, so a
  *  note is recognisable even when two notes share a colour. */
@@ -37,7 +37,8 @@ export const SHAPE_LABELS: Record<FlaskShape, string> = {
 
 export interface NoteIcon {
   shape: FlaskShape;
-  color: CategoryColor;
+  /** A palette key or a free hue (0..359) picked from the spectrum. */
+  color: FlaskColor;
   /** How rich/saturated the liquid reads, 0..1 (soft → vivid). Default when unset. */
   vibrancy?: number;
   /** How glossy the glass reads, 0..1 (matte → glossy). Default when unset. */
@@ -82,11 +83,24 @@ const pct = (n: number) => Math.round(Math.min(1, Math.max(0, n)) * 100);
 const isDefault = (icon: NoteIcon) =>
   iconVibrancy(icon) === DEFAULT_VIBRANCY && iconShine(icon) === DEFAULT_SHINE;
 
-/** Frontmatter form: `shape/color` (e.g. `vial/gray`), or `shape/color/vibrancy/shine`
- *  when vibrancy/shine differ from the defaults (percentages, e.g. `vial/blue/80/30`).
- *  Compact and human-legible; the two extra fields are omitted at default. */
+/** A colour is a palette key (`blue`) or a free hue written `h<0..359>` (`h212`). */
+const encodeColor = (c: FlaskColor): string =>
+  typeof c === "number" ? `h${((Math.round(c) % 360) + 360) % 360}` : c;
+
+function parseColor(raw: string): FlaskColor | undefined {
+  const m = /^h(\d{1,3})$/.exec(raw);
+  if (m) {
+    const h = Number(m[1]);
+    return h >= 0 && h <= 359 ? h : undefined;
+  }
+  return COLORS.has(raw) ? (raw as CategoryColor) : undefined;
+}
+
+/** Frontmatter form: `shape/color` (e.g. `vial/gray` or `vial/h212`), or
+ *  `shape/color/vibrancy/shine` when vibrancy/shine differ from the defaults
+ *  (percentages, e.g. `vial/blue/80/30`). Compact and human-legible. */
 export function encodeIcon(icon: NoteIcon): string {
-  const base = `${icon.shape}/${icon.color}`;
+  const base = `${icon.shape}/${encodeColor(icon.color)}`;
   return isDefault(icon) ? base : `${base}/${pct(iconVibrancy(icon))}/${pct(iconShine(icon))}`;
 }
 
@@ -96,9 +110,10 @@ export function encodeIcon(icon: NoteIcon): string {
  *  unparseable. */
 export function parseIcon(raw: string): NoteIcon | undefined {
   const parts = raw.trim().split("/").map((s) => s.trim());
-  const [shape, color, v, s] = parts;
-  if (!shape || !color || !SHAPES.has(shape) || !COLORS.has(color)) return undefined;
-  const icon: NoteIcon = { shape: shape as FlaskShape, color: color as CategoryColor };
+  const [shape, colorRaw, v, s] = parts;
+  const color = colorRaw ? parseColor(colorRaw) : undefined;
+  if (!shape || !SHAPES.has(shape) || color === undefined) return undefined;
+  const icon: NoteIcon = { shape: shape as FlaskShape, color };
   const vn = Number(v);
   const sn = Number(s);
   if (v !== undefined && Number.isFinite(vn)) icon.vibrancy = Math.min(1, Math.max(0, vn / 100));

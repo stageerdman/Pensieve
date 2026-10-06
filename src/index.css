@@ -41,6 +41,10 @@
   --cat-purple-bg: 270 50% 93%; --cat-purple-fg: 270 45% 50%;
   --cat-pink-bg: 330 65% 93%;   --cat-pink-fg: 330 60% 48%;
   --cat-red-bg: 0 75% 93%;      --cat-red-fg: 0 68% 48%;
+
+  /* Free-hue flask colour: a chosen hue rides these theme-paired saturation/lightness
+     tokens, so a spectrum-picked flask stays theme-correct and legible with no hex. */
+  --flask-s: 68%; --flask-l: 44%;
 }
 
 .dark {
@@ -69,6 +73,8 @@
   --cat-purple-bg: 270 25% 30%; --cat-purple-fg: 270 55% 74%;
   --cat-pink-bg: 330 30% 30%;   --cat-pink-fg: 330 60% 74%;
   --cat-red-bg: 0 35% 30%;      --cat-red-fg: 0 70% 70%;
+
+  --flask-s: 68%; --flask-l: 68%;
 }
 
 html,
