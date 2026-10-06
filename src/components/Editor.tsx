@@ -21,6 +21,7 @@ import { useEffect, useRef } from "react";
 import { blocksToExtendedMd, extendedMdToBlocks } from "../lib/md/extended";
 import { setNoteLinkOpen, setNoteLinkResolve } from "./noteLink";
 import { editorSchema } from "./editorSchema";
+import { BlockSelectionDecorations } from "./blockSelectionDecorations";
 import { FlaskFor } from "./Flask";
 import type { NoteMeta } from "../lib/types";
 
@@ -66,7 +67,12 @@ interface EditorProps {
 }
 
 export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, onOpenNote }: EditorProps) {
-  const editor = useCreateBlockNote({ schema: editorSchema });
+  // `_tiptapOptions.extensions` is BlockNote's escape hatch to add raw TipTap/ProseMirror
+  // extensions — here, the multi-row block-selection highlight (blockSelectionDecorations).
+  const editor = useCreateBlockNote({
+    schema: editorSchema,
+    _tiptapOptions: { extensions: [BlockSelectionDecorations] },
+  });
   const loading = useRef(true);
   const wrapRef = useRef<HTMLDivElement>(null);
   const notesRef = useRef(notes);
