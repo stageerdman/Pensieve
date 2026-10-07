@@ -23,6 +23,7 @@
   --success: 150 30% 40%;
   --warn: 32 80% 45%;
   --danger: 0 72% 58%;
+  --gold: 43 92% 55%; /* magical gold — shared with the calendar heatmap/today ring */
 
   --font-sans: ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI", system-ui,
     "Inter", sans-serif;
@@ -63,6 +64,7 @@
   --success: 150 28% 55%;
   --warn: 36 85% 58%;
   --danger: 0 68% 65%;
+  --gold: 43 92% 55%; /* magical gold — shared with the calendar heatmap/today ring */
 
   --cat-gray-bg: 220 10% 26%;   --cat-gray-fg: 220 10% 72%;
   --cat-brown-bg: 25 20% 26%;   --cat-brown-fg: 25 35% 70%;
@@ -349,14 +351,14 @@ body {
 
 /* ---- Sync (OneDrive) ---- */
 /* The sync arrows turn while a sync is in flight. A calm single loop, not a blur. */
-@keyframes cloudsync-rot { to { transform: rotate(360deg); } }
-.cloudsync-spin { transform-origin: center; animation: cloudsync-rot 1.1s linear infinite; }
+@keyframes sync-rot { to { transform: rotate(360deg); } }
+.sync-spin { transform-origin: center; animation: sync-rot 1.1s linear infinite; }
 /* The "unsynced changes" nudge turns slowly — a suggestion, not busy activity. */
-.cloudsync-spin-slow { transform-origin: center; animation: cloudsync-rot 3.5s linear infinite; }
+.sync-spin-slow { transform-origin: center; animation: sync-rot 3.5s linear infinite; }
 @media (prefers-reduced-motion: reduce) {
   /* No spin when motion is reduced — the golden colour alone carries the meaning. */
-  .cloudsync-spin,
-  .cloudsync-spin-slow { animation: none; opacity: 0.6; }
+  .sync-spin,
+  .sync-spin-slow { animation: none; opacity: 0.6; }
 }
 
 /* ---- Summon (search) ---- */

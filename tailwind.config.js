@@ -18,6 +18,7 @@ export default {
         success: "hsl(var(--success) / <alpha-value>)",
         warn: "hsl(var(--warn) / <alpha-value>)",
         danger: "hsl(var(--danger) / <alpha-value>)",
+        gold: "hsl(var(--gold) / <alpha-value>)",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],

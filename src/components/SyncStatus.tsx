@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CloudSync } from "./icons";
+import { SyncRune } from "./icons";
 import { relativeTime } from "../lib/format";
 import type { useSync } from "../hooks/useSync";
 
@@ -62,8 +62,8 @@ export function SyncStatus({
 
   const dot =
     ui.phase === "conflicts" ? "bg-warn" : ui.phase === "error" ? "bg-danger" : null;
-  const iconColor = justSynced ? "text-success" : nudge ? "text-warn" : "text-text-muted";
-  const spinClass = syncing ? "cloudsync-spin" : nudge ? "cloudsync-spin-slow" : undefined;
+  const iconColor = justSynced ? "text-success" : nudge ? "text-gold" : "text-text-muted";
+  const spinClass = syncing ? "sync-spin" : nudge ? "sync-spin-slow" : undefined;
 
   const statusLine = (): string => {
     switch (ui.phase) {
@@ -103,7 +103,7 @@ export function SyncStatus({
           (open ? "bg-surface-raised text-text" : `${iconColor} hover:bg-surface-raised hover:text-text`)
         }
       >
-        <CloudSync slash={disconnected} className={spinClass} />
+        <SyncRune slash={disconnected} className={spinClass} />
         {dot && (
           <span className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${dot}`} aria-hidden />
         )}
@@ -133,11 +133,12 @@ export function SyncStatus({
               }
             }}
             className={
-              "mt-2.5 inline-flex w-full items-center justify-center rounded-md border border-border px-3 py-1.5 text-sm transition-colors " +
+              "mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm transition-colors " +
               (p.disabled ? "text-text-muted" : "text-text hover:bg-surface")
             }
           >
             {p.label}
+            {p.label === "Sync now" && <span className="text-xs text-text-muted">⌘S</span>}
           </button>
 
           {ui.phase === "conflicts" && (

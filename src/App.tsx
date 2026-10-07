@@ -48,6 +48,9 @@ export default function App() {
   const pendingSync =
     (sync.ui.phase === "idle" || sync.ui.phase === "synced") &&
     notes.some((n) => (n.updatedAt ?? 0) > (sync.ui.lastSyncedAt ?? 0));
+  // Latest sync handle for the ⌘S shortcut, without re-registering the key listener.
+  const syncRef = useRef(sync);
+  syncRef.current = sync;
   const { theme, toggle } = useTheme();
   const fullscreen = useFullscreen();
   useFontScale();
@@ -204,6 +207,11 @@ export default function App() {
         // ⌘P pins/unpins the open note (overrides the browser print dialog).
         e.preventDefault();
         if (!onHome && current) void togglePin(current.id);
+      } else if (k === "s") {
+        // ⌘S syncs now (overrides the browser "save page"). No-op when not connected.
+        e.preventDefault();
+        const s = syncRef.current;
+        if (s.ui.phase !== "disconnected" && s.ui.phase !== "unavailable") void s.syncNow();
       } else if (e.code === "Backslash" && e.shiftKey) {
         // ⌘⇧\ toggles the right Details panel.
         e.preventDefault();
