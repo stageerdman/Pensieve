@@ -156,3 +156,37 @@ single-writer discipline; revisit if real multi-device editing lands.
 - 9/9 live-drive integration (`spike/engine-check.mts`): real two-device round-trip,
   both-changed conflict, deletion propagation.
 - Full suite 275/275, tsc clean.
+
+## Phase 5 — status UI, conflict resolution, tests (2026-10-07) ✅
+Built the user-facing surface. Two UX experts ran in parallel and converged; I
+synthesized and built one design (design.md: a whisper, not a shout).
+
+- `useSync` hook — the state machine: unavailable (off-desktop) / disconnected /
+  idle / syncing / synced / error / conflicts, plus `connect` / `disconnect` /
+  `syncNow` / `keepLocal`. After a sync that pulled, it refreshes the note list and
+  reloads the open note.
+- `SyncStatus` component — ONE quiet cloud `IconButton` in the header, nearly
+  invisible at rest (`text-muted`). Click → a small non-modal popover: status line +
+  relative time, a primary action (Sync now / Connect / Reconnect), conflict rows,
+  a single-writer footnote, and Disconnect. A `warn`/`danger` dot is the only colour
+  the glyph shows; a brief `success` flash after a sync, then back to calm (no
+  permanent green). Reduced-motion-aware spin while syncing.
+- Conflict resolution v1: both-changed notes are listed; "keep this device's
+  version" calls `engine.resolveKeepLocal` (adopt the remote cTag, force a local-wins
+  push on the next sync). Cut for v1 (documented): a read-only "view the other copy"
+  tab, diff/merge, auto-sync scheduling, settings page, per-note badges.
+
+### Verified
+- Unit: `engine.test.ts` 9/9 (incl. resolveKeepLocal round-trip). Full suite 276/276.
+- `tsc --noEmit` clean; `npm run build` (web) clean.
+- Native `.app` built + installed to /Applications via `npm run tauri:build` for
+  owner testing.
+
+### Owner test checklist (native app)
+1. The header shows a quiet cloud icon. Click it → "Backed up." / "Synced … ago."
+2. "Sync now" turns the arrows, then settles with a brief success flash.
+3. Create a note → Sync now → it appears as `<id>.md` under `/Pensieve/` on OneDrive.
+4. Edit the same note on another device/web, Sync now here → it pulls the change.
+5. Edit here AND there without syncing between → the icon shows a warn dot and the
+   popover lists the conflict; "Keep this device's version" resolves it.
+6. Disconnect → icon shows the slash; Connect runs the real browser OAuth.

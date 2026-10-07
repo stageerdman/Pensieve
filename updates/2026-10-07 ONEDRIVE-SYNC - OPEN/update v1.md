@@ -77,8 +77,20 @@ must confirm the secret-less path**, because the whole free-PWA story depends on
   **both-direction conflict detection** (both-changed notes are reported and left
   untouched). Verified 12/12 (adapter) + 9/9 (engine) against the LIVE drive, plus
   18 new unit tests; full suite 275/275, tsc clean. Change-detection is skew-proof
-  (compares the note's own updatedAt, not the wall clock). See `wiki.md` → Phases
-  2 / 3&4. **Only Phase 5 left: status UI + reconnect flow + verify in the real app.**
+  (compares the note's own updatedAt, not the wall clock). See `wiki.md` → Phases 2 / 3&4.
+- 2026-10-07: **Phase 5 DONE ✅ — update COMPLETE.** Sync status UI (`useSync` +
+  `SyncStatus`): one quiet cloud icon in the header, popover with Sync now / Connect /
+  Reconnect / Disconnect, conflict rows + "keep this device's version" resolve
+  (`engine.resolveKeepLocal`). Synthesized from two parallel UX concepts. Full suite
+  276/276, tsc + web build clean, native `.app` built to /Applications for owner
+  testing. See `wiki.md` → Phase 5 for the owner test checklist.
+
+## ✅ Update complete (2026-10-07)
+All five phases built and verified. The desktop sync spine is live: keychain-backed
+OAuth, a portable Graph adapter, delta pull + conditional push, both-direction
+conflict detection, and a minimal status UI. Ready for owner testing in the native
+app, then merge to `main` + rename folder → CLOSED. PWA-CAPTURE can now build on this
+spine once its SPA-redirect auth is confirmed (the one remaining portal item).
 
 ### ▶ Resume here (next session)
 Phase 0 is done and the whole sync model is proven. Two independent tracks to pick
