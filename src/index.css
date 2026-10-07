@@ -350,9 +350,44 @@ body {
 }
 
 /* ---- Sync (OneDrive) ---- */
-/* The sync rune is an S; when active a golden spark traces a figure-8 over it via
-   SMIL <animateMotion> (see SyncRune). Motion is dropped for prefers-reduced-motion
-   in the component itself, so there's no CSS animation to disable here. */
+/* The sync rune (SyncRune) is a figure-8 lemniscate with pathLength=1, revealed
+   partially so it reads as an S at rest; when active the stroke FLOWS around the
+   full 8 (seamless because dash+gap === 1.0). State comes from the button's
+   data-state; colour muted at rest, gold when a sync is due/running. */
+.sync-icon .lemniscate {
+  fill: none;
+  stroke: hsl(var(--text-muted));
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  /* dash 0.575 + gap 0.425 = 1.0; offset reveals the S-shaped arc, hides one strand */
+  stroke-dasharray: 0.575 0.425;
+  stroke-dashoffset: -0.2125;
+}
+.sync-icon[data-state="flash"] .lemniscate {
+  stroke: hsl(var(--success)); /* brief "just synced" confirmation */
+}
+.sync-icon[data-state="reminder"] .lemniscate,
+.sync-icon[data-state="syncing"] .lemniscate {
+  stroke: hsl(var(--gold));
+  animation: sync-flow linear infinite;
+  will-change: stroke-dashoffset;
+}
+.sync-icon[data-state="syncing"] .lemniscate {
+  animation-duration: 1.1s; /* fast while actively syncing */
+  filter: drop-shadow(0 0 1.5px hsl(var(--gold) / 0.9));
+}
+.sync-icon[data-state="reminder"] .lemniscate {
+  animation-duration: 2.6s; /* gentle "you have unsynced changes" flow */
+}
+/* Advance by exactly one path length → identical frame → no seam. */
+@keyframes sync-flow {
+  from { stroke-dashoffset: -0.2125; }
+  to { stroke-dashoffset: -1.2125; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sync-icon .lemniscate { animation: none !important; } /* gold colour alone signals */
+}
 
 /* ---- Summon (search) ---- */
 /* A new chip settling in. */

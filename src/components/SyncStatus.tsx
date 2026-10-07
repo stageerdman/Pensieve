@@ -62,11 +62,17 @@ export function SyncStatus({
 
   const dot =
     ui.phase === "conflicts" ? "bg-warn" : ui.phase === "error" ? "bg-danger" : null;
-  const iconColor = justSynced ? "text-success" : nudge ? "text-gold" : "text-text-muted";
-  // The figure-8 spark animates while syncing (fast) or when a sync is due (slow).
-  const active: "sync" | "nudge" | undefined = syncing ? "sync" : nudge ? "nudge" : undefined;
-  const reduced =
-    typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  // The glyph's colour + flow are CSS, keyed by this state (see .sync-icon in
+  // index.css). conflicts/error keep a static S and show their dot instead.
+  const glyphState = disconnected
+    ? "disconnected"
+    : syncing
+      ? "syncing"
+      : justSynced
+        ? "flash"
+        : nudge
+          ? "reminder"
+          : "rest";
 
   const statusLine = (): string => {
     switch (ui.phase) {
@@ -101,12 +107,13 @@ export function SyncStatus({
         aria-label="OneDrive sync"
         title={statusLine()}
         onClick={() => setOpen((v) => !v)}
+        data-state={glyphState}
         className={
-          "relative inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors " +
-          (open ? "bg-surface-raised text-text" : `${iconColor} hover:bg-surface-raised hover:text-text`)
+          "sync-icon relative inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition-colors " +
+          (open ? "bg-surface-raised" : "hover:bg-surface-raised")
         }
       >
-        <SyncRune slash={disconnected} active={active} reduced={reduced} />
+        <SyncRune slash={disconnected} />
         {dot && (
           <span className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${dot}`} aria-hidden />
         )}

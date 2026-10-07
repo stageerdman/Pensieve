@@ -138,31 +138,31 @@ export const Sparkles = (p: IconProps) =>
     p,
   );
 
-// The sync "rune": a plain S (normal stroke), read as a little snake. When `active`
-// the WHOLE S slithers along a figure-8 path — fast while syncing, slow + gold when
-// a sync is due. `slash` = disconnected. `reduced` drops the motion.
-export const SyncRune = ({
-  slash,
-  active,
-  reduced,
-  ...p
-}: IconProps & { slash?: boolean; active?: "sync" | "nudge"; reduced?: boolean }) =>
-  svg(
-    <>
-      <g>
-        <path d="M15.4 7.2 C15.4 4.9 8.6 4.9 8.6 8.3 C8.6 11.4 15.4 12.1 15.4 15.7 C15.4 19.1 8.6 19.1 8.6 16.8" />
-        {active && !reduced && (
-          <animateMotion
-            dur={active === "nudge" ? "3.4s" : "1.5s"}
-            repeatCount="indefinite"
-            path="M0 0 C2 -1.6 2 -4 0 -4 C-2 -4 -2 -1.6 0 0 C2 1.6 2 4 0 4 C-2 4 -2 1.6 0 0 Z"
-          />
-        )}
-      </g>
-      {slash && <line x1="4" y1="4" x2="20" y2="20" />}
-    </>,
-    p,
-  );
+// The sync "rune": one continuous figure-8 (lemniscate) curve drawn UNFINISHED —
+// the dash hides one diagonal strand so the visible arc reads as an "S" at rest.
+// When a sync is due/running, a seamless stroke-dashoffset flow runs the line around
+// the full 8 — a moving infinity. Colour + motion are CSS, keyed by the button's
+// data-state (see .sync-icon in index.css); `pathLength=1` makes the dash fractions
+// exact. `slash` = disconnected.
+export const SyncRune = ({ slash, size = 18, className }: IconProps & { slash?: boolean }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden="true"
+    className={className}
+  >
+    <path
+      className="lemniscate"
+      pathLength={1}
+      d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"
+    />
+    {slash && (
+      <line x1="4" y1="4" x2="20" y2="20" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" />
+    )}
+  </svg>
+);
 
 export const Bookmark = ({ filled, ...p }: IconProps & { filled?: boolean }) =>
   svg(
