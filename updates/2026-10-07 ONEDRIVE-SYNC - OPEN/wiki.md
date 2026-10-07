@@ -103,3 +103,23 @@ in-app "Connect" button runs the real OAuth flow; "Disconnect" deletes the token
 ### Keychain read/write from the CLI (handy for debugging)
 `security find-generic-password -s xyz.erdman.pensieve.sync -a refresh-token -w`
 reads a value; `add-generic-password -U …` writes one.
+
+## Phase 2 — OneDrive remote adapter (2026-10-07) ✅
+`src/lib/sync/graph.ts` + `adapter.ts`. Model: one flat remote folder `Pensieve/`
+holds one `<noteId>.md` per note (the .md is the source of truth; system fields are
+derived on pull; no sidecars synced in v1).
+
+- `graph.ts` — `makeGraphClient(provider)`: retries 429/503 with Retry-After,
+  refreshes once on 401. The token comes from an **injected provider**, so the
+  adapter is driven by the keychain path in prod, a Node token in the integration
+  check, and a fake in unit tests (dependency injection = portable + testable).
+- `adapter.ts` — `ensureRoot`, `listNotes` (excludes folders/non-.md, follows
+  `@odata.nextLink`), `downloadNote` (null on 404, byte-exact content),
+  `uploadNote` (If-Match cTag → 412 → `ConflictError`), `deleteNote` (404 = success),
+  `delta` (drains nextLink → returns items + the deltaLink to persist).
+
+**Verified against the live drive** via `spike/adapter-check.mts` (`npx tsx …`):
+12/12 — ensureRoot created the real `Pensieve/` folder, create/list/download
+byte-exact, conditional 200 + cTag bump, stale → ConflictError, delta saw the probe,
+delete cleaned up. Plus 10/10 Vitest unit tests (`adapter.test.ts`) with a fake
+GraphClient locking URL construction, If-Match, 412/404 mapping, and pagination.
