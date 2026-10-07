@@ -368,9 +368,11 @@ body {
   stroke: hsl(var(--success)); /* brief "just synced" confirmation */
 }
 /* Flowing states: gold when a sync is due/running, red when disconnected. */
+/* Flowing states: gold when a sync is due/running, red when "offline"
+   (disconnected OR sign-in expired — never a static dot). */
 .sync-icon[data-state="reminder"] .lemniscate,
 .sync-icon[data-state="syncing"] .lemniscate,
-.sync-icon[data-state="disconnected"] .lemniscate {
+.sync-icon[data-state="offline"] .lemniscate {
   animation: sync-flow linear infinite;
   will-change: stroke-dashoffset;
 }
@@ -383,8 +385,8 @@ body {
 .sync-icon[data-state="reminder"] .lemniscate {
   animation-duration: 2.6s; /* gentle "you have unsynced changes" flow */
 }
-.sync-icon[data-state="disconnected"] .lemniscate {
-  stroke: hsl(var(--danger)); /* not connected — red, and still moving */
+.sync-icon[data-state="offline"] .lemniscate {
+  stroke: hsl(var(--danger)); /* not connected / sign-in expired — red, still moving */
   animation-duration: 2s;
 }
 /* Advance by exactly one path length → identical frame → no seam. (Flows the

@@ -60,19 +60,20 @@ export function SyncStatus({
   // glyph first) and never when just-synced (nothing is pending right after a sync).
   const nudge = pending && !justSynced && (ui.phase === "idle" || ui.phase === "synced");
 
-  const dot =
-    ui.phase === "conflicts" ? "bg-warn" : ui.phase === "error" ? "bg-danger" : null;
+  const dot = ui.phase === "conflicts" ? "bg-warn" : null;
   // The glyph's colour + flow are CSS, keyed by this state (see .sync-icon in
-  // index.css). conflicts/error keep a static S and show their dot instead.
-  const glyphState = disconnected
-    ? "disconnected"
-    : syncing
-      ? "syncing"
-      : justSynced
-        ? "flash"
-        : nudge
-          ? "reminder"
-          : "rest";
+  // index.css). "offline" (disconnected OR sign-in expired) flows red; conflicts
+  // keep a static S + warn dot.
+  const glyphState =
+    disconnected || ui.phase === "error"
+      ? "offline"
+      : syncing
+        ? "syncing"
+        : justSynced
+          ? "flash"
+          : nudge
+            ? "reminder"
+            : "rest";
 
   const statusLine = (): string => {
     switch (ui.phase) {
