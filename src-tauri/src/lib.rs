@@ -8,6 +8,8 @@ use std::path::PathBuf;
 use tauri::menu::{Menu, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, Manager};
 
+mod sync;
+
 fn vault_root(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     Ok(dir.join("vault"))
@@ -116,7 +118,12 @@ pub fn run() {
             read_text,
             write_text,
             list_dir,
-            remove_path
+            remove_path,
+            sync::secret_get,
+            sync::secret_set,
+            sync::secret_delete,
+            sync::open_url,
+            sync::oauth_listen
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

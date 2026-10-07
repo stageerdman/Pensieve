@@ -59,3 +59,134 @@ Ran `spike/spike.mjs`. All sync primitives proven against the live drive:
 **Verdict:** the simple single-writer + eTag-guard + delta model is fully
 supported by Graph for personal OneDrive. Phase 1 (Tauri auth) is unblocked. The
 PWA's secret-less auth needs the SPA-redirect confirmation first.
+
+## Phase 1 — Tauri auth + keychain token storage (2026-10-07) ✅
+Built the native auth + token plumbing. Architecture: a **portable TS sync core**
+(`src/lib/sync/`) that is token-source-agnostic, plus a thin **Rust layer** for the
+three things only the native shell can do.
+
+### Rust (`src-tauri/src/sync.rs`)
+- `secret_get/set/delete` over the OS keychain via the `keyring` crate
+  (`apple-native` → macOS Keychain). Service namespace `xyz.erdman.pensieve.sync`.
+- `oauth_listen(port, path, timeout_secs)` — a one-shot loopback HTTP server
+  (plain `std::net::TcpListener`, no extra crate). Binds `127.0.0.1:<port>`, waits
+  for the browser redirect, parses `code`/`state`/`error` from the query, answers a
+  "you can close this tab" page, returns the values. Non-blocking accept + deadline.
+- `open_url` — opens the consent screen in the system browser (`open` on macOS),
+  scheme-guarded.
+
+### TS (`src/lib/sync/`)
+- `config.ts` — Azure config from the keychain (`azure-config`) with a dev/env
+  fallback; scopes, `REMOTE_ROOT = "Pensieve"`, redirect port/path parsing.
+- `oauth.ts` — PKCE (Web Crypto, not node:crypto), authorize URL, code exchange +
+  refresh. Sends the client secret only when present (confidential desktop app);
+  omitting it is the future public-client/PWA path.
+- `native.ts` — typed wrappers over the Rust invoke commands; the ONLY place that
+  touches `invoke`. Throws a clear error off-desktop.
+- `tokens.ts` — access-token provider: in-memory cache, silent refresh, rotates +
+  re-persists the refresh token, throws `ReconnectNeededError` when disconnected.
+- `connect.ts` — the interactive loopback flow (listen → open browser → exchange →
+  store refresh token) and `disconnectOneDrive`.
+
+### Auth decision (no Azure portal change needed for desktop)
+The desktop reuses the **existing** Azure "Web" app via a **confidential loopback**
+flow: listen on the registered redirect `http://localhost:3000/api/auth/callback`,
+exchange the code with PKCE **+ client secret**. This needs no portal change — the
+SPA-redirect requirement is the PWA's blocker, not the desktop's.
+
+### One-time bootstrap (owner's machine)
+`setup/seed-keychain.mjs` seeds the keychain from onedrive-manager's `.env` + stored
+(encrypted) refresh token for the Stage Erdman account, so Pensieve reads as
+connected immediately — without an interactive login. Ran it 2026-10-07 ✅. The
+in-app "Connect" button runs the real OAuth flow; "Disconnect" deletes the token.
+
+### Keychain read/write from the CLI (handy for debugging)
+`security find-generic-password -s xyz.erdman.pensieve.sync -a refresh-token -w`
+reads a value; `add-generic-password -U …` writes one.
+
+## Phase 2 — OneDrive remote adapter (2026-10-07) ✅
+`src/lib/sync/graph.ts` + `adapter.ts`. Model: one flat remote folder `Pensieve/`
+holds one `<noteId>.md` per note (the .md is the source of truth; system fields are
+derived on pull; no sidecars synced in v1).
+
+- `graph.ts` — `makeGraphClient(provider)`: retries 429/503 with Retry-After,
+  refreshes once on 401. The token comes from an **injected provider**, so the
+  adapter is driven by the keychain path in prod, a Node token in the integration
+  check, and a fake in unit tests (dependency injection = portable + testable).
+- `adapter.ts` — `ensureRoot`, `listNotes` (excludes folders/non-.md, follows
+  `@odata.nextLink`), `downloadNote` (null on 404, byte-exact content),
+  `uploadNote` (If-Match cTag → 412 → `ConflictError`), `deleteNote` (404 = success),
+  `delta` (drains nextLink → returns items + the deltaLink to persist).
+
+**Verified against the live drive** via `spike/adapter-check.mts` (`npx tsx …`):
+12/12 — ensureRoot created the real `Pensieve/` folder, create/list/download
+byte-exact, conditional 200 + cTag bump, stale → ConflictError, delta saw the probe,
+delete cleaned up. Plus 10/10 Vitest unit tests (`adapter.test.ts`) with a fake
+GraphClient locking URL construction, If-Match, 412/404 mapping, and pagination.
+
+## Phases 3 & 4 — delta pull + push + single-writer guard (2026-10-07) ✅
+`src/lib/sync/vault.ts` (injectable `LocalVault`, Tauri on-disk impl) + `engine.ts`
+(the `sync()` orchestrator). One pass: **pull first, then push.**
+
+- **Pull** drains `/delta` from the saved cursor, applies remote upserts/deletes to
+  the vault, and persists the new deltaLink + per-note cTag.
+- **Push** sends locally-changed notes with a conditional `If-Match` cTag; local
+  deletions become remote deletes.
+- **Conflict detection, both directions.** A note changed on BOTH sides is reported
+  (`both-changed`) and **left untouched** — never clobbered. Push's `If-Match` is the
+  backstop (`push-rejected` / `delete-rejected`). A both-changed note is set aside in
+  pull so push doesn't re-attempt and double-report it.
+
+### Key design fix — skew-proof change detection
+"Did this note change locally since the last sync?" compares the note's **own
+`updatedAt`** against the `updatedAt` we recorded at last sync (`rec.localUpdatedAt`),
+NOT against the sync wall-clock. Same clock source on both sides of the comparison →
+immune to device/clock skew. (Caught by the first engine test; `NoteSyncRecord` now
+carries `localUpdatedAt`.)
+
+### Known v1 ambiguity (documented, acceptable under single-writer)
+Local-delete vs remote-edit of the same note: pull re-applies the remote edit
+(resurrects the note) because a deleted local file can't signal "I changed." Fine for
+single-writer discipline; revisit if real multi-device editing lands.
+
+### Verified
+- 8/8 engine unit tests (`engine.test.ts`) with an in-memory vault + a fake OneDrive
+  modelling delta/cTags/If-Match: initial pull, push-new, idempotent re-sync,
+  conditional edit, remote-only edit, both-changed conflict, remote delete, local delete.
+- 9/9 live-drive integration (`spike/engine-check.mts`): real two-device round-trip,
+  both-changed conflict, deletion propagation.
+- Full suite 275/275, tsc clean.
+
+## Phase 5 — status UI, conflict resolution, tests (2026-10-07) ✅
+Built the user-facing surface. Two UX experts ran in parallel and converged; I
+synthesized and built one design (design.md: a whisper, not a shout).
+
+- `useSync` hook — the state machine: unavailable (off-desktop) / disconnected /
+  idle / syncing / synced / error / conflicts, plus `connect` / `disconnect` /
+  `syncNow` / `keepLocal`. After a sync that pulled, it refreshes the note list and
+  reloads the open note.
+- `SyncStatus` component — ONE quiet cloud `IconButton` in the header, nearly
+  invisible at rest (`text-muted`). Click → a small non-modal popover: status line +
+  relative time, a primary action (Sync now / Connect / Reconnect), conflict rows,
+  a single-writer footnote, and Disconnect. A `warn`/`danger` dot is the only colour
+  the glyph shows; a brief `success` flash after a sync, then back to calm (no
+  permanent green). Reduced-motion-aware spin while syncing.
+- Conflict resolution v1: both-changed notes are listed; "keep this device's
+  version" calls `engine.resolveKeepLocal` (adopt the remote cTag, force a local-wins
+  push on the next sync). Cut for v1 (documented): a read-only "view the other copy"
+  tab, diff/merge, auto-sync scheduling, settings page, per-note badges.
+
+### Verified
+- Unit: `engine.test.ts` 9/9 (incl. resolveKeepLocal round-trip). Full suite 276/276.
+- `tsc --noEmit` clean; `npm run build` (web) clean.
+- Native `.app` built + installed to /Applications via `npm run tauri:build` for
+  owner testing.
+
+### Owner test checklist (native app)
+1. The header shows a quiet cloud icon. Click it → "Backed up." / "Synced … ago."
+2. "Sync now" turns the arrows, then settles with a brief success flash.
+3. Create a note → Sync now → it appears as `<id>.md` under `/Pensieve/` on OneDrive.
+4. Edit the same note on another device/web, Sync now here → it pulls the change.
+5. Edit here AND there without syncing between → the icon shows a warn dot and the
+   popover lists the conflict; "Keep this device's version" resolves it.
+6. Disconnect → icon shows the slash; Connect runs the real browser OAuth.

@@ -347,6 +347,14 @@ body {
   .water-bg { filter: none; } /* no liquid warp when motion is reduced */
 }
 
+/* ---- Sync (OneDrive) ---- */
+/* The sync arrows turn while a sync is in flight. A calm single loop, not a blur. */
+@keyframes cloudsync-rot { to { transform: rotate(360deg); } }
+.cloudsync-spin { transform-origin: center; animation: cloudsync-rot 1.1s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .cloudsync-spin { animation: none; opacity: 0.55; } /* gentle fade instead of spin */
+}
+
 /* ---- Summon (search) ---- */
 /* A new chip settling in. */
 @keyframes summon-chip-in {

@@ -66,7 +66,31 @@ must confirm the secret-less path**, because the whole free-PWA story depends on
   **One open item:** confirm the PWA's secret-less PKCE login via an **SPA**
   redirect on the Azure app (portal change + a browser login; blocks PWA-CAPTURE
   Phase 1, not this update).
-- Next: Phase 1 — Tauri OAuth + keychain token storage.
+- 2026-10-07: **Phase 1 DONE ✅** — Tauri auth + keychain token storage. Rust
+  `sync.rs` (keyring secret store, one-shot OAuth loopback, open-url) + the portable
+  TS sync core (`config/oauth/native/tokens/connect`). Desktop reuses the existing
+  Azure "Web" app via a confidential loopback flow — **no portal change needed**.
+  Keychain seeded from onedrive-manager so it reads as connected now. `cargo check`
+  + `tsc` clean. See `wiki.md` → Phase 1. Next: Phase 2 (remote adapter).
+- 2026-10-07: **Phases 2–4 DONE ✅** — remote adapter (`graph.ts` + `adapter.ts`)
+  and the sync engine (`vault.ts` + `engine.ts`): delta pull, conditional push, and
+  **both-direction conflict detection** (both-changed notes are reported and left
+  untouched). Verified 12/12 (adapter) + 9/9 (engine) against the LIVE drive, plus
+  18 new unit tests; full suite 275/275, tsc clean. Change-detection is skew-proof
+  (compares the note's own updatedAt, not the wall clock). See `wiki.md` → Phases 2 / 3&4.
+- 2026-10-07: **Phase 5 DONE ✅ — update COMPLETE.** Sync status UI (`useSync` +
+  `SyncStatus`): one quiet cloud icon in the header, popover with Sync now / Connect /
+  Reconnect / Disconnect, conflict rows + "keep this device's version" resolve
+  (`engine.resolveKeepLocal`). Synthesized from two parallel UX concepts. Full suite
+  276/276, tsc + web build clean, native `.app` built to /Applications for owner
+  testing. See `wiki.md` → Phase 5 for the owner test checklist.
+
+## ✅ Update complete (2026-10-07)
+All five phases built and verified. The desktop sync spine is live: keychain-backed
+OAuth, a portable Graph adapter, delta pull + conditional push, both-direction
+conflict detection, and a minimal status UI. Ready for owner testing in the native
+app, then merge to `main` + rename folder → CLOSED. PWA-CAPTURE can now build on this
+spine once its SPA-redirect auth is confirmed (the one remaining portal item).
 
 ### ▶ Resume here (next session)
 Phase 0 is done and the whole sync model is proven. Two independent tracks to pick
