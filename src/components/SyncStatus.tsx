@@ -113,7 +113,7 @@ export function SyncStatus({
           (open ? "bg-surface-raised" : "hover:bg-surface-raised")
         }
       >
-        <SyncRune slash={disconnected} />
+        <SyncRune />
         {dot && (
           <span className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${dot}`} aria-hidden />
         )}
