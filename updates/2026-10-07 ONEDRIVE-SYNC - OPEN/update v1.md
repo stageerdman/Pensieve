@@ -68,6 +68,20 @@ must confirm the secret-less path**, because the whole free-PWA story depends on
   Phase 1, not this update).
 - Next: Phase 1 — Tauri OAuth + keychain token storage.
 
+### ▶ Resume here (next session)
+Phase 0 is done and the whole sync model is proven. Two independent tracks to pick
+up from:
+1. **ONEDRIVE-SYNC Phase 1 (unblocked, code).** Build Tauri OAuth + OS-keychain
+   refresh-token storage, reusing the flow proven in `spike/spike.mjs` and the
+   patterns in `onedrive-manager/lib/graph/`. Then Phase 2 remote adapter.
+2. **PWA-CAPTURE unblocker (config, do first if touching the phone app).** In the
+   Azure portal, add an **SPA** platform redirect to the shared app registration,
+   then confirm a secret-less browser PKCE login → Graph call. This is the only
+   thing blocking PWA-CAPTURE Phase 1.
+Reusable facts (Azure app, account id, token crypto, cTag/`If-Match`, `/delta`)
+are in `wiki.md` and in the `onedrive-sync-infra` memory. Spike artifacts live in
+`/Pensieve-Spike/` on the Stage Erdman drive — deletable anytime.
+
 ## Decisions
 - Reuse `onedrive-manager`'s Azure app registration + scopes (`Files.ReadWrite
   offline_access`) rather than registering a new app — one app, many redirects.
