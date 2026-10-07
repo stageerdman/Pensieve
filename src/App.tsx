@@ -42,6 +42,12 @@ export default function App() {
     (id: string) => notes.find((n) => n.id === id)?.title ?? "Untitled",
     [notes],
   );
+  // Unsynced-changes nudge: a note created/edited since the last successful sync
+  // means there's something to back up. Only meaningful while connected and at rest
+  // (not mid-sync / disconnected / error). Drives the golden "suggest sync" state.
+  const pendingSync =
+    (sync.ui.phase === "idle" || sync.ui.phase === "synced") &&
+    notes.some((n) => (n.updatedAt ?? 0) > (sync.ui.lastSyncedAt ?? 0));
   const { theme, toggle } = useTheme();
   const fullscreen = useFullscreen();
   useFontScale();
@@ -269,7 +275,7 @@ export default function App() {
               onClose={closeTab}
             />
             <div className="flex shrink-0 items-center">
-              <SyncStatus sync={sync} titleFor={titleFor} />
+              <SyncStatus sync={sync} titleFor={titleFor} pending={pendingSync} />
             </div>
             {onHome ? (
               <div className="flex shrink-0 items-center gap-0.5">

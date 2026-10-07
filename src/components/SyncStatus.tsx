@@ -13,9 +13,11 @@ type Sync = ReturnType<typeof useSync>;
 export function SyncStatus({
   sync,
   titleFor,
+  pending = false,
 }: {
   sync: Sync;
   titleFor: (noteId: string) => string;
+  pending?: boolean; // unsynced local changes — shows the golden "suggest sync" nudge
 }) {
   const { ui, connect, disconnect, syncNow, keepLocal } = sync;
   const [open, setOpen] = useState(false);
@@ -54,10 +56,14 @@ export function SyncStatus({
   const syncing = ui.phase === "syncing";
   const disconnected = ui.phase === "disconnected";
   const connected = !disconnected;
+  // The golden nudge only shows at rest (active sync / conflicts / errors own the
+  // glyph first) and never when just-synced (nothing is pending right after a sync).
+  const nudge = pending && !justSynced && (ui.phase === "idle" || ui.phase === "synced");
 
   const dot =
     ui.phase === "conflicts" ? "bg-warn" : ui.phase === "error" ? "bg-danger" : null;
-  const iconColor = justSynced ? "text-success" : "text-text-muted";
+  const iconColor = justSynced ? "text-success" : nudge ? "text-warn" : "text-text-muted";
+  const spinClass = syncing ? "cloudsync-spin" : nudge ? "cloudsync-spin-slow" : undefined;
 
   const statusLine = (): string => {
     switch (ui.phase) {
@@ -72,6 +78,7 @@ export function SyncStatus({
       case "synced":
       case "idle":
       default:
+        if (nudge) return "Unsynced changes.";
         return ui.lastSyncedAt ? `Synced ${relativeTime(ui.lastSyncedAt)}.` : "Backed up.";
     }
   };
@@ -96,7 +103,7 @@ export function SyncStatus({
           (open ? "bg-surface-raised text-text" : `${iconColor} hover:bg-surface-raised hover:text-text`)
         }
       >
-        <CloudSync slash={disconnected} className={syncing ? "cloudsync-spin" : undefined} />
+        <CloudSync slash={disconnected} className={spinClass} />
         {dot && (
           <span className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${dot}`} aria-hidden />
         )}
