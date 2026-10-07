@@ -123,3 +123,36 @@ derived on pull; no sidecars synced in v1).
 byte-exact, conditional 200 + cTag bump, stale → ConflictError, delta saw the probe,
 delete cleaned up. Plus 10/10 Vitest unit tests (`adapter.test.ts`) with a fake
 GraphClient locking URL construction, If-Match, 412/404 mapping, and pagination.
+
+## Phases 3 & 4 — delta pull + push + single-writer guard (2026-10-07) ✅
+`src/lib/sync/vault.ts` (injectable `LocalVault`, Tauri on-disk impl) + `engine.ts`
+(the `sync()` orchestrator). One pass: **pull first, then push.**
+
+- **Pull** drains `/delta` from the saved cursor, applies remote upserts/deletes to
+  the vault, and persists the new deltaLink + per-note cTag.
+- **Push** sends locally-changed notes with a conditional `If-Match` cTag; local
+  deletions become remote deletes.
+- **Conflict detection, both directions.** A note changed on BOTH sides is reported
+  (`both-changed`) and **left untouched** — never clobbered. Push's `If-Match` is the
+  backstop (`push-rejected` / `delete-rejected`). A both-changed note is set aside in
+  pull so push doesn't re-attempt and double-report it.
+
+### Key design fix — skew-proof change detection
+"Did this note change locally since the last sync?" compares the note's **own
+`updatedAt`** against the `updatedAt` we recorded at last sync (`rec.localUpdatedAt`),
+NOT against the sync wall-clock. Same clock source on both sides of the comparison →
+immune to device/clock skew. (Caught by the first engine test; `NoteSyncRecord` now
+carries `localUpdatedAt`.)
+
+### Known v1 ambiguity (documented, acceptable under single-writer)
+Local-delete vs remote-edit of the same note: pull re-applies the remote edit
+(resurrects the note) because a deleted local file can't signal "I changed." Fine for
+single-writer discipline; revisit if real multi-device editing lands.
+
+### Verified
+- 8/8 engine unit tests (`engine.test.ts`) with an in-memory vault + a fake OneDrive
+  modelling delta/cTags/If-Match: initial pull, push-new, idempotent re-sync,
+  conditional edit, remote-only edit, both-changed conflict, remote delete, local delete.
+- 9/9 live-drive integration (`spike/engine-check.mts`): real two-device round-trip,
+  both-changed conflict, deletion propagation.
+- Full suite 275/275, tsc clean.

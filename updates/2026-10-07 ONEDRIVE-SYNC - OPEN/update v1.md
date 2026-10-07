@@ -72,6 +72,13 @@ must confirm the secret-less path**, because the whole free-PWA story depends on
   Azure "Web" app via a confidential loopback flow — **no portal change needed**.
   Keychain seeded from onedrive-manager so it reads as connected now. `cargo check`
   + `tsc` clean. See `wiki.md` → Phase 1. Next: Phase 2 (remote adapter).
+- 2026-10-07: **Phases 2–4 DONE ✅** — remote adapter (`graph.ts` + `adapter.ts`)
+  and the sync engine (`vault.ts` + `engine.ts`): delta pull, conditional push, and
+  **both-direction conflict detection** (both-changed notes are reported and left
+  untouched). Verified 12/12 (adapter) + 9/9 (engine) against the LIVE drive, plus
+  18 new unit tests; full suite 275/275, tsc clean. Change-detection is skew-proof
+  (compares the note's own updatedAt, not the wall clock). See `wiki.md` → Phases
+  2 / 3&4. **Only Phase 5 left: status UI + reconnect flow + verify in the real app.**
 
 ### ▶ Resume here (next session)
 Phase 0 is done and the whole sync model is proven. Two independent tracks to pick

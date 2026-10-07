@@ -49,6 +49,10 @@ export interface NoteSyncRecord {
   remoteId: string;
   /** cTag at our last successful sync of this note — the If-Match value. */
   cTag: string;
+  /** The note's local `updatedAt` at our last sync. "Did it change locally since?"
+   *  compares the current updatedAt against this — same clock source as updatedAt,
+   *  so it's immune to wall-clock skew between devices/readings. */
+  localUpdatedAt: number;
   /** Last time we pulled/pushed this note (epoch ms), for display. */
   syncedAt: number;
 }
