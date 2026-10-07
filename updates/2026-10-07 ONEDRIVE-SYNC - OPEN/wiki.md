@@ -59,3 +59,47 @@ Ran `spike/spike.mjs`. All sync primitives proven against the live drive:
 **Verdict:** the simple single-writer + eTag-guard + delta model is fully
 supported by Graph for personal OneDrive. Phase 1 (Tauri auth) is unblocked. The
 PWA's secret-less auth needs the SPA-redirect confirmation first.
+
+## Phase 1 — Tauri auth + keychain token storage (2026-10-07) ✅
+Built the native auth + token plumbing. Architecture: a **portable TS sync core**
+(`src/lib/sync/`) that is token-source-agnostic, plus a thin **Rust layer** for the
+three things only the native shell can do.
+
+### Rust (`src-tauri/src/sync.rs`)
+- `secret_get/set/delete` over the OS keychain via the `keyring` crate
+  (`apple-native` → macOS Keychain). Service namespace `xyz.erdman.pensieve.sync`.
+- `oauth_listen(port, path, timeout_secs)` — a one-shot loopback HTTP server
+  (plain `std::net::TcpListener`, no extra crate). Binds `127.0.0.1:<port>`, waits
+  for the browser redirect, parses `code`/`state`/`error` from the query, answers a
+  "you can close this tab" page, returns the values. Non-blocking accept + deadline.
+- `open_url` — opens the consent screen in the system browser (`open` on macOS),
+  scheme-guarded.
+
+### TS (`src/lib/sync/`)
+- `config.ts` — Azure config from the keychain (`azure-config`) with a dev/env
+  fallback; scopes, `REMOTE_ROOT = "Pensieve"`, redirect port/path parsing.
+- `oauth.ts` — PKCE (Web Crypto, not node:crypto), authorize URL, code exchange +
+  refresh. Sends the client secret only when present (confidential desktop app);
+  omitting it is the future public-client/PWA path.
+- `native.ts` — typed wrappers over the Rust invoke commands; the ONLY place that
+  touches `invoke`. Throws a clear error off-desktop.
+- `tokens.ts` — access-token provider: in-memory cache, silent refresh, rotates +
+  re-persists the refresh token, throws `ReconnectNeededError` when disconnected.
+- `connect.ts` — the interactive loopback flow (listen → open browser → exchange →
+  store refresh token) and `disconnectOneDrive`.
+
+### Auth decision (no Azure portal change needed for desktop)
+The desktop reuses the **existing** Azure "Web" app via a **confidential loopback**
+flow: listen on the registered redirect `http://localhost:3000/api/auth/callback`,
+exchange the code with PKCE **+ client secret**. This needs no portal change — the
+SPA-redirect requirement is the PWA's blocker, not the desktop's.
+
+### One-time bootstrap (owner's machine)
+`setup/seed-keychain.mjs` seeds the keychain from onedrive-manager's `.env` + stored
+(encrypted) refresh token for the Stage Erdman account, so Pensieve reads as
+connected immediately — without an interactive login. Ran it 2026-10-07 ✅. The
+in-app "Connect" button runs the real OAuth flow; "Disconnect" deletes the token.
+
+### Keychain read/write from the CLI (handy for debugging)
+`security find-generic-password -s xyz.erdman.pensieve.sync -a refresh-token -w`
+reads a value; `add-generic-password -U …` writes one.

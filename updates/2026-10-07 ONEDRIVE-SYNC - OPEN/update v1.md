@@ -66,7 +66,12 @@ must confirm the secret-less path**, because the whole free-PWA story depends on
   **One open item:** confirm the PWA's secret-less PKCE login via an **SPA**
   redirect on the Azure app (portal change + a browser login; blocks PWA-CAPTURE
   Phase 1, not this update).
-- Next: Phase 1 — Tauri OAuth + keychain token storage.
+- 2026-10-07: **Phase 1 DONE ✅** — Tauri auth + keychain token storage. Rust
+  `sync.rs` (keyring secret store, one-shot OAuth loopback, open-url) + the portable
+  TS sync core (`config/oauth/native/tokens/connect`). Desktop reuses the existing
+  Azure "Web" app via a confidential loopback flow — **no portal change needed**.
+  Keychain seeded from onedrive-manager so it reads as connected now. `cargo check`
+  + `tsc` clean. See `wiki.md` → Phase 1. Next: Phase 2 (remote adapter).
 
 ### ▶ Resume here (next session)
 Phase 0 is done and the whole sync model is proven. Two independent tracks to pick
