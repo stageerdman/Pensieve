@@ -51,6 +51,14 @@ pub fn secret_delete(key: String) -> Result<(), String> {
     }
 }
 
+/// True if we can bind the loopback port the OAuth redirect needs. Checked before
+/// opening the browser so a port owned by another app (e.g. a dev server on 3000)
+/// produces a clear message instead of a redirect that lands on the wrong app.
+#[tauri::command]
+pub fn port_available(port: u16) -> bool {
+    TcpListener::bind(("127.0.0.1", port)).is_ok()
+}
+
 /// Open a URL in the user's default browser (the OAuth consent screen).
 #[tauri::command]
 pub fn open_url(url: String) -> Result<(), String> {

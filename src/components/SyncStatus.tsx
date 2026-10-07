@@ -110,8 +110,10 @@ export function SyncStatus({
         >
           <p className="text-sm font-medium text-text">{statusLine()}</p>
 
-          {ui.error && ui.phase === "error" && (
-            <p className="mt-1 text-xs text-text-muted">Reconnect to keep backing up.</p>
+          {ui.error && (
+            <p className="mt-1 text-xs leading-snug text-text-muted">
+              {ui.phase === "error" ? "Reconnect to keep backing up." : ui.error}
+            </p>
           )}
 
           <button

@@ -33,6 +33,12 @@ export async function openUrl(url: string): Promise<void> {
   await invoke<void>("open_url", { url });
 }
 
+/** True if the loopback port the OAuth redirect needs is free to bind. */
+export async function portAvailable(port: number): Promise<boolean> {
+  requireTauri("Port check");
+  return invoke<boolean>("port_available", { port });
+}
+
 export interface AuthCode {
   code: string | null;
   state: string | null;

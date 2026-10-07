@@ -8,7 +8,7 @@
 
 import { getAzureConfig, KEY_REFRESH_TOKEN, redirectParts } from "./config";
 import { buildAuthorizeUrl, createPkce, exchangeCode, randomState } from "./oauth";
-import { oauthListen, openUrl, secretDelete, secretSet } from "./native";
+import { oauthListen, openUrl, portAvailable, secretDelete, secretSet } from "./native";
 import { clearTokenCache } from "./tokens";
 import { log } from "../logger";
 
@@ -18,6 +18,16 @@ export async function connectOneDrive(opts: { timeoutSecs?: number } = {}): Prom
   if (!cfg.clientId) throw new Error("Azure app is not configured (missing client id).");
 
   const { port, path } = redirectParts(cfg.redirectUri);
+
+  // The sign-in code comes back to this loopback port. If another app holds it
+  // (e.g. a dev server on 3000), Microsoft's redirect lands on THAT app and we
+  // never receive the code — so fail early with a message that says exactly what to do.
+  if (!(await portAvailable(port))) {
+    throw new Error(
+      `Port ${port} is in use by another app, so the sign-in can't complete. Quit whatever is running on localhost:${port} (e.g. the onedrive-manager dev server), then click Connect again.`,
+    );
+  }
+
   const pkce = await createPkce();
   const state = randomState();
 
