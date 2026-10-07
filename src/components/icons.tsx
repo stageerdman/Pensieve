@@ -138,15 +138,43 @@ export const Sparkles = (p: IconProps) =>
     p,
   );
 
-// The sync "rune": two unfinished (open) concentric circles — a casting-circle /
-// spell feel rather than literal arrows. Wrap in `.sync-spin` / `.sync-spin-slow`
-// (index.css) to turn it, which reads as a spell being cast. `slash` = disconnected.
-export const SyncRune = ({ slash, ...p }: IconProps & { slash?: boolean }) =>
+// The sync "rune": a calligraphic S whose stroke fades (tapers) toward both ends —
+// a spell-mark, not a mechanical glyph. When `active`, a golden spark traces a
+// figure-8 over it ("sync" fast while syncing, "nudge" slow when a sync is due).
+// `slash` = disconnected. `reduced` drops the motion (prefers-reduced-motion).
+export const SyncRune = ({
+  slash,
+  active,
+  reduced,
+  ...p
+}: IconProps & { slash?: boolean; active?: "sync" | "nudge"; reduced?: boolean }) =>
   svg(
     <>
-      <circle cx="12" cy="12" r="8.5" strokeDasharray="40 13.5" />
-      <circle cx="12" cy="12" r="4" strokeDasharray="18 7" opacity={0.65} />
-      {slash && <line x1="4" y1="4" x2="20" y2="20" />}
+      <defs>
+        <linearGradient id="syncTaper" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="currentColor" stopOpacity="0.15" />
+          <stop offset="0.3" stopColor="currentColor" stopOpacity="1" />
+          <stop offset="0.7" stopColor="currentColor" stopOpacity="1" />
+          <stop offset="1" stopColor="currentColor" stopOpacity="0.15" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M15.4 7.2 C15.4 4.9 8.6 4.9 8.6 8.3 C8.6 11.4 15.4 12.1 15.4 15.7 C15.4 19.1 8.6 19.1 8.6 16.8"
+        fill="none"
+        stroke="url(#syncTaper)"
+        strokeWidth={2.3}
+        strokeLinecap="round"
+      />
+      {active && !reduced && (
+        <circle r={1.5} stroke="none" style={{ fill: "hsl(var(--gold))" }}>
+          <animateMotion
+            dur={active === "nudge" ? "3.4s" : "1.5s"}
+            repeatCount="indefinite"
+            path="M12 12 C15 9.4 15 4.8 12 4.8 C9 4.8 9 9.4 12 12 C15 14.6 15 19.2 12 19.2 C9 19.2 9 14.6 12 12 Z"
+          />
+        </circle>
+      )}
+      {slash && <line x1="4" y1="4" x2="20" y2="20" stroke="currentColor" />}
     </>,
     p,
   );

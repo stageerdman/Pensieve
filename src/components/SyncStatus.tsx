@@ -63,7 +63,10 @@ export function SyncStatus({
   const dot =
     ui.phase === "conflicts" ? "bg-warn" : ui.phase === "error" ? "bg-danger" : null;
   const iconColor = justSynced ? "text-success" : nudge ? "text-gold" : "text-text-muted";
-  const spinClass = syncing ? "sync-spin" : nudge ? "sync-spin-slow" : undefined;
+  // The figure-8 spark animates while syncing (fast) or when a sync is due (slow).
+  const active: "sync" | "nudge" | undefined = syncing ? "sync" : nudge ? "nudge" : undefined;
+  const reduced =
+    typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
   const statusLine = (): string => {
     switch (ui.phase) {
@@ -103,7 +106,7 @@ export function SyncStatus({
           (open ? "bg-surface-raised text-text" : `${iconColor} hover:bg-surface-raised hover:text-text`)
         }
       >
-        <SyncRune slash={disconnected} className={spinClass} />
+        <SyncRune slash={disconnected} active={active} reduced={reduced} />
         {dot && (
           <span className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${dot}`} aria-hidden />
         )}
