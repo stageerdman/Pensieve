@@ -169,9 +169,39 @@ export async function sync(graph: GraphClient, vault: LocalVault): Promise<SyncR
   return result;
 }
 
+/** Resolve a both-changed conflict by keeping THIS device's copy. We adopt the
+ *  remote's current cTag (so the next conditional push is accepted) and mark the
+ *  note as locally changed, so the following sync overwrites the remote with local.
+ *  The other device's version is replaced — the owner's explicit choice. */
+export async function resolveKeepLocal(graph: GraphClient, vault: LocalVault, noteId: string): Promise<void> {
+  const state = await vault.readState();
+  const rec = state.notes[noteId];
+  const dl = await downloadNote(graph, `${noteId}.md`);
+  if (dl?.item.cTag) {
+    state.notes[noteId] = {
+      id: noteId,
+      remoteId: dl.item.id ?? rec?.remoteId ?? "",
+      cTag: dl.item.cTag, // adopt current remote tag so our next push's If-Match matches
+      localUpdatedAt: -1, // force "changed locally" so the next sync pushes local
+      syncedAt: rec?.syncedAt ?? nowMs(),
+    };
+  } else {
+    // Remote was deleted meanwhile — drop the record so local re-creates it on push.
+    delete state.notes[noteId];
+  }
+  await vault.writeState(state);
+  log.info("sync", "conflict.keepLocal", { noteId });
+}
+
 /** A sync engine wired to the real keychain token provider + on-disk vault. */
-export function createEngine(): { run(): Promise<SyncResult> } {
+export function createEngine(): {
+  run(): Promise<SyncResult>;
+  keepLocal(noteId: string): Promise<void>;
+} {
   const graph = makeGraphClient({ getToken: getAccessToken, invalidate: clearTokenCache });
   const vault = tauriVault();
-  return { run: () => sync(graph, vault) };
+  return {
+    run: () => sync(graph, vault),
+    keepLocal: (noteId: string) => resolveKeepLocal(graph, vault, noteId),
+  };
 }

@@ -8,6 +8,7 @@ import { TabBar, HOME, type ActiveTab } from "./components/TabBar";
 import { IconButton } from "./components/IconButton";
 import { Clock, PanelRight, Plus, Trash } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
+import { SyncStatus } from "./components/SyncStatus";
 import { Gallery } from "./features/gallery/Gallery";
 import { GalleryCustomise } from "./features/gallery/GalleryCustomise";
 import { Summon } from "./features/summon/Summon";
@@ -19,14 +20,28 @@ import { useTheme } from "./hooks/useTheme";
 import { useFullscreen } from "./hooks/useFullscreen";
 import { useFontScale } from "./hooks/useFontScale";
 import { useCategoryDefs } from "./hooks/useCategoryDefs";
+import { useSync } from "./hooks/useSync";
 
 // Native app: the macOS title bar is integrated (Overlay). The traffic lights float at
 // the top-left, so the header insets its left edge to clear them.
 const IS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 export default function App() {
-  const { notes, current, status, open, create, remove, change, updateMeta, togglePin, setCreatedAt } =
+  const { notes, current, status, open, create, remove, change, updateMeta, togglePin, setCreatedAt, refresh } =
     useNotes();
+  // A sync that pulled remote changes refreshes the list; if the open note was one
+  // of them, reload it into the editor so on-screen content matches disk.
+  const currentId = current?.id;
+  const sync = useSync(
+    useCallback(() => {
+      void refresh();
+      if (currentId) void open(currentId);
+    }, [refresh, open, currentId]),
+  );
+  const titleFor = useCallback(
+    (id: string) => notes.find((n) => n.id === id)?.title ?? "Untitled",
+    [notes],
+  );
   const { theme, toggle } = useTheme();
   const fullscreen = useFullscreen();
   useFontScale();
@@ -253,6 +268,9 @@ export default function App() {
               onSelect={selectTab}
               onClose={closeTab}
             />
+            <div className="flex shrink-0 items-center">
+              <SyncStatus sync={sync} titleFor={titleFor} />
+            </div>
             {onHome ? (
               <div className="flex shrink-0 items-center gap-0.5">
                 <IconButton label="New note" title="New note  ⌘N" onClick={() => void newNote()}>

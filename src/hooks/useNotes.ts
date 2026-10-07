@@ -213,5 +213,5 @@ export function useNotes() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [flushSave, closeSession]);
 
-  return { notes, current, status, open, create, remove, change, updateMeta, togglePin, setCreatedAt };
+  return { notes, current, status, open, create, remove, change, updateMeta, togglePin, setCreatedAt, refresh };
 }

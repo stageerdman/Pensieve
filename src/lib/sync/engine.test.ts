@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import type { GraphClient, GraphFetchOptions } from "./graph";
 import type { LocalVault, LocalNoteInfo, WriteTimes } from "./vault";
 import { EMPTY_SYNC_STATE, type SyncState } from "./types";
-import { sync } from "./engine";
+import { sync, resolveKeepLocal } from "./engine";
 
 // ---- in-memory LocalVault ----
 class MemVault implements LocalVault {
@@ -229,6 +229,23 @@ describe("sync engine", () => {
     expect(r.pulledDeletes).toEqual(["a"]);
     expect(vault.notes.has("a")).toBe(false);
     expect(vault.state.notes.a).toBeUndefined();
+  });
+
+  it("resolveKeepLocal makes the local copy win on the next sync", async () => {
+    vault.edit("x", "# X\n", 5);
+    await sync(graph, vault);
+    // conflict: both sides change
+    drive.put("x.md", "# remote\n");
+    vault.edit("x", "# local wins\n", 1_000);
+    const c = await sync(graph, vault);
+    expect(c.conflicts[0]?.reason).toBe("both-changed");
+
+    // owner chooses keep-local, then re-syncs
+    await resolveKeepLocal(graph, vault, "x");
+    const r = await sync(graph, vault);
+    expect(r.pushed).toContain("x");
+    expect(r.conflicts).toEqual([]);
+    expect(drive.files.get("x.md")?.content).toBe("# local wins\n");
   });
 
   it("propagates a local deletion to the remote", async () => {

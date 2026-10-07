@@ -138,6 +138,20 @@ export const Sparkles = (p: IconProps) =>
     p,
   );
 
+// A pair of circular sync arrows — the OneDrive sync control. `slash` draws the
+// "not connected" state. Wrap in `.cloudsync-spin` (index.css) to rotate while syncing.
+export const CloudSync = ({ slash, ...p }: IconProps & { slash?: boolean }) =>
+  svg(
+    <>
+      <path d="M4 12a8 8 0 0 1 13.7-5.6L20 8" />
+      <polyline points="20 3 20 8 15 8" />
+      <path d="M20 12a8 8 0 0 1-13.7 5.6L4 16" />
+      <polyline points="4 21 4 16 9 16" />
+      {slash && <line x1="3.5" y1="3.5" x2="20.5" y2="20.5" />}
+    </>,
+    p,
+  );
+
 export const Bookmark = ({ filled, ...p }: IconProps & { filled?: boolean }) =>
   svg(
     <path
