@@ -9,12 +9,13 @@
 //
 // Everything else the TS layer does over `fetch`.
 
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::time::{Duration, Instant};
 
 use keyring::Entry;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 // One keychain "service" namespace for all Pensieve secrets; the `key` arg is the
 // account within it (e.g. "refresh-token", "azure-config").
@@ -49,6 +50,64 @@ pub fn secret_delete(key: String) -> Result<(), String> {
         Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(e.to_string()),
     }
+}
+
+#[derive(Deserialize)]
+pub struct HttpReq {
+    method: String,
+    url: String,
+    #[serde(default)]
+    headers: HashMap<String, String>,
+    #[serde(default)]
+    body: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct HttpRes {
+    status: u16,
+    body: String,
+    headers: HashMap<String, String>,
+}
+
+/// Make an HTTP request from the NATIVE side (no webview Origin header). This is how
+/// the TS layer reaches Microsoft's token endpoint and Graph: a desktop app is a
+/// native client, and a browser `fetch` would attach an Origin that trips CORS
+/// (AADSTS90023 on token redemption). Header names come back lowercased.
+#[tauri::command]
+pub async fn http_request(req: HttpReq) -> Result<HttpRes, String> {
+    tauri::async_runtime::spawn_blocking(move || http_blocking(req))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn http_blocking(req: HttpReq) -> Result<HttpRes, String> {
+    let agent = ureq::AgentBuilder::new()
+        .timeout(Duration::from_secs(30))
+        .build();
+    let mut r = agent.request(&req.method, &req.url);
+    for (k, v) in &req.headers {
+        r = r.set(k, v);
+    }
+    let result = match req.body {
+        Some(b) => r.send_string(&b),
+        None => r.call(),
+    };
+    let resp = match result {
+        Ok(resp) => resp,
+        // A non-2xx status is still a response we want to hand back (the TS layer
+        // interprets 401/404/409/412/4xx), not a transport error.
+        Err(ureq::Error::Status(_code, resp)) => resp,
+        Err(e) => return Err(e.to_string()),
+    };
+    let status = resp.status();
+    let mut headers = HashMap::new();
+    for name in resp.headers_names() {
+        if let Some(val) = resp.header(&name) {
+            headers.insert(name.to_lowercase(), val.to_string());
+        }
+    }
+    let body = resp.into_string().map_err(|e| e.to_string())?;
+    Ok(HttpRes { status, body, headers })
 }
 
 /// True if we can bind the loopback port the OAuth redirect needs. Checked before

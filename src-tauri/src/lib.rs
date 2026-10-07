@@ -124,7 +124,8 @@ pub fn run() {
             sync::secret_delete,
             sync::open_url,
             sync::oauth_listen,
-            sync::port_available
+            sync::port_available,
+            sync::http_request
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -5,6 +5,8 @@
 
 import type { AzureConfig, TokenResponse } from "./types";
 import { authorityFor, GRAPH_SCOPES } from "./config";
+import { isTauri } from "../store";
+import { httpRequest } from "./native";
 
 function base64url(bytes: Uint8Array): string {
   let bin = "";
@@ -52,15 +54,33 @@ export function buildAuthorizeUrl(cfg: AzureConfig, opts: { state: string; chall
 
 async function postToken(cfg: AzureConfig, body: Record<string, string>): Promise<TokenResponse> {
   const withSecret = cfg.clientSecret ? { ...body, client_secret: cfg.clientSecret } : body;
-  const res = await fetch(`${authorityFor(cfg.tenant)}/oauth2/v2.0/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(withSecret).toString(),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
+  const url = `${authorityFor(cfg.tenant)}/oauth2/v2.0/token`;
+  const encoded = new URLSearchParams(withSecret).toString();
+  const headers = { "Content-Type": "application/x-www-form-urlencoded" };
+
+  // Desktop: go through native HTTP so there's no Origin header (a webview fetch
+  // trips Microsoft's CORS on the token endpoint — AADSTS90023). Off-desktop: fetch.
+  let status: number;
+  let text: string;
+  if (isTauri()) {
+    const r = await httpRequest({ method: "POST", url, headers, body: encoded });
+    status = r.status;
+    text = r.body;
+  } else {
+    const res = await fetch(url, { method: "POST", headers, body: encoded });
+    status = res.status;
+    text = await res.text();
+  }
+
+  let json: { error?: string; error_description?: string } & Partial<TokenResponse> = {};
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch {
+    json = {};
+  }
+  if (status < 200 || status >= 300) {
     throw new Error(
-      `Token request failed (${res.status}): ${json.error ?? "unknown"} — ${(json.error_description ?? "").split("\n")[0]}`,
+      `Token request failed (${status}): ${json.error ?? "unknown"} — ${(json.error_description ?? "").split("\n")[0]}`,
     );
   }
   return json as TokenResponse;

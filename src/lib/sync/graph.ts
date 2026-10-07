@@ -4,7 +4,23 @@
 // driven by the real keychain path, a Node integration token, or a test fake.
 
 import { GRAPH_BASE } from "./config";
+import { isTauri } from "../store";
+import { httpRequest } from "./native";
 import { log } from "../logger";
+
+// On desktop, route through the native HTTP command (no webview Origin header, so
+// Graph/token calls aren't subject to browser CORS). Off-desktop (tests, future
+// PWA) use the platform fetch. Both return a standard Response the client wraps.
+async function transport(url: string, options: GraphFetchOptions, token: string): Promise<Response> {
+  const headers = { ...(options.headers as Record<string, string> | undefined), Authorization: `Bearer ${token}` };
+  if (isTauri()) {
+    const body = options.body == null ? null : typeof options.body === "string" ? options.body : String(options.body);
+    const r = await httpRequest({ method: (options.method ?? "GET").toUpperCase(), url, headers, body });
+    // A null-body status (204/304) must not carry a body, or the Response ctor throws.
+    return new Response(r.body.length ? r.body : null, { status: r.status, headers: r.headers });
+  }
+  return fetch(url, { ...options, headers });
+}
 
 export interface TokenProvider {
   getToken(): Promise<string>;
@@ -31,10 +47,7 @@ export function makeGraphClient(provider: TokenProvider): GraphClient {
     const url = options.absolute ? path : `${GRAPH_BASE}${path}`;
     for (let attempt = 0; ; attempt++) {
       const token = await provider.getToken();
-      const res = await fetch(url, {
-        ...options,
-        headers: { ...options.headers, Authorization: `Bearer ${token}` },
-      });
+      const res = await transport(url, options, token);
 
       if (res.status === 401 && attempt === 0) {
         provider.invalidate?.();

@@ -39,6 +39,27 @@ export async function portAvailable(port: number): Promise<boolean> {
   return invoke<boolean>("port_available", { port });
 }
 
+export interface HttpRes {
+  status: number;
+  body: string;
+  headers: Record<string, string>; // names lowercased
+}
+
+/** Make an HTTP request from the native side (no webview Origin header). Used for
+ *  the OAuth token endpoint and all Graph calls on desktop — a browser fetch would
+ *  attach an Origin that trips Microsoft's CORS rules (AADSTS90023). */
+export async function httpRequest(req: {
+  method: string;
+  url: string;
+  headers?: Record<string, string>;
+  body?: string | null;
+}): Promise<HttpRes> {
+  requireTauri("HTTP");
+  return invoke<HttpRes>("http_request", {
+    req: { method: req.method, url: req.url, headers: req.headers ?? {}, body: req.body ?? null },
+  });
+}
+
 export interface AuthCode {
   code: string | null;
   state: string | null;
