@@ -49,7 +49,7 @@ export async function getAzureConfig(): Promise<AzureConfig> {
   cached = normalise({
     clientId: env.VITE_AZURE_CLIENT_ID ?? "",
     clientSecret: env.VITE_AZURE_CLIENT_SECRET ?? "",
-    redirectUri: env.VITE_AZURE_REDIRECT_URI ?? "http://localhost:3000/api/auth/callback",
+    redirectUri: env.VITE_AZURE_REDIRECT_URI ?? "http://localhost:8711/callback",
     tenant: env.VITE_AZURE_TENANT ?? "consumers",
   });
   return cached;
@@ -59,7 +59,7 @@ function normalise(c: Partial<AzureConfig>): AzureConfig {
   return {
     clientId: c.clientId ?? "",
     clientSecret: c.clientSecret ?? "",
-    redirectUri: c.redirectUri ?? "http://localhost:3000/api/auth/callback",
+    redirectUri: c.redirectUri ?? "http://localhost:8711/callback",
     tenant: c.tenant ?? "consumers",
   };
 }

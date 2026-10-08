@@ -3,7 +3,7 @@
 //   2. start the one-shot loopback server on the registered redirect
 //   3. open the system browser to the consent screen
 //   4. catch the redirect, validate state, exchange the code (PKCE + secret)
-//   5. store the refresh token in the keychain
+//   5. store the refresh token in the native secret store
 // Everything that needs the native shell goes through ./native; the rest is fetch.
 
 import { getAzureConfig, KEY_REFRESH_TOKEN, redirectParts } from "./config";
@@ -19,12 +19,12 @@ export async function connectOneDrive(opts: { timeoutSecs?: number } = {}): Prom
 
   const { port, path } = redirectParts(cfg.redirectUri);
 
-  // The sign-in code comes back to this loopback port. If another app holds it
-  // (e.g. a dev server on 3000), Microsoft's redirect lands on THAT app and we
-  // never receive the code — so fail early with a message that says exactly what to do.
+  // The sign-in code comes back to this loopback port. If another app holds it,
+  // Microsoft's redirect lands on THAT app and we never receive the code — so fail
+  // early with a message that says exactly what to do.
   if (!(await portAvailable(port))) {
     throw new Error(
-      `Port ${port} is in use by another app, so the sign-in can't complete. Quit whatever is running on localhost:${port} (e.g. the onedrive-manager dev server), then click Connect again.`,
+      `Port ${port} is in use by another app, so the sign-in can't complete. Quit whatever is running on localhost:${port}, then click Connect again.`,
     );
   }
 

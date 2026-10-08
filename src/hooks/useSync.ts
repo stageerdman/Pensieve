@@ -5,7 +5,7 @@ import type { SyncConflict } from "../lib/sync/engine";
 import { connectOneDrive, disconnectOneDrive } from "../lib/sync/connect";
 import { isConnected } from "../lib/sync/tokens";
 import { tauriVault } from "../lib/sync/vault";
-import { ReconnectNeededError, TransientSyncError } from "../lib/sync/types";
+import { ReconnectNeededError, RemoteRootMissingError, TransientSyncError } from "../lib/sync/types";
 import type { SyncAccount, SyncProgress, SyncQuota } from "../lib/sync/types";
 import { log } from "../lib/logger";
 
@@ -14,6 +14,7 @@ import { log } from "../lib/logger";
 export type SyncPhase =
   | "unavailable"
   | "disconnected"
+  | "needs-summon" // connected, but this OneDrive has no Pensieve folder yet
   | "idle"
   | "syncing"
   | "synced"
@@ -93,46 +94,59 @@ export function useSync(onChanged?: () => void) {
     };
   }, [refreshInfo]);
 
-  const syncNow = useCallback(async () => {
-    if (!isTauri() || busy.current) return;
-    busy.current = true;
-    setUi((u) => ({ ...u, phase: "syncing", error: null, errorKind: null, transfer: null }));
-    try {
-      const onProgress = (p: SyncProgress) => setUi((u) => ({ ...u, transfer: p }));
-      const result = await createEngine().run(onProgress);
-      const touchedLocal =
-        result.pulled.length > 0 || result.pulledDeletes.length > 0;
-      if (touchedLocal) onChangedRef.current?.();
-      setUi((u) => ({
-        ...u,
-        phase: result.conflicts.length > 0 ? "conflicts" : "synced",
-        lastSyncedAt: result.lastSyncedAt,
-        conflicts: result.conflicts,
-        error: null,
-        errorKind: null,
-        transfer: null,
-      }));
-      void refreshInfo(); // quota moved after a push
-    } catch (e) {
-      // Tell the truth about why it failed — don't paint every error as expired.
-      if (e instanceof ReconnectNeededError) {
-        setUi((u) => ({ ...u, phase: "error", errorKind: "expired", error: e.message, transfer: null }));
-      } else if (e instanceof TransientSyncError) {
-        setUi((u) => ({ ...u, phase: "error", errorKind: "offline", error: e.message, transfer: null }));
-      } else {
-        log.error("sync", "sync.failed", { error: String(e) });
+  // Shared runner for both a normal sync and a summon-then-sync — same syncing/
+  // success/error handling, differing only in which engine call drives the run.
+  const runSync = useCallback(
+    async (run: (onProgress: (p: SyncProgress) => void) => Promise<Awaited<ReturnType<ReturnType<typeof createEngine>["run"]>>>) => {
+      if (!isTauri() || busy.current) return;
+      busy.current = true;
+      setUi((u) => ({ ...u, phase: "syncing", error: null, errorKind: null, transfer: null }));
+      try {
+        const onProgress = (p: SyncProgress) => setUi((u) => ({ ...u, transfer: p }));
+        const result = await run(onProgress);
+        const touchedLocal = result.pulled.length > 0 || result.pulledDeletes.length > 0;
+        if (touchedLocal) onChangedRef.current?.();
         setUi((u) => ({
           ...u,
-          phase: "error",
-          errorKind: "other",
-          error: String(e instanceof Error ? e.message : e),
+          phase: result.conflicts.length > 0 ? "conflicts" : "synced",
+          lastSyncedAt: result.lastSyncedAt,
+          conflicts: result.conflicts,
+          error: null,
+          errorKind: null,
           transfer: null,
         }));
+        void refreshInfo(); // quota moved after a push
+      } catch (e) {
+        // Tell the truth about why it failed — don't paint every error as expired.
+        if (e instanceof RemoteRootMissingError) {
+          // Connected, but this drive has no Pensieve folder — offer "Summon Pensieve".
+          setUi((u) => ({ ...u, phase: "needs-summon", error: null, errorKind: null, transfer: null }));
+          void refreshInfo(); // show which account they're connected to
+        } else if (e instanceof ReconnectNeededError) {
+          setUi((u) => ({ ...u, phase: "error", errorKind: "expired", error: e.message, transfer: null }));
+        } else if (e instanceof TransientSyncError) {
+          setUi((u) => ({ ...u, phase: "error", errorKind: "offline", error: e.message, transfer: null }));
+        } else {
+          log.error("sync", "sync.failed", { error: String(e) });
+          setUi((u) => ({
+            ...u,
+            phase: "error",
+            errorKind: "other",
+            error: String(e instanceof Error ? e.message : e),
+            transfer: null,
+          }));
+        }
+      } finally {
+        busy.current = false;
       }
-    } finally {
-      busy.current = false;
-    }
-  }, [refreshInfo]);
+    },
+    [refreshInfo],
+  );
+
+  const syncNow = useCallback(() => runSync((op) => createEngine().run(op)), [runSync]);
+
+  // "Summon Pensieve": create the remote folder on this drive, then first-sync.
+  const summon = useCallback(() => runSync((op) => createEngine().summon(op)), [runSync]);
 
   const connect = useCallback(async () => {
     if (!isTauri() || busy.current) return;
@@ -184,5 +198,5 @@ export function useSync(onChanged?: () => void) {
     [syncNow],
   );
 
-  return { ui, connect, disconnect, syncNow, keepLocal, refreshInfo };
+  return { ui, connect, disconnect, syncNow, summon, keepLocal, refreshInfo };
 }

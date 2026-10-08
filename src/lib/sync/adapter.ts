@@ -45,16 +45,20 @@ interface ChildrenResponse {
   "@odata.nextLink"?: string;
 }
 
-/** Ensure the remote root folder exists; create it if missing. Idempotent. */
-export async function ensureRoot(graph: GraphClient): Promise<void> {
+/** Does the remote root folder exist? A plain GET on the folder path: 200 → yes,
+ *  404 → no (not set up here yet), any other status → a real error. This is the
+ *  probe that gates sync — we never auto-create the folder (see createRoot). */
+export async function remoteRootExists(graph: GraphClient): Promise<boolean> {
   const res = await graph.fetch(`${rootPath()}`);
-  if (res.ok) return;
-  if (res.status !== 404) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`ensureRoot failed (${res.status}): ${text.slice(0, 200)}`);
-  }
-  // Create under the drive root. conflictBehavior "fail" is fine — a race that
-  // created it concurrently just means it now exists, which is what we wanted.
+  if (res.ok) return true;
+  if (res.status === 404) return false;
+  const text = await res.text().catch(() => "");
+  throw new Error(`root check failed (${res.status}): ${text.slice(0, 200)}`);
+}
+
+/** Create the remote root folder ("Summon Pensieve"). Idempotent: a 409 from a
+ *  concurrent/prior create just means it already exists, which is the goal. */
+export async function createRoot(graph: GraphClient): Promise<void> {
   const create = await graph.fetch(`/me/drive/root/children`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -62,7 +66,7 @@ export async function ensureRoot(graph: GraphClient): Promise<void> {
   });
   if (!create.ok && create.status !== 409) {
     const text = await create.text().catch(() => "");
-    throw new Error(`ensureRoot create failed (${create.status}): ${text.slice(0, 200)}`);
+    throw new Error(`createRoot failed (${create.status}): ${text.slice(0, 200)}`);
   }
   log.info("sync", "adapter.root.created", { root: REMOTE_ROOT });
 }

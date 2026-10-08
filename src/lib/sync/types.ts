@@ -132,6 +132,17 @@ export class TransientSyncError extends Error {
   }
 }
 
+/** Thrown when the signed-in OneDrive has no Pensieve folder yet. Sync is blocked
+ *  until the owner explicitly "Summons" Pensieve there — we never silently create the
+ *  folder on an account the user may have picked by mistake. The UI shows a one-click
+ *  "Summon Pensieve" action and an attention status until then. */
+export class RemoteRootMissingError extends Error {
+  constructor(message = "Pensieve isn't set up on this OneDrive yet.") {
+    super(message);
+    this.name = "RemoteRootMissingError";
+  }
+}
+
 /** A failure from the OAuth token endpoint, carrying the HTTP status and the
  *  Microsoft error code (e.g. `invalid_grant`, `invalid_client`) so callers can
  *  tell an expired login from a config problem from a transient 5xx. */
