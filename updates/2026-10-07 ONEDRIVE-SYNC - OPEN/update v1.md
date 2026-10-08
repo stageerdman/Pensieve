@@ -85,6 +85,39 @@ must confirm the secret-less path**, because the whole free-PWA story depends on
   276/276, tsc + web build clean, native `.app` built to /Applications for owner
   testing. See `wiki.md` → Phase 5 for the owner test checklist.
 
+## Follow-up — bug fixes + sync details panel (2026-10-08)
+Owner testing surfaced two bugs and a feature request; built on branch
+`update/onedrive-sync-details`.
+
+- **Bug: "sign-in expired on every sync, even after signing in."** A zero-risk
+  live diagnostic proved the stored refresh token refreshes fine (secret-less,
+  HTTP 200) — so it was **never** an auth/Azure problem (no portal change, no
+  app-switch, no account change needed). Two real defects: (1) `SyncStatus`
+  hardcoded "Sign-in expired." for *every* error phase, so any Graph/network
+  failure masqueraded as an expiry; (2) `tokens.ts` collapsed all failures into one
+  reconnect error. Fixed: typed `TokenError`/`TransientSyncError`; `tokens.ts` now
+  classifies invalid_grant → reconnect (the only true expiry) vs network/5xx →
+  transient vs real config error → shown as itself; refresh is **single-flight**
+  (no double-redeem of a rotating token) and a keychain-write hiccup no longer
+  discards a valid access token. `useSync` carries `errorKind`; the UI shows honest
+  copy + a fitting action (Reconnect vs Try again).
+- **Bug: "when it works it looks like it's infinitely syncing."** The rune flowed
+  on an infinite loop in the reminder (unsynced-changes) and offline (disconnected)
+  states too — perpetual motion with nothing transferring. **Motion now means an
+  active transfer and nothing else:** syncing flows; reminder = static gold S;
+  offline = static red. (Reverses the earlier "moving red" rune commits.)
+- **Feature: the sync details panel.** A magical-UX expert designed it; built to
+  spec. Clicking the rune unfolds a 280px panel: status → live transfer (a memory
+  **flask that fills** with the accent as item-count progresses, ↑/↓ direction,
+  "N of M", current note title, byte tail for big media) → muted space meter →
+  contextual action → account footer + Sign out. New sync-layer data: `getAccount`
+  (/me), `getQuota` (/me/drive), and an engine `onProgress` feed (pull/push are
+  classified first so the total is known before the first transfer). Honours
+  prefers-reduced-motion. Visual gallery of all states shared with the owner.
+- **Tests:** `tokens.test.ts` (9, classification + single-flight + persist safety),
+  engine progress emission (+2), `SyncStatus.test.tsx` (7, every state + honest
+  copy + right action). Full suite 294/294, tsc + web build clean.
+
 ## ✅ Update complete (2026-10-07)
 All five phases built and verified. The desktop sync spine is live: keychain-backed
 OAuth, a portable Graph adapter, delta pull + conditional push, both-direction

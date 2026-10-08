@@ -172,6 +172,28 @@ describe("sync engine", () => {
     expect(vault.state.deltaLink).toContain("v=2");
   });
 
+  it("emits progress for each transferred item (downloads then uploads)", async () => {
+    drive.put("a.md", "# A\n"); // 1 download
+    drive.put("b.md", "# B\n"); // 1 download
+    vault.edit("x", "# X\n", 5); // 1 upload
+    const events: Array<{ direction: string; name: string; doneItems: number; totalItems: number }> = [];
+    await sync(graph, vault, (p) => events.push({ ...p }));
+
+    // 3 transfers, every event reports the same total.
+    expect(events).toHaveLength(3);
+    expect(events.every((e) => e.totalItems === 3)).toBe(true);
+    // Downloads are emitted before uploads, and doneItems counts up 0,1,2.
+    expect(events.map((e) => e.direction)).toEqual(["down", "down", "up"]);
+    expect(events.map((e) => e.doneItems)).toEqual([0, 1, 2]);
+    expect(events.map((e) => e.name).sort()).toEqual(["a", "b", "x"]);
+  });
+
+  it("does not emit progress when there is nothing to transfer", async () => {
+    const events: unknown[] = [];
+    await sync(graph, vault, (p) => events.push(p));
+    expect(events).toHaveLength(0);
+  });
+
   it("pushes a new local note to the remote", async () => {
     vault.edit("x", "# X\n", 5);
     const r = await sync(graph, vault);

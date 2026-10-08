@@ -367,27 +367,22 @@ body {
 .sync-icon[data-state="flash"] .lemniscate {
   stroke: hsl(var(--success)); /* brief "just synced" confirmation */
 }
-/* Flowing states: gold when a sync is due/running, red when disconnected. */
-/* Flowing states: gold when a sync is due/running, red when "offline"
-   (disconnected OR sign-in expired — never a static dot). */
-.sync-icon[data-state="reminder"] .lemniscate,
-.sync-icon[data-state="syncing"] .lemniscate,
-.sync-icon[data-state="offline"] .lemniscate {
-  animation: sync-flow linear infinite;
-  will-change: stroke-dashoffset;
-}
-.sync-icon[data-state="reminder"] .lemniscate,
-.sync-icon[data-state="syncing"] .lemniscate { stroke: hsl(var(--gold)); }
+/* MOTION MEANS A TRANSFER IS HAPPENING — and nothing else. Only the `syncing`
+   state flows; otherwise the glyph is still. A perpetually-flowing rune (the old
+   behaviour for "unsynced changes" and "disconnected") reads as "syncing forever",
+   which is exactly the confusion we're fixing. At rest the colour carries the
+   meaning: gold = changes waiting, red = not backing up. */
 .sync-icon[data-state="syncing"] .lemniscate {
-  animation-duration: 1.1s; /* fast while actively syncing */
+  stroke: hsl(var(--gold));
+  animation: sync-flow 1.1s linear infinite;
+  will-change: stroke-dashoffset;
   filter: drop-shadow(0 0 1.5px hsl(var(--gold) / 0.9));
 }
 .sync-icon[data-state="reminder"] .lemniscate {
-  animation-duration: 2.6s; /* gentle "you have unsynced changes" flow */
+  stroke: hsl(var(--gold)); /* static gold S — changes are waiting to back up */
 }
 .sync-icon[data-state="offline"] .lemniscate {
-  stroke: hsl(var(--danger)); /* not connected / sign-in expired — red, still moving */
-  animation-duration: 2s;
+  stroke: hsl(var(--danger)); /* static red — not connected / sign-in expired */
 }
 /* Advance by exactly one path length → identical frame → no seam. (Flows the
    opposite way round the 8.) */
@@ -397,6 +392,46 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .sync-icon .lemniscate { animation: none !important; } /* gold colour alone signals */
+}
+
+/* ---- Sync panel (the details popover) ---- */
+/* The panel UNFOLDS from the rune's top-right corner — the whole "magical on open"
+   moment, costing no chrome. */
+.sync-panel {
+  transform-origin: top right;
+  animation: sync-panel-in 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes sync-panel-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+/* The panel's header glyph takes ONE slow breath when the panel opens, then stills
+   — as if the pensieve stirred when you looked in. One-shot, not a loop. */
+.sync-panel-glyph .lemniscate {
+  animation: sync-breathe 1.2s ease-in-out 1;
+}
+@keyframes sync-breathe {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 0.85; }
+}
+
+/* The progress flask: flat accent liquid (no gradient) + one living meniscus
+   ripple while a transfer is in flight. */
+.sync-flask .liquid {
+  fill: hsl(var(--accent));
+  fill-opacity: 0.85;
+}
+.sync-flask.is-active .ripple {
+  animation: sync-flask-ripple 3s ease-in-out infinite;
+}
+@keyframes sync-flask-ripple {
+  0%, 100% { transform: translateY(0.5px); }
+  50% { transform: translateY(-0.5px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sync-panel { animation: none; }
+  .sync-panel-glyph .lemniscate { animation: none; }
+  .sync-flask.is-active .ripple { animation: none; }
 }
 
 /* ---- Summon (search) ---- */

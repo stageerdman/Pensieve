@@ -10,8 +10,19 @@ import type { GraphClient } from "./graph";
 import { makeGraphClient } from "./graph";
 import type { LocalVault } from "./vault";
 import { tauriVault } from "./vault";
-import { ConflictError, type NoteSyncRecord, type SyncState } from "./types";
-import { delta, deleteNote, downloadNote, ensureRoot, noteIdFromName, uploadNote } from "./adapter";
+import { ConflictError, type NoteSyncRecord, type SyncProgress, type SyncState } from "./types";
+import type { RemoteItem } from "./types";
+import {
+  delta,
+  deleteNote,
+  downloadNote,
+  ensureRoot,
+  getAccount,
+  getQuota,
+  noteIdFromName,
+  uploadNote,
+} from "./adapter";
+import type { SyncAccount, SyncQuota } from "./types";
 import { getAccessToken, clearTokenCache } from "./tokens";
 import { log } from "../logger";
 
@@ -46,19 +57,29 @@ function nowMs(): number {
 
 /** Run a full two-way sync. Pull first (so remote wins where only remote changed),
  *  then push (conditional, so a stale local write is refused). A note changed on
- *  BOTH sides is reported as a conflict and left untouched for the owner to resolve. */
-export async function sync(graph: GraphClient, vault: LocalVault): Promise<SyncResult> {
+ *  BOTH sides is reported as a conflict and left untouched for the owner to resolve.
+ *
+ *  `onProgress` (optional) is called once per transferred item so the UI can show
+ *  what's moving and how far along it is. The work is classified first (so the
+ *  total is known before the first transfer) and only then applied. */
+export async function sync(
+  graph: GraphClient,
+  vault: LocalVault,
+  onProgress?: (p: SyncProgress) => void,
+): Promise<SyncResult> {
   await ensureRoot(graph);
   const state: SyncState = await vault.readState();
   if (!state.notes) state.notes = {};
   const result = emptyResult();
 
-  // ---------- PULL ----------
+  // ---------- PULL: classify ----------
   const { items, deltaLink } = await delta(graph, state.deltaLink);
   const localBefore = new Map((await vault.listNotes()).map((n) => [n.id, n.updatedAt]));
   // Notes changed on both sides: set aside after pull so push doesn't re-attempt
   // (and re-report) them. The owner resolves these; v1 leaves local as-is.
   const conflicted = new Set<string>();
+  const localDeletes: string[] = []; // remote-deleted, apply locally (no transfer)
+  const downloads: { id: string; item: RemoteItem }[] = [];
 
   for (const item of items) {
     if (item.folder) continue; // structural entry, not a note
@@ -72,12 +93,9 @@ export async function sync(graph: GraphClient, vault: LocalVault): Promise<SyncR
       if (localChanged) {
         result.conflicts.push({ noteId: id, reason: "both-changed" });
         conflicted.add(id);
-        continue;
+      } else {
+        localDeletes.push(id);
       }
-      await vault.deleteNote(id);
-      delete state.notes[id];
-      localBefore.delete(id);
-      result.pulledDeletes.push(id);
       continue;
     }
 
@@ -88,9 +106,45 @@ export async function sync(graph: GraphClient, vault: LocalVault): Promise<SyncR
       continue;
     }
     if (!remoteChanged) continue; // our own echo / nothing new
+    downloads.push({ id, item });
+  }
 
+  state.deltaLink = deltaLink;
+
+  // ---------- PUSH: classify ----------
+  const localNow = await vault.listNotes();
+  const uploads = localNow.filter((info) => {
+    if (conflicted.has(info.id)) return false; // set aside in pull — don't re-report
+    const rec = state.notes[info.id];
+    if (rec && info.updatedAt <= rec.localUpdatedAt) return false; // unchanged since last sync
+    return true;
+  });
+
+  // ---------- APPLY ----------
+  // Transfers (downloads + uploads) drive the progress bar; instant local deletes
+  // don't. `doneItems` is emitted BEFORE each item starts, so the first shows as
+  // "1 of N".
+  const totalItems = downloads.length + uploads.length;
+  let doneItems = 0;
+  const emit = (direction: "down" | "up", name: string, bytes?: number) =>
+    onProgress?.({ direction, name, doneItems, totalItems, bytes });
+
+  // Remote deletions → local (no transfer, no progress tick).
+  for (const id of localDeletes) {
+    await vault.deleteNote(id);
+    delete state.notes[id];
+    localBefore.delete(id);
+    result.pulledDeletes.push(id);
+  }
+
+  // Downloads.
+  for (const { id, item } of downloads) {
+    emit("down", id, item.size);
     const dl = await downloadNote(graph, item.name);
-    if (!dl) continue;
+    if (!dl) {
+      doneItems++;
+      continue;
+    }
     const remoteTime = item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : nowMs();
     await vault.writeNote(id, dl.content, { updatedAt: remoteTime });
     state.notes[id] = {
@@ -102,21 +156,18 @@ export async function sync(graph: GraphClient, vault: LocalVault): Promise<SyncR
     };
     localBefore.set(id, remoteTime); // so push skips the note we just wrote
     result.pulled.push(id);
+    doneItems++;
   }
 
-  state.deltaLink = deltaLink;
-
-  // ---------- PUSH ----------
-  const localNow = await vault.listNotes();
-  const localIds = new Set(localNow.map((n) => n.id));
-
-  for (const info of localNow) {
-    if (conflicted.has(info.id)) continue; // set aside in pull — don't re-report
+  // Uploads.
+  for (const info of uploads) {
     const rec = state.notes[info.id];
-    if (rec && info.updatedAt <= rec.localUpdatedAt) continue; // unchanged since last sync
-
     const content = await vault.readNote(info.id);
-    if (content === null) continue;
+    if (content === null) {
+      doneItems++;
+      continue;
+    }
+    emit("up", info.id, content.length);
 
     try {
       const item = await uploadNote(graph, info.id, content, rec?.cTag);
@@ -136,11 +187,16 @@ export async function sync(graph: GraphClient, vault: LocalVault): Promise<SyncR
         throw e;
       }
     }
+    doneItems++;
   }
 
   // ---------- LOCAL DELETIONS → remote ----------
+  // Use the CURRENT on-disk set (downloads above added notes; localDeletes removed
+  // some) — not the pre-download `localIds`, or a freshly-pulled note would look
+  // deleted and get wrongly removed from the remote.
+  const liveIds = new Set((await vault.listNotes()).map((n) => n.id));
   for (const id of Object.keys(state.notes)) {
-    if (localIds.has(id)) continue;
+    if (liveIds.has(id)) continue;
     const rec = state.notes[id];
     try {
       await deleteNote(graph, id, rec.cTag);
@@ -195,13 +251,19 @@ export async function resolveKeepLocal(graph: GraphClient, vault: LocalVault, no
 
 /** A sync engine wired to the real keychain token provider + on-disk vault. */
 export function createEngine(): {
-  run(): Promise<SyncResult>;
+  run(onProgress?: (p: SyncProgress) => void): Promise<SyncResult>;
   keepLocal(noteId: string): Promise<void>;
+  /** The signed-in account + drive quota, for the sync panel. */
+  info(): Promise<{ account: SyncAccount; quota: SyncQuota }>;
 } {
   const graph = makeGraphClient({ getToken: getAccessToken, invalidate: clearTokenCache });
   const vault = tauriVault();
   return {
-    run: () => sync(graph, vault),
+    run: (onProgress) => sync(graph, vault, onProgress),
     keepLocal: (noteId: string) => resolveKeepLocal(graph, vault, noteId),
+    async info() {
+      const [account, quota] = await Promise.all([getAccount(graph), getQuota(graph)]);
+      return { account, quota };
+    },
   };
 }

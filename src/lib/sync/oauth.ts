@@ -4,6 +4,7 @@
 // Runs in the webview, so PKCE uses Web Crypto (not node:crypto).
 
 import type { AzureConfig, TokenResponse } from "./types";
+import { TokenError, TransientSyncError } from "./types";
 import { authorityFor, GRAPH_SCOPES } from "./config";
 import { isTauri } from "../store";
 import { httpRequest } from "./native";
@@ -60,16 +61,22 @@ async function postToken(cfg: AzureConfig, body: Record<string, string>): Promis
 
   // Desktop: go through native HTTP so there's no Origin header (a webview fetch
   // trips Microsoft's CORS on the token endpoint — AADSTS90023). Off-desktop: fetch.
+  // A thrown transport error (no network, DNS, timeout) is transient, not an
+  // expired login — surface it as such rather than "reconnect".
   let status: number;
   let text: string;
-  if (isTauri()) {
-    const r = await httpRequest({ method: "POST", url, headers, body: encoded });
-    status = r.status;
-    text = r.body;
-  } else {
-    const res = await fetch(url, { method: "POST", headers, body: encoded });
-    status = res.status;
-    text = await res.text();
+  try {
+    if (isTauri()) {
+      const r = await httpRequest({ method: "POST", url, headers, body: encoded });
+      status = r.status;
+      text = r.body;
+    } else {
+      const res = await fetch(url, { method: "POST", headers, body: encoded });
+      status = res.status;
+      text = await res.text();
+    }
+  } catch (e) {
+    throw new TransientSyncError(`Couldn't reach the sign-in service (${String(e instanceof Error ? e.message : e)}).`);
   }
 
   let json: { error?: string; error_description?: string } & Partial<TokenResponse> = {};
@@ -79,9 +86,7 @@ async function postToken(cfg: AzureConfig, body: Record<string, string>): Promis
     json = {};
   }
   if (status < 200 || status >= 300) {
-    throw new Error(
-      `Token request failed (${status}): ${json.error ?? "unknown"} — ${(json.error_description ?? "").split("\n")[0]}`,
-    );
+    throw new TokenError(status, json.error ?? "unknown", (json.error_description ?? "").split("\n")[0]);
   }
   return json as TokenResponse;
 }
