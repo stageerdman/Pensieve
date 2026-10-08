@@ -49,5 +49,4 @@ Fix the OneDrive connect experience:
       sees "Summon Pensieve" → summons → first backup. Merge to main, close out.
 
 ## Status
-- 2026-10-08: Phase 1 implemented and green. Awaiting the Pensieve app client ID to wire
-  up port 8711 and verify end to end. (Account already cleared; app shows disconnected.)
+- 2026-10-08: Owner-verified end to end (Connect on :8711, picked the right OneDrive, saw "Pensieve isn't here yet.", summoned, first backup ran). Merged to main; closed.
