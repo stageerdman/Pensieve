@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Pensieve · Phone concepts</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100%;
+    background: hsl(222 24% 11%);
+    color: hsl(216 18% 84%);
+    font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: max(28px, env(safe-area-inset-top)) 22px calc(28px + env(safe-area-inset-bottom));
+  }
+  header { max-width: 640px; margin: 8px auto 30px; }
+  h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 6px; }
+  p.sub { margin: 0; color: hsl(218 12% 60%); font-size: 15px; line-height: 1.5; }
+  ul { list-style: none; padding: 0; margin: 0 auto; max-width: 640px; display: grid; gap: 14px; }
+  a.card {
+    display: block; text-decoration: none; color: inherit;
+    background: hsl(222 18% 17%);
+    border: 1px solid hsl(222 16% 21%);
+    border-radius: 16px; padding: 20px 22px;
+    transition: transform .18s cubic-bezier(.2,.8,.2,1), border-color .18s, box-shadow .18s;
+  }
+  a.card:hover, a.card:focus-visible {
+    transform: translateY(-2px);
+    border-color: hsl(215 85% 74% / .5);
+    box-shadow: 0 8px 30px hsl(218 100% 72% / .12);
+    outline: none;
+  }
+  .n { font-size: 13px; color: hsl(215 85% 74%); letter-spacing: .04em; text-transform: uppercase; }
+  .t { font-size: 19px; font-weight: 600; margin: 4px 0 6px; letter-spacing: -0.01em; }
+  .d { font-size: 14px; color: hsl(218 12% 60%); line-height: 1.5; }
+  footer { max-width: 640px; margin: 30px auto 0; font-size: 13px; color: hsl(218 12% 60%); line-height: 1.6; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Pensieve · Phone concepts</h1>
+    <p class="sub">Three magical spines for the phone. Capture a thought, summon a memory. Open each full-screen on your iPhone.</p>
+  </header>
+  <ul>
+    <li><a class="card" href="01-the-wand.html">
+      <div class="n">01</div>
+      <div class="t">The Wand</div>
+      <div class="d">Capture-first, one-thumb. Everything lives in a bottom command zone — a glowing wand conjures a thought, Accio sits beside it, the reel's magnified card rides at the top under your thumb.</div>
+    </a></li>
+    <li><a class="card" href="02-the-reel.html">
+      <div class="n">02</div>
+      <div class="t">The Reel</div>
+      <div class="d">Recall-first. The home <em>is</em> the flask reel — the centre flask magnified, neighbours shrinking on a current. Accio re-filters the same surface, so browsing and searching are one.</div>
+    </a></li>
+    <li><a class="card" href="03-the-pool.html">
+      <div class="n">03</div>
+      <div class="t">The Pool · Basin</div>
+      <div class="d">The most magical. A living pool of floating flasks. Pull up to pour a new thought, pull down to summon, and sync ripples across the water as a spell.</div>
+    </a></li>
+  </ul>
+  <footer>
+    All three share Pensieve's world — the Basin's blue-black stone, the magical-blue accent, gold, and the glass flasks. Pick what to keep; the next round narrows to the winner.
+  </footer>
+</body>
+</html>

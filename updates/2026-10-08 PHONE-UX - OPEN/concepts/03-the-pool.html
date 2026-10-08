@@ -1,0 +1,903 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Pensieve · The Pool</title>
+
+<!--
+  PENSIEVE — PHONE CONCEPT 03 · "THE POOL / BASIN"
+  ----------------------------------------------------------------------------
+  The soul of the desktop app, carried to the phone: home is a calm, living
+  dark pool where a few memory-flasks float, the important ones nearer & brighter.
+
+  Elemental gestures:
+    · PULL UP  (or tap the wand)  -> conjure a new flask -> Notes-smooth editor
+    · PULL DOWN (or tap Accio)     -> the summon bar; typing raises matches
+    · TAP a flask                  -> the reel lifts it out, magnified
+    · TAP the rune                 -> sync sweeps the pool as a spell
+
+  One file. Inline CSS + vanilla JS. SVG drawn inline. No network, no CDNs.
+  Animations are transform/opacity only; honours prefers-reduced-motion.
+-->
+
+<style>
+  /* ============================================================= TOKENS == */
+  :root{
+    /* Basin dark surface */
+    --surface:222 24% 11%;
+    --surface-sunken:222 22% 13%;
+    --surface-raised:222 18% 17%;
+    --text:216 18% 84%;
+    --text-muted:218 12% 60%;
+    --border:222 16% 21%;
+    --accent:215 85% 74%;
+    --accent-glow:218 100% 72%;
+    --gold:43 92% 55%;
+
+    --r:13px;
+    --font:-apple-system,"SF Pro Text",system-ui,sans-serif;
+    --ease:cubic-bezier(.22,1,.36,1);      /* soft overshoot-free spring */
+    --ease-out:cubic-bezier(.16,1,.3,1);
+  }
+
+  /* category hues (liquid) — resolved in JS too */
+  /* blue 212 70% 68% · purple 270 55% 74% · green 145 50% 62%
+     pink 330 60% 74% · orange 24 85% 68% · yellow 45 80% 66% · red 0 70% 70% */
+
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    margin:0;font-family:var(--font);
+    background:#0a0c10;
+    color:hsl(var(--text));
+    display:grid;place-items:center;
+    min-height:100dvh;
+    /* neutral desk backdrop so the phone reads as a device */
+    background:
+      radial-gradient(120% 90% at 50% -10%, #14171d 0%, #0a0c10 55%, #07080b 100%);
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ============================================================= PHONE === */
+  .phone{
+    position:relative;
+    width:390px;height:844px;
+    border-radius:54px;
+    background:#000;
+    padding:0;
+    box-shadow:
+      0 0 0 11px #1c1f26,
+      0 0 0 13px #2a2e37,
+      0 40px 90px -20px rgba(0,0,0,.8),
+      0 10px 30px rgba(0,0,0,.6);
+  }
+  .screen{
+    position:absolute;inset:0;
+    border-radius:54px;
+    overflow:hidden;
+    background:hsl(var(--surface));
+    isolation:isolate;
+  }
+  /* On a real phone: fill it, drop the device chrome */
+  @media (max-width:440px){
+    body{background:hsl(var(--surface))}
+    .phone{width:100vw;height:100dvh;border-radius:0;box-shadow:none}
+    .screen{border-radius:0}
+  }
+
+  /* status bar */
+  .statusbar{
+    position:absolute;top:0;left:0;right:0;height:54px;
+    padding:0 30px;z-index:40;
+    display:flex;align-items:center;justify-content:space-between;
+    font-size:15px;font-weight:600;letter-spacing:.2px;
+    color:hsl(var(--text));
+    padding-top:env(safe-area-inset-top);
+    pointer-events:none;
+  }
+  .statusbar .icons{display:flex;gap:7px;align-items:center}
+  .statusbar svg{display:block}
+  .home-indicator{
+    position:absolute;left:50%;bottom:9px;transform:translateX(-50%);
+    width:134px;height:5px;border-radius:3px;z-index:60;
+    background:hsl(var(--text) / .5);pointer-events:none;
+    margin-bottom:env(safe-area-inset-bottom);
+  }
+
+  /* ============================================================== POOL === */
+  .pool{
+    position:absolute;inset:0;z-index:10;
+    overflow:hidden;
+    touch-action:none;             /* we own the swipe gestures here */
+    background:
+      radial-gradient(130% 80% at 50% 18%, hsl(222 26% 15%) 0%, hsl(222 26% 12%) 42%, hsl(224 30% 8%) 100%);
+    transition:filter .5s var(--ease), opacity .4s ease;
+  }
+  /* caustics + mist: cheap, slow-drifting gradients at low opacity */
+  .pool::before{
+    content:"";position:absolute;inset:-20%;z-index:0;pointer-events:none;
+    background:
+      radial-gradient(40% 30% at 30% 35%, hsl(215 85% 74% / .06), transparent 60%),
+      radial-gradient(45% 35% at 72% 55%, hsl(218 100% 72% / .05), transparent 62%),
+      radial-gradient(35% 28% at 55% 80%, hsl(270 55% 74% / .04), transparent 60%);
+    animation:caustics 24s ease-in-out infinite alternate;
+  }
+  .pool::after{   /* mist at the waterline / bottom */
+    content:"";position:absolute;left:0;right:0;bottom:0;height:40%;z-index:0;
+    pointer-events:none;
+    background:linear-gradient(to top, hsl(224 30% 8% / .9), transparent);
+  }
+  @keyframes caustics{
+    0%{transform:translate3d(0,0,0) scale(1)}
+    100%{transform:translate3d(2%,-2%,0) scale(1.06)}
+  }
+  .pool.stir{animation:stir .5s var(--ease)}
+  @keyframes stir{ 30%{filter:brightness(1.12) saturate(1.1)} }
+
+  /* floating flask */
+  .flask-float{
+    position:absolute;z-index:2;
+    width:110px;height:150px;
+    margin:-75px 0 0 -55px;          /* centre on left/top anchor */
+    cursor:pointer;
+    will-change:transform;
+    transition:opacity .5s var(--ease), transform .55s var(--ease), filter .5s ease;
+  }
+  .flask-float .bob{
+    width:100%;height:100%;
+    animation:bob var(--dur,9s) ease-in-out var(--delay,0s) infinite;
+    transition:transform .5s var(--ease);
+  }
+  .flask-float:active .bob{transform:scale(.94)}
+  @keyframes bob{
+    0%,100%{transform:translateY(0) rotate(var(--rot,0deg))}
+    50%{transform:translateY(-11px) rotate(calc(var(--rot,0deg) * -1))}
+  }
+  .flask-float svg{width:100%;height:100%;display:block;overflow:visible}
+
+  /* memory thread + glass shine */
+  .thread{
+    fill:none;stroke:hsl(0 0% 100% / .5);stroke-width:1.4;stroke-linecap:round;
+    stroke-dasharray:2.5 9;
+    animation:thread 7s linear infinite;
+  }
+  @keyframes thread{to{stroke-dashoffset:-46}}
+
+  /* when summoning: pool recedes behind the results */
+  .pool.dim{filter:brightness(.52) saturate(.8) blur(1px)}
+  /* summon-match emphasis on floating flasks */
+  .flask-float.sink{opacity:.18;transform:scale(.8) translateY(14px);filter:saturate(.5)}
+  .flask-float.rise{opacity:1;filter:brightness(1.2)}
+
+  /* ============================================================== DOCK === */
+  .dock{
+    position:absolute;left:0;right:0;bottom:0;z-index:30;
+    display:flex;align-items:center;gap:12px;
+    padding:14px 20px calc(26px + env(safe-area-inset-bottom));
+    background:linear-gradient(to top, hsl(224 30% 8% / .85) 40%, transparent);
+    transition:transform .4s var(--ease), opacity .3s ease;
+  }
+  .accio{
+    flex:1;height:52px;border-radius:26px;border:1px solid hsl(var(--border));
+    background:hsl(var(--surface-raised) / .7);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    display:flex;align-items:center;gap:11px;padding:0 20px;
+    color:hsl(var(--text-muted));font-size:15.5px;
+    transition:transform .2s var(--ease), border-color .2s;
+  }
+  .accio:active{transform:scale(.97)}
+  .accio .mini-mic{margin-left:auto;color:hsl(var(--text-muted))}
+  .wand-btn{
+    width:62px;height:62px;border-radius:50%;flex:none;border:none;
+    background:
+      radial-gradient(120% 120% at 30% 25%, hsl(var(--accent-glow)), hsl(215 85% 62%) 70%);
+    color:#0a1830;display:grid;place-items:center;cursor:pointer;
+    box-shadow:0 10px 26px -6px hsl(var(--accent-glow) / .6), inset 0 1px 0 hsl(0 0% 100% / .5);
+    transition:transform .18s var(--ease), box-shadow .3s;
+  }
+  .wand-btn:active{transform:scale(.9)}
+  .wand-btn svg{width:28px;height:28px}
+
+  /* rune / sync, top-right */
+  .rune{
+    position:absolute;top:calc(14px + env(safe-area-inset-top));right:18px;z-index:45;
+    width:38px;height:38px;border-radius:50%;border:1px solid hsl(var(--border));
+    background:hsl(var(--surface-raised) / .55);backdrop-filter:blur(10px);
+    display:grid;place-items:center;cursor:pointer;color:hsl(var(--text-muted));
+    transition:transform .2s var(--ease), color .3s;
+  }
+  .rune:active{transform:scale(.88)}
+  .rune.spinning{color:hsl(var(--gold))}
+  .rune.spinning svg{animation:runespin 1.4s var(--ease)}
+  @keyframes runespin{to{transform:rotate(360deg)}}
+
+  /* first-run hint */
+  .hint{
+    position:absolute;left:0;right:0;bottom:118px;z-index:20;text-align:center;
+    font-size:12.5px;color:hsl(var(--text-muted) / .8);letter-spacing:.2px;
+    pointer-events:none;
+    animation:hintfade 6s var(--ease) forwards;
+  }
+  @keyframes hintfade{0%,70%{opacity:1}100%{opacity:0}}
+  .hint b{color:hsl(var(--accent) / .9);font-weight:600}
+
+  /* ======================================================== OVERLAYS ===== */
+  .layer{
+    position:absolute;inset:0;z-index:50;
+    display:flex;flex-direction:column;
+    background:hsl(var(--surface));
+    transform:translateY(100%);
+    transition:transform .46s var(--ease);
+    will-change:transform;
+  }
+  .layer.open{transform:translateY(0)}
+  .layer.from-top{transform:translateY(-100%)}
+  .layer.from-top.open{transform:translateY(0)}
+  .layer-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:calc(16px + env(safe-area-inset-top)) 18px 10px;
+    flex:none;
+  }
+  .lbtn{
+    background:none;border:none;color:hsl(var(--accent));font-size:16px;
+    font-family:var(--font);cursor:pointer;padding:6px 2px;
+  }
+  .lbtn.done{font-weight:600;color:hsl(var(--gold))}
+  .lbtn:active{opacity:.6}
+
+  /* ---------- CAPTURE (Apple-Notes-smooth editor) ---------- */
+  #capture{background:linear-gradient(180deg, hsl(222 24% 12%), hsl(222 26% 10%))}
+  .cap-title{
+    font-size:24px;font-weight:700;line-height:1.2;color:hsl(var(--text));
+    padding:6px 24px 2px;outline:none;
+  }
+  .cap-body{
+    flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    font-size:17px;line-height:1.55;color:hsl(var(--text) / .92);
+    padding:10px 24px 30px;outline:none;
+  }
+  [contenteditable]:empty:before{
+    content:attr(data-ph);color:hsl(var(--text-muted) / .6);pointer-events:none;
+  }
+  .accessory{
+    flex:none;display:flex;align-items:center;gap:14px;
+    padding:12px 22px calc(14px + env(safe-area-inset-bottom));
+    border-top:1px solid hsl(var(--border) / .7);
+    background:hsl(var(--surface-sunken) / .9);
+    color:hsl(var(--text-muted));font-size:13px;
+  }
+  .accessory .spacer{flex:1}
+  .icon-btn{
+    width:40px;height:40px;border-radius:50%;border:none;cursor:pointer;
+    background:hsl(var(--surface-raised));color:hsl(var(--text-muted));
+    display:grid;place-items:center;transition:transform .15s var(--ease), background .2s, color .2s;
+  }
+  .icon-btn:active{transform:scale(.9)}
+  .icon-btn.listening{
+    background:hsl(var(--accent) / .18);color:hsl(var(--accent-glow));
+    animation:pulse 1.1s ease-in-out infinite;
+  }
+  @keyframes pulse{50%{box-shadow:0 0 0 7px hsl(var(--accent) / .12)}}
+
+  /* ---------- SUMMON (Accio) ---------- */
+  #summon{
+    background:hsl(224 30% 8% / .72);
+    backdrop-filter:blur(22px) saturate(1.1);-webkit-backdrop-filter:blur(22px);
+  }
+  .summon-bar{
+    flex:none;display:flex;align-items:center;gap:12px;
+    margin:calc(12px + env(safe-area-inset-top)) 18px 6px;
+    padding:0 16px;height:54px;border-radius:27px;
+    background:hsl(var(--surface-raised));
+    border:1px solid hsl(var(--accent) / .35);
+    box-shadow:0 0 0 4px hsl(var(--accent) / .08);
+  }
+  .summon-bar input{
+    flex:1;background:none;border:none;outline:none;
+    color:hsl(var(--text));font-family:var(--font);font-size:17px;
+  }
+  .summon-bar input::placeholder{color:hsl(var(--text-muted) / .7)}
+  .summon-cancel{flex:none}
+  .results{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 14px 40px}
+  .result{
+    display:flex;align-items:center;gap:14px;
+    padding:11px 10px;border-radius:14px;cursor:pointer;
+    opacity:0;transform:translateY(16px);
+    animation:rise .5s var(--ease-out) forwards;
+  }
+  .result:active{background:hsl(var(--surface-raised) / .6)}
+  @keyframes rise{to{opacity:1;transform:none}}
+  .result .rflask{width:40px;height:54px;flex:none}
+  .result .rflask svg{width:100%;height:100%;display:block;overflow:visible}
+  .result .rtext{min-width:0}
+  .result .rtitle{font-size:16px;font-weight:600;color:hsl(var(--text));
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .result .rsnip{font-size:13px;color:hsl(var(--text-muted));margin-top:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .summon-empty{
+    text-align:center;color:hsl(var(--text-muted));font-size:14px;margin-top:60px;
+    opacity:0;animation:rise .4s var(--ease-out) forwards;
+  }
+
+  /* ---------- REEL (read, magnified) ---------- */
+  #reel{background:
+    radial-gradient(120% 70% at 50% 10%, hsl(222 26% 14%), hsl(224 30% 8%) 100%)}
+  .reel-scroll{
+    flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    scroll-snap-type:y mandatory;
+    padding-block:30vh;
+    scrollbar-width:none;
+  }
+  .reel-scroll::-webkit-scrollbar{display:none}
+  .reel-item{
+    scroll-snap-align:center;
+    display:flex;flex-direction:column;align-items:center;
+    padding:14px 26px;
+    transform:scale(.62);opacity:.4;
+    transition:transform .45s var(--ease), opacity .45s var(--ease);
+    will-change:transform,opacity;
+  }
+  .reel-item.focused{transform:scale(1);opacity:1}
+  .reel-flask{width:150px;height:200px;flex:none}
+  .reel-flask svg{width:100%;height:100%;display:block;overflow:visible}
+  .reel-meta{text-align:center;margin-top:8px;width:100%}
+  .reel-title{font-size:20px;font-weight:700;color:hsl(var(--text));line-height:1.25}
+  .reel-date{font-size:12.5px;color:hsl(var(--text-muted));margin-top:5px;letter-spacing:.3px}
+  .reel-content{
+    max-height:0;overflow:hidden;opacity:0;
+    font-size:15px;line-height:1.6;color:hsl(var(--text) / .82);
+    margin-top:0;transition:max-height .45s var(--ease), opacity .4s, margin-top .4s;
+    text-align:left;max-width:300px;
+  }
+  .reel-item.focused .reel-content{max-height:200px;opacity:1;margin-top:14px}
+
+  /* ---------- POUR CONFIRMATION ---------- */
+  .pour{
+    position:absolute;inset:0;z-index:70;display:none;
+    flex-direction:column;align-items:center;justify-content:center;gap:18px;
+    background:hsl(224 30% 8% / .82);backdrop-filter:blur(16px);
+    opacity:0;transition:opacity .3s ease;
+  }
+  .pour.show{display:flex;opacity:1}
+  .pour .vessel{width:160px;height:210px;position:relative}
+  .pour .vessel svg{width:100%;height:100%;display:block;overflow:visible}
+  .pour .liquid-g{transform:translateY(96px);transition:transform 1.05s var(--ease)}
+  .pour.filled .liquid-g{transform:translateY(0)}
+  .pour .cap-word{
+    font-size:17px;color:hsl(var(--text));font-weight:600;letter-spacing:.2px;
+    opacity:0;transform:translateY(8px);transition:opacity .4s .5s var(--ease), transform .4s .5s var(--ease);
+  }
+  .pour.filled .cap-word{opacity:1;transform:none}
+  .pour .glow-ring{
+    position:absolute;width:160px;height:160px;border-radius:50%;
+    background:radial-gradient(circle, hsl(var(--gold) / .4), transparent 68%);
+    opacity:0;transform:scale(.4);
+  }
+  .pour.filled .glow-ring{animation:pourglow 1.2s .55s var(--ease) forwards}
+  @keyframes pourglow{0%{opacity:.9;transform:scale(.4)}100%{opacity:0;transform:scale(1.9)}}
+
+  /* ---------- SYNC SPELL ---------- */
+  .spell{
+    position:absolute;inset:0;z-index:48;pointer-events:none;display:none;
+  }
+  .spell.cast{display:block}
+  .spell .ring{
+    position:absolute;top:30px;left:50%;
+    width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;
+    border:1.5px solid hsl(var(--gold) / .8);
+    box-shadow:0 0 24px hsl(var(--gold) / .6), inset 0 0 18px hsl(var(--gold) / .4);
+    opacity:0;
+  }
+  .spell.cast .ring{animation:sweep 1.5s var(--ease-out) forwards}
+  @keyframes sweep{
+    0%{opacity:.9;transform:scale(.3)}
+    100%{opacity:0;transform:scale(26)}
+  }
+  .spell .toast{
+    position:absolute;left:50%;top:70px;transform:translate(-50%,-6px);
+    display:flex;align-items:center;gap:8px;
+    padding:9px 16px;border-radius:20px;
+    background:hsl(var(--surface-raised) / .92);border:1px solid hsl(var(--gold) / .4);
+    color:hsl(var(--text));font-size:14px;font-weight:600;
+    opacity:0;
+  }
+  .spell.cast .toast{animation:toast 2.2s var(--ease) forwards}
+  @keyframes toast{
+    0%{opacity:0;transform:translate(-50%,-14px)}
+    15%,70%{opacity:1;transform:translate(-50%,0)}
+    100%{opacity:0;transform:translate(-50%,-10px)}
+  }
+  .spell .toast svg{color:hsl(var(--gold))}
+
+  /* flasks shimmer when the spell sweeps */
+  .pool.shimmer .flask-float .bob{animation:bob var(--dur,9s) ease-in-out var(--delay,0s) infinite, shimmer 1.5s var(--ease)}
+  @keyframes shimmer{30%{filter:brightness(1.6) drop-shadow(0 0 10px hsl(var(--gold) / .5))}}
+
+  /* ---------- reduced motion ---------- */
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001ms!important;animation-iteration-count:1!important;
+      transition-duration:.12s!important}
+    .pool::before{animation:none}
+    .thread{animation:none}
+  }
+</style>
+
+<div class="phone">
+  <div class="screen">
+
+    <!-- STATUS BAR -->
+    <div class="statusbar">
+      <span>9:41</span>
+      <span class="icons">
+        <!-- signal -->
+        <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2.5" width="3" height="9.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+        <!-- wifi -->
+        <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><path d="M8.5 2.2c2.9 0 5.6 1.1 7.6 3l-1.5 1.6A9 9 0 0 0 8.5 4.3 9 9 0 0 0 2.4 6.8L.9 5.2a11 11 0 0 1 7.6-3Z"/><path d="M8.5 6.4c1.7 0 3.3.7 4.5 1.8l-1.6 1.6a4 4 0 0 0-5.8 0L4 8.2a6.4 6.4 0 0 1 4.5-1.8Z"/><circle cx="8.5" cy="10.6" r="1.4"/></svg>
+        <!-- battery -->
+        <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x="1" y="1" width="21" height="10" rx="3" stroke="currentColor" stroke-opacity=".5"/><rect x="2.5" y="2.5" width="16" height="7" rx="1.8" fill="currentColor"/><rect x="23.5" y="4" width="1.8" height="4" rx="1" fill="currentColor" fill-opacity=".5"/></svg>
+      </span>
+    </div>
+
+    <!-- SYNC RUNE -->
+    <button class="rune" id="rune" aria-label="Sync">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>
+        <circle cx="12" cy="12" r="3.3"/>
+      </svg>
+    </button>
+
+    <!-- ============================== THE POOL (home) ============================== -->
+    <div class="pool" id="pool"></div>
+
+    <div class="hint" id="hint"><b>Pull up</b> to capture · <b>pull down</b> to summon</div>
+
+    <!-- THUMB DOCK -->
+    <div class="dock" id="dock">
+      <div class="accio" id="accioBtn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.2-3.2"/></svg>
+        <span>Accio… search your mind</span>
+        <svg class="mini-mic" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v3"/></svg>
+      </div>
+      <button class="wand-btn" id="wandBtn" aria-label="New thought">
+        <!-- magic wand + thought-thread -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 19L15 9"/>
+          <path d="M16.5 4.5l.9 1.9 1.9.9-1.9.9-.9 1.9-.9-1.9L13.7 7.3l1.9-.9.9-1.9Z" fill="currentColor"/>
+          <path d="M19 13l.5 1.1 1.1.5-1.1.5-.5 1.1-.5-1.1-1.1-.5 1.1-.5.5-1.1Z" fill="currentColor"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- SYNC SPELL overlay -->
+    <div class="spell" id="spell">
+      <div class="ring"></div>
+      <div class="toast">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        Synced across the basin
+      </div>
+    </div>
+
+    <!-- ============================== CAPTURE ============================== -->
+    <section class="layer from-top" id="capture" style="z-index:52">
+      <div class="layer-head">
+        <button class="lbtn" id="capCancel">Cancel</button>
+        <button class="lbtn done" id="capDone">Done</button>
+      </div>
+      <div class="cap-title" id="capTitle" contenteditable="true" data-ph="New thought"></div>
+      <div class="cap-body" id="capBody" contenteditable="true" data-ph="Pour it out…"></div>
+      <div class="accessory">
+        <button class="icon-btn" id="capMic" aria-label="Dictate">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v3"/></svg>
+        </button>
+        <span id="capStatus">Writing to a new flask</span>
+        <span class="spacer"></span>
+      </div>
+    </section>
+
+    <!-- ============================== SUMMON ============================== -->
+    <section class="layer from-top" id="summon" style="z-index:53">
+      <div class="summon-bar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="hsl(215 85% 74%)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.2-3.2"/></svg>
+        <input id="summonInput" placeholder="Summon a memory…" autocomplete="off" spellcheck="false" />
+        <button class="icon-btn summon-cancel" id="summonMic" aria-label="Dictate search" style="width:34px;height:34px;background:transparent">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v3"/></svg>
+        </button>
+        <button class="lbtn" id="summonCancel" style="padding:0 2px">Done</button>
+      </div>
+      <div class="results" id="results"></div>
+    </section>
+
+    <!-- ============================== REEL ============================== -->
+    <section class="layer" id="reel" style="z-index:51">
+      <div class="layer-head">
+        <button class="lbtn" id="reelClose">Pool</button>
+        <span style="font-size:13px;color:hsl(var(--text-muted))">The reel</span>
+        <span style="width:46px"></span>
+      </div>
+      <div class="reel-scroll" id="reelScroll"></div>
+    </section>
+
+    <!-- POUR CONFIRMATION -->
+    <div class="pour" id="pour">
+      <div class="vessel" id="pourVessel"></div>
+      <div class="cap-word">Poured into a flask</div>
+      <div class="glow-ring"></div>
+    </div>
+
+    <div class="home-indicator"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  /* =============================================================== DATA === */
+  // hue map (category -> HSL channels for the liquid)
+  const HUE = {
+    blue:"212 70% 68%", purple:"270 55% 74%", green:"145 50% 62%",
+    pink:"330 60% 74%", orange:"24 85% 68%", yellow:"45 80% 66%", red:"0 70% 70%"
+  };
+
+  // believable seed thoughts (journaling + ideas)
+  const MEM = [
+    { t:"A smaller, braver yes", cat:"yellow", shape:"potion", fill:.55, imp:true,
+      date:"Today", body:"Said no to the easy thing so I could say yes to the one that scares me. The fear is a compass — it points at what I actually want." },
+    { t:"Why I keep returning to the ocean", cat:"blue", shape:"round", fill:.8, imp:false,
+      date:"Yesterday", body:"It never asks me to be anything. Standing at the edge, the noise in my head drops to the same rhythm as the tide, and for a while I'm just weather passing through." },
+    { t:"What courage felt like today", cat:"red", shape:"vial", fill:.35, imp:true,
+      date:"Yesterday", body:"Smaller than I expected. Not a roar — just a dry mouth, a held breath, and one sentence said out loud that I'd been swallowing for a month." },
+    { t:"Morning pages: the fog lifts", cat:"green", shape:"erlenmeyer", fill:.65, imp:false,
+      date:"Mon", body:"Three pages of nonsense and then, on the fourth, the real thing finally showed up. I can't think my way to clarity — I have to write my way there." },
+    { t:"The song that stopped me on the street", cat:"purple", shape:"teardrop", fill:.45, imp:false,
+      date:"Sun", body:"A piano through an open window. I stood still for the whole verse. Rediscovered that I used to play — and that I quietly miss it." },
+    { t:"Dad's bread recipe, finally", cat:"orange", shape:"beaker", fill:.9, imp:false,
+      date:"Sat", body:"Got it word for word before it slipped away. The trick was never the flour — it was the waiting. He always said you can't hurry a good rise." },
+    { t:"Idea: a pocket for lost hours", cat:"pink", shape:"vial", fill:.25, imp:false,
+      date:"Fri", body:"An app that quietly shows you where the day actually went — not to judge, just to notice. Attention is the only currency I can't earn back." },
+    { t:"On wanting less", cat:"yellow", shape:"potion", fill:.5, imp:false,
+      date:"Thu", body:"Every object I let go of gave a little weight back to me. Maybe freedom isn't more choices — it's fewer things asking for my attention." },
+    { t:"The argument I won by listening", cat:"purple", shape:"round", fill:.6, imp:false,
+      date:"Wed", body:"I stopped trying to be right and just repeated back what they meant. The whole thing dissolved. We weren't disagreeing — we were afraid of different things." },
+    { t:"The map is not the mountain", cat:"blue", shape:"erlenmeyer", fill:.4, imp:false,
+      date:"Tue", body:"Spent all week planning the climb and none of it on the climb. The plan felt like progress. It wasn't. Start before you're ready." },
+    { t:"Three things that went right", cat:"green", shape:"beaker", fill:.55, imp:false,
+      date:"Oct 1", body:"Coffee on the balcony. A stranger's thank-you. The long email I'd dreaded turned out kind. Small, but I want to remember they were there." },
+    { t:"Grandmother's hands", cat:"orange", shape:"teardrop", fill:.7, imp:true,
+      date:"Sep 28", body:"Flour in the creases, steady even when everything else shook. I want to remember the shape of them before memory does its slow, careful erasing." },
+    { t:"Letter I'll never send", cat:"pink", shape:"potion", fill:.3, imp:false,
+      date:"Sep 25", body:"Wrote the whole thing to someone who moved on years ago. Not to send — to set down. Some doors you close gently just to hear the latch." },
+    { t:"The quiet before the climb", cat:"blue", shape:"vial", fill:.5, imp:false,
+      date:"Sep 22", body:"4am, headlamp, breath fogging. No summit yet, no view — just the particular silence of being awake while the world isn't. That's the part I came for." },
+  ];
+
+  /* ============================================================= FLASK === */
+  // six silhouettes, viewBox 0 0 100 150
+  const SHAPES = {
+    round:     "M42 14 L42 44 C42 50 31 53 27 67 C21 88 29 120 50 120 C71 120 79 88 73 67 C69 53 58 50 58 44 L58 14 Z",
+    erlenmeyer:"M40 14 L40 40 L22 116 C21 123 25 126 31 126 L69 126 C75 126 79 123 78 116 L60 40 L60 14 Z",
+    vial:      "M39 12 L39 20 C39 23 37 25 37 29 L37 118 C37 125 42 128 50 128 C58 128 63 125 63 118 L63 29 C63 25 61 23 61 20 L61 12 Z",
+    potion:    "M43 24 C43 31 41 33 37 41 C29 55 27 71 27 89 C27 110 37 124 50 124 C63 124 73 110 73 89 C73 71 71 55 63 41 C59 33 57 31 57 24 Z",
+    teardrop:  "M50 12 C56 42 79 65 79 93 C79 114 67 127 50 127 C33 127 21 114 21 93 C21 65 44 42 50 12 Z",
+    beaker:    "M32 20 L30 118 C30 124 34 127 40 127 L60 127 C66 127 70 124 70 118 L68 20 Z",
+  };
+  // a cork for the potion bottle
+  const CORKS = { potion:"M43 10 L57 10 L57 24 L43 24 Z" };
+
+  let idc = 0;
+  function darken(h){ // "212 70% 68%" -> darker bottom
+    const p = h.split(" ");
+    const L = Math.max(16, parseFloat(p[2]) * .5);
+    return `${p[0]} ${p[1]} ${L}%`;
+  }
+
+  // Build a flask SVG. opts: { imp, threadId }
+  function flaskSVG(cat, shape, fill, opts = {}){
+    const h = HUE[cat];
+    const id = "f" + (idc++);
+    const body = SHAPES[shape];
+    const cork = CORKS[shape];
+    const surfaceY = 126 - fill * 84;          // fill 0..1 -> y
+    const glow = opts.imp ? .55 : .3;
+    const topC = `hsl(${h} / .95)`;
+    const botC = `hsl(${darken(h)} / .95)`;
+
+    return `<svg viewBox="0 0 100 150" aria-hidden="true">
+      <defs>
+        <radialGradient id="g${id}" cx="50%" cy="62%" r="54%">
+          <stop offset="0%" stop-color="hsl(${h} / ${glow})"/>
+          <stop offset="68%" stop-color="hsl(${h} / 0)"/>
+        </radialGradient>
+        <linearGradient id="l${id}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${topC}"/>
+          <stop offset="100%" stop-color="${botC}"/>
+        </linearGradient>
+        <clipPath id="c${id}"><path d="${body}"/></clipPath>
+      </defs>
+
+      <ellipse cx="50" cy="82" rx="48" ry="52" fill="url(#g${id})"/>
+      ${opts.imp ? `<circle cx="50" cy="82" r="46" fill="none" stroke="hsl(var(--gold) / .22)" stroke-width="1"/>` : ``}
+
+      <g clip-path="url(#c${id})">
+        <rect x="0" y="${surfaceY}" width="100" height="150" fill="url(#l${id})"/>
+        <ellipse cx="50" cy="${surfaceY}" rx="42" ry="4" fill="hsl(${h} / .85)"/>
+        <path class="thread" d="M50 ${surfaceY+8} q 9 15 -2 29 q -9 14 2 28 q 8 12 -1 24"/>
+      </g>
+
+      <path d="${body}" fill="hsl(${h} / .05)" stroke="hsl(0 0% 100% / .22)" stroke-width="1.6"/>
+      ${cork ? `<path d="${cork}" fill="hsl(28 40% 55%)" stroke="hsl(0 0% 100% / .2)" stroke-width="1"/>` : ``}
+      <!-- glass shine -->
+      <path d="M36 28 q -7 34 1 72" fill="none" stroke="hsl(0 0% 100% / .22)" stroke-width="3.4" stroke-linecap="round"/>
+    </svg>`;
+  }
+
+  /* ========================================================= POOL RENDER == */
+  // curated float layout — important ones nearer (bigger) & higher
+  const FLOAT = [
+    { i:0,  x:50, y:30, s:1.18, rot:1.5 },   // braver yes (gold, important)
+    { i:2,  x:76, y:24, s:1.0,  rot:-2 },    // courage (red, important)
+    { i:1,  x:24, y:40, s:1.02, rot:2 },     // ocean
+    { i:4,  x:72, y:56, s:.86,  rot:-1.5 },  // song (purple)
+    { i:3,  x:30, y:62, s:.9,   rot:1 },     // morning pages
+    { i:6,  x:50, y:70, s:.72,  rot:-2 },    // pocket idea (pink)
+    { i:5,  x:82, y:78, s:.64,  rot:2 },     // bread (orange)
+  ];
+
+  const pool = document.getElementById("pool");
+  function renderPool(){
+    pool.querySelectorAll(".flask-float").forEach(n => n.remove());
+    FLOAT.forEach((f, k) => {
+      const m = MEM[f.i];
+      const el = document.createElement("div");
+      el.className = "flask-float";
+      el.dataset.idx = f.i;
+      el.style.left = f.x + "%";
+      el.style.top  = f.y + "%";
+      el.style.transform = `scale(${f.s})`;
+      el.style.opacity = m.imp ? 1 : .82;
+      el.innerHTML = `<div class="bob" style="--dur:${8 + k*0.9}s;--delay:${k*-1.3}s;--rot:${f.rot}deg">
+        ${flaskSVG(m.cat, m.shape, m.fill, { imp:m.imp })}</div>`;
+      el.addEventListener("click", () => openReel(f.i));
+      pool.appendChild(el);
+    });
+  }
+  renderPool();
+
+  /* =========================================================== HELPERS ==== */
+  const $ = s => document.querySelector(s);
+  const prefersReduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function openLayer(id){ $(id).classList.add("open"); }
+  function closeLayer(id){ $(id).classList.remove("open"); }
+
+  /* ============================================================ CAPTURE === */
+  const capture = "#capture";
+  const capTitle = $("#capTitle"), capBody = $("#capBody"), capStatus = $("#capStatus");
+
+  function openCapture(){
+    capTitle.textContent = ""; capBody.textContent = "";
+    capStatus.textContent = "Writing to a new flask";
+    openLayer(capture);
+    // let the slide settle, then focus (keyboard appears on a real phone)
+    setTimeout(() => capBody.focus(), prefersReduced ? 0 : 360);
+  }
+  $("#wandBtn").addEventListener("click", openCapture);
+  $("#capCancel").addEventListener("click", () => closeLayer(capture));
+
+  $("#capDone").addEventListener("click", () => {
+    const hasText = (capTitle.textContent + capBody.textContent).trim().length > 0;
+    closeLayer(capture);
+    if (hasText) setTimeout(pourConfirm, 120);
+  });
+
+  // mic -> listening -> drops in sample dictation
+  const DICTATION = "I keep circling the same question: what would I do if I trusted myself a little more? Writing it down so I stop losing it.";
+  function wireMic(btn, onText, listenMs = 1500){
+    btn.addEventListener("click", () => {
+      if (btn.classList.contains("listening")){ btn.classList.remove("listening"); return; }
+      btn.classList.add("listening");
+      setTimeout(() => { btn.classList.remove("listening"); onText(); }, prefersReduced ? 200 : listenMs);
+    });
+  }
+  wireMic($("#capMic"), () => {
+    capStatus.textContent = "Transcribed · you can edit";
+    if (!capTitle.textContent.trim()) capTitle.textContent = "Trusting myself a little more";
+    capBody.textContent = (capBody.textContent ? capBody.textContent + " " : "") + DICTATION;
+  });
+
+  /* =========================================================== POUR ====== */
+  const pour = $("#pour"), pourVessel = $("#pourVessel");
+  function pourConfirm(){
+    // a fresh flask in the accent/gold family, filling up
+    pourVessel.innerHTML = pourFlaskSVG();
+    pour.classList.add("show");
+    requestAnimationFrame(() => requestAnimationFrame(() => pour.classList.add("filled")));
+    setTimeout(() => {
+      pour.classList.remove("show");
+      setTimeout(() => pour.classList.remove("filled"), 300);
+    }, prefersReduced ? 700 : 1900);
+  }
+  // special pour vessel with a translatable liquid group (.liquid-g)
+  function pourFlaskSVG(){
+    const h = HUE.yellow; // a warm, special pour (touch of gold)
+    const body = SHAPES.round;
+    return `<svg viewBox="0 0 100 150" aria-hidden="true">
+      <defs>
+        <radialGradient id="pg" cx="50%" cy="62%" r="54%">
+          <stop offset="0%" stop-color="hsl(${h} / .5)"/><stop offset="68%" stop-color="hsl(${h} / 0)"/>
+        </radialGradient>
+        <linearGradient id="pl" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="hsl(${h} / .95)"/><stop offset="100%" stop-color="hsl(${darken(h)} / .95)"/>
+        </linearGradient>
+        <clipPath id="pc"><path d="${body}"/></clipPath>
+      </defs>
+      <ellipse cx="50" cy="82" rx="48" ry="52" fill="url(#pg)"/>
+      <g clip-path="url(#pc)">
+        <g class="liquid-g">
+          <rect x="0" y="46" width="100" height="104" fill="url(#pl)"/>
+          <ellipse cx="50" cy="46" rx="42" ry="4" fill="hsl(${h} / .9)"/>
+        </g>
+      </g>
+      <path d="${body}" fill="hsl(${h} / .05)" stroke="hsl(0 0% 100% / .24)" stroke-width="1.6"/>
+      <path d="M36 28 q -7 34 1 72" fill="none" stroke="hsl(0 0% 100% / .22)" stroke-width="3.4" stroke-linecap="round"/>
+    </svg>`;
+  }
+
+  /* =========================================================== SUMMON ==== */
+  const summon = "#summon";
+  const summonInput = $("#summonInput"), results = $("#results");
+
+  function openSummon(){
+    openLayer(summon);
+    pool.classList.add("dim");
+    summonInput.value = "";
+    renderResults("");
+    setTimeout(() => summonInput.focus(), prefersReduced ? 0 : 360);
+  }
+  function closeSummon(){
+    closeLayer(summon);
+    pool.classList.remove("dim");
+    clearFloatFilter();
+    summonInput.blur();
+  }
+  $("#accioBtn").addEventListener("click", openSummon);
+  $("#summonCancel").addEventListener("click", closeSummon);
+
+  function renderResults(q){
+    const query = q.trim().toLowerCase();
+    const matches = MEM
+      .map((m, i) => ({ m, i }))
+      .filter(({m}) => !query || (m.t + " " + m.body).toLowerCase().includes(query));
+
+    // stir the pool + raise/sink the floating flasks that match
+    if (query){
+      pool.classList.remove("stir"); void pool.offsetWidth; pool.classList.add("stir");
+      const matchIdx = new Set(matches.map(x => x.i));
+      pool.querySelectorAll(".flask-float").forEach(el => {
+        const idx = +el.dataset.idx;
+        el.classList.toggle("rise", matchIdx.has(idx));
+        el.classList.toggle("sink", !matchIdx.has(idx));
+      });
+    } else {
+      clearFloatFilter();
+    }
+
+    if (!matches.length){
+      results.innerHTML = `<div class="summon-empty">Nothing surfaces for “${q.trim()}”.<br>Try another word.</div>`;
+      return;
+    }
+    results.innerHTML = matches.map(({m, i}, k) => `
+      <div class="result" style="animation-delay:${Math.min(k,8)*45}ms" data-idx="${i}">
+        <div class="rflask">${flaskSVG(m.cat, m.shape, m.fill, { imp:m.imp })}</div>
+        <div class="rtext">
+          <div class="rtitle">${m.t}</div>
+          <div class="rsnip">${m.date} · ${m.body.slice(0, 60)}…</div>
+        </div>
+      </div>`).join("");
+
+    results.querySelectorAll(".result").forEach(r =>
+      r.addEventListener("click", () => { closeSummon(); openReel(+r.dataset.idx); }));
+  }
+  function clearFloatFilter(){
+    pool.querySelectorAll(".flask-float").forEach(el => el.classList.remove("rise","sink"));
+  }
+  summonInput.addEventListener("input", e => renderResults(e.target.value));
+
+  // speech-to-search
+  wireMic($("#summonMic"), () => { summonInput.value = "ocean"; renderResults("ocean"); }, 1300);
+
+  /* ============================================================= REEL ==== */
+  const reel = "#reel";
+  const reelScroll = $("#reelScroll");
+  let reelItems = [];
+
+  function buildReel(){
+    reelScroll.innerHTML = MEM.map((m, i) => `
+      <div class="reel-item" data-idx="${i}">
+        <div class="reel-flask">${flaskSVG(m.cat, m.shape, m.fill, { imp:m.imp })}</div>
+        <div class="reel-meta">
+          <div class="reel-title">${m.t}</div>
+          <div class="reel-date">${m.date}</div>
+          <div class="reel-content">${m.body}</div>
+        </div>
+      </div>`).join("");
+    reelItems = [...reelScroll.querySelectorAll(".reel-item")];
+  }
+  buildReel();
+
+  function openReel(idx){
+    openLayer(reel);
+    // jump to the tapped flask, then focus it
+    requestAnimationFrame(() => {
+      const el = reelItems[idx];
+      el.scrollIntoView({ block:"center" });
+      updateFocus();
+      setTimeout(updateFocus, 60);
+    });
+  }
+  $("#reelClose").addEventListener("click", () => closeLayer(reel));
+
+  // focus = item nearest the scroll viewport centre
+  let rafPending = false;
+  function updateFocus(){
+    const box = reelScroll.getBoundingClientRect();
+    const mid = box.top + box.height / 2;
+    let best = null, bestD = 1e9;
+    reelItems.forEach(el => {
+      const r = el.getBoundingClientRect();
+      const d = Math.abs((r.top + r.height / 2) - mid);
+      if (d < bestD){ bestD = d; best = el; }
+    });
+    reelItems.forEach(el => el.classList.toggle("focused", el === best));
+  }
+  reelScroll.addEventListener("scroll", () => {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(() => { updateFocus(); rafPending = false; });
+  }, { passive:true });
+
+  /* ============================================================= SYNC ==== */
+  const spell = $("#spell"), rune = $("#rune");
+  let syncing = false;
+  rune.addEventListener("click", () => {
+    if (syncing) return;
+    syncing = true;
+    rune.classList.add("spinning");
+    spell.classList.remove("cast"); void spell.offsetWidth; spell.classList.add("cast");
+    pool.classList.remove("shimmer"); void pool.offsetWidth; pool.classList.add("shimmer");
+    setTimeout(() => {
+      spell.classList.remove("cast");
+      pool.classList.remove("shimmer");
+      rune.classList.remove("spinning");
+      syncing = false;
+    }, prefersReduced ? 600 : 2300);
+  });
+
+  /* ======================================================== GESTURES ===== */
+  // Pull UP on the pool -> capture · Pull DOWN -> summon.
+  // Pointer-based so it works with mouse (desktop frame) and touch (phone).
+  let gx = 0, gy = 0, gActive = false, gMoved = false;
+  pool.addEventListener("pointerdown", e => {
+    gActive = true; gMoved = false; gx = e.clientX; gy = e.clientY;
+  });
+  pool.addEventListener("pointermove", e => {
+    if (!gActive) return;
+    if (Math.abs(e.clientY - gy) > 10) gMoved = true;
+  });
+  pool.addEventListener("pointerup", e => {
+    if (!gActive) return;
+    gActive = false;
+    const dy = e.clientY - gy, dx = e.clientX - gx;
+    if (Math.abs(dy) < 55 || Math.abs(dx) > Math.abs(dy)) return; // not a clean vertical swipe
+    if (dy < 0) openCapture();   // pull up = conjure
+    else        openSummon();    // pull down = summon
+  });
+  pool.addEventListener("pointercancel", () => { gActive = false; });
+
+  // keyboard niceties for the desktop frame
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape"){
+      closeLayer(capture); closeSummon(); closeLayer(reel);
+    }
+  });
+})();
+</script>
