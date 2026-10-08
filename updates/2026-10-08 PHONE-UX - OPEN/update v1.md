@@ -42,3 +42,34 @@ deep blue-black stone, the magical-blue accent and gold. Magical AND highly prac
 
 ## Live status
 - 2026-10-08: Update opened. Phase 1 concepts commissioned from 3 parallel UX experts.
+- 2026-10-08: Three concepts delivered (Wand / Reel / Pool). **Owner chose The Wand.**
+- 2026-10-08: **Phase 2 — The Wand v2** built (`concepts/01-the-wand-v2.html`),
+  resolving the owner's round-2 feedback:
+  - **Reel reliability** — uniform fixed-height slots; focus derived from scroll
+    position (`round(scrollTop / slotH)`) not from live geometry, so it can never
+    flip to the wrong note or land misaligned ("a bit too up"). Magnification
+    happens inside a fixed box (transform/opacity + flask resize) → zero reflow
+    while scrolling. "Reel reliability, Wand UX."
+  - **Tap a displayed memory → full screen**; the same surface reads + writes.
+  - **Arc-style tabs** via a Cards action: open notes side-by-side, swipe a card
+    up to close, double-tap Cards → home.
+  - **Autosave** (no "Pour in" button); a quiet "Saved" tick.
+  - **Chrome hides while typing** — the command strip + top bar slide away; return
+    on blur. Reading mode keeps the strip (so Accio is reachable from a note).
+  - **Left-thumb scrollable action strip** — 3 visible (Wand · Accio · Sync),
+    swipe for Cards / Home. Wand stays the glowing hero (tap = new, hold = speak).
+  - **Desktop icons reused exactly** — Accio = the Sigil (spins while summoning),
+    Sync = the lemniscate SyncRune (flows while syncing, colour by state). Flasks,
+    wand, and mic kept from v1.
+  - **Sync** — tap casts the spell; press-hold opens a desktop-faithful details
+    panel (title/last-backed-up/space/account/Back up now/Sign out); when RED
+    (offline) a single tap opens it immediately. A faint prototype-only demo dot
+    row cycles synced/reminder/offline so the states are testable.
+  - Verified: self-contained (no network), JS parses, all `#id` refs resolve, and
+    a headless jsdom boot drives open-memory / Accio / sync-cast / wand-new /
+    autosave without errors (only `matchMedia` + `scrollTo` are jsdom gaps, both
+    native in mobile Safari).
+  - Still a **prototype with seed data** (writing/search/sync simulated). Wiring to
+    the real vault + the PWA-CAPTURE runtime is Phase 3.
+- **Next:** owner tries v2 on-device and names anything to refine before we lock the
+  spec and start the real build.
