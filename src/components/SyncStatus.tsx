@@ -26,7 +26,7 @@ export function SyncStatus({
   titleFor: (noteId: string) => string;
   pending?: boolean; // unsynced local changes — shows the quiet "ready to back up" nudge
 }) {
-  const { ui, connect, disconnect, syncNow, keepLocal, refreshInfo } = sync;
+  const { ui, connect, disconnect, syncNow, summon, keepLocal, refreshInfo } = sync;
   const [open, setOpen] = useState(false);
   const [justSynced, setJustSynced] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -68,17 +68,19 @@ export function SyncStatus({
   const syncing = ui.phase === "syncing";
   const disconnected = ui.phase === "disconnected";
   const errored = ui.phase === "error";
-  const connected = !disconnected; // signed in (even while a transfer errors)
+  const needsSummon = ui.phase === "needs-summon"; // connected, but not set up on this drive
+  const connected = !disconnected; // signed in (even while a transfer errors / awaits summon)
   // The quiet nudge only shows at rest and never right after a sync.
   const nudge = pending && !justSynced && (ui.phase === "idle" || ui.phase === "synced");
 
   const transfer = syncing ? ui.transfer : null;
   const level = transfer && transfer.totalItems > 0 ? transfer.doneItems / transfer.totalItems : 0;
 
-  const dot = ui.phase === "conflicts" ? "bg-warn" : null;
+  // An attention dot for anything that needs the owner to act.
+  const dot = ui.phase === "conflicts" || needsSummon ? "bg-warn" : null;
   // Glyph colour + flow are CSS, keyed by data-state (see .sync-icon in index.css).
   // ONLY "syncing" flows; everything else is still (colour alone carries meaning).
-  const glyphState = disconnected || errored
+  const glyphState = disconnected || errored || needsSummon
     ? "offline"
     : syncing
       ? "syncing"
@@ -92,6 +94,8 @@ export function SyncStatus({
     switch (ui.phase) {
       case "disconnected":
         return "Back up your thoughts.";
+      case "needs-summon":
+        return "Pensieve isn't here yet.";
       case "syncing":
         return transfer?.direction === "down" ? "Catching up…" : "Backing up…";
       case "error":
@@ -113,6 +117,9 @@ export function SyncStatus({
     if (disconnected) {
       return ui.error ?? "Keep a copy of every note and recording in your OneDrive — it syncs quietly in the background.";
     }
+    if (needsSummon) {
+      return "This OneDrive has no Pensieve folder yet. Summon Pensieve to create it and back up your notes here. Nothing syncs until you do.";
+    }
     if (errored) {
       if (ui.errorKind === "expired") return "Your notes are safe on this Mac — reconnect to keep backing up.";
       if (ui.errorKind === "offline") return "Your notes are safe on this Mac. We'll back up once OneDrive is reachable.";
@@ -125,6 +132,7 @@ export function SyncStatus({
 
   const primary = (): { label: string; hint?: string; onClick: () => void } | null => {
     if (disconnected) return { label: "Connect OneDrive", onClick: () => void connect() };
+    if (needsSummon) return { label: "Summon Pensieve", onClick: () => void summon() };
     if (errored) {
       // Expired genuinely needs a fresh sign-in; a transient/other error just needs
       // another attempt — don't push people through OAuth for a network blip.
@@ -137,7 +145,7 @@ export function SyncStatus({
   };
   const p = primary();
 
-  const showMeter = connected && !errored && !!ui.quota;
+  const showMeter = connected && !errored && !needsSummon && !!ui.quota;
 
   return (
     <div ref={ref} className="relative">

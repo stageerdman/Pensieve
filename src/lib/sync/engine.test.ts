@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type { GraphClient, GraphFetchOptions } from "./graph";
 import type { LocalVault, LocalNoteInfo, WriteTimes } from "./vault";
-import { EMPTY_SYNC_STATE, type SyncState } from "./types";
+import { EMPTY_SYNC_STATE, RemoteRootMissingError, type SyncState } from "./types";
 import { sync, resolveKeepLocal } from "./engine";
+import { createRoot } from "./adapter";
 
 // ---- in-memory LocalVault ----
 class MemVault implements LocalVault {
@@ -47,6 +48,7 @@ interface RemoteFile {
 class FakeDrive {
   files = new Map<string, RemoteFile>();
   tombstones: Array<{ name: string; id: string; ver: number }> = [];
+  rootExists = true; // the Pensieve folder is present on this drive
   ver = 0;
   idc = 0;
   clock = 1_000_000;
@@ -96,8 +98,13 @@ class FakeDrive {
     const handle = (path: string, opts: GraphFetchOptions = {}) => {
       const method = (opts.method ?? "GET").toUpperCase();
 
-      // ensureRoot
-      if (path === ROOT && method === "GET") return resp(200, { id: "root" });
+      // root existence probe (remoteRootExists)
+      if (path === ROOT && method === "GET") return self.rootExists ? resp(200, { id: "root" }) : resp(404);
+      // createRoot ("Summon Pensieve")
+      if (path === "/me/drive/root/children" && method === "POST") {
+        self.rootExists = true;
+        return resp(201, { id: "root" });
+      }
 
       // delta
       if (path.includes(":/delta") || path.startsWith("https://fake/delta")) {
@@ -160,6 +167,25 @@ describe("sync engine", () => {
     vault = new MemVault();
     drive = new FakeDrive();
     graph = drive.client();
+  });
+
+  it("refuses to sync (and never creates the folder) when the remote root is missing", async () => {
+    drive.rootExists = false;
+    vault.edit("x", "# X\n", 5);
+    await expect(sync(graph, vault)).rejects.toBeInstanceOf(RemoteRootMissingError);
+    // Nothing was pushed — sync stopped at the gate.
+    expect(drive.files.size).toBe(0);
+  });
+
+  it("summon = createRoot then sync: after summoning, the first backup goes through", async () => {
+    drive.rootExists = false;
+    vault.edit("x", "# X\n", 5);
+    // Mirror createEngine().summon(): create the folder, then run the normal sync.
+    await createRoot(graph);
+    const r = await sync(graph, vault);
+    expect(drive.rootExists).toBe(true);
+    expect(r.pushed).toEqual(["x"]);
+    expect(drive.files.get("x.md")?.content).toBe("# X\n");
   });
 
   it("initial pull downloads remote notes into the empty vault", async () => {

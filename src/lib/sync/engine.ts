@@ -13,15 +13,17 @@ import { tauriVault } from "./vault";
 import { ConflictError, type NoteSyncRecord, type SyncProgress, type SyncState } from "./types";
 import type { RemoteItem } from "./types";
 import {
+  createRoot,
   delta,
   deleteNote,
   downloadNote,
-  ensureRoot,
   getAccount,
   getQuota,
   noteIdFromName,
+  remoteRootExists,
   uploadNote,
 } from "./adapter";
+import { RemoteRootMissingError } from "./types";
 import type { SyncAccount, SyncQuota } from "./types";
 import { getAccessToken, clearTokenCache } from "./tokens";
 import { log } from "../logger";
@@ -67,7 +69,11 @@ export async function sync(
   vault: LocalVault,
   onProgress?: (p: SyncProgress) => void,
 ): Promise<SyncResult> {
-  await ensureRoot(graph);
+  // Gate on the remote root EXISTING — never auto-create it. If the user connected a
+  // OneDrive that was never set up for Pensieve, we stop here and let the UI offer an
+  // explicit "Summon Pensieve" (createRoot) rather than silently scattering a Pensieve
+  // folder onto a drive they may have picked by mistake.
+  if (!(await remoteRootExists(graph))) throw new RemoteRootMissingError();
   const state: SyncState = await vault.readState();
   if (!state.notes) state.notes = {};
   const result = emptyResult();
@@ -257,6 +263,9 @@ export async function resolveKeepLocal(graph: GraphClient, vault: LocalVault, no
 /** A sync engine wired to the real keychain token provider + on-disk vault. */
 export function createEngine(): {
   run(onProgress?: (p: SyncProgress) => void): Promise<SyncResult>;
+  /** Create the remote Pensieve folder, then run the first sync. The explicit
+   *  "Summon Pensieve" action for a drive that wasn't set up yet. */
+  summon(onProgress?: (p: SyncProgress) => void): Promise<SyncResult>;
   keepLocal(noteId: string): Promise<void>;
   /** The signed-in account + drive quota, for the sync panel. */
   info(): Promise<{ account: SyncAccount; quota: SyncQuota }>;
@@ -265,6 +274,10 @@ export function createEngine(): {
   const vault = tauriVault();
   return {
     run: (onProgress) => sync(graph, vault, onProgress),
+    summon: async (onProgress) => {
+      await createRoot(graph);
+      return sync(graph, vault, onProgress);
+    },
     keepLocal: (noteId: string) => resolveKeepLocal(graph, vault, noteId),
     async info() {
       const [account, quota] = await Promise.all([getAccount(graph), getQuota(graph)]);

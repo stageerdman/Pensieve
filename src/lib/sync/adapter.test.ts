@@ -1,12 +1,14 @@
 import { describe, it, expect } from "vitest";
 import type { GraphClient, GraphFetchOptions } from "./graph";
 import {
+  createRoot,
   deleteNote,
   delta,
   downloadNote,
   listNotes,
   noteIdFromName,
   remoteName,
+  remoteRootExists,
   uploadNote,
 } from "./adapter";
 import { ConflictError } from "./types";
@@ -43,6 +45,35 @@ describe("name mapping", () => {
     expect(noteIdFromName("abc-123.md")).toBe("abc-123");
     expect(noteIdFromName("abc-123.meta.json")).toBe(null);
     expect(noteIdFromName("folder")).toBe(null);
+  });
+});
+
+describe("remoteRootExists", () => {
+  it("is true on 200", async () => {
+    const { graph } = fakeGraph([() => ({ status: 200, body: { id: "root" } })]);
+    expect(await remoteRootExists(graph)).toBe(true);
+  });
+  it("is false on 404 (not set up on this drive)", async () => {
+    const { graph } = fakeGraph([() => ({ status: 404 })]);
+    expect(await remoteRootExists(graph)).toBe(false);
+  });
+  it("throws on any other status (a real error, not 'missing')", async () => {
+    const { graph } = fakeGraph([() => ({ status: 500, body: "boom" })]);
+    await expect(remoteRootExists(graph)).rejects.toThrow(/root check failed \(500\)/);
+  });
+});
+
+describe("createRoot", () => {
+  it("POSTs the folder under the drive root", async () => {
+    const { graph, calls } = fakeGraph([() => ({ status: 201, body: { id: "root" } })]);
+    await createRoot(graph);
+    expect(calls[0].path).toBe("/me/drive/root/children");
+    expect(calls[0].opts.method).toBe("POST");
+    expect(JSON.parse(calls[0].opts.body as string).name).toBe("Pensieve");
+  });
+  it("treats 409 (already exists) as success", async () => {
+    const { graph } = fakeGraph([() => ({ status: 409 })]);
+    await expect(createRoot(graph)).resolves.toBeUndefined();
   });
 });
 
