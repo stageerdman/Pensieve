@@ -117,6 +117,13 @@ Owner testing surfaced two bugs and a feature request; built on branch
 - **Tests:** `tokens.test.ts` (9, classification + single-flight + persist safety),
   engine progress emission (+2), `SyncStatus.test.tsx` (7, every state + honest
   copy + right action). Full suite 294/294, tsc + web build clean.
+- **Hotfix (2026-10-08):** a nameless `/delta` tombstone (deleted item with only an
+  id + deleted facet, no `name`) crashed every sync with
+  `undefined is not an object (t.endsWith)`. `noteIdFromName` is now null-safe and
+  the engine maps a nameless tombstone back to its local note by remote id so the
+  deletion still propagates. Regression test added; suite 295/295.
+- **✅ Owner-verified (2026-10-08): "all works. perfect."** Merged to `main`, native
+  `.app` rebuilt + installed. This follow-up is complete; folder → CLOSED.
 
 ## ✅ Update complete (2026-10-07)
 All five phases built and verified. The desktop sync spine is live: keychain-backed
