@@ -57,6 +57,35 @@ export interface NoteSyncRecord {
   syncedAt: number;
 }
 
+/** The signed-in OneDrive account (from Graph /me) — shown in the sync panel so
+ *  the owner can confirm which account their thoughts back up to. */
+export interface SyncAccount {
+  email: string;
+  displayName?: string;
+}
+
+/** Drive storage, in bytes (from Graph /me/drive quota). */
+export interface SyncQuota {
+  usedBytes: number;
+  totalBytes: number;
+}
+
+/** A live snapshot of what's transferring right now, emitted by the engine as it
+ *  works so the panel can show "3 of 12 · morning-pages.md" and fill the flask.
+ *  Item count is the headline; `bytes` is the current item's size, shown only as a
+ *  quiet tail when a big media file dominates. */
+export interface SyncProgress {
+  /** down = pulling from OneDrive, up = pushing to it. */
+  direction: "down" | "up";
+  /** The note id / file name currently being transferred. */
+  name: string;
+  /** How many items are done (this item is `doneItems + 1` of `totalItems`). */
+  doneItems: number;
+  totalItems: number;
+  /** Size of the current item in bytes, if known. */
+  bytes?: number;
+}
+
 /** The whole sync state, persisted beside the vault (not a note). */
 export interface SyncState {
   /** The /delta cursor (@odata.deltaLink) — resume incremental pulls from here. */

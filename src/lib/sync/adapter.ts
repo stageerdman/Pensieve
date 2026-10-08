@@ -10,8 +10,23 @@
 
 import type { GraphClient } from "./graph";
 import { REMOTE_ROOT } from "./config";
-import { ConflictError, type RemoteItem } from "./types";
+import { ConflictError, type RemoteItem, type SyncAccount, type SyncQuota } from "./types";
 import { log } from "../logger";
+
+/** The signed-in account (Graph /me). Personal accounts expose the address as
+ *  `userPrincipalName`; `mail` is often null, so fall back to it. */
+export async function getAccount(graph: GraphClient): Promise<SyncAccount> {
+  const me = await graph.json<{ displayName?: string; mail?: string; userPrincipalName?: string }>(
+    "/me?$select=displayName,mail,userPrincipalName",
+  );
+  return { email: me.mail || me.userPrincipalName || "", displayName: me.displayName };
+}
+
+/** Drive storage totals (Graph /me/drive quota), in bytes. */
+export async function getQuota(graph: GraphClient): Promise<SyncQuota> {
+  const drive = await graph.json<{ quota?: { total?: number; used?: number } }>("/me/drive?$select=quota");
+  return { usedBytes: drive.quota?.used ?? 0, totalBytes: drive.quota?.total ?? 0 };
+}
 
 /** A note id → its remote file name. */
 export const remoteName = (noteId: string): string => `${noteId}.md`;

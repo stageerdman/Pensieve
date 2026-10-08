@@ -10,7 +10,7 @@ let stored: string | null = "rt-initial";
 const secretSet = vi.fn(async (_key: string, v: string) => {
   stored = v;
 });
-const secretGet = vi.fn(async () => stored);
+const secretGet = vi.fn(async (_key?: string) => stored);
 
 vi.mock("./oauth", () => ({ refreshAccessToken: (...a: unknown[]) => refreshAccessToken(...a) }));
 vi.mock("./native", () => ({
