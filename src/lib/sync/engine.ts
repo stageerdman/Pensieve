@@ -83,7 +83,12 @@ export async function sync(
 
   for (const item of items) {
     if (item.folder) continue; // structural entry, not a note
-    const id = noteIdFromName(item.name);
+    // A /delta tombstone can lack a name (only id + deleted facet) — map it back to
+    // the local note by the remote id we recorded, so the deletion still propagates.
+    let id = noteIdFromName(item.name);
+    if (!id && item.deleted) {
+      id = Object.keys(state.notes).find((k) => state.notes[k].remoteId === item.id) ?? null;
+    }
     if (!id) continue;
     const rec = state.notes[id];
     const localUpdatedAt = localBefore.get(id);

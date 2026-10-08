@@ -253,6 +253,31 @@ describe("sync engine", () => {
     expect(vault.state.notes.a).toBeUndefined();
   });
 
+  it("handles a nameless /delta tombstone without crashing and still deletes locally", async () => {
+    // Regression: a deleted item can arrive from /delta with only an id + deleted
+    // facet (no `name`) — noteIdFromName(undefined) used to throw
+    // "undefined is not an object (t.endsWith)" and abort the whole sync.
+    drive.put("a.md", "# A\n");
+    await sync(graph, vault);
+    const remoteId = vault.state.notes.a.remoteId;
+
+    // A delta feed whose only change is a nameless tombstone for note "a".
+    const tombGraph: GraphClient = {
+      fetch: graph.fetch,
+      json: async <T>(path: string, opts?: GraphFetchOptions) => {
+        if (path.includes(":/delta") || path.startsWith("https://fake/delta")) {
+          return { value: [{ id: remoteId, deleted: {} }], "@odata.deltaLink": "https://fake/delta?v=99" } as T;
+        }
+        return graph.json<T>(path, opts);
+      },
+    };
+
+    const r = await sync(tombGraph, vault);
+    expect(r.pulledDeletes).toEqual(["a"]);
+    expect(vault.notes.has("a")).toBe(false);
+    expect(vault.state.notes.a).toBeUndefined();
+  });
+
   it("resolveKeepLocal makes the local copy win on the next sync", async () => {
     vault.edit("x", "# X\n", 5);
     await sync(graph, vault);

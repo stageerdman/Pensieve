@@ -30,9 +30,10 @@ export async function getQuota(graph: GraphClient): Promise<SyncQuota> {
 
 /** A note id → its remote file name. */
 export const remoteName = (noteId: string): string => `${noteId}.md`;
-/** A remote file name → the note id (null if it isn't one of our note files). */
-export function noteIdFromName(name: string): string | null {
-  return name.endsWith(".md") ? name.slice(0, -3) : null;
+/** A remote file name → the note id (null if it isn't one of our note files, or
+ *  there's no name — a /delta tombstone can arrive with only an id + deleted facet). */
+export function noteIdFromName(name: string | null | undefined): string | null {
+  return typeof name === "string" && name.endsWith(".md") ? name.slice(0, -3) : null;
 }
 
 const enc = (s: string) => encodeURIComponent(s);
