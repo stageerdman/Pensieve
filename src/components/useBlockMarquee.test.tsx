@@ -30,11 +30,12 @@ function setup() {
   document.body.appendChild(wrap);
 
   const setSelection = vi.fn();
+  const focus = vi.fn();
   const editor = {
     setSelection,
-    prosemirrorView: { dom: editorDom, state: {}, dispatch: vi.fn(), posAtDOM: () => 0 } as never,
+    prosemirrorView: { dom: editorDom, state: {}, dispatch: vi.fn(), posAtDOM: () => 0, focus } as never,
   };
-  return { wrap, rows, editor, setSelection };
+  return { wrap, rows, editor, setSelection, focus };
 }
 
 function Harness({ editor, wrap }: { editor: Parameters<typeof useBlockMarquee>[0]; wrap: HTMLElement }) {
@@ -63,6 +64,26 @@ describe("useBlockMarquee", () => {
 
     fireEvent.pointerUp(window, { clientX: 40, clientY: 50 });
     expect(document.querySelector(".pensieve-marquee")).toBeNull(); // band cleaned up
+  });
+
+  it("focuses the editor when a marquee ends, so Delete/Copy reach ProseMirror", () => {
+    const { wrap, editor, focus } = setup();
+    render(<Harness editor={editor} wrap={wrap} />);
+
+    fireEvent.pointerDown(wrap, { clientX: 20, clientY: 5, button: 0 });
+    fireEvent.pointerMove(window, { clientX: 40, clientY: 50 }); // real drag a→c
+    fireEvent.pointerUp(window, { clientX: 40, clientY: 50 });
+    expect(focus).toHaveBeenCalled();
+  });
+
+  it("does NOT focus the editor on a plain click (no drag)", () => {
+    const { wrap, editor, focus } = setup();
+    render(<Harness editor={editor} wrap={wrap} />);
+
+    fireEvent.pointerDown(wrap, { clientX: 20, clientY: 5, button: 0 });
+    fireEvent.pointerMove(window, { clientX: 22, clientY: 7 }); // < DRAG_THRESHOLD
+    fireEvent.pointerUp(window, { clientX: 22, clientY: 7 });
+    expect(focus).not.toHaveBeenCalled();
   });
 
   it("shrinks the band selection when dragged back up", () => {
