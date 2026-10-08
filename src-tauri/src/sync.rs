@@ -3,53 +3,89 @@
 // The portable sync logic (Graph calls, delta, conflict detection) lives in the
 // web layer (src/lib/sync). Only three things genuinely need the native shell,
 // and they live here:
-//   * secret storage in the OS keychain (refresh token + Azure app config),
+//   * secret storage in a local file (refresh token + Azure app config),
 //   * a one-shot OAuth loopback server to catch the auth-code redirect,
 //   * opening the system browser for the consent screen.
 //
 // Everything else the TS layer does over `fetch`.
+//
+// Why a file and not the OS keychain: macOS gates keychain reads by the accessing
+// binary's code-signing identity, so a locally-built (ad-hoc-signed) app gets a
+// password prompt on EVERY launch once the signature changes between builds. That is
+// unacceptable for a local-first single-user app, and the future iPhone capture app
+// won't have a desktop keychain at all. So secrets live in a plain JSON file in the
+// app-data dir — owner-only (0600) on unix. This is the same trust level as the notes,
+// which are already plaintext `.md` on disk. Crucially the file sits NEXT TO the vault,
+// not inside it, so the refresh token is never swept into the OneDrive backup.
 
 use std::collections::HashMap;
+use std::fs;
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::path::PathBuf;
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use keyring::Entry;
 use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Manager};
 
-// One keychain "service" namespace for all Pensieve secrets; the `key` arg is the
-// account within it (e.g. "refresh-token", "azure-config").
-const KEYCHAIN_SERVICE: &str = "xyz.erdman.pensieve.sync";
+// Serializes read-modify-write of the secrets file so concurrent set/delete calls
+// can't clobber each other (each `invoke` runs on its own thread).
+static STORE_LOCK: Mutex<()> = Mutex::new(());
 
-fn entry(key: &str) -> Result<Entry, String> {
-    Entry::new(KEYCHAIN_SERVICE, key).map_err(|e| e.to_string())
+// All Pensieve secrets live in one small JSON map keyed by the `key` arg
+// (e.g. "refresh-token", "azure-config"), in the app-data dir beside `vault/`.
+fn secrets_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join("secrets.json"))
 }
 
-/// Read a secret from the OS keychain. Missing → Ok(None), never an error, so the
-/// TS "are we connected?" check is a plain null test.
-#[tauri::command]
-pub fn secret_get(key: String) -> Result<Option<String>, String> {
-    match entry(&key)?.get_password() {
-        Ok(v) => Ok(Some(v)),
-        Err(keyring::Error::NoEntry) => Ok(None),
+fn read_store(app: &AppHandle) -> Result<HashMap<String, String>, String> {
+    match fs::read_to_string(secrets_path(app)?) {
+        Ok(s) => serde_json::from_str(&s).map_err(|e| e.to_string()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(HashMap::new()),
         Err(e) => Err(e.to_string()),
     }
 }
 
-/// Store (or replace) a secret in the OS keychain.
+fn write_store(app: &AppHandle, map: &HashMap<String, String>) -> Result<(), String> {
+    let p = secrets_path(app)?;
+    let json = serde_json::to_string(map).map_err(|e| e.to_string())?;
+    fs::write(&p, json).map_err(|e| e.to_string())?;
+    // Owner-only so another local account can't read the refresh token.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&p, fs::Permissions::from_mode(0o600));
+    }
+    Ok(())
+}
+
+/// Read a secret from the local store. Missing → Ok(None), never an error, so the
+/// TS "are we connected?" check is a plain null test.
 #[tauri::command]
-pub fn secret_set(key: String, value: String) -> Result<(), String> {
-    entry(&key)?.set_password(&value).map_err(|e| e.to_string())
+pub fn secret_get(app: AppHandle, key: String) -> Result<Option<String>, String> {
+    let _g = STORE_LOCK.lock().map_err(|e| e.to_string())?;
+    Ok(read_store(&app)?.get(&key).cloned())
+}
+
+/// Store (or replace) a secret in the local store.
+#[tauri::command]
+pub fn secret_set(app: AppHandle, key: String, value: String) -> Result<(), String> {
+    let _g = STORE_LOCK.lock().map_err(|e| e.to_string())?;
+    let mut map = read_store(&app)?;
+    map.insert(key, value);
+    write_store(&app, &map)
 }
 
 /// Delete a secret. Absent is success (idempotent sign-out).
 #[tauri::command]
-pub fn secret_delete(key: String) -> Result<(), String> {
-    match entry(&key)?.delete_credential() {
-        Ok(()) => Ok(()),
-        Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(e.to_string()),
-    }
+pub fn secret_delete(app: AppHandle, key: String) -> Result<(), String> {
+    let _g = STORE_LOCK.lock().map_err(|e| e.to_string())?;
+    let mut map = read_store(&app)?;
+    map.remove(&key);
+    write_store(&app, &map)
 }
 
 #[derive(Deserialize)]

@@ -11,19 +11,19 @@ function requireTauri(what: string): void {
   }
 }
 
-/** Read a secret from the OS keychain (null if absent). */
+/** Read a secret from the native secret store (null if absent). */
 export async function secretGet(key: string): Promise<string | null> {
-  requireTauri("Keychain access");
+  requireTauri("Secret store access");
   return invoke<string | null>("secret_get", { key });
 }
 
 export async function secretSet(key: string, value: string): Promise<void> {
-  requireTauri("Keychain access");
+  requireTauri("Secret store access");
   await invoke<void>("secret_set", { key, value });
 }
 
 export async function secretDelete(key: string): Promise<void> {
-  requireTauri("Keychain access");
+  requireTauri("Secret store access");
   await invoke<void>("secret_delete", { key });
 }
 
