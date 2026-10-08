@@ -76,5 +76,29 @@ deep blue-black stone, the magical-blue accent and gold. Magical AND highly prac
   single canonical phone concept. `index.html` redirects to it for a clean URL.
   Served on the LAN (`python3 -m http.server` on the concepts folder) so the owner
   can open it on the iPhone at `http://<mac-lan-ip>:8080/`.
-- **Next:** owner tries the Wand on-device and names anything to refine before we lock the
+- 2026-10-08: **Round-3 refinements on The Wand** (owner's on-device notes), all built:
+  1. **Reel is now a fixed magnifier.** The glass (`.lens`) holds still at a focal
+     line; small uniform cards scroll *under* it; whatever sits under the glass is
+     enlarged with title + snippet. Focus = `round(scrollTop/slot)` → deterministic,
+     snaps. Drag on the glass scrolls the reel; tap it opens the focused memory.
+  2. **No fake chrome.** Removed the pretend status bar (clock/signal/wifi/battery),
+     the sync "demo" state switcher, the invented storage meter / "5m ago" / transfer
+     counts. Sync now reflects the **real** device: `navigator.onLine` + online/offline
+     events drive synced ↔ reminder (unsaved edits) ↔ offline; the cast is a real action.
+  3. **Thumb-wheel menu (bottom-right).** One big centre action + two small ones on an
+     arc around the right thumb; drag to rotate (spring-snaps into detents); tap any to
+     run it. Wand is the glowing default centre; hold Wand = speak, hold Sync = details.
+     Order cycles: Search · New(Wand) · Sync · Cards · Home; a label names the centre.
+  4. **Accio opens the keyboard** — synchronous `.focus()` inside the tap (iOS raises
+     the keyboard, caret ready); bar rides above the keyboard via a live `--kb`
+     visualViewport inset. Removed the spinning-sigil animation (the "two bars" jitter).
+  5. **Cards has an explicit "Back"** button that returns to the menu/home.
+  6. **Menu always present**, vanishing only while the keyboard is up (title/body/Accio
+     focused) — the single `.typing` rule now hides the wheel.
+  - Verified: headless jsdom boot drives reel-tap, wheel taps (Accio/Sync/Cards/Wand),
+    Accio keyboard+typing-hide, sync cast, Cards Back, and lens drag/tap — all clean,
+    all `#id` refs resolve, 12 slots + 5 wheel actions render.
+  - Still a prototype with seed data (writing/search/dictation simulated); sync cast is
+    animated. Real vault + OneDrive wiring remains Phase 3.
+- **Next:** owner re-tests on device and names anything to refine before we lock the
   spec and start the real build (Phase 3) on the PWA-CAPTURE runtime.

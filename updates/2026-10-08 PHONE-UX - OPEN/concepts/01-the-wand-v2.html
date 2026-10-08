@@ -2,16 +2,24 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
-<title>Pensieve — The Wand · v2</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#0a0e14" />
+<title>Pensieve — The Wand</title>
 <style>
 /* ============================================================================
-   PENSIEVE · PHONE · "THE WAND" v2
-   Capture-first, one-thumb. Chosen direction, with the owner's round-2 notes:
-   · rock-solid reel (uniform slots → deterministic focus, never flips/misaligns)
-   · tap a memory → full-screen · Arc-style tabs (Cards) · autosave (no "Pour in")
-   · chrome hides while typing · left-thumb scrollable action strip (3 visible)
-   · desktop icons for Accio (Sigil) + Sync (lemniscate rune) · sync details panel
+   PENSIEVE · PHONE · "THE WAND"  (v3 — owner round-3 notes)
+   · Reel = a STATIONARY magnifier. The potions scroll underneath a fixed lens;
+     whatever sits under the glass is enlarged with its details. The lens never
+     moves. (round(scrollTop/slot) → deterministic focus, snaps into place.)
+   · No fake chrome. No pretend clock / signal / storage meters / demo switches.
+     Sync reflects the *real* device state (online/offline) + what you've edited.
+   · Menu = a thumb-WHEEL anchored bottom-right. One big action in the middle,
+     two small ones on the arc; scroll to rotate what's centred (snaps); tap any
+     to run it. Always present — vanishes only while the keyboard is up.
+   · Accio opens the bar AND the keyboard, caret ready.
+   · Cards has an explicit way back to the menu.
    Self-contained: no network, no fonts, no CDNs. SVG inline.
    ========================================================================== */
 
@@ -27,7 +35,8 @@
   --spring:cubic-bezier(.22,1,.36,1);
   --spring-soft:cubic-bezier(.34,1.4,.64,1);
   --ease:cubic-bezier(.4,0,.2,1);
-  --slot:112px;            /* uniform reel slot height — the reliability keystone */
+  --slot:84px;             /* small-card slot height — the reel's reliable grid  */
+  --kb:0px;                /* live keyboard inset (visualViewport)               */
 }
 *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 html,body{ margin:0; height:100%; }
@@ -56,186 +65,144 @@ body{
     radial-gradient(90% 60% at 95% 8%, hsl(var(--cat-purple)/.08), transparent 50%),
     radial-gradient(140% 90% at 50% 120%, hsl(218 60% 20% /.35), transparent 60%);
 }
-
-/* ---- Status bar + home indicator ---- */
-.statusbar{
-  position:absolute; top:0; left:0; right:0; height:54px; padding:0 30px; padding-top:env(safe-area-inset-top);
-  display:flex; align-items:center; justify-content:space-between; z-index:60; pointer-events:none;
-  font-size:15px; font-weight:600; letter-spacing:.2px;
-}
-.statusbar .right{ display:flex; gap:7px; align-items:center; }
-.statusbar svg{ display:block; }
 .home-indicator{
   position:absolute; bottom:8px; left:50%; transform:translateX(-50%);
   width:134px; height:5px; border-radius:3px; background:hsl(var(--text)/.5); z-index:200; pointer-events:none;
 }
 
 /* ===========================================================================
-   HOME — header + the flask reel
+   HOME — header + the flask reel (a fixed magnifier)
    =========================================================================== */
-.app{ position:absolute; inset:0; display:flex; flex-direction:column; padding-top:calc(54px + env(safe-area-inset-top)); }
-.header{ padding:8px 24px 4px; display:flex; align-items:baseline; justify-content:space-between; flex:none; }
+.app{ position:absolute; inset:0; display:flex; flex-direction:column;
+  padding-top:calc(14px + env(safe-area-inset-top)); }
+.header{ padding:6px 24px 6px; display:flex; align-items:baseline; justify-content:space-between; flex:none; }
 .header h1{ margin:0; font-size:25px; font-weight:700; letter-spacing:-.4px; }
 .header .count{ font-size:13px; color:hsl(var(--text-muted)); font-variant-numeric:tabular-nums; }
 
-/* The reel. Uniform-height slots are the whole trick: focus = round(scrollTop/slot),
-   so it is deterministic and CAN NOT flip to a neighbour or land "a bit too up".
-   Magnification happens INSIDE a fixed box (transform/opacity + flask resize), so
-   nothing ever reflows during a scroll. */
+/* The reel scrolls small, uniform cards. The magnification is NOT on the cards —
+   it lives in a separate, fixed .lens overlay. So the glass holds still while the
+   bottles drift under it. */
 .reel{
   flex:1; min-height:0; overflow-y:auto; overflow-x:hidden;
   scroll-snap-type:y mandatory; -webkit-overflow-scrolling:touch;
-  scroll-padding-top:0; padding:0 16px; scrollbar-width:none;
+  padding:0 16px; scrollbar-width:none;
+  -webkit-mask-image:linear-gradient(180deg, transparent 0, #000 7%, #000 92%, transparent 100%);
+          mask-image:linear-gradient(180deg, transparent 0, #000 7%, #000 92%, transparent 100%);
 }
 .reel::-webkit-scrollbar{ display:none; }
-.slot{
-  height:var(--slot); scroll-snap-align:start; scroll-snap-stop:always;
-  display:flex; align-items:center;
-}
+.slot{ height:var(--slot); scroll-snap-align:start; scroll-snap-stop:always; display:flex; align-items:center; }
 .card{
-  width:100%; display:flex; align-items:center; gap:15px;
-  padding:12px 15px; border-radius:var(--radius);
-  border:1px solid transparent; background:hsl(var(--surface-raised)/0);
-  transform:scale(.9); opacity:.46; transform-origin:left center;
-  transition:transform .46s var(--spring), opacity .4s var(--ease),
-             background .46s var(--ease), border-color .46s var(--ease), box-shadow .46s var(--ease);
-  cursor:pointer; will-change:transform,opacity;
+  width:100%; display:flex; align-items:center; gap:13px; padding:9px 13px; border-radius:14px;
+  opacity:.5; transition:opacity .35s var(--ease); cursor:pointer;
 }
-.card .flask{ width:42px; height:56px; flex:none; transition:width .46s var(--spring), height .46s var(--spring); }
-.card .body{ min-width:0; flex:1; }
-.card .title{ font-size:15px; font-weight:600; letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:font-size .46s var(--spring); }
-.card .meta{ font-size:12px; color:hsl(var(--text-muted)); margin-top:2px; }
-.card .snippet{
-  margin-top:7px; font-size:13.5px; line-height:1.45; color:hsl(var(--text-muted));
-  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
-  max-height:0; opacity:0; transition:max-height .46s var(--spring), opacity .3s var(--ease), margin .46s var(--spring);
+.card .flask{ width:36px; height:48px; flex:none; }
+.card .title{ font-size:14.5px; font-weight:600; letter-spacing:-.1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.card .meta{ font-size:11.5px; color:hsl(var(--text-muted)); margin-top:1px; }
+.card.under{ opacity:0; }        /* the one directly beneath the glass — hidden, the lens shows it */
+.card:active{ filter:brightness(1.1); }
+
+/* THE LENS — a fixed magnifying glass. Never scrolls. Shows whatever is under it. */
+.lens{
+  position:absolute; left:14px; right:14px; z-index:40; cursor:pointer;
+  display:flex; align-items:flex-start; gap:15px; padding:15px 17px; border-radius:19px;
+  background:linear-gradient(180deg, hsl(var(--surface-raised)/.96), hsl(var(--surface-sunken)/.96));
+  border:1px solid hsl(var(--accent)/.26);
+  box-shadow:0 22px 56px -22px rgba(0,0,0,.9), inset 0 1px 0 hsl(var(--text)/.06),
+             0 0 40px -14px hsl(var(--accent-glow)/.3);
+  touch-action:none; -webkit-user-select:none; user-select:none;
 }
-/* The focused (top) card — magnified, lit, shows a slice of content. */
-.slot.active .card{
-  transform:scale(1); opacity:1;
-  background:linear-gradient(180deg, hsl(var(--surface-raised)/.92), hsl(var(--surface-sunken)/.92));
-  border-color:hsl(var(--border));
-  box-shadow:0 18px 50px -24px rgba(0,0,0,.85), inset 0 1px 0 hsl(var(--text)/.05);
+.lens::after{  /* the faint rim of the glass */
+  content:""; position:absolute; inset:0; border-radius:19px; pointer-events:none;
+  box-shadow:inset 0 0 0 1px hsl(var(--accent-glow)/.14);
 }
-.slot.active .card .flask{ width:62px; height:82px; }
-.slot.active .card .title{ font-size:18px; white-space:normal; }
-.slot.active .card .snippet{ max-height:44px; opacity:1; margin-top:7px; }
-.card:active{ filter:brightness(1.08); }
+.lens .flask{ width:60px; height:80px; flex:none; margin-top:1px; }
+.lens .body{ min-width:0; flex:1; }
+.lens .title{ font-size:18px; font-weight:700; letter-spacing:-.2px; line-height:1.25; }
+.lens .meta{ font-size:12px; color:hsl(var(--text-muted)); margin-top:3px; }
+.lens .snippet{
+  margin-top:8px; font-size:13.5px; line-height:1.45; color:hsl(var(--text-muted));
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+}
+.lens.pop .lens-inner{ animation:lensPop .3s var(--spring); }
+.lens-inner{ display:contents; }
+@keyframes lensPop{ 0%{ opacity:.45; transform:translateY(3px) scale(.985); } 100%{ opacity:1; transform:none; } }
+.lens.empty{ justify-content:center; align-items:center; color:hsl(var(--text-muted)); border-style:dashed; box-shadow:none; }
+.lens:active{ filter:brightness(1.05); }
 
 /* ===========================================================================
-   LEFT-THUMB COMMAND STRIP — 3 visible, swipe for more. Wand · Accio · Sync.
+   THE THUMB-WHEEL — anchored bottom-right. Big centre + small arc; scroll to
+   rotate (snaps); tap any action to run it. Hidden only while typing.
    =========================================================================== */
-.dock{
-  position:absolute; left:0; right:0; bottom:0; z-index:90;
-  padding:0 0 calc(18px + env(safe-area-inset-bottom)); pointer-events:none;
-  background:linear-gradient(180deg, transparent, hsl(var(--surface)/.82) 46%, hsl(var(--surface)) 82%);
-  padding-top:64px;
-  transition:transform .36s var(--spring), opacity .28s var(--ease);
+.wheel{ position:absolute; inset:0; z-index:90; pointer-events:none;
+  transition:transform .34s var(--spring), opacity .26s var(--ease); }
+.wheel::before{  /* a soft radial glow pooling in the thumb corner */
+  content:""; position:absolute; right:-40px; bottom:-40px; width:300px; height:300px;
+  background:radial-gradient(circle at 70% 70%, hsl(var(--surface)/.72), transparent 62%); pointer-events:none;
 }
-/* While typing, the whole command zone slides away — distraction-free writing. */
-.app-root.typing .dock{ transform:translateY(130%); opacity:0; pointer-events:none !important; }
-
-.strip{
-  pointer-events:auto;
-  display:flex; align-items:center; gap:13px;
-  padding:6px 18px; width:252px;            /* ≈ 3 actions → the rest is a swipe away */
-  overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none;
-  -webkit-overflow-scrolling:touch;
-}
-.strip::-webkit-scrollbar{ display:none; }
-.act{
-  flex:none; scroll-snap-align:center;
-  width:60px; height:60px; border-radius:50%;
-  border:1px solid hsl(var(--border)); background:hsl(var(--surface-raised)/.72);
+.app-root.typing .wheel{ transform:translate(40%,60%); opacity:0; pointer-events:none !important; }
+.wact{
+  position:absolute; width:58px; height:58px; margin:-29px 0 0 -29px; border-radius:50%;
+  border:1px solid hsl(var(--border)); background:hsl(var(--surface-raised)/.82);
   backdrop-filter:blur(22px) saturate(1.3); -webkit-backdrop-filter:blur(22px) saturate(1.3);
-  color:hsl(var(--text-muted));
-  display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative;
-  box-shadow:0 10px 28px -14px rgba(0,0,0,.7);
-  transition:transform .3s var(--spring-soft), color .3s var(--ease), border-color .3s var(--ease);
+  color:hsl(var(--text-muted)); display:flex; align-items:center; justify-content:center;
+  cursor:pointer; pointer-events:auto; box-shadow:0 10px 28px -14px rgba(0,0,0,.7);
+  will-change:left,top,transform,opacity;
 }
-.act:active{ transform:scale(.88); }
-.act .lbl{ position:absolute; bottom:-16px; font-size:10px; letter-spacing:.3px; color:hsl(var(--text-muted)/.8); }
-/* The wand is the hero — bigger, glowing, luminous core. */
-.act.wand{
-  width:66px; height:66px; border:none; color:#fff;
+.wact.hero{ border:none; color:#fff;
   background:radial-gradient(130% 130% at 30% 25%, hsl(var(--accent)) 0%, hsl(var(--accent-glow)) 55%, hsl(215 80% 52%) 100%);
-  box-shadow:0 0 0 1px hsl(var(--accent-glow)/.5), 0 14px 34px -8px hsl(var(--accent-glow)/.6),
-             inset 0 2px 4px hsl(0 0% 100%/.4), inset 0 -6px 12px hsl(215 80% 40%/.5);
-}
-.act.wand::before{
-  content:""; position:absolute; inset:-9px; border-radius:50%;
-  background:radial-gradient(circle, hsl(var(--accent-glow)/.35), transparent 70%);
-  animation:breathe 4s var(--ease) infinite; z-index:-1;
-}
-.act.wand.holding{ transform:scale(1.07); box-shadow:0 0 0 1px hsl(var(--accent-glow)/.6), 0 0 44px 4px hsl(var(--accent-glow)/.55); }
-@keyframes breathe{ 0%,100%{ transform:scale(.85); opacity:.5; } 50%{ transform:scale(1.1); opacity:.9; } }
-/* Sync rune colour by state (desktop-faithful). */
-.act[data-state="reminder"]{ color:hsl(var(--gold)); border-color:hsl(var(--gold)/.4); }
-.act[data-state="syncing"]{ color:hsl(var(--gold)); border-color:hsl(var(--gold)/.5); }
-.act[data-state="offline"]{ color:hsl(var(--danger)); border-color:hsl(var(--danger)/.45); }
-.act .tab-count{
-  position:absolute; top:-3px; right:-3px; min-width:17px; height:17px; padding:0 4px;
-  border-radius:9px; background:hsl(var(--accent)); color:#07101f; font-size:11px; font-weight:700;
-  display:flex; align-items:center; justify-content:center; border:2px solid hsl(var(--surface));
-}
+  box-shadow:0 0 0 1px hsl(var(--accent-glow)/.5), 0 14px 34px -8px hsl(var(--accent-glow)/.55),
+             inset 0 2px 4px hsl(0 0% 100%/.4), inset 0 -6px 12px hsl(215 80% 40%/.5); }
+.wact.hero::before{ content:""; position:absolute; inset:-9px; border-radius:50%;
+  background:radial-gradient(circle, hsl(var(--accent-glow)/.3), transparent 70%); z-index:-1; opacity:0; transition:opacity .3s; }
+.wact.hero.centered::before{ opacity:1; animation:breathe 4s var(--ease) infinite; }
+.wact.holding{ filter:brightness(1.12); }
+@keyframes breathe{ 0%,100%{ transform:scale(.85); opacity:.5; } 50%{ transform:scale(1.12); opacity:.9; } }
+.wact[data-state="reminder"]{ color:hsl(var(--gold)); border-color:hsl(var(--gold)/.4); }
+.wact[data-state="syncing"]{ color:hsl(var(--gold)); border-color:hsl(var(--gold)/.5); }
+.wact[data-state="offline"]{ color:hsl(var(--danger)); border-color:hsl(var(--danger)/.45); }
+.wact .tab-count{
+  position:absolute; top:-3px; right:-3px; min-width:17px; height:17px; padding:0 4px; border-radius:9px;
+  background:hsl(var(--accent)); color:#07101f; font-size:11px; font-weight:700;
+  display:flex; align-items:center; justify-content:center; border:2px solid hsl(var(--surface)); }
+.wheel-label{
+  position:absolute; z-index:91; pointer-events:none; font-size:11px; font-weight:600; letter-spacing:.4px;
+  color:hsl(var(--text)/.75); text-transform:uppercase; transform:translate(-50%,-50%);
+  text-shadow:0 1px 6px hsl(var(--surface)/.9); transition:opacity .2s; }
 
-/* ===========================================================================
-   SYNC — the lemniscate rune (same as desktop) + its flow animation
-   =========================================================================== */
-.lemniscate{
-  fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round;
-  stroke-dasharray:.575 .425; stroke-dashoffset:-.2125;
-}
-.act[data-state="syncing"] .lemniscate{ animation:sync-flow 1.1s linear infinite; filter:drop-shadow(0 0 1.5px hsl(var(--gold)/.9)); }
+/* lemniscate (sync rune) */
+.lemniscate{ fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round;
+  stroke-dasharray:.575 .425; stroke-dashoffset:-.2125; }
+.wact[data-state="syncing"] .lemniscate{ animation:sync-flow 1.1s linear infinite; filter:drop-shadow(0 0 1.5px hsl(var(--gold)/.9)); }
 @keyframes sync-flow{ from{ stroke-dashoffset:-.2125; } to{ stroke-dashoffset:.7875; } }
 
-/* ---- Sync details panel (press-hold; or a single tap when red) ---- */
+/* ---- Sync details panel (press-hold sync; or a tap when offline) ---- */
 .sync-panel{
-  position:absolute; left:16px; bottom:calc(96px + env(safe-area-inset-bottom)); z-index:120;
-  width:280px; border-radius:16px; border:1px solid hsl(var(--border));
+  position:absolute; right:16px; bottom:calc(120px + env(safe-area-inset-bottom)); z-index:120;
+  width:286px; border-radius:16px; border:1px solid hsl(var(--border));
   background:hsl(var(--surface-raised)/.98); backdrop-filter:blur(26px); -webkit-backdrop-filter:blur(26px);
-  padding:14px; box-shadow:0 24px 60px -18px rgba(0,0,0,.85);
-  transform:translateY(12px) scale(.96); transform-origin:bottom left; opacity:0; pointer-events:none;
+  padding:15px; box-shadow:0 24px 60px -18px rgba(0,0,0,.85);
+  transform:translateY(12px) scale(.96); transform-origin:bottom right; opacity:0; pointer-events:none;
   transition:transform .32s var(--spring), opacity .24s var(--ease);
 }
 .sync-panel.open{ transform:none; opacity:1; pointer-events:auto; }
-.sync-panel .ph{ display:flex; gap:10px; align-items:flex-start; }
-.sync-panel .glyph{ margin-top:1px; flex:none; }
-.sync-panel .title{ font-size:14px; font-weight:600; }
-.sync-panel .sub{ margin-top:3px; font-size:12px; line-height:1.4; color:hsl(var(--text-muted)); }
+.sync-panel .ph{ display:flex; gap:11px; align-items:flex-start; }
+.sync-panel .glyph{ margin-top:1px; flex:none; color:hsl(var(--text-muted)); }
+.sync-panel .title{ font-size:15px; font-weight:600; }
+.sync-panel .sub{ margin-top:4px; font-size:12.5px; line-height:1.45; color:hsl(var(--text-muted)); }
 .sync-panel[data-state="offline"] .glyph{ color:hsl(var(--danger)); }
 .sync-panel[data-state="reminder"] .glyph, .sync-panel[data-state="syncing"] .glyph{ color:hsl(var(--gold)); }
-.sync-panel .glyph{ color:hsl(var(--text-muted)); }
-.transfer{ margin-top:12px; display:flex; align-items:center; gap:10px; }
-.transfer .tflask{ width:22px; height:28px; flex:none; }
-.transfer .tt{ font-size:12px; } .transfer .tt .d{ color:hsl(var(--text-muted)); }
-.transfer .tn{ font-size:12px; color:hsl(var(--text-muted)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.meter{ margin-top:12px; }
-.meter .bar{ height:5px; border-radius:3px; background:hsl(var(--surface-sunken)); overflow:hidden; }
-.meter .bar i{ display:block; height:100%; width:4.2%; border-radius:3px; background:hsl(var(--text-muted)); }
-.meter .lab{ margin-top:5px; font-size:11px; color:hsl(var(--text-muted)); }
 .sync-panel .primary{
-  margin-top:12px; width:100%; height:36px; border-radius:10px; border:1px solid hsl(var(--border));
-  background:transparent; color:hsl(var(--text)); font-family:var(--font); font-size:14px; cursor:pointer;
-  display:flex; align-items:center; justify-content:center; gap:7px;
-  transition:background .2s var(--ease);
-}
-.sync-panel .primary:active{ background:hsl(var(--surface)); }
-.sync-panel[data-state="offline"] .primary{ border-color:hsl(var(--danger)/.5); color:hsl(var(--danger)); }
+  margin-top:14px; width:100%; height:38px; border-radius:11px; border:1px solid hsl(var(--accent)/.5);
+  background:hsl(var(--accent)/.14); color:hsl(var(--accent)); font-family:var(--font); font-size:14px; font-weight:600; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; gap:7px; transition:background .2s var(--ease); }
+.sync-panel .primary:active{ background:hsl(var(--accent)/.24); }
+.sync-panel .primary[disabled]{ opacity:.5; border-color:hsl(var(--border)); background:transparent; color:hsl(var(--text-muted)); cursor:default; }
+.sync-panel[data-state="offline"] .primary{ border-color:hsl(var(--danger)/.5); background:transparent; color:hsl(var(--danger)); }
 .sync-panel .foot{
-  margin-top:12px; padding-top:11px; border-top:1px solid hsl(var(--border));
-  display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; color:hsl(var(--text-muted));
-}
+  margin-top:14px; padding-top:12px; border-top:1px solid hsl(var(--border));
+  display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; color:hsl(var(--text-muted)); }
 .sync-panel .foot .acct{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .sync-panel .foot button{ border:none; background:none; color:hsl(var(--text-muted)); font-size:12px; cursor:pointer; flex:none; }
-/* prototype-only state switcher, kept to a faint footnote */
-.demo{ margin-top:10px; display:flex; align-items:center; gap:7px; font-size:10px; color:hsl(var(--text-muted)/.6); }
-.demo b{ font-weight:500; letter-spacing:.3px; text-transform:uppercase; }
-.demo button{ width:11px; height:11px; border-radius:50%; border:1px solid hsl(var(--border)); background:transparent; cursor:pointer; padding:0; }
-.demo button[data-s="synced"]{ } .demo button[data-s="reminder"]{ } .demo button[data-s="offline"]{ }
-.demo button.on[data-s="synced"]{ background:hsl(var(--success)); border-color:hsl(var(--success)); }
-.demo button.on[data-s="reminder"]{ background:hsl(var(--gold)); border-color:hsl(var(--gold)); }
-.demo button.on[data-s="offline"]{ background:hsl(var(--danger)); border-color:hsl(var(--danger)); }
 
 /* ---- Sync spell overlay (the cast) ---- */
 .spell{ position:absolute; inset:0; z-index:110; pointer-events:none; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .4s var(--ease); }
@@ -250,34 +217,33 @@ body{
 .spell .label{ position:absolute; bottom:180px; font-size:13px; font-weight:600; letter-spacing:.4px; color:hsl(var(--gold)); }
 
 /* ===========================================================================
-   ACCIO — summon bar (Sigil icon) + results → tapping a result opens full screen
+   ACCIO — summon bar (Sigil) + results. Opens bar AND keyboard, caret ready.
    =========================================================================== */
 .accio{ position:absolute; inset:0; z-index:130; display:flex; flex-direction:column; justify-content:flex-end;
   background:hsl(222 28% 7%/0); backdrop-filter:blur(0); opacity:0; pointer-events:none;
   transition:background .3s var(--ease), backdrop-filter .3s var(--ease), opacity .3s var(--ease); }
 .accio.open{ background:hsl(222 28% 7%/.62); backdrop-filter:blur(9px); -webkit-backdrop-filter:blur(9px); opacity:1; pointer-events:auto; }
-.accio-results{ flex:1; min-height:0; overflow-y:auto; padding:calc(54px + env(safe-area-inset-top)) 16px 12px;
+.accio-results{ flex:1; min-height:0; overflow-y:auto; padding:calc(24px + env(safe-area-inset-top)) 16px 10px;
   display:flex; flex-direction:column; justify-content:flex-end; gap:6px; scrollbar-width:none;
   -webkit-mask-image:linear-gradient(180deg,transparent,#000 14%); mask-image:linear-gradient(180deg,transparent,#000 14%); }
 .accio-results::-webkit-scrollbar{ display:none; }
 .hit{ display:flex; align-items:center; gap:13px; padding:10px 14px; border-radius:13px;
   background:hsl(var(--surface-raised)/.6); border:1px solid hsl(var(--border)/.6);
-  opacity:0; transform:translateY(8px); animation:hitIn .4s var(--spring) forwards; cursor:pointer; }
+  opacity:0; transform:translateY(8px); animation:hitIn .34s var(--spring) forwards; cursor:pointer; }
 @keyframes hitIn{ to{ opacity:1; transform:none; } }
 .hit .flask{ width:32px; height:42px; flex:none; }
 .hit .title{ font-size:15px; font-weight:600; }
 .hit .meta{ font-size:12px; color:hsl(var(--text-muted)); }
 .hit mark{ background:hsl(var(--gold)/.25); color:hsl(var(--gold)); border-radius:3px; }
 .accio-empty{ text-align:center; color:hsl(var(--text-muted)); font-size:14px; padding:30px; }
-.summon{ flex:none; margin:0 16px calc(22px + env(safe-area-inset-bottom)); display:flex; align-items:center; gap:12px;
-  height:60px; padding:0 8px 0 18px; border-radius:30px; background:hsl(var(--surface-raised)/.96);
+.summon{ flex:none; margin:0 16px calc(22px + env(safe-area-inset-bottom) + var(--kb)); display:flex; align-items:center; gap:12px;
+  height:60px; padding:0 8px 0 18px; border-radius:30px; background:hsl(var(--surface-raised)/.98);
   border:1px solid hsl(var(--accent)/.4); box-shadow:0 0 40px -6px hsl(var(--accent-glow)/.4), 0 20px 50px -16px rgba(0,0,0,.8);
-  transform:translateY(130%); transition:transform .5s var(--spring); }
+  transform:translateY(130%); transition:transform .42s var(--spring); }
 .accio.open .summon{ transform:none; }
-.summon .sigil{ color:hsl(var(--accent)); flex:none; animation:spin 9s linear infinite; }
+.summon .sigil{ color:hsl(var(--accent)); flex:none; display:flex; }
 .summon input{ flex:1; min-width:0; background:none; border:none; outline:none; color:hsl(var(--text)); font-size:17px; font-family:var(--font); }
 .summon input::placeholder{ color:hsl(var(--text-muted)); }
-@keyframes spin{ to{ transform:rotate(360deg); } }
 .mic{ width:44px; height:44px; border-radius:50%; flex:none; border:none; background:hsl(var(--surface-sunken));
   color:hsl(var(--text-muted)); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .3s var(--ease); }
 .mic.listening{ background:hsl(var(--accent)/.2); color:hsl(var(--accent)); animation:pulse 1.4s var(--ease) infinite; }
@@ -285,22 +251,20 @@ body{
 
 /* ===========================================================================
    NOTE VIEW — full screen for reading & writing (Apple Notes-smooth, autosave)
-   One surface for both: open a memory → read; new thought → empty; tap → edit.
    =========================================================================== */
 .note{ position:absolute; inset:0; z-index:140; background:hsl(var(--surface));
   background-image:radial-gradient(120% 60% at 50% -10%, hsl(var(--accent-glow)/.12), transparent 55%);
-  display:flex; flex-direction:column; padding-top:calc(54px + env(safe-area-inset-top));
+  display:flex; flex-direction:column; padding-top:calc(14px + env(safe-area-inset-top));
   transform:translateY(100%); transition:transform .5s var(--spring); }
 .note.open{ transform:none; }
-.note-top{ display:flex; align-items:center; justify-content:space-between; padding:4px 14px 0; flex:none;
-  transition:opacity .25s var(--ease); }
+.note-top{ display:flex; align-items:center; justify-content:space-between; padding:4px 14px 0; flex:none; transition:opacity .25s var(--ease); }
 .app-root.typing .note-top{ opacity:0; pointer-events:none; }
 .note-top button{ border:none; background:none; cursor:pointer; color:hsl(var(--text-muted)); padding:10px; display:flex; align-items:center; gap:5px; font-family:var(--font); font-size:15px; }
 .note-top .back{ color:hsl(var(--accent)); }
 .note-saved{ font-size:12px; color:hsl(var(--text-muted)); display:flex; align-items:center; gap:5px; opacity:0; transition:opacity .3s var(--ease); }
 .note-saved.show{ opacity:1; }
 .note-saved i{ width:5px; height:5px; border-radius:50%; background:hsl(var(--success)); display:block; }
-.note-surface{ flex:1; min-height:0; overflow-y:auto; padding:10px 24px 40vh; scrollbar-width:none; }
+.note-surface{ flex:1; min-height:0; overflow-y:auto; padding:10px 24px calc(40vh + var(--kb)); scrollbar-width:none; }
 .note-surface::-webkit-scrollbar{ display:none; }
 .note-title{ font-size:27px; font-weight:700; letter-spacing:-.5px; outline:none; }
 .note-title:empty::before{ content:"New thought"; color:hsl(var(--text-muted)/.5); }
@@ -308,28 +272,27 @@ body{
 .note-body{ font-size:17px; line-height:1.6; outline:none; min-height:200px; }
 .note-body:empty::before{ content:"Start writing…"; color:hsl(var(--text-muted)/.5); }
 .note-body p{ margin:0 0 .8em; }
-.note-mic{ position:absolute; right:22px; bottom:calc(24px + env(safe-area-inset-bottom)); width:56px; height:56px; border-radius:50%;
+.note-mic{ position:absolute; right:22px; bottom:calc(24px + env(safe-area-inset-bottom) + var(--kb)); width:56px; height:56px; border-radius:50%;
   border:1px solid hsl(var(--border)); background:hsl(var(--surface-raised)); color:hsl(var(--text));
   display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:5;
-  box-shadow:0 12px 30px -10px rgba(0,0,0,.7); transition:all .3s var(--ease); }
+  box-shadow:0 12px 30px -10px rgba(0,0,0,.7); transition:bottom .2s var(--ease), background .3s, color .3s, border-color .3s; }
 .note-mic.listening{ background:hsl(var(--accent)/.2); color:hsl(var(--accent)); border-color:hsl(var(--accent)/.5); animation:pulse 1.4s var(--ease) infinite; }
 
-/* The luminous "thought-thread" the wand draws when conjuring a new note. */
 .thread{ position:absolute; inset:0; z-index:145; pointer-events:none; }
 
 /* ===========================================================================
-   TABS — Arc-style switcher. Open notes side-by-side; swipe a card UP to close.
+   TABS — Arc-style switcher. Side-by-side; swipe a card UP to close.
+   An explicit "Done" returns to the menu.
    =========================================================================== */
 .switcher{ position:absolute; inset:0; z-index:135; background:hsl(222 28% 7%/.7);
   backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
   display:flex; flex-direction:column; opacity:0; pointer-events:none; transition:opacity .3s var(--ease);
-  padding-top:calc(54px + env(safe-area-inset-top)); }
+  padding-top:calc(16px + env(safe-area-inset-top)); }
 .switcher.open{ opacity:1; pointer-events:auto; }
 .switcher h2{ margin:4px 24px 2px; font-size:15px; font-weight:600; color:hsl(var(--text-muted)); }
 .switcher .hint{ margin:0 24px 6px; font-size:12px; color:hsl(var(--text-muted)/.7); }
 .tabs-rail{ flex:1; min-height:0; display:flex; gap:16px; overflow-x:auto; overflow-y:hidden;
-  padding:12px 24px calc(30px + env(safe-area-inset-bottom)); scroll-snap-type:x mandatory; scrollbar-width:none;
-  align-items:stretch; }
+  padding:12px 24px 12px; scroll-snap-type:x mandatory; scrollbar-width:none; align-items:stretch; }
 .tabs-rail::-webkit-scrollbar{ display:none; }
 .tab-card{ flex:none; width:230px; scroll-snap-align:center; border-radius:20px; border:1px solid hsl(var(--border));
   background:linear-gradient(180deg, hsl(var(--surface-raised)), hsl(var(--surface-sunken)));
@@ -343,13 +306,17 @@ body{
   display:-webkit-box; -webkit-line-clamp:8; -webkit-box-orient:vertical; overflow:hidden; flex:1; }
 .tab-card .close-hint{ position:absolute; top:10px; right:14px; font-size:11px; color:hsl(var(--text-muted)/.6); }
 .tabs-empty{ flex:1; display:flex; align-items:center; justify-content:center; color:hsl(var(--text-muted)); font-size:14px; padding:40px; text-align:center; }
+.switcher-done{ flex:none; display:flex; justify-content:center; padding:4px 24px calc(26px + env(safe-area-inset-bottom)); }
+.switcher-done button{
+  height:46px; padding:0 30px; border-radius:23px; border:1px solid hsl(var(--border));
+  background:hsl(var(--surface-raised)/.92); color:hsl(var(--text)); font-family:var(--font); font-size:15px; font-weight:600;
+  display:flex; align-items:center; gap:8px; cursor:pointer; box-shadow:0 10px 28px -14px rgba(0,0,0,.7);
+  transition:transform .2s var(--spring); }
+.switcher-done button:active{ transform:scale(.95); }
 
-/* ===========================================================================
-   MOTION-REDUCED
-   =========================================================================== */
 @media (prefers-reduced-motion:reduce){
   *{ animation-duration:.001s !important; transition-duration:.08s !important; }
-  .act.wand::before{ animation:none; }
+  .wact.hero::before{ animation:none; }
   .lemniscate{ animation:none !important; }
 }
 </style>
@@ -358,86 +325,52 @@ body{
 <div class="device">
   <div class="screen app-root" id="root">
 
-    <!-- STATUS BAR -->
-    <div class="statusbar">
-      <span>9:41</span>
-      <div class="right">
-        <svg width="18" height="11" viewBox="0 0 18 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="6" rx="1"/><rect x="10" y="2.5" width="3" height="8.5" rx="1"/><rect x="15" y="0" width="3" height="11" rx="1"/></svg>
-        <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><path d="M8.5 2.2c2.6 0 5 1 6.8 2.6l1.4-1.5A11.4 11.4 0 0 0 8.5.2 11.4 11.4 0 0 0 .3 3.3l1.4 1.5A9.4 9.4 0 0 1 8.5 2.2Zm0 3.6c1.6 0 3.1.6 4.2 1.6l1.4-1.5A8 8 0 0 0 8.5 3.6a8 8 0 0 0-5.6 2.3l1.4 1.5a6 6 0 0 1 4.2-1.6Zm0 3.6c.7 0 1.4.3 1.9.8l-1.9 2-1.9-2c.5-.5 1.2-.8 1.9-.8Z"/></svg>
-        <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x="1" y="1" width="21" height="10" rx="3" stroke="currentColor" stroke-opacity=".5"/><rect x="2.5" y="2.5" width="16" height="7" rx="1.5" fill="currentColor"/><path d="M24 4v4c.9-.3 1.3-1 1.3-2S24.9 4.3 24 4Z" fill="currentColor" fill-opacity=".5"/></svg>
-      </div>
-    </div>
-
     <!-- HOME -->
     <div class="app">
       <div class="header"><h1>Pensieve</h1><span class="count" id="count"></span></div>
-      <div class="reel" id="reel"></div>
+      <div class="reel" id="reel"><div class="reel-track" id="reelTrack"></div></div>
+      <div class="lens" id="lens"></div>
     </div>
 
-    <!-- LEFT-THUMB COMMAND STRIP -->
-    <div class="dock" id="dock">
-      <div class="strip" id="strip">
-        <button class="act wand" id="wand" data-act="wand" aria-label="New thought (hold to speak)">
-          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M5 19 15 9" stroke-opacity=".95"/>
-            <path d="M17.5 4.5v4M15.5 6.5h4" stroke-opacity=".9"/>
-            <circle cx="9" cy="15" r=".6" fill="#fff" stroke="none" opacity=".8"/>
-          </svg>
-        </button>
-        <button class="act" id="accioBtn" data-act="accio" aria-label="Accio — search">
-          <!-- desktop Sigil -->
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="9" opacity=".5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>
-          </svg>
-        </button>
-        <button class="act sync-icon" id="syncBtn" data-act="sync" data-state="reminder" aria-label="Sync (hold for details)">
-          <!-- desktop SyncRune (lemniscate) -->
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path class="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"/></svg>
-        </button>
-        <button class="act" id="cardsBtn" data-act="cards" aria-label="Open notes (double-tap for home)">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="6" width="13" height="15" rx="2.5"/><path d="M8 6V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-1" opacity=".55"/>
-          </svg>
-          <span class="tab-count" id="tabCount" style="display:none">0</span>
-        </button>
-        <button class="act" id="homeBtn" data-act="home" aria-label="Home">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M5 8c3 2.2 6 2.2 7 2.2S16 10.2 19 8"/><path d="M5 13c3 2.2 6 2.2 7 2.2S16 15.2 19 13"/><path d="M5 18c3 2.2 6 2.2 7 2.2S16 20.2 19 18"/>
-          </svg>
-        </button>
+    <!-- THUMB-WHEEL (actions positioned by JS along the arc) -->
+    <div class="wheel" id="wheel">
+      <div class="wact hero" data-key="wand" aria-label="New thought (hold to speak)">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 19 15 9" stroke-opacity=".95"/><path d="M17.5 4.5v4M15.5 6.5h4" stroke-opacity=".9"/>
+          <circle cx="9" cy="15" r=".6" fill="#fff" stroke="none" opacity=".8"/></svg>
       </div>
+      <div class="wact" data-key="accio" aria-label="Accio — search">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9" opacity=".5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
+      </div>
+      <div class="wact" data-key="sync" data-state="synced" aria-label="Sync (hold for details)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path class="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"/></svg>
+      </div>
+      <div class="wact" data-key="cards" aria-label="Open notes">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="6" width="13" height="15" rx="2.5"/><path d="M8 6V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-1" opacity=".55"/></svg>
+        <span class="tab-count" id="tabCount" style="display:none">0</span>
+      </div>
+      <div class="wact" data-key="home" aria-label="Home">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 8c3 2.2 6 2.2 7 2.2S16 10.2 19 8"/><path d="M5 13c3 2.2 6 2.2 7 2.2S16 15.2 19 13"/><path d="M5 18c3 2.2 6 2.2 7 2.2S16 20.2 19 18"/></svg>
+      </div>
+      <div class="wheel-label" id="wheelLabel"></div>
     </div>
 
     <!-- SYNC PANEL -->
-    <div class="sync-panel" id="syncPanel" data-state="reminder">
+    <div class="sync-panel" id="syncPanel" data-state="synced">
       <div class="ph">
-        <span class="glyph sync-icon" data-state="reminder"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path class="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"/></svg></span>
+        <span class="glyph"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path class="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"/></svg></span>
         <div style="min-width:0;flex:1">
-          <div class="title" id="spTitle">Ready to back up.</div>
-          <div class="sub" id="spSub">Last backed up · 5m ago</div>
+          <div class="title" id="spTitle">Everything's backed up.</div>
+          <div class="sub" id="spSub">Your memories are safe in the cloud.</div>
         </div>
       </div>
-      <div class="transfer" id="spTransfer" style="display:none">
-        <div class="tflask" id="spTransferFlask"></div>
-        <div style="min-width:0;flex:1">
-          <div class="tt">↑ <span id="spTn">3</span> of <span id="spTt">8</span></div>
-          <div class="tn">The bridge idea for the sync layer</div>
-        </div>
-      </div>
-      <div class="meter" id="spMeter">
-        <div class="bar"><i></i></div>
-        <div class="lab">42.1 GB of 1 TB used</div>
-      </div>
-      <button class="primary" id="spPrimary">Back up now <span style="color:hsl(var(--text-muted));font-size:12px">now</span></button>
+      <button class="primary" id="spPrimary">Back up now</button>
       <div class="foot">
         <span class="acct">jakub.cervenka@icloud.com</span>
         <button id="spSignout">Sign out</button>
-      </div>
-      <div class="demo">
-        <b>demo</b>
-        <button data-s="synced" title="All backed up"></button>
-        <button data-s="reminder" class="on" title="Changes waiting"></button>
-        <button data-s="offline" title="Can't reach OneDrive"></button>
       </div>
     </div>
 
@@ -453,7 +386,7 @@ body{
       <div class="accio-results" id="accioResults"></div>
       <div class="summon">
         <span class="sigil"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" opacity=".5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></span>
-        <input id="accioInput" type="text" placeholder="Accio a memory…" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search" />
+        <input id="accioInput" type="text" placeholder="Accio a memory…" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search" enterkeyhint="search" />
         <button class="mic" id="accioMic" aria-label="Search by voice"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/></svg></button>
       </div>
     </div>
@@ -475,8 +408,11 @@ body{
     <!-- TABS SWITCHER -->
     <div class="switcher" id="switcher">
       <h2>Open</h2>
-      <p class="hint">Swipe a card up to close · tap to open · double-tap Cards for home</p>
+      <p class="hint">Swipe a card up to close · tap to open</p>
       <div class="tabs-rail" id="tabsRail"></div>
+      <div class="switcher-done"><button id="switcherDone">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 5-7 7 7 7"/></svg>
+        Back</button></div>
     </div>
 
     <div class="thread" id="thread"></div>
@@ -492,7 +428,19 @@ body{
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const haptic = (ms=8)=>{ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} };
 
-  /* ---- Flask SVG (unchanged — the owner loves the bottle visuals) ---------- */
+  /* ---- live keyboard inset (so bars ride above the keyboard on real phones) -- */
+  function updateKB(){
+    const vv = window.visualViewport;
+    if(!vv){ return; }
+    const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    root.style.setProperty("--kb", kb + "px");
+  }
+  if(window.visualViewport){
+    visualViewport.addEventListener("resize", updateKB);
+    visualViewport.addEventListener("scroll", updateKB);
+  }
+
+  /* ---- Flask SVG ---------------------------------------------------------- */
   const SHAPES = ["round","erlenmeyer","vial","potion","teardrop","beaker"];
   const CAT_HUE = { "--cat-blue":"212 70% 68%","--cat-purple":"270 55% 74%","--cat-green":"145 50% 62%",
     "--cat-pink":"330 60% 74%","--cat-orange":"24 85% 68%","--cat-yellow":"45 80% 66%","--cat-red":"0 70% 70%","--cat-gold":"43 92% 55%" };
@@ -521,7 +469,7 @@ body{
       <rect x="19" y="${s.top+2}" width="2.4" height="${Math.max(8,fh*.5)}" rx="1.2" fill="#fff" opacity=".35" clip-path="url(#${id}c)"/></svg>`;
   }
 
-  /* ---- Seed data ---------------------------------------------------------- */
+  /* ---- Seed data (stand-ins for your real vault) -------------------------- */
   const DATA = [
     { t:"The bridge idea for the sync layer", c:"If each flask carries its own cTag, I never have to diff the whole vault — just ask Graph what moved since the last delta token. Lightweight by design.", cat:"--cat-blue", shape:"round", fill:.8, d:"2m ago" },
     { t:"Why mornings feel heavier lately", c:"Noticed I open the day reacting instead of choosing. One line before coffee — what matters today — seems to reset it.", cat:"--cat-purple", shape:"erlenmeyer", fill:.6, d:"Today" },
@@ -538,62 +486,80 @@ body{
   ];
   let uid = 0;
   DATA.forEach(d => d.id = ++uid);
+  function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
 
   /* =========================================================================
-     THE REEL — uniform fixed-height slots. Focus is derived from scroll position
-     (round(scrollTop / slotH)), NOT from live geometry of growing cards — so it
-     is deterministic: it can never flip to a neighbour or land misaligned.
+     THE REEL — small uniform cards scroll under a fixed magnifier (.lens).
+     Focus = round(scrollTop / slot): deterministic, snaps, never misaligns.
      ======================================================================= */
-  const reel = $("#reel");
+  const reel = $("#reel"), reelTrack = $("#reelTrack"), lens = $("#lens");
   $("#count").textContent = DATA.length + " memories";
-  const SLOT_H = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--slot"));
+  const SLOT_H = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--slot")) || 84;
+  const LENS_OFFSET = 112;   // focal line: distance from the top of the reel to the glass
 
   function cardHTML(d){
     return `<div class="card">
       <div class="flask">${flaskSVG(d.shape, CAT_HUE[d.cat], d.fill)}</div>
-      <div class="body"><div class="title">${esc(d.t)}</div><div class="meta">${esc(d.d)}</div>
-        <div class="snippet">${esc(d.c)}</div></div></div>`;
+      <div class="body"><div class="title">${esc(d.t||"New thought")}</div><div class="meta">${esc(d.d)}</div></div></div>`;
   }
   function renderReel(){
-    reel.innerHTML = DATA.map(d => `<div class="slot" data-id="${d.id}">${cardHTML(d)}</div>`).join("");
-    // Bottom room so any card (even the last) can scroll up to the focal line.
-    const spacer = Math.max(0, reel.clientHeight - SLOT_H - 8);
-    reel.style.paddingBottom = spacer + "px";
-    reel.querySelectorAll(".slot").forEach(slot => {
-      slot.addEventListener("click", () => {
-        const d = DATA.find(x => x.id == slot.dataset.id);
-        if (d) openNote(d);
-      });
+    reelTrack.innerHTML = DATA.map(d => `<div class="slot" data-id="${d.id}">${cardHTML(d)}</div>`).join("");
+    reelTrack.querySelectorAll(".slot").forEach(slot => {
+      slot.addEventListener("click", () => { const d = DATA.find(x => x.id == slot.dataset.id); if (d) openNote(d); });
     });
-    activeIdx = -1;      // force re-apply onto the freshly-built slots
-    setActive();
+    layoutReel();
+    focusIdx = -1;
+    updateLens(true);
   }
-  let activeIdx = -1;
-  function setActive(){
+  function layoutReel(){
+    const H = reel.clientHeight || 500;
+    reelTrack.style.paddingTop = LENS_OFFSET + "px";
+    reelTrack.style.paddingBottom = Math.max(0, H - LENS_OFFSET - SLOT_H) + "px";
+    reel.style.scrollPaddingTop = LENS_OFFSET + "px";
+    lens.style.top = (reel.offsetTop + LENS_OFFSET) + "px";
+  }
+  let focusIdx = -1;
+  function updateLens(force){
     const idx = Math.max(0, Math.min(DATA.length-1, Math.round(reel.scrollTop / SLOT_H)));
-    if (idx === activeIdx) return;
-    activeIdx = idx;
-    const slots = reel.children;
-    for (let i=0;i<slots.length;i++){
-      if (slots[i].classList.contains("slot")) slots[i].classList.toggle("active", i === idx);
-    }
+    // mark the card directly under the glass so it doesn't peek out behind it
+    const slots = reelTrack.children;
+    for (let i=0;i<slots.length;i++){ const c = slots[i].firstElementChild; if(c) c.classList.toggle("under", i===idx); }
+    if (idx === focusIdx && !force) return;
+    focusIdx = idx;
+    const d = DATA[idx];
+    if(!d){ lens.className="lens empty"; lens.innerHTML="Nothing here yet."; return; }
+    lens.className = "lens";
+    lens.innerHTML = `<div class="lens-inner">
+      <div class="flask">${flaskSVG(d.shape, CAT_HUE[d.cat], d.fill)}</div>
+      <div class="body"><div class="title">${esc(d.t||"New thought")}</div><div class="meta">${esc(d.d)}</div>
+        <div class="snippet">${esc(d.c||"…")}</div></div></div>`;
+    if(!reduce){ lens.classList.add("pop"); }
+    lens.dataset.id = d.id;
   }
   let rafing = false;
   reel.addEventListener("scroll", () => {
     if (rafing) return; rafing = true;
-    requestAnimationFrame(() => { setActive(); rafing = false; });
+    requestAnimationFrame(() => { updateLens(false); rafing = false; });
   }, { passive:true });
 
-  function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
+  // The lens is the glass: drag on it scrolls the reel; a tap opens the focused memory.
+  let lDrag=false, lY=0, lStart=0, lMoved=0;
+  lens.addEventListener("pointerdown", e=>{ lDrag=true; lY=e.clientY; lStart=reel.scrollTop; lMoved=0; lens.setPointerCapture(e.pointerId); });
+  lens.addEventListener("pointermove", e=>{ if(!lDrag) return; const dy=e.clientY-lY; lMoved=Math.max(lMoved,Math.abs(dy)); reel.scrollTop = lStart - dy; });
+  const lensEnd = e=>{ if(!lDrag) return; lDrag=false;
+    if(lMoved < 8){ const d = DATA[focusIdx]; if(d) openNote(d); }
+    else { reel.scrollTo({ top: Math.round(reel.scrollTop/SLOT_H)*SLOT_H, behavior: reduce?"auto":"smooth" }); }
+  };
+  lens.addEventListener("pointerup", lensEnd);
+  lens.addEventListener("pointercancel", ()=>{ lDrag=false; });
 
   /* =========================================================================
      NOTE VIEW — one surface for reading + writing. Autosaves (no "Pour in").
-     Opening a memory (reel / Accio) OR a new thought both land here & become tabs.
      ======================================================================= */
   const note = $("#note"), noteTitle = $("#noteTitle"), noteBody = $("#noteBody"),
         noteDate = $("#noteDate"), noteSaved = $("#noteSaved");
-  let current = null;        // the note object currently open
-  const openTabs = [];       // Arc-style: the stack of open notes
+  let current = null;
+  const openTabs = [];
 
   function fmtNow(){
     const n = new Date();
@@ -622,22 +588,17 @@ body{
     note.classList.add("open");
   }
   function openNewNote(dictate){
-    const d = { id:++uid, t:"", c:"", cat:SHAPES_CAT(), shape:SHAPES[Math.floor(Math.random()*SHAPES.length)], fill:.18, d:"Just now", when:fmtNow(), fresh:true, isNew:true };
+    const d = { id:++uid, t:"", c:"", cat:randCat(), shape:SHAPES[Math.floor(Math.random()*SHAPES.length)], fill:.18, d:"Just now", when:fmtNow(), fresh:true, isNew:true };
     conjure(() => {
       openNote(d);
       setTimeout(() => { noteTitle.focus(); if (dictate) startDictation(); }, 460);
     });
     haptic(10);
   }
-  function SHAPES_CAT(){ const k=Object.keys(CAT_HUE); return k[Math.floor(Math.random()*k.length)]; }
+  function randCat(){ const k=Object.keys(CAT_HUE); return k[Math.floor(Math.random()*k.length)]; }
 
-  // Autosave: debounced; writes back to DATA + reel + tab, sets sync to "reminder".
   let saveT = null;
-  function scheduleSave(){
-    noteSaved.classList.remove("show");
-    clearTimeout(saveT);
-    saveT = setTimeout(commit, 450);
-  }
+  function scheduleSave(){ noteSaved.classList.remove("show"); clearTimeout(saveT); saveT = setTimeout(commit, 450); }
   function commit(){
     if (!current) return;
     current.t = (noteTitle.textContent||"").trim();
@@ -651,36 +612,30 @@ body{
       renderReel();
       reel.scrollTo({ top:0, behavior: reduce?"auto":"smooth" });
     } else {
-      // update the existing reel card in place
       renderReel();
     }
-    setSync("reminder");
+    markDirty();
     noteSaved.classList.add("show");
     setTimeout(()=>noteSaved.classList.remove("show"), 1400);
   }
   noteTitle.addEventListener("input", scheduleSave);
   noteBody.addEventListener("input", scheduleSave);
 
-  // Typing mode: focus hides all chrome; blur restores it.
+  // Typing mode: focus hides the wheel + note chrome; blur restores.
   function setTyping(on){ root.classList.toggle("typing", on); }
   [noteTitle, noteBody].forEach(el => {
     el.addEventListener("focus", () => setTyping(true));
     el.addEventListener("blur", () => setTyping(false));
   });
-  // Tap the top padding / date to dismiss the keyboard.
   noteDate.addEventListener("click", () => { noteTitle.blur(); noteBody.blur(); });
-  $("#noteBack").addEventListener("click", () => {
-    commit();
-    note.classList.remove("open");
-    setTyping(false);
-    current = null;
-  });
+  $("#noteBack").addEventListener("click", () => { commit(); note.classList.remove("open"); setTyping(false); current = null; });
 
   /* ---- the "thought-thread" the wand draws when conjuring ---- */
   const thread = $("#thread");
   function conjure(cb){
     if (reduce){ cb(); return; }
-    const w = $("#wand").getBoundingClientRect(), sc = root.getBoundingClientRect();
+    const wandEl = $('.wact[data-key="wand"]');
+    const w = wandEl.getBoundingClientRect(), sc = root.getBoundingClientRect();
     const x = w.left + w.width/2 - sc.left, y = w.top + w.height/2 - sc.top;
     const svg = document.createElementNS("http://www.w3.org/2000/svg","svg");
     svg.setAttribute("width", sc.width); svg.setAttribute("height", sc.height); svg.style.cssText="position:absolute;inset:0";
@@ -689,35 +644,104 @@ body{
       <path d="M${x} ${y} C ${x-40} ${y-160}, ${x+60} ${y-300}, ${sc.width/2} 150" stroke="url(#thr)" stroke-width="2.5" fill="none" stroke-linecap="round" style="filter:drop-shadow(0 0 6px hsl(218 100% 72% / .8))"/>`;
     thread.appendChild(svg);
     const p = svg.querySelector("path");
-    p.animate([{strokeDashoffset:600},{strokeDashoffset:0}],{duration:420,easing:"cubic-bezier(.22,1,.36,1)"});
     p.style.strokeDasharray="600";
+    p.animate([{strokeDashoffset:600},{strokeDashoffset:0}],{duration:420,easing:"cubic-bezier(.22,1,.36,1)"});
     p.animate([{opacity:1,offset:.6},{opacity:0}],{duration:640,easing:"ease-out"}).onfinish=()=>svg.remove();
     setTimeout(cb, 170);
   }
 
   /* =========================================================================
-     COMMAND STRIP — wand / accio / sync / cards / home
+     THE THUMB-WHEEL — arc of actions around the bottom-right thumb pivot.
+     Drag to rotate (snaps); tap any action to run it; Wand/Sync hold = extra.
      ======================================================================= */
-  const wand = $("#wand");
-  let holdT=null, held=false;
-  wand.addEventListener("pointerdown", () => {
-    held=false;
-    holdT=setTimeout(()=>{ held=true; haptic(16); wand.classList.add("holding"); openNewNote(true); }, 420);
-  });
-  const wandUp = () => { clearTimeout(holdT); wand.classList.remove("holding"); if(!held) openNewNote(false); };
-  wand.addEventListener("pointerup", wandUp);
-  wand.addEventListener("pointercancel", ()=>{ clearTimeout(holdT); wand.classList.remove("holding"); });
+  const wheel = $("#wheel"), wheelLabel = $("#wheelLabel");
+  const ORDER = ["accio","wand","sync","cards","home"];  // cyclic; wand starts centred
+  const LABELS = { accio:"Search", wand:"New", sync:"Sync", cards:"Cards", home:"Home" };
+  const wactEls = {};
+  wheel.querySelectorAll(".wact").forEach(el => wactEls[el.dataset.key] = el);
+  const N = ORDER.length;
+  let pos = ORDER.indexOf("wand");   // float index currently centred
+  const STEP_PX = 62, STEP_DEG = 27, CENTRE_DEG = 130;
 
-  $("#accioBtn").addEventListener("click", openAccio);
-  $("#homeBtn").addEventListener("click", goHome);
+  function wrap(o){ o = ((o % N) + N) % N; if (o > N/2) o -= N; return o; }
+  function renderWheel(){
+    const W = root.clientWidth, H = root.clientHeight;
+    const pivotX = W - 4, pivotY = H - 30;
+    const R = Math.min(190, W*0.52);
+    for (let i=0;i<N;i++){
+      const key = ORDER[i], el = wactEls[key];
+      const o = wrap(i - pos);
+      const ao = Math.abs(o);
+      if (ao > 2.15){ el.style.opacity = 0; el.style.pointerEvents="none"; continue; }
+      const a = (CENTRE_DEG + o*STEP_DEG) * Math.PI/180;
+      const x = pivotX + R*Math.cos(a), y = pivotY - R*Math.sin(a);
+      const scale = Math.max(.5, 1 - .26*ao);
+      const op = Math.max(0, 1 - .46*ao);
+      el.style.left = x + "px"; el.style.top = y + "px";
+      el.style.transform = `scale(${scale})`;
+      el.style.opacity = op;
+      el.style.pointerEvents = op > .25 ? "auto" : "none";
+      el.style.zIndex = String(100 - Math.round(ao*10));
+      el.classList.toggle("centered", ao < .5);
+    }
+    // label under the centre
+    const ca = CENTRE_DEG * Math.PI/180;
+    const cx = pivotX + R*Math.cos(ca), cy = pivotY - R*Math.sin(ca);
+    wheelLabel.style.left = cx + "px"; wheelLabel.style.top = (cy + 44) + "px";
+    const centreKey = ORDER[((Math.round(pos)%N)+N)%N];
+    wheelLabel.textContent = LABELS[centreKey];
+    wheelLabel.style.opacity = (Math.abs(pos - Math.round(pos)) < .22) ? 1 : 0;
+  }
 
-  // Cards: single tap → switcher; double tap → home.
-  const cardsBtn = $("#cardsBtn");
-  let tapT=null;
-  cardsBtn.addEventListener("click", () => {
-    if (tapT){ clearTimeout(tapT); tapT=null; goHome(); return; }   // double tap
-    tapT = setTimeout(()=>{ tapT=null; toggleSwitcher(); }, 230);
+  let snapRAF = null;
+  function cancelSnap(){ if(snapRAF){ cancelAnimationFrame(snapRAF); snapRAF=null; } }
+  function snapPos(target){
+    cancelSnap();
+    if(reduce){ pos = target; renderWheel(); return; }
+    const start = pos, begin = performance.now(), dur = 280;
+    (function step(now){
+      const k = Math.min(1,(now-begin)/dur), e = 1-Math.pow(1-k,3);
+      pos = start + (target-start)*e; renderWheel();
+      if(k<1) snapRAF = requestAnimationFrame(step); else { pos = target; renderWheel(); snapRAF=null; }
+    })(begin);
+  }
+
+  function wheelExec(key){
+    if(key==="wand") openNewNote(false);
+    else if(key==="accio") openAccio();
+    else if(key==="sync") syncTap();
+    else if(key==="cards") toggleSwitcher();
+    else if(key==="home") goHome();
+  }
+  function wheelHold(key){
+    if(key==="wand"){ haptic(16); wactEls.wand.classList.add("holding"); openNewNote(true); return true; }
+    if(key==="sync"){ haptic(14); openPanel(); return true; }
+    return false;
+  }
+
+  let wDrag=false, wY=0, wStartPos=0, wMoved=0, wTarget=null, wHeld=false, wHoldT=null;
+  wheel.addEventListener("pointerdown", e=>{
+    const t = e.target.closest(".wact"); if(!t && e.target!==wheel) {}
+    wDrag=true; wY=e.clientY; wStartPos=pos; wMoved=0; wTarget=t; wHeld=false; cancelSnap();
+    if(t && (t.dataset.key==="wand" || t.dataset.key==="sync")){
+      wHoldT = setTimeout(()=>{ if(wMoved<6){ wHeld = wheelHold(t.dataset.key); } }, 420);
+    }
+    try{ wheel.setPointerCapture(e.pointerId); }catch(_){}
   });
+  wheel.addEventListener("pointermove", e=>{
+    if(!wDrag) return;
+    const dy = e.clientY - wY; wMoved = Math.max(wMoved, Math.abs(dy));
+    if(wMoved > 6) clearTimeout(wHoldT);
+    pos = wStartPos - dy/STEP_PX; renderWheel();
+  });
+  function wheelEnd(){
+    if(!wDrag) return; wDrag=false; clearTimeout(wHoldT); wactEls.wand.classList.remove("holding");
+    if(wHeld){ snapPos(Math.round(wStartPos)); return; }
+    if(wMoved < 8 && wTarget){ snapPos(Math.round(wStartPos)); wheelExec(wTarget.dataset.key); }
+    else snapPos(Math.round(pos));
+  }
+  wheel.addEventListener("pointerup", wheelEnd);
+  wheel.addEventListener("pointercancel", wheelEnd);
 
   function goHome(){
     closeAccio(true); closeSwitcher(true);
@@ -728,12 +752,18 @@ body{
   }
 
   /* =========================================================================
-     ACCIO — Sigil summon bar; results open full screen (per round-2 note)
+     ACCIO — opens the bar AND the keyboard, caret ready (synchronous focus).
      ======================================================================= */
   const accio=$("#accio"), accioInput=$("#accioInput"), accioResults=$("#accioResults");
-  function openAccio(){ accio.classList.add("open"); renderAccio(""); haptic(8); setTimeout(()=>accioInput.focus(),120); }
-  function closeAccio(silent){ accio.classList.remove("open"); accioInput.value=""; if(!silent) accioInput.blur(); }
+  function openAccio(){
+    accio.classList.add("open"); renderAccio(""); haptic(8);
+    setTyping(true);
+    accioInput.focus();           // synchronous → iOS raises the keyboard
+  }
+  function closeAccio(silent){ accio.classList.remove("open"); accioInput.value=""; accioInput.blur(); if(!silent) setTyping(false); }
   accio.addEventListener("click", e => { if(e.target===accio) closeAccio(); });
+  accioInput.addEventListener("focus", ()=> setTyping(true));
+  accioInput.addEventListener("blur", ()=>{ if(!accio.classList.contains("open")) setTyping(false); });
   accioInput.addEventListener("keydown", e => { if(e.key==="Escape") closeAccio(); });
   function hl(t,q){ if(!q) return esc(t); const i=t.toLowerCase().indexOf(q.toLowerCase()); if(i<0) return esc(t);
     return esc(t.slice(0,i))+"<mark>"+esc(t.slice(i,i+q.length))+"</mark>"+esc(t.slice(i+q.length)); }
@@ -743,22 +773,23 @@ body{
     accioResults.innerHTML="";
     if(!m.length){ accioResults.innerHTML=`<div class="accio-empty">No flask holds “${esc(q)}” — yet.</div>`; return; }
     m.slice(0,8).forEach((d,i)=>{
-      const row=document.createElement("div"); row.className="hit"; row.style.animationDelay=(i*32)+"ms";
+      const row=document.createElement("div"); row.className="hit"; row.style.animationDelay=(i*30)+"ms";
       row.innerHTML=`<div class="flask">${flaskSVG(d.shape,CAT_HUE[d.cat],d.fill)}</div>
         <div><div class="title">${hl(d.t,q)}</div><div class="meta">${esc(d.d)}</div></div>`;
-      row.addEventListener("click", ()=> openNote(d));   // → full screen
+      row.addEventListener("click", ()=> openNote(d));
       accioResults.appendChild(row);
     });
   }
   accioInput.addEventListener("input", ()=>renderAccio(accioInput.value));
 
   /* =========================================================================
-     TABS SWITCHER — Arc-style; swipe a card UP to close
+     TABS SWITCHER — Arc-style; swipe a card UP to close; "Back" returns home.
      ======================================================================= */
   const switcher=$("#switcher"), tabsRail=$("#tabsRail");
   function toggleSwitcher(){ switcher.classList.contains("open") ? closeSwitcher() : openSwitcher(); }
   function openSwitcher(){ renderTabs(); switcher.classList.add("open"); haptic(8); }
   function closeSwitcher(silent){ switcher.classList.remove("open"); }
+  $("#switcherDone").addEventListener("click", ()=> closeSwitcher());
   function renderTabs(){
     tabsRail.innerHTML="";
     if(!openTabs.length){ tabsRail.innerHTML=`<div class="tabs-empty">No open notes.<br>Tap the wand to begin one.</div>`; return; }
@@ -768,19 +799,16 @@ body{
         <div class="tx"><div class="flask">${flaskSVG(d.shape,CAT_HUE[d.cat],d.fill)}</div>
           <div style="min-width:0"><div class="ttl">${esc(d.t||"New thought")}</div><div class="tdate">${esc(d.d)}</div></div></div>
         <div class="tbody">${esc(d.c||"…")}</div>`;
-      // tap to open
       let sy=0, dragging=false, moved=0;
       c.addEventListener("click", ()=>{ if(Math.abs(moved)<8) openNote(d); });
       c.addEventListener("pointerdown", e=>{ sy=e.clientY; dragging=true; moved=0; c.style.transition="none"; });
       c.addEventListener("pointermove", e=>{ if(!dragging) return; moved=e.clientY-sy;
         if(moved<0){ c.style.transform=`translateY(${moved}px)`; c.style.opacity=String(Math.max(.2,1+moved/260)); } });
       const endDrag=()=>{ if(!dragging) return; dragging=false; c.style.transition="";
-        if(moved < -90){ // close this tab
-          c.style.transform="translateY(-120%)"; c.style.opacity="0";
+        if(moved < -90){ c.style.transform="translateY(-120%)"; c.style.opacity="0";
           const i=openTabs.findIndex(x=>x.id===d.id); if(i>=0) openTabs.splice(i,1);
           refreshTabCount();
-          setTimeout(()=>{ renderTabs(); if(!openTabs.length){} }, 240);
-          haptic(12);
+          setTimeout(()=>{ renderTabs(); }, 240); haptic(12);
         } else { c.style.transform=""; c.style.opacity=""; } };
       c.addEventListener("pointerup", endDrag);
       c.addEventListener("pointercancel", endDrag);
@@ -789,56 +817,50 @@ body{
   }
 
   /* =========================================================================
-     SYNC — tap casts the spell; press-hold opens details; a RED state opens
-     details on a single tap (it is the actionable state).
+     SYNC — reflects the REAL device state (online/offline) + unsaved edits.
+       synced   — nothing to do
+       reminder — you've edited since the last back-up
+       syncing  — the cast is running
+       offline  — the device has no connection (navigator.onLine)
+     Tap sync → cast (when online). Hold / tap-when-offline → details.
      ======================================================================= */
-  const syncBtn=$("#syncBtn"), syncPanel=$("#syncPanel"), spell=$("#spell");
-  let syncState="reminder";  // synced | reminder | syncing | offline
+  const syncWact = wactEls.sync, syncPanel=$("#syncPanel"), spell=$("#spell");
+  let syncState = navigator.onLine ? "synced" : "offline";
+  let dirty = false;
+  function markDirty(){ dirty = true; if(syncState!=="syncing" && syncState!=="offline") setSync("reminder"); }
   function setSync(s){
     syncState=s;
-    syncBtn.dataset.state=s; syncPanel.dataset.state=s;
-    $(".glyph",syncPanel).dataset.state=s;
+    syncWact.dataset.state=s; syncPanel.dataset.state=s;
     paintPanel();
   }
   function paintPanel(){
-    const T=$("#spTitle"), S=$("#spSub"), tr=$("#spTransfer"), mt=$("#spMeter"), pr=$("#spPrimary");
-    tr.style.display="none"; mt.style.display="block"; pr.style.display="flex";
-    if(syncState==="synced"){ T.textContent="All backed up."; S.textContent="Last backed up · just now"; pr.innerHTML=`Back up now`; }
-    else if(syncState==="reminder"){ T.textContent="Ready to back up."; S.textContent="Last backed up · 5m ago"; pr.innerHTML=`Back up now`; }
-    else if(syncState==="syncing"){ T.textContent="Backing up…"; S.textContent=""; tr.style.display="flex"; pr.style.display="none";
-      $("#spTransferFlask").innerHTML=flaskSVG("vial","212 70% 68%",.45); }
-    else if(syncState==="offline"){ T.textContent="Can't reach OneDrive."; S.textContent="Your notes are safe on this Mac. We'll back up once OneDrive is reachable."; mt.style.display="none"; pr.innerHTML=`Try again`; }
-    syncPanel.querySelectorAll(".demo button").forEach(b=>b.classList.toggle("on", b.dataset.s===syncState));
+    const T=$("#spTitle"), S=$("#spSub"), pr=$("#spPrimary");
+    pr.disabled=false; pr.style.display="flex";
+    if(syncState==="synced"){ T.textContent="Everything's backed up."; S.textContent="Your memories are safe in the cloud."; pr.textContent="Back up now"; }
+    else if(syncState==="reminder"){ T.textContent="Changes ready to back up."; S.textContent="New writing lives on this device until you cast."; pr.textContent="Back up now"; }
+    else if(syncState==="syncing"){ T.textContent="Backing up…"; S.textContent="Weaving your memories to the cloud."; pr.textContent="Backing up…"; pr.disabled=true; }
+    else if(syncState==="offline"){ T.textContent="You're offline."; S.textContent="Everything's saved here. It'll back up on its own once you're connected."; pr.textContent="Waiting for connection"; pr.disabled=true; }
   }
   function openPanel(){ paintPanel(); syncPanel.classList.add("open"); haptic(8); }
   function closePanel(){ syncPanel.classList.remove("open"); }
+  function syncTap(){ if(syncState==="offline"){ openPanel(); return; } castSpell(); }
 
-  let sHoldT=null, sHeld=false;
-  syncBtn.addEventListener("pointerdown", ()=>{ sHeld=false; sHoldT=setTimeout(()=>{ sHeld=true; haptic(14); openPanel(); }, 380); });
-  const syncUp=()=>{ clearTimeout(sHoldT);
-    if(sHeld) return;                          // a hold already opened the panel
-    if(syncState==="offline"){ openPanel(); return; }   // red → open immediately
-    castSpell();
-  };
-  syncBtn.addEventListener("pointerup", syncUp);
-  syncBtn.addEventListener("pointercancel", ()=>clearTimeout(sHoldT));
-  // close panel on outside tap
-  root.addEventListener("pointerdown", e=>{ if(syncPanel.classList.contains("open") && !syncPanel.contains(e.target) && e.target!==syncBtn && !syncBtn.contains(e.target)) closePanel(); }, true);
-  $("#spSignout").addEventListener("click", ()=>{ setSync("offline"); });
-  $("#spPrimary").addEventListener("click", ()=>{ closePanel(); if(syncState!=="offline") castSpell(); else setSync("syncing"), finishSync(); });
-  syncPanel.querySelectorAll(".demo button").forEach(b=> b.addEventListener("click", ()=> setSync(b.dataset.s)) );
+  root.addEventListener("pointerdown", e=>{ if(syncPanel.classList.contains("open") && !syncPanel.contains(e.target) && !syncWact.contains(e.target)) closePanel(); }, true);
+  $("#spSignout").addEventListener("click", ()=> closePanel());
+  $("#spPrimary").addEventListener("click", ()=>{ if(syncState==="offline"||syncState==="syncing") return; closePanel(); castSpell(); });
+  window.addEventListener("online", ()=>{ setSync(dirty ? "reminder" : "synced"); });
+  window.addEventListener("offline", ()=>{ setSync("offline"); });
 
   function castSpell(){
-    if(syncState==="syncing") return;
+    if(syncState==="syncing" || syncState==="offline") return;
     setSync("syncing"); haptic(14);
     spell.classList.add("show"); $("#spellLabel").textContent="Weaving to the cloud…"; $("#spellLabel").style.color="";
     const ring=$("#spellRing"), rune=$("#spellRune");
     ring.classList.remove("go"); rune.classList.remove("go"); void ring.offsetWidth; void rune.offsetWidth;
     ring.classList.add("go"); rune.classList.add("go");
     setTimeout(()=>{ $("#spellLabel").textContent="All memories safe · just now"; $("#spellLabel").style.color="hsl(var(--success))"; }, 1300);
-    setTimeout(finishSync, 1900);
+    setTimeout(()=>{ spell.classList.remove("show"); dirty=false; setSync(navigator.onLine?"synced":"offline"); }, 1900);
   }
-  function finishSync(){ spell.classList.remove("show"); setSync("synced"); }
 
   /* =========================================================================
      SPEECH — simulate dictation (listening state + sample text)
@@ -866,12 +888,15 @@ body{
 
   /* ---- elastic-scroll guard on real phones ---- */
   document.addEventListener("touchmove", e=>{
-    if(!e.target.closest(".reel,.accio-results,.note-surface,.tabs-rail,.strip")) e.preventDefault();
+    if(!e.target.closest(".reel,.accio-results,.note-surface,.tabs-rail")) e.preventDefault();
   }, { passive:false });
 
   /* ---- boot ---- */
   renderReel();
-  window.addEventListener("resize", () => { const sp=Math.max(0, reel.clientHeight-SLOT_H-8); reel.style.paddingBottom=sp+"px"; });
+  renderWheel();
+  setSync(syncState);
+  requestAnimationFrame(()=>{ layoutReel(); updateLens(true); renderWheel(); });
+  window.addEventListener("resize", () => { layoutReel(); updateLens(true); renderWheel(); updateKB(); });
 })();
 </script>
 </body>
