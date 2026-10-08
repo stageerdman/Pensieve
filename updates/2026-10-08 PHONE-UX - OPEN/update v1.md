@@ -71,5 +71,10 @@ deep blue-black stone, the magical-blue accent and gold. Magical AND highly prac
     native in mobile Safari).
   - Still a **prototype with seed data** (writing/search/sync simulated). Wiring to
     the real vault + the PWA-CAPTURE runtime is Phase 3.
-- **Next:** owner tries v2 on-device and names anything to refine before we lock the
-  spec and start the real build.
+- 2026-10-08: **Converged to one concept.** Dropped the other concepts (old Wand v1,
+  Reel, Pool) and the gallery — The Wand (`concepts/01-the-wand-v2.html`) is now the
+  single canonical phone concept. `index.html` redirects to it for a clean URL.
+  Served on the LAN (`python3 -m http.server` on the concepts folder) so the owner
+  can open it on the iPhone at `http://<mac-lan-ip>:8080/`.
+- **Next:** owner tries the Wand on-device and names anything to refine before we lock the
+  spec and start the real build (Phase 3) on the PWA-CAPTURE runtime.
