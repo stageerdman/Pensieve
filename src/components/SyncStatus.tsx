@@ -82,7 +82,12 @@ export function SyncStatus({
       case "syncing":
         return "Syncing…";
       case "error":
-        return "Sign-in expired.";
+        // Say what actually went wrong — not a blanket "sign-in expired".
+        return ui.errorKind === "expired"
+          ? "Sign-in expired."
+          : ui.errorKind === "offline"
+            ? "Can't reach OneDrive."
+            : "Backup hit a snag.";
       case "conflicts":
         return `${ui.conflicts.length} ${ui.conflicts.length === 1 ? "note" : "notes"} changed here and elsewhere.`;
       case "synced":
@@ -95,7 +100,13 @@ export function SyncStatus({
 
   const primary = (): { label: string; onClick: () => void; disabled?: boolean } => {
     if (disconnected) return { label: "Connect OneDrive", onClick: () => void connect() };
-    if (ui.phase === "error") return { label: "Reconnect", onClick: () => void connect() };
+    if (ui.phase === "error") {
+      // Expired genuinely needs a fresh sign-in; a transient/other error just needs
+      // another attempt — don't push people through OAuth for a network blip.
+      return ui.errorKind === "expired"
+        ? { label: "Reconnect", onClick: () => void connect() }
+        : { label: "Try again", onClick: () => void syncNow() };
+    }
     if (syncing) return { label: "Syncing…", onClick: () => {}, disabled: true };
     return { label: "Sync now", onClick: () => void syncNow() };
   };
@@ -130,7 +141,11 @@ export function SyncStatus({
 
           {ui.error && (
             <p className="mt-1 text-xs leading-snug text-text-muted">
-              {ui.phase === "error" ? "Reconnect to keep backing up." : ui.error}
+              {ui.phase === "error" && ui.errorKind === "expired"
+                ? "Your notes are safe on this Mac — reconnect to keep backing up."
+                : ui.phase === "error" && ui.errorKind === "offline"
+                  ? "Your notes are safe on this Mac. We'll back up once OneDrive is reachable."
+                  : ui.error}
             </p>
           )}
 

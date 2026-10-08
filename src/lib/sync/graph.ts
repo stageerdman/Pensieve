@@ -6,6 +6,7 @@
 import { GRAPH_BASE } from "./config";
 import { isTauri } from "../store";
 import { httpRequest } from "./native";
+import { TransientSyncError } from "./types";
 import { log } from "../logger";
 
 // On desktop, route through the native HTTP command (no webview Origin header, so
@@ -47,7 +48,18 @@ export function makeGraphClient(provider: TokenProvider): GraphClient {
     const url = options.absolute ? path : `${GRAPH_BASE}${path}`;
     for (let attempt = 0; ; attempt++) {
       const token = await provider.getToken();
-      const res = await transport(url, options, token);
+      let res: Response;
+      try {
+        res = await transport(url, options, token);
+      } catch (e) {
+        // A transport throw (no network, DNS, native HTTP timeout) is temporary —
+        // one retry, then surface it as transient (not a generic/expired error).
+        if (attempt < maxRetries) {
+          await sleep(Math.min(2 ** attempt, 30) * 1000);
+          continue;
+        }
+        throw new TransientSyncError(`Couldn't reach OneDrive (${String(e instanceof Error ? e.message : e)}).`);
+      }
 
       if (res.status === 401 && attempt === 0) {
         provider.invalidate?.();
@@ -67,6 +79,11 @@ export function makeGraphClient(provider: TokenProvider): GraphClient {
     const res = await doFetch(path, options);
     if (!res.ok) {
       const text = await res.text().catch(() => "");
+      // A 5xx (or a 429 that outlived its retries) is OneDrive being temporarily
+      // unavailable — transient, not a bug on our side and not an expired login.
+      if (res.status >= 500 || res.status === 429) {
+        throw new TransientSyncError(`OneDrive is temporarily unavailable (${res.status}).`);
+      }
       throw new Error(`Graph ${path} failed (${res.status}): ${text.slice(0, 300)}`);
     }
     return res.json() as Promise<T>;

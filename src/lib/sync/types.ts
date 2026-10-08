@@ -82,10 +82,37 @@ export class ConflictError extends Error {
   }
 }
 
-/** Thrown when there is no valid refresh token — caller shows "Connect OneDrive". */
+/** Thrown when there is no valid refresh token, or the stored one was revoked /
+ *  expired (Microsoft `invalid_grant`). The ONLY case that genuinely means
+ *  "sign in again" — caller shows Connect / Reconnect. */
 export class ReconnectNeededError extends Error {
   constructor(message = "OneDrive is not connected.") {
     super(message);
     this.name = "ReconnectNeededError";
+  }
+}
+
+/** Thrown for a *temporary* failure — no network, a token/Graph 5xx, a timeout.
+ *  The sign-in is still valid; the right UX is "can't reach OneDrive, try again",
+ *  never "sign-in expired". Distinguishing this from ReconnectNeeded is what stops
+ *  every transient hiccup from masquerading as an expired login. */
+export class TransientSyncError extends Error {
+  constructor(message = "Can't reach OneDrive right now.") {
+    super(message);
+    this.name = "TransientSyncError";
+  }
+}
+
+/** A failure from the OAuth token endpoint, carrying the HTTP status and the
+ *  Microsoft error code (e.g. `invalid_grant`, `invalid_client`) so callers can
+ *  tell an expired login from a config problem from a transient 5xx. */
+export class TokenError extends Error {
+  constructor(
+    public status: number,
+    public code: string,
+    public description: string,
+  ) {
+    super(`Token request failed (${status}): ${code}${description ? ` — ${description}` : ""}`);
+    this.name = "TokenError";
   }
 }

@@ -367,27 +367,22 @@ body {
 .sync-icon[data-state="flash"] .lemniscate {
   stroke: hsl(var(--success)); /* brief "just synced" confirmation */
 }
-/* Flowing states: gold when a sync is due/running, red when disconnected. */
-/* Flowing states: gold when a sync is due/running, red when "offline"
-   (disconnected OR sign-in expired — never a static dot). */
-.sync-icon[data-state="reminder"] .lemniscate,
-.sync-icon[data-state="syncing"] .lemniscate,
-.sync-icon[data-state="offline"] .lemniscate {
-  animation: sync-flow linear infinite;
-  will-change: stroke-dashoffset;
-}
-.sync-icon[data-state="reminder"] .lemniscate,
-.sync-icon[data-state="syncing"] .lemniscate { stroke: hsl(var(--gold)); }
+/* MOTION MEANS A TRANSFER IS HAPPENING — and nothing else. Only the `syncing`
+   state flows; otherwise the glyph is still. A perpetually-flowing rune (the old
+   behaviour for "unsynced changes" and "disconnected") reads as "syncing forever",
+   which is exactly the confusion we're fixing. At rest the colour carries the
+   meaning: gold = changes waiting, red = not backing up. */
 .sync-icon[data-state="syncing"] .lemniscate {
-  animation-duration: 1.1s; /* fast while actively syncing */
+  stroke: hsl(var(--gold));
+  animation: sync-flow 1.1s linear infinite;
+  will-change: stroke-dashoffset;
   filter: drop-shadow(0 0 1.5px hsl(var(--gold) / 0.9));
 }
 .sync-icon[data-state="reminder"] .lemniscate {
-  animation-duration: 2.6s; /* gentle "you have unsynced changes" flow */
+  stroke: hsl(var(--gold)); /* static gold S — changes are waiting to back up */
 }
 .sync-icon[data-state="offline"] .lemniscate {
-  stroke: hsl(var(--danger)); /* not connected / sign-in expired — red, still moving */
-  animation-duration: 2s;
+  stroke: hsl(var(--danger)); /* static red — not connected / sign-in expired */
 }
 /* Advance by exactly one path length → identical frame → no seam. (Flows the
    opposite way round the 8.) */
