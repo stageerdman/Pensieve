@@ -182,6 +182,11 @@ export function useBlockMarquee(editor: MarqueeEditor, wrapRef: RefObject<HTMLEl
         log.debug("editor", "marquee.end", { rows: n });
       }
       endDrag();
+      // Focus the editor so the selection is *actionable*: pressing Backspace/Delete or
+      // ⌘C/⌘X/⌘V now reaches ProseMirror (the press started in the blank margin, so the
+      // contentEditable never got focus on its own). focus() also re-syncs the DOM
+      // selection to the stored PM selection, which is what the native copy reads.
+      if (wasActive) editor.prosemirrorView?.focus?.();
     };
 
     const onDown = (e: PointerEvent) => {
