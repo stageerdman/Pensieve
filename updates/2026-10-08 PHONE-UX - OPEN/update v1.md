@@ -153,6 +153,21 @@ deep blue-black stone, the magical-blue accent and gold. Magical AND highly prac
      the button, so no more misaligned circles.
   - Tap a button still runs it IN PLACE (no scroll-to-centre). jsdom-verified: 6 options,
     54 snaps, grip resize/flip, dial whitelisted, side flip, flows all clean.
-- **Next:** owner tests on device — scrolling (wheel + background), the Adjust option's
-  resize/flip, and whether the left-side "hole" is gone (screenshot if not). Then lock
-  the spec and start the real build (Phase 3) on the PWA-CAPTURE runtime.
+- 2026-10-08: **Round-7 — buttons ARE the handles.** Owner: the big invisible dial was
+  catching touches "almost anywhere," blocking background scroll. Removed the native-
+  scroll dial entirely. Now rotation happens ONLY by grabbing a menu button and swinging
+  it around the arc (angular 1:1, button sticks to finger) with a light inertial glide +
+  detent settle on release. Every gap / the centre / around / outside falls straight
+  through → the reel (background) scrolls normally. Tap a button = run in place.
+  - **Adjust** (centred) now decomposes the drag: **radial** pull (straight out/in from
+    the corner) = resize; **tangential** swing = rotate the wheel like any button; **hold
+    ~2s** = flip side. (Was: any drag resized.)
+  - **Glow mirrored** on flip (`at 30% 70%` on the left) so it pools in the corner
+    instead of showing a box mid-screen.
+  - Grip lifted above the buttons (z110) so it actually receives the centred-adjust
+    gestures. Typing hides the whole wheel + buttons. Side + radius persist.
+  - jsdom-verified: 6 options, dial gone, drag rotates, tap runs, grip resize/flip, glow
+    mirrored, flows intact.
+- **Next:** owner tests on device — rotate by grabbing buttons (smooth? inertia right?),
+  background scroll free again, Adjust radial-resize vs tangential-rotate, glow on both
+  sides. Then lock the spec and start Phase 3 on the PWA-CAPTURE runtime.
