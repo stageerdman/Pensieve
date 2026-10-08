@@ -394,6 +394,46 @@ body {
   .sync-icon .lemniscate { animation: none !important; } /* gold colour alone signals */
 }
 
+/* ---- Sync panel (the details popover) ---- */
+/* The panel UNFOLDS from the rune's top-right corner — the whole "magical on open"
+   moment, costing no chrome. */
+.sync-panel {
+  transform-origin: top right;
+  animation: sync-panel-in 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes sync-panel-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+/* The panel's header glyph takes ONE slow breath when the panel opens, then stills
+   — as if the pensieve stirred when you looked in. One-shot, not a loop. */
+.sync-panel-glyph .lemniscate {
+  animation: sync-breathe 1.2s ease-in-out 1;
+}
+@keyframes sync-breathe {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 0.85; }
+}
+
+/* The progress flask: flat accent liquid (no gradient) + one living meniscus
+   ripple while a transfer is in flight. */
+.sync-flask .liquid {
+  fill: hsl(var(--accent));
+  fill-opacity: 0.85;
+}
+.sync-flask.is-active .ripple {
+  animation: sync-flask-ripple 3s ease-in-out infinite;
+}
+@keyframes sync-flask-ripple {
+  0%, 100% { transform: translateY(0.5px); }
+  50% { transform: translateY(-0.5px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sync-panel { animation: none; }
+  .sync-panel-glyph .lemniscate { animation: none; }
+  .sync-flask.is-active .ripple { animation: none; }
+}
+
 /* ---- Summon (search) ---- */
 /* A new chip settling in. */
 @keyframes summon-chip-in {

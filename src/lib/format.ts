@@ -19,6 +19,22 @@ export function relativeTime(ts: number, now: number = Date.now()): string {
   return `${d}d ago`;
 }
 
+const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB", "PB"];
+
+/** Human byte size: "840 B", "42 MB", "18.2 GB", "1 TB". One decimal only when it
+ *  adds information (value < 10 in its unit), and never a trailing ".0". */
+export function formatBytes(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return "0 B";
+  let u = 0;
+  let v = n;
+  while (v >= 1024 && u < BYTE_UNITS.length - 1) {
+    v /= 1024;
+    u++;
+  }
+  const rounded = v < 10 && u > 0 ? Math.round(v * 10) / 10 : Math.round(v);
+  return `${rounded} ${BYTE_UNITS[u]}`;
+}
+
 export function absoluteDate(ts: number, now: number = Date.now()): string {
   const d = new Date(ts);
   const base = `${MONTHS[d.getMonth()]} ${d.getDate()}`;
