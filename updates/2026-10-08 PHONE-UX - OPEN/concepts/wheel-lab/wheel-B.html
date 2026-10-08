@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#0a0e14" />
+<title>Pensieve — Wheel Lab B · Native-Scroll Dial</title>
+<style>
+/* ============================================================================
+   WHEEL LAB · AGENT B — "the native-scroll dial"
+   The thumb-wheel is driven by a REAL, invisible iOS scroll container laid over
+   the bottom-right quadrant. iOS owns the physics: flick momentum + rubber-band
+   + scroll-snap detents are all the OS's own. We only read scrollTop → a float
+   index `pos`, and lay the action buttons on an arc with transform (GPU) only.
+   Looping: the action list is repeated CYCLES times; whenever scroll nears an
+   end we silently add/subtract one cycle of scrollTop (a multiple of the snap
+   step AND of N) so the arc is pixel-identical — it feels infinite.
+   Self-contained: no network, no fonts, no CDNs.
+   ========================================================================== */
+:root{
+  --surface:222 24% 11%; --surface-sunken:222 22% 13%; --surface-raised:222 18% 17%;
+  --text:216 18% 84%; --text-muted:218 12% 60%; --border:222 16% 21%;
+  --accent:215 85% 74%; --accent-glow:218 100% 72%; --gold:43 92% 55%;
+  --font:-apple-system,"SF Pro Text",system-ui,sans-serif;
+  --spring:cubic-bezier(.22,1,.36,1); --ease:cubic-bezier(.4,0,.2,1);
+}
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ margin:0; height:100%; }
+body{
+  font-family:var(--font); color:hsl(var(--text));
+  background:radial-gradient(1200px 800px at 50% -10%, #11182400, #0a0e14 70%), #0a0e14;
+  display:flex; align-items:center; justify-content:center; min-height:100dvh; padding:24px; overflow:hidden;
+}
+/* ---- Device frame (iPhone on desktop; full-bleed on a phone) ---- */
+.device{
+  position:relative; width:390px; height:844px; border-radius:54px; background:#000; padding:11px; flex:none;
+  box-shadow:0 0 0 2px #1c222c, 0 0 0 11px #05070a, 0 40px 120px -20px rgba(0,0,0,.9),
+             0 0 90px -20px hsl(var(--accent-glow)/.18);
+}
+@media (max-width:420px),(display-mode:standalone){
+  body{ padding:0; }
+  .device{ width:100vw; height:100dvh; border-radius:0; padding:0; box-shadow:none; }
+  .screen{ border-radius:0 !important; }
+}
+.screen{
+  position:relative; width:100%; height:100%; border-radius:44px; overflow:hidden;
+  background:hsl(var(--surface)); isolation:isolate;
+  background-image:
+    radial-gradient(120% 70% at 20% -5%, hsl(var(--accent-glow)/.10), transparent 55%),
+    radial-gradient(90% 60% at 95% 8%, hsl(270 55% 74% /.08), transparent 50%),
+    radial-gradient(140% 90% at 95% 118%, hsl(218 60% 24% /.42), transparent 60%);
+}
+.home-indicator{
+  position:absolute; bottom:8px; left:50%; transform:translateX(-50%);
+  width:134px; height:5px; border-radius:3px; background:hsl(var(--text)/.5); z-index:5; pointer-events:none;
+}
+
+/* ---- Lab readouts (caption + live debug + tunables) ---- */
+.lab{ position:absolute; top:calc(16px + env(safe-area-inset-top)); left:20px; right:20px; z-index:3; pointer-events:none; }
+.lab h1{ margin:0 0 4px; font-size:19px; font-weight:700; letter-spacing:-.3px; }
+.lab .cap{ font-size:12.5px; line-height:1.5; color:hsl(var(--text-muted)); max-width:260px; }
+.debug{
+  position:absolute; top:calc(16px + env(safe-area-inset-top)); right:18px; z-index:4; pointer-events:none;
+  font-size:11px; font-variant-numeric:tabular-nums; text-align:right; color:hsl(var(--accent));
+  background:hsl(var(--surface-sunken)/.7); border:1px solid hsl(var(--border)); border-radius:9px; padding:6px 9px;
+  line-height:1.5; letter-spacing:.2px;
+}
+.debug b{ color:hsl(var(--text)); font-weight:700; }
+.debug .mut{ color:hsl(var(--text-muted)); }
+
+/* soft pool of light in the thumb corner, hinting where the dial lives */
+.corner-glow{ content:""; position:absolute; right:-60px; bottom:-60px; width:340px; height:340px; z-index:1; pointer-events:none;
+  background:radial-gradient(circle at 70% 70%, hsl(var(--accent-glow)/.14), transparent 62%); }
+
+/* ===========================================================================
+   THE WHEEL — buttons laid on an arc by transform only (never left/top in loop)
+   =========================================================================== */
+.wheel{ position:absolute; inset:0; z-index:2; pointer-events:none; }
+.wact{
+  position:absolute; left:0; top:0; width:58px; height:58px; border-radius:50%;
+  border:1px solid hsl(var(--border)); background:hsl(var(--surface-raised)/.82);
+  backdrop-filter:blur(22px) saturate(1.3); -webkit-backdrop-filter:blur(22px) saturate(1.3);
+  color:hsl(var(--text-muted)); display:flex; align-items:center; justify-content:center;
+  box-shadow:0 10px 28px -14px rgba(0,0,0,.7);
+  will-change:transform,opacity; pointer-events:none;              /* scroller on top handles input */
+  transition:border-color .25s var(--ease), color .25s var(--ease), box-shadow .25s var(--ease);
+}
+.wact.hero{ width:66px; height:66px; border:none; color:#fff;
+  background:radial-gradient(130% 130% at 30% 25%, hsl(var(--accent)) 0%, hsl(var(--accent-glow)) 55%, hsl(215 80% 52%) 100%);
+  box-shadow:0 0 0 1px hsl(var(--accent-glow)/.5), 0 14px 34px -8px hsl(var(--accent-glow)/.55),
+             inset 0 2px 4px hsl(0 0% 100%/.4), inset 0 -6px 12px hsl(215 80% 40%/.5); }
+.wact.hero::before{ content:""; position:absolute; inset:-9px; border-radius:50%;
+  background:radial-gradient(circle, hsl(var(--accent-glow)/.3), transparent 70%); z-index:-1; opacity:0; transition:opacity .3s; }
+.wact.hero.centered::before{ opacity:1; animation:breathe 4s var(--ease) infinite; }
+@keyframes breathe{ 0%,100%{ transform:scale(.85); opacity:.5; } 50%{ transform:scale(1.12); opacity:.9; } }
+/* a centered, non-hero action gets a quiet ring so it reads as "selected" */
+.wact.centered:not(.hero){ color:hsl(var(--text)); border-color:hsl(var(--accent)/.45); box-shadow:0 10px 30px -12px rgba(0,0,0,.75), 0 0 0 1px hsl(var(--accent)/.25); }
+/* tap / hold feedback */
+.wact.flash{ animation:flash .42s var(--ease); }
+@keyframes flash{ 0%{ filter:brightness(1.9) } 100%{ filter:brightness(1) } }
+.wact.holding{ filter:brightness(1.15); }
+.lemniscate{ fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+
+.wheel-label{
+  position:absolute; left:0; top:0; z-index:2; pointer-events:none;
+  font-size:11px; font-weight:600; letter-spacing:.4px; color:hsl(var(--text)/.8); text-transform:uppercase;
+  transform:translate(-50%,-50%); text-shadow:0 1px 6px hsl(var(--surface)/.9); transition:opacity .18s var(--ease); white-space:nowrap;
+}
+
+/* ===========================================================================
+   THE SCROLLER — an invisible, full-quadrant iOS scroll container. It provides
+   ALL the physics. One snap child per step; the list repeats CYCLES times.
+   =========================================================================== */
+.dial{
+  position:absolute; right:0; bottom:0; z-index:4;
+  width:66%; height:72%;                 /* large grab zone over the thumb corner */
+  overflow-y:auto; overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  scroll-snap-type:y mandatory;
+  touch-action:pan-y;
+  scrollbar-width:none;
+  -webkit-user-select:none; user-select:none;
+}
+.dial::-webkit-scrollbar{ display:none; }
+.dial .snap{ scroll-snap-align:start; scroll-snap-stop:normal; width:100%; } /* height set by JS = SNAP_PX */
+
+@media (prefers-reduced-motion:reduce){
+  .wact.hero.centered::before{ animation:none; }
+  .wact.flash{ animation:none; }
+}
+</style>
+</head>
+<body>
+<div class="device">
+  <div class="screen" id="screen">
+
+    <div class="corner-glow"></div>
+
+    <div class="lab">
+      <h1>Dial · Lab B</h1>
+      <div class="cap">Flick the glowing dial in the bottom-right — iOS momentum spins it and it clicks into each detent. Tap any action to run it. Press-hold the centre for its deep action.</div>
+    </div>
+    <div class="debug" id="debug"></div>
+
+    <!-- the arc of actions (positioned by JS, transform only) -->
+    <div class="wheel" id="wheel"></div>
+    <div class="wheel-label" id="wheelLabel"></div>
+
+    <!-- the invisible native scroll container that drives it all -->
+    <div class="dial" id="dial"><div id="dialTrack"></div></div>
+
+    <div class="home-indicator"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (s,r=document)=>r.querySelector(s);
+  const reduce = (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) || false;
+  const haptic = (ms=8)=>{ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} };
+
+  /* ========================================================================
+     TUNABLES — every knob that shapes the feel, in one place.
+     ====================================================================== */
+  const CFG = {
+    SNAP_PX   : 92,   // height of one scroll detent (one "click" of the dial)
+    CYCLES    : 9,    // how many times the 5-action list repeats (→ infinite feel)
+    RADIUS    : 152,  // arc radius from the hub, px
+    STEP_DEG  : 31,   // angular gap between neighbouring actions, degrees
+    CENTER_DEG: 150,  // angle of the centred slot (points up-left into the thumb), degrees
+    HUB_RIGHT : 4,    // hub x inset from the screen's right edge, px
+    HUB_BOTTOM: 30,   // hub y inset from the screen's bottom edge, px
+    MAX_VIS   : 2.25, // actions more than this many steps from centre are hidden
+    TAP_MOVE  : 9,    // finger travel (px) still counted as a tap, not a drag
+    TAP_SCROLL: 3,    // scrollTop change (px) still counted as a tap, not a scroll
+    HOLD_MS   : 420,  // press-hold duration for the centred action's deep action
+    LABEL_DROP: 46    // px the label sits below the centred action
+  };
+
+  /* ---- the 5 actions (icons reused verbatim from 01-the-wand-v2.html) ---- */
+  const ICONS = {
+    accio:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" opacity=".5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>`,
+    wand:`<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19 15 9" stroke-opacity=".95"/><path d="M17.5 4.5v4M15.5 6.5h4" stroke-opacity=".9"/><circle cx="9" cy="15" r=".6" fill="#fff" stroke="none" opacity=".8"/></svg>`,
+    sync:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path class="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"/></svg>`,
+    cards:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="15" rx="2.5"/><path d="M8 6V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-1" opacity=".55"/></svg>`,
+    home:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8c3 2.2 6 2.2 7 2.2S16 10.2 19 8"/><path d="M5 13c3 2.2 6 2.2 7 2.2S16 15.2 19 13"/><path d="M5 18c3 2.2 6 2.2 7 2.2S16 20.2 19 18"/></svg>`
+  };
+  const ORDER  = ["accio","wand","sync","cards","home"];   // cyclic; wand starts centred
+  const LABELS = { accio:"Search", wand:"New", sync:"Sync", cards:"Cards", home:"Home" };
+  const HERO   = "wand";
+  const N = ORDER.length;
+
+  /* ---- build the buttons once ---- */
+  const wheel = $("#wheel"), wheelLabel = $("#wheelLabel"), dial = $("#dial"), dialTrack = $("#dialTrack"), debug = $("#debug");
+  const els = {};
+  ORDER.forEach(key => {
+    const el = document.createElement("div");
+    el.className = "wact" + (key===HERO ? " hero" : "");
+    el.dataset.key = key;
+    el.innerHTML = ICONS[key];
+    wheel.appendChild(el);
+    els[key] = el;
+  });
+
+  /* ---- build the invisible snap track: CYCLES repeats of the N actions ---- */
+  const TOTAL = CFG.CYCLES * N;
+  (function buildTrack(){
+    const frag = document.createDocumentFragment();
+    for (let k=0;k<TOTAL;k++){
+      const s = document.createElement("div");
+      s.className = "snap"; s.style.height = CFG.SNAP_PX + "px";
+      frag.appendChild(s);
+    }
+    dialTrack.appendChild(frag);
+  })();
+
+  /* ========================================================================
+     GEOMETRY — cached on resize, never recomputed inside the scroll loop.
+     ====================================================================== */
+  let W=0, H=0, pivotX=0, pivotY=0;
+  function cacheGeom(){
+    const r = $("#screen").getBoundingClientRect();
+    W = r.width; H = r.height;
+    pivotX = W - CFG.HUB_RIGHT;
+    pivotY = H - CFG.HUB_BOTTOM;
+  }
+
+  /* ---- pos: the continuous float index, read straight from scrollTop ---- */
+  let pos = ORDER.indexOf("wand");
+  const centers = {};               // key -> {x,y,r,vis} in screen-local coords, for hit-testing
+  let lastCentered = -1, stepCount = 0, lastAction = "—";
+
+  // bring o into (-N/2, N/2]  — the signed distance of an action from centre
+  function wrap(o){ o = ((o % N) + N) % N; if (o > N/2) o -= N; return o; }
+  function centredIndex(){ return ((Math.round(pos) % N) + N) % N; }
+  function centredKey(){ return ORDER[centredIndex()]; }
+
+  function layoutArc(){
+    const DEG = Math.PI/180;
+    for (let i=0;i<N;i++){
+      const key = ORDER[i], el = els[key];
+      const o = wrap(i - pos), ao = Math.abs(o);
+      if (ao > CFG.MAX_VIS){ el.style.opacity = "0"; centers[key] = {x:0,y:0,r:0,vis:false}; continue; }
+      const ang   = (CFG.CENTER_DEG + o*CFG.STEP_DEG) * DEG;
+      const x     = pivotX + CFG.RADIUS*Math.cos(ang);
+      const y     = pivotY - CFG.RADIUS*Math.sin(ang);
+      const scale = Math.max(.52, 1 - .24*ao);
+      const op    = Math.max(0,   1 - .42*ao);
+      // transform ONLY — GPU compositing, no layout thrash
+      el.style.transform = `translate3d(${x}px,${y}px,0) translate(-50%,-50%) scale(${scale})`;
+      el.style.opacity = op;
+      el.style.zIndex  = String(100 - Math.round(ao*10));
+      el.classList.toggle("centered", ao < .5);
+      const baseR = (key===HERO ? 33 : 29);
+      centers[key] = { x, y, r: baseR*scale, vis: op > .25 };
+    }
+    // label beneath the centred slot
+    const ca = CFG.CENTER_DEG * DEG;
+    const lx = pivotX + CFG.RADIUS*Math.cos(ca), ly = pivotY - CFG.RADIUS*Math.sin(ca);
+    wheelLabel.style.transform = `translate3d(${lx}px,${ly + CFG.LABEL_DROP}px,0) translate(-50%,-50%)`;
+    wheelLabel.textContent = LABELS[centredKey()];
+    wheelLabel.style.opacity = (Math.abs(pos - Math.round(pos)) < .22) ? "1" : "0";
+
+    // debug + detent counter + haptic tick on each new centred action
+    const ci = centredIndex();
+    if (ci !== lastCentered){ lastCentered = ci; stepCount++; if (Math.abs(pos-Math.round(pos))<.5) haptic(6); }
+    renderDebug();
+  }
+
+  function renderDebug(){
+    debug.innerHTML =
+      `centred <b>${LABELS[centredKey()]}</b><br>` +
+      `steps <b>${stepCount}</b> <span class="mut">· pos ${pos.toFixed(2)}</span><br>` +
+      `<span class="mut">last</span> ${lastAction}`;
+  }
+
+  /* ========================================================================
+     LOOPING / RECENTRE — keep scrollTop ≥1 cycle from either end. A jump of one
+     whole cycle (N*SNAP_PX) is a multiple of both the snap step and N, so the
+     arc + centred action are pixel-identical: the user never sees the seam.
+     ====================================================================== */
+  const CYCLE_PX = N * CFG.SNAP_PX;
+  function recentre(){
+    const st = dial.scrollTop;
+    const minST = CYCLE_PX;                          // ≥ 1 cycle from the top
+    const maxST = (TOTAL - N) * CFG.SNAP_PX;         // ≤ 1 cycle from the bottom
+    if (st < minST){ dial.scrollTop = st + CYCLE_PX; return true; }
+    if (st > maxST){ dial.scrollTop = st - CYCLE_PX; return true; }
+    return false;
+  }
+
+  /* ---- the scroll loop: passive + rAF-throttled, reads scrollTop → pos ---- */
+  let ticking = false;
+  function onScroll(){
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      recentre();                         // may rewrite scrollTop (seamless)
+      pos = dial.scrollTop / CFG.SNAP_PX;
+      layoutArc();
+      ticking = false;
+    });
+  }
+  dial.addEventListener("scroll", onScroll, { passive:true });
+
+  /* ---- move a chosen action to centre (native smooth scroll) ---- */
+  function scrollToAction(i){
+    const target = Math.round(pos) + wrap(i - pos);  // nearest cycle of action i
+    dial.scrollTo({ top: target * CFG.SNAP_PX, behavior: reduce ? "auto" : "smooth" });
+  }
+
+  /* ========================================================================
+     TAPS & HOLD — the scroller sits ON TOP, so it eats the pointer stream. We
+     distinguish tap from scroll by (a) negligible finger travel AND (b) no
+     scrollTop delta, then hit-test which arc button is under the finger.
+     ====================================================================== */
+  let pX=0, pY=0, pScroll=0, holdTimer=null, didHold=false, sRect=null;
+
+  function hitTest(clientX, clientY){
+    if (!sRect) sRect = $("#screen").getBoundingClientRect();
+    const lx = clientX - sRect.left, ly = clientY - sRect.top;
+    let best = null, bestD = Infinity;
+    for (const key of ORDER){
+      const c = centers[key]; if (!c || !c.vis) continue;
+      const d = Math.hypot(lx - c.x, ly - c.y);
+      if (d <= c.r + 12 && d < bestD){ bestD = d; best = key; }
+    }
+    return best;
+  }
+  function insideCentred(clientX, clientY){
+    const key = centredKey(), c = centers[key];
+    if (!c || !c.vis) return false;
+    if (!sRect) sRect = $("#screen").getBoundingClientRect();
+    const lx = clientX - sRect.left, ly = clientY - sRect.top;
+    return Math.hypot(lx - c.x, ly - c.y) <= c.r + 12;
+  }
+
+  function flash(key){
+    const el = els[key]; if (!el) return;
+    el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+  }
+  function execAction(key){
+    lastAction = `${LABELS[key]} ▸ run`;
+    flash(key); haptic(10);
+    if (key !== centredKey()) scrollToAction(ORDER.indexOf(key));
+    renderDebug();
+    // (lab stub — in the app this is openNewNote / openAccio / syncTap / …)
+  }
+  function holdAction(key){
+    didHold = true;
+    lastAction = `${LABELS[key]} ▸ HOLD`;
+    els[key].classList.add("holding");
+    flash(key); haptic(16);
+    renderDebug();
+  }
+
+  dial.addEventListener("pointerdown", e => {
+    sRect = $("#screen").getBoundingClientRect();
+    pX = e.clientX; pY = e.clientY; pScroll = dial.scrollTop; didHold = false;
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(() => {
+      // fired only if the finger stayed put, didn't scroll, and sits on the centre
+      if (Math.abs(dial.scrollTop - pScroll) <= CFG.TAP_SCROLL && insideCentred(pX, pY)){
+        holdAction(centredKey());
+      }
+    }, CFG.HOLD_MS);
+  });
+  dial.addEventListener("pointermove", e => {
+    if (Math.hypot(e.clientX - pX, e.clientY - pY) > CFG.TAP_MOVE ||
+        Math.abs(dial.scrollTop - pScroll) > CFG.TAP_SCROLL){
+      clearTimeout(holdTimer);
+    }
+  });
+  function endPointer(e){
+    clearTimeout(holdTimer);
+    for (const k in els) els[k].classList.remove("holding");
+    if (didHold) return;                                   // hold already consumed it
+    const moved    = Math.hypot((e.clientX||pX) - pX, (e.clientY||pY) - pY);
+    const scrolled = Math.abs(dial.scrollTop - pScroll);
+    if (moved <= CFG.TAP_MOVE && scrolled <= CFG.TAP_SCROLL){
+      const key = hitTest(e.clientX||pX, e.clientY||pY);
+      if (key) execAction(key);
+    }
+  }
+  dial.addEventListener("pointerup", endPointer);
+  dial.addEventListener("pointercancel", () => { clearTimeout(holdTimer); for (const k in els) els[k].classList.remove("holding"); });
+
+  /* ========================================================================
+     BOOT — cache geometry, centre the wand, paint once.
+     ====================================================================== */
+  function boot(){
+    cacheGeom();
+    const mid = Math.floor(CFG.CYCLES/2) * N + ORDER.indexOf("wand");
+    dial.scrollTop = mid * CFG.SNAP_PX;          // land mid-track with the wand centred
+    pos = dial.scrollTop / CFG.SNAP_PX;
+    layoutArc();
+  }
+  // layout depends on measured size → run after first paint, and on resize
+  if (document.readyState === "complete" || document.readyState === "interactive") requestAnimationFrame(boot);
+  else window.addEventListener("DOMContentLoaded", () => requestAnimationFrame(boot));
+  window.addEventListener("resize", () => { sRect = null; cacheGeom(); layoutArc(); });
+
+  /* expose a tiny harness hook (used by the jsdom smoke test, harmless in prod) */
+  window.__wheelLab = { onScroll, endPointer, boot, cfg:CFG, get pos(){ return pos; } };
+})();
+</script>
+</body>
+</html>

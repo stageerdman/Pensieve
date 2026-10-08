@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#0a0e14" />
+<title>Pensieve — Thumb-Wheel A · angular drag + inertia</title>
+<style>
+/* ============================================================================
+   PENSIEVE · PHONE · THUMB-WHEEL — LAB A  "Direct angular drag + inertia"
+   ----------------------------------------------------------------------------
+   The wheel pivots around a HUB just past the bottom-right corner. Touch
+   anywhere in the big bottom-right grab zone and the point under your thumb
+   STICKS to the dial: as the finger sweeps around the hub, the wheel turns by
+   exactly the same angle (1:1). On release we fling with friction, then a
+   spring pulls the dial into the nearest detent (a real notch). Weighty, alive.
+
+   Fixes vs the old wheel:
+     · grab zone = most of the bottom-right quadrant, not just 58px circles
+     · render writes transform:translate3d()/scale() ONLY — geometry cached on
+       resize, never read inside the move/rAF loop → no layout thrash
+     · 1:1 angular follow (no STEP_PX resistance) → never feels stuck
+     · momentum + friction + spring-to-detent + haptic clicks → physical dial
+   ========================================================================== */
+:root{
+  --surface:222 24% 11%; --surface-sunken:222 22% 13%; --surface-raised:222 18% 17%;
+  --text:216 18% 84%; --text-muted:218 12% 60%; --border:222 16% 21%;
+  --accent:215 85% 74%; --accent-glow:218 100% 72%; --gold:43 92% 55%;
+  --success:150 50% 62%; --danger:0 70% 70%;
+  --font:-apple-system,"SF Pro Text",system-ui,sans-serif;
+  --spring:cubic-bezier(.22,1,.36,1);
+}
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ margin:0; height:100%; }
+body{
+  font-family:var(--font); color:hsl(var(--text));
+  background:radial-gradient(1200px 800px at 50% -10%, #11182400, #0a0e14 70%), #0a0e14;
+  display:flex; align-items:center; justify-content:center; min-height:100dvh; padding:24px; overflow:hidden;
+}
+.device{
+  position:relative; width:390px; height:844px; border-radius:54px; background:#000; padding:11px; flex:none;
+  box-shadow:0 0 0 2px #1c222c, 0 0 0 11px #05070a, 0 40px 120px -20px rgba(0,0,0,.9),
+             0 0 90px -20px hsl(var(--accent-glow)/.18);
+}
+@media (max-width:420px),(display-mode:standalone){
+  body{ padding:0; }
+  .device{ width:100vw; height:100dvh; border-radius:0; padding:0; box-shadow:none; }
+  .screen{ border-radius:0 !important; }
+}
+.screen{
+  position:relative; width:100%; height:100%; border-radius:44px; overflow:hidden;
+  background:hsl(var(--surface)); isolation:isolate;
+  background-image:
+    radial-gradient(120% 70% at 20% -5%, hsl(var(--accent-glow)/.10), transparent 55%),
+    radial-gradient(140% 90% at 95% 115%, hsl(218 60% 20% /.42), transparent 60%);
+}
+.home-indicator{
+  position:absolute; bottom:8px; left:50%; transform:translateX(-50%);
+  width:134px; height:5px; border-radius:3px; background:hsl(var(--text)/.5); z-index:200; pointer-events:none;
+}
+
+/* ---- Debug + caption HUD (so the feel can be judged) ---- */
+.hud{ position:absolute; top:calc(16px + env(safe-area-inset-top)); left:0; right:0; z-index:210;
+  padding:0 20px; pointer-events:none; }
+.hud h1{ margin:0; font-size:17px; font-weight:700; letter-spacing:-.3px; }
+.hud .cap{ margin:6px 0 0; font-size:12.5px; line-height:1.45; color:hsl(var(--text-muted)); max-width:260px; }
+.debug{ position:absolute; top:calc(16px + env(safe-area-inset-top)); right:16px; z-index:211;
+  font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; text-align:right; color:hsl(var(--text)/.65);
+  pointer-events:none; }
+.debug b{ color:hsl(var(--accent)); font-weight:700; }
+.log{ position:absolute; left:20px; top:150px; z-index:211; font:600 12px/1.5 ui-monospace,Menlo,monospace;
+  color:hsl(var(--text-muted)); pointer-events:none; }
+.log .fired{ color:hsl(var(--gold)); }
+
+/* ---- Grab zone: most of the bottom-right quadrant is draggable ---- */
+.wheel{ position:absolute; inset:0; z-index:90; pointer-events:none; }
+.wheel::before{ /* soft pool of light in the thumb corner */
+  content:""; position:absolute; right:-50px; bottom:-50px; width:340px; height:340px;
+  background:radial-gradient(circle at 70% 70%, hsl(var(--surface-raised)/.55), transparent 62%); pointer-events:none; }
+.grab{
+  position:absolute; right:0; bottom:0; width:82%; height:66%;
+  pointer-events:auto; touch-action:none; -webkit-user-select:none; user-select:none;
+  /* uncomment to SEE the grab zone while tuning:
+  background:hsl(var(--accent)/.06); */
+}
+
+/* ---- Action buttons: positioned ONLY via transform (GPU) ---- */
+.wact{
+  position:absolute; left:0; top:0; width:58px; height:58px; border-radius:50%;
+  border:1px solid hsl(var(--border)); background:hsl(var(--surface-raised)/.82);
+  backdrop-filter:blur(22px) saturate(1.3); -webkit-backdrop-filter:blur(22px) saturate(1.3);
+  color:hsl(var(--text-muted)); display:flex; align-items:center; justify-content:center;
+  pointer-events:auto; touch-action:none; box-shadow:0 10px 28px -14px rgba(0,0,0,.7);
+  will-change:transform,opacity; transform:translate3d(-9999px,0,0);
+  transition:box-shadow .25s var(--spring), border-color .25s var(--spring);
+}
+.wact.hero{ border:none; color:#fff;
+  background:radial-gradient(130% 130% at 30% 25%, hsl(var(--accent)) 0%, hsl(var(--accent-glow)) 55%, hsl(215 80% 52%) 100%);
+  box-shadow:0 0 0 1px hsl(var(--accent-glow)/.5), 0 14px 34px -8px hsl(var(--accent-glow)/.55),
+             inset 0 2px 4px hsl(0 0% 100%/.4), inset 0 -6px 12px hsl(215 80% 40%/.5); }
+.wact.hero::before{ content:""; position:absolute; inset:-9px; border-radius:50%;
+  background:radial-gradient(circle, hsl(var(--accent-glow)/.32), transparent 70%); z-index:-1; opacity:0; transition:opacity .3s; }
+.wact.hero.centered::before{ opacity:1; animation:breathe 4s ease infinite; }
+@keyframes breathe{ 0%,100%{ transform:scale(.85); opacity:.5; } 50%{ transform:scale(1.14); opacity:.95; } }
+.wact.centered{ border-color:hsl(var(--accent)/.5); }
+.wact.flash{ animation:flash .45s var(--spring); }
+@keyframes flash{ 0%{ box-shadow:0 0 0 0 hsl(var(--accent)/.7); } 100%{ box-shadow:0 0 0 22px hsl(var(--accent)/0); } }
+.wact .tab-count{
+  position:absolute; top:-3px; right:-3px; min-width:17px; height:17px; padding:0 4px; border-radius:9px;
+  background:hsl(var(--accent)); color:#07101f; font-size:11px; font-weight:700;
+  display:flex; align-items:center; justify-content:center; border:2px solid hsl(var(--surface)); }
+.wheel-label{
+  position:absolute; left:0; top:0; z-index:91; pointer-events:none; font-size:11px; font-weight:600; letter-spacing:.4px;
+  color:hsl(var(--text)/.8); text-transform:uppercase; transform:translate3d(-9999px,0,0);
+  text-shadow:0 1px 6px hsl(var(--surface)/.9); transition:opacity .18s; white-space:nowrap; }
+
+/* sync rune */
+.lemniscate{ fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round;
+  stroke-dasharray:.575 .425; stroke-dashoffset:-.2125; }
+
+@media (prefers-reduced-motion:reduce){
+  .wact.hero.centered::before{ animation:none; }
+  .wact.flash{ animation-duration:.001s; }
+}
+</style>
+</head>
+<body>
+<div class="device">
+  <div class="screen" id="screen">
+
+    <div class="hud">
+      <h1>Thumb-Wheel · A</h1>
+      <p class="cap">Put your thumb anywhere in the lower-right and <b>sweep in an arc</b> around the corner — the dial follows your finger 1:1. Flick and let go: it spins, slows, and clicks into a notch. Tap any action to fire it; press-and-hold the glowing wand for its hold action.</p>
+    </div>
+    <div class="debug" id="debug">centered —</div>
+    <div class="log" id="log"></div>
+
+    <!-- THE THUMB-WHEEL -->
+    <div class="wheel" id="wheel">
+      <div class="grab" id="grab"></div>
+
+      <div class="wact" data-key="accio" aria-label="Accio — search">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9" opacity=".5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
+      </div>
+      <div class="wact hero" data-key="wand" aria-label="New thought (hold to speak)">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 19 15 9" stroke-opacity=".95"/><path d="M17.5 4.5v4M15.5 6.5h4" stroke-opacity=".9"/>
+          <circle cx="9" cy="15" r=".6" fill="#fff" stroke="none" opacity=".8"/></svg>
+      </div>
+      <div class="wact" data-key="sync" data-state="synced" aria-label="Sync (hold for details)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path class="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"/></svg>
+      </div>
+      <div class="wact" data-key="cards" aria-label="Open notes">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="6" width="13" height="15" rx="2.5"/><path d="M8 6V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-1" opacity=".55"/></svg>
+        <span class="tab-count">3</span>
+      </div>
+      <div class="wact" data-key="home" aria-label="Home">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 8c3 2.2 6 2.2 7 2.2S16 10.2 19 8"/><path d="M5 13c3 2.2 6 2.2 7 2.2S16 15.2 19 13"/><path d="M5 18c3 2.2 6 2.2 7 2.2S16 20.2 19 18"/></svg>
+      </div>
+
+      <div class="wheel-label" id="wheelLabel"></div>
+    </div>
+
+    <div class="home-indicator"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  /* =========================================================================
+     TUNABLES — everything that governs the feel lives here, clearly labelled.
+     ========================================================================= */
+  const TUNE = {
+    // --- geometry (cached on resize; never read inside the loop) ---
+    RADIUS:        170,   // px from hub to each action centre (wheel radius)
+    SPACING_DEG:    31,   // angular gap between adjacent actions = the detent pitch
+    CENTER_DEG:    222,   // screen-angle (+x right, +y down) where the FEATURED action sits
+    HUB_INSET_X:     6,   // hub x = screenWidth  - this  (just inside bottom-right corner)
+    HUB_INSET_Y:     6,   // hub y = screenHeight - this
+    VISIBLE_SLOTS: 2.35,  // hide actions farther than this many slots from centre
+    BIG_SCALE:    1.18,   // scale of the centred action (the big one)
+    SMALL_FALLOFF: .265,  // scale lost per slot away from centre
+    OPACITY_FALLOFF:.46,  // opacity lost per slot away from centre
+
+    // --- gesture ---
+    SENSITIVITY:   1.00,  // finger-angle → wheel-angle gain (1 = exact 1:1 under the hub)
+    TAP_PX:          9,   // pointer travel under this (in px) counts as a tap, not a drag
+    HOLD_MS:       420,   // press-and-hold threshold on the wand
+    VEL_SMOOTH:    .55,   // EMA factor for angular-velocity tracking (0..1, higher = snappier)
+
+    // --- inertia / settle physics (degrees per frame @ ~60fps) ---
+    FLING_SCALE:   1.00,  // multiplier on release velocity (>1 heavier flick, <1 lighter)
+    FRICTION:      .940,  // velocity retained per frame while flinging (lower = stops sooner)
+    DETENT_K:      .009,  // gentle pull toward the nearest notch WHILE still flinging
+    SETTLE_K:      .150,  // crisp spring stiffness once the fling has slowed (the snap)
+    SETTLE_DAMP:   .760,  // damping applied during the settle spring (prevents endless bounce)
+    SETTLE_VEL:     .60,  // |vel| below which we switch fling → settle spring
+    STOP_VEL:       .018, // |vel| (and tiny distance) under which motion halts & locks
+    MAX_VEL:       28,    // clamp on release velocity so a wild flick can't explode
+  };
+
+  const reduce = (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) || false;
+  const haptic = (ms=6)=>{ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} };
+  const DEG = Math.PI/180;
+
+  const screenEl = document.getElementById("screen");
+  const wheel    = document.getElementById("wheel");
+  const grab     = document.getElementById("grab");
+  const label    = document.getElementById("wheelLabel");
+  const debugEl  = document.getElementById("debug");
+  const logEl    = document.getElementById("log");
+
+  /* ---- actions (cyclic ring; wand starts centred) ---- */
+  const ORDER  = ["accio","wand","sync","cards","home"];
+  const LABELS = { accio:"Search", wand:"New", sync:"Sync", cards:"Cards", home:"Home" };
+  const N = ORDER.length;
+  const els = ORDER.map(k => wheel.querySelector(`.wact[data-key="${k}"]`));
+
+  /* ---- cached geometry (written ONLY by measure(), on boot + resize) ---- */
+  let W=390, H=844, hubX=384, hubY=838, R=TUNE.RADIUS;
+  function measure(){
+    const r = screenEl.getBoundingClientRect();
+    W = r.width  || 390;
+    H = r.height || 844;
+    hubX = W - TUNE.HUB_INSET_X;
+    hubY = H - TUNE.HUB_INSET_Y;
+    R    = TUNE.RADIUS;
+    screenRect = r;            // stash for pointer→local conversion
+  }
+  let screenRect = { left:0, top:0 };
+
+  /* ---- wheel state ----
+     rot = how far the dial has turned (deg). An action i is centred when
+     rot === CENTER_DEG - i*SPACING, so detents are spaced by SPACING_DEG. */
+  let rot = TUNE.CENTER_DEG - ORDER.indexOf("wand") * TUNE.SPACING_DEG;
+  let vel = 0;                 // angular velocity, deg/frame
+  let mode = "idle";           // 'idle' | 'drag' | 'free'
+  let dirty = true;
+
+  const wrap = o => { o = ((o % N) + N) % N; return o > N/2 ? o - N : o; };            // -N/2..N/2
+  const centerFloat = () => (TUNE.CENTER_DEG - rot) / TUNE.SPACING_DEG;                 // fractional index at centre
+  const nearestDetent = r => Math.round((r - TUNE.CENTER_DEG) / TUNE.SPACING_DEG) * TUNE.SPACING_DEG + TUNE.CENTER_DEG;
+  const centeredKey = () => ORDER[((Math.round(centerFloat()) % N) + N) % N];
+
+  /* =========================================================================
+     RENDER — transforms ONLY. No layout reads, no left/top. Runs in the loop.
+     ========================================================================= */
+  let renders = 0;
+  function render(){
+    const cf = centerFloat();
+    for (let i=0;i<N;i++){
+      const off = wrap(i - cf);          // slots from centre, cyclic
+      const ao  = Math.abs(off);
+      const el  = els[i];
+      if (ao > TUNE.VISIBLE_SLOTS){
+        el.style.opacity = "0";
+        el.style.pointerEvents = "none";
+        el.style.transform = "translate3d(-9999px,0,0)";
+        el.classList.remove("centered");
+        continue;
+      }
+      const a  = (TUNE.CENTER_DEG + off * TUNE.SPACING_DEG) * DEG;
+      const x  = hubX + R * Math.cos(a) - 29;   // 29 = half of the 58px button
+      const y  = hubY + R * Math.sin(a) - 29;
+      const sc = Math.max(.5, TUNE.BIG_SCALE - TUNE.SMALL_FALLOFF * ao);
+      el.style.transform = `translate3d(${x.toFixed(2)}px,${y.toFixed(2)}px,0) scale(${sc.toFixed(3)})`;
+      el.style.opacity = Math.max(0, 1 - TUNE.OPACITY_FALLOFF * ao).toFixed(3);
+      el.style.pointerEvents = ao < 1.45 ? "auto" : "none";
+      el.style.zIndex = String(100 - Math.round(ao * 10));
+      el.classList.toggle("centered", ao < .5);
+    }
+    // label sits just below the featured slot
+    const la = TUNE.CENTER_DEG * DEG;
+    const lx = hubX + R * Math.cos(la);
+    const ly = hubY + R * Math.sin(la) + 46;
+    label.textContent = LABELS[centeredKey()];
+    label.style.transform = `translate3d(${lx.toFixed(1)}px,${ly.toFixed(1)}px,0) translate(-50%,0)`;
+    label.style.opacity = (Math.abs(centerFloat() - Math.round(centerFloat())) < .22) ? "1" : "0";
+    renders++;
+    dirty = false;
+  }
+
+  /* ---- haptic "click" when the centred notch changes ---- */
+  let lastCenter = Math.round(centerFloat());
+  function detentClick(){
+    const c = Math.round(centerFloat());
+    if (c !== lastCenter){ lastCenter = c; haptic(5); }
+  }
+
+  /* =========================================================================
+     SINGLE rAF LOOP — drives physics (when free) + render (when dirty) + FPS.
+     ========================================================================= */
+  let fps = 0, frames = 0, fpsClock = performance.now();
+  function loop(now){
+    frames++;
+    if (now - fpsClock >= 500){ fps = Math.round(frames * 1000 / (now - fpsClock)); frames = 0; fpsClock = now; }
+
+    if (mode === "free"){
+      const detent = nearestDetent(rot);
+      const dist = detent - rot;
+      if (Math.abs(vel) > TUNE.SETTLE_VEL){
+        vel *= TUNE.FRICTION;              // fling: friction bleeds the spin
+        vel += TUNE.DETENT_K * dist;       // ...with a gentle lean toward the next notch
+      } else {
+        vel += TUNE.SETTLE_K * dist;       // settle: a crisp spring grabs the notch
+        vel *= TUNE.SETTLE_DAMP;           // ...damped so it doesn't ring forever
+      }
+      rot += vel;
+      detentClick();
+      if (Math.abs(vel) < TUNE.STOP_VEL && Math.abs(detent - rot) < .05){
+        rot = detent; vel = 0; mode = "idle";
+      }
+      dirty = true;
+    }
+
+    if (dirty) render();
+    debugEl.innerHTML = `centered <b>${LABELS[centeredKey()]}</b><br>${fps} fps · ${renders} upd<br>vel ${vel.toFixed(2)}`;
+    requestAnimationFrame(loop);
+  }
+
+  /* =========================================================================
+     GESTURE — direct angular drag. The point under the thumb sticks to the dial.
+     ========================================================================= */
+  let active=false, pid=null, prevAng=0, startPx=0, startPy=0, maxMove=0,
+      downTarget=null, held=false, holdT=null;
+
+  const localX = e => e.clientX - screenRect.left;
+  const localY = e => e.clientY - screenRect.top;
+  const fingerAngle = (x,y) => Math.atan2(y - hubY, x - hubX) / DEG;   // deg around the hub
+
+  grab.addEventListener("pointerdown", onDown);
+  els.forEach(el => el.addEventListener("pointerdown", onDown));
+
+  function onDown(e){
+    measure();                                  // one layout read on DOWN (never in loop)
+    active = true; pid = e.pointerId; mode = "drag";
+    vel = 0; maxMove = 0; held = false;
+    startPx = e.clientX; startPy = e.clientY;
+    prevAng = fingerAngle(localX(e), localY(e));
+    prevT = e.timeStamp || performance.now();
+    downTarget = e.target.closest(".wact");
+    // press-hold only on the centred wand
+    clearTimeout(holdT);
+    if (downTarget && downTarget.dataset.key === "wand"){
+      holdT = setTimeout(() => {
+        if (active && maxMove < TAP_PX_BOUND()){ held = true; fireHold("wand"); }
+      }, TUNE.HOLD_MS);
+    }
+    try{ grab.setPointerCapture(pid); }catch(_){}
+    e.preventDefault();
+  }
+  function TAP_PX_BOUND(){ return TUNE.TAP_PX; }
+
+  let prevT = 0;
+  window.addEventListener("pointermove", e => {
+    if (!active || e.pointerId !== pid) return;
+    const x = localX(e), y = localY(e);
+    let ang = fingerAngle(x, y);
+    let d = ang - prevAng;                       // incremental delta (robust unwrap)
+    if (d > 180) d -= 360; else if (d < -180) d += 360;
+    d *= TUNE.SENSITIVITY;
+    rot += d;
+
+    const now = e.timeStamp || performance.now();
+    const dt = Math.max(1, now - prevT);
+    const inst = d / dt * 16.67;                 // deg/frame
+    vel = reduce ? 0 : (TUNE.VEL_SMOOTH * inst + (1 - TUNE.VEL_SMOOTH) * vel);
+    prevAng = ang; prevT = now;
+
+    maxMove = Math.max(maxMove, Math.hypot(e.clientX - startPx, e.clientY - startPy));
+    if (maxMove > TUNE.TAP_PX) clearTimeout(holdT);
+    detentClick();
+    dirty = true;
+  }, { passive:false });
+
+  function onUp(e){
+    if (!active || (pid !== null && e.pointerId !== pid)) return;
+    active = false; clearTimeout(holdT);
+    try{ grab.releasePointerCapture(pid); }catch(_){}
+    pid = null;
+
+    if (held){ settle(); return; }               // hold already fired; just settle
+    if (maxMove < TUNE.TAP_PX && downTarget){     // a tap on a visible action
+      const key = downTarget.dataset.key;
+      // snap that action to centre, then fire it
+      const idx = ORDER.indexOf(key);
+      rot = TUNE.CENTER_DEG - idx * TUNE.SPACING_DEG;
+      vel = 0; mode = "idle"; dirty = true;
+      fireTap(key, downTarget);
+      return;
+    }
+    settle();                                     // a real drag/flick → momentum
+  }
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onUp);
+
+  function settle(){
+    if (reduce){ rot = nearestDetent(rot); vel = 0; mode = "idle"; dirty = true; return; }
+    vel = Math.max(-TUNE.MAX_VEL, Math.min(TUNE.MAX_VEL, vel * TUNE.FLING_SCALE));
+    mode = "free";
+  }
+
+  /* =========================================================================
+     EXECUTE (lab stand-ins: flash + log which action fired)
+     ========================================================================= */
+  function flash(el){ if(!el) return; el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+  let logN = 0;
+  function logAction(kind, key){
+    logN++;
+    const line = `<div><span class="fired">▸ ${kind}</span> ${LABELS[key]||key} <span style="opacity:.5">#${logN}</span></div>`;
+    logEl.innerHTML = line + logEl.innerHTML;
+    logEl.innerHTML = logEl.innerHTML.split("</div>").slice(0,5).join("</div>") + (logN>5?"</div>":"");
+  }
+  function fireTap(key, el){ haptic(9); flash(el); logAction("TAP", key); }
+  function fireHold(key){ haptic(16); flash(els[ORDER.indexOf(key)]); logAction("HOLD", key); }
+
+  /* ---- guard native elastic-scroll / gestures on real phones ---- */
+  document.addEventListener("touchmove", e => {
+    if (e.target.closest(".grab,.wact")) e.preventDefault();
+  }, { passive:false });
+
+  /* ---- boot ---- */
+  measure();
+  render();
+  requestAnimationFrame(loop);
+  window.addEventListener("resize", () => { measure(); dirty = true; });
+
+  // expose for the headless harness / console poking
+  window.__wheel = { state:()=>({rot,vel,mode,centered:centeredKey(),fps,renders}), TUNE };
+})();
+</script>
+</body>
+</html>

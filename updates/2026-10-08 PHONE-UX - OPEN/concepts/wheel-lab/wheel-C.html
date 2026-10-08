@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#0a0e14" />
+<title>Pensieve — Wheel Lab · Agent C (tangential + spring)</title>
+<style>
+/* ============================================================================
+   PENSIEVE · WHEEL LAB · AGENT C
+   Tangential-drag + critically-damped-spring thumb-wheel.
+   · Grab ANYWHERE in the bottom-right quadrant, not just the buttons.
+   · Finger rotation around the pivot → wheel rotation (angular/tangential map).
+   · Release → inertial glide (exponential friction) that eases into the nearest
+     detent via a critically-damped spring (no overshoot wobble).
+   · Micro-feel: centre item scales up + glows, neighbours recede; a detent "tick"
+     (navigator.vibrate + a 1px radial pop) each time an item crosses centre.
+   · 60fps: transform:translate3d()/scale() ONLY. One rAF, state-driven render.
+   Self-contained: no network, no fonts, no CDNs. SVG inline.
+   ========================================================================== */
+:root{
+  --surface:222 24% 11%; --surface-sunken:222 22% 13%; --surface-raised:222 18% 17%;
+  --text:216 18% 84%; --text-muted:218 12% 60%; --border:222 16% 21%;
+  --accent:215 85% 74%; --accent-glow:218 100% 72%; --gold:43 92% 55%;
+  --font:-apple-system,"SF Pro Text",system-ui,sans-serif;
+}
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ margin:0; height:100%; }
+body{
+  font-family:var(--font); color:hsl(var(--text));
+  background:radial-gradient(1200px 800px at 50% -10%, #11182400, #0a0e14 70%), #0a0e14;
+  display:flex; align-items:center; justify-content:center; min-height:100dvh; padding:24px; overflow:hidden;
+}
+/* ---- iPhone frame (reads as a phone on desktop; full-bleed on a real phone) --- */
+.device{
+  position:relative; width:390px; height:844px; border-radius:54px; background:#000; padding:11px; flex:none;
+  box-shadow:0 0 0 2px #1c222c, 0 0 0 11px #05070a, 0 40px 120px -20px rgba(0,0,0,.9),
+             0 0 90px -20px hsl(var(--accent-glow)/.18);
+}
+@media (max-width:420px),(display-mode:standalone){
+  body{ padding:0; } .device{ width:100vw; height:100dvh; border-radius:0; padding:0; box-shadow:none; }
+  .screen{ border-radius:0 !important; }
+}
+.screen{
+  position:relative; width:100%; height:100%; border-radius:44px; overflow:hidden;
+  background:hsl(var(--surface)); isolation:isolate;
+  background-image:
+    radial-gradient(120% 70% at 20% -5%, hsl(var(--accent-glow)/.10), transparent 55%),
+    radial-gradient(90% 60% at 95% 8%, hsl(270 55% 74% /.08), transparent 50%),
+    radial-gradient(140% 90% at 50% 120%, hsl(218 60% 20% /.35), transparent 60%);
+}
+
+/* ---- lab readout (top-left): what the physics is doing right now ---- */
+.lab{ position:absolute; top:calc(16px + env(safe-area-inset-top)); left:18px; right:18px; z-index:200;
+  pointer-events:none; }
+.lab h1{ margin:0 0 2px; font-size:16px; font-weight:700; letter-spacing:-.3px; }
+.lab .sub{ font-size:11.5px; color:hsl(var(--text-muted)); line-height:1.4; max-width:250px; }
+.dbg{ margin-top:10px; font-size:11px; line-height:1.7; font-variant-numeric:tabular-nums;
+  color:hsl(var(--text-muted)); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+.dbg b{ color:hsl(var(--accent)); font-weight:600; }
+.dbg .cap{ color:hsl(var(--gold)); }
+.log{ position:absolute; top:calc(132px + env(safe-area-inset-top)); left:18px; z-index:200; pointer-events:none;
+  font-size:11px; font-family:ui-monospace,Menlo,monospace; color:hsl(var(--text-muted)/.8); line-height:1.6; }
+.log div{ opacity:0; animation:logIn .3s ease forwards; }
+@keyframes logIn{ from{ opacity:0; transform:translateY(-3px);} to{ opacity:.85; transform:none;} }
+
+/* ===========================================================================
+   THE THUMB-WHEEL — big centre action + small arc neighbours + a label.
+   #grab is the LARGE invisible grab zone (bottom-right quadrant).
+   Buttons are positioned every frame with translate3d()/scale() ONLY.
+   =========================================================================== */
+.wheel{ position:absolute; inset:0; z-index:90; }
+.wheel::before{  /* soft glow pooling in the thumb corner, hints the live zone */
+  content:""; position:absolute; right:-40px; bottom:-40px; width:320px; height:320px;
+  background:radial-gradient(circle at 70% 70%, hsl(var(--accent-glow)/.09), hsl(var(--surface)/.5) 30%, transparent 64%);
+  pointer-events:none; }
+#grab{ position:absolute; right:0; bottom:0; width:74%; height:62%; z-index:91;
+  touch-action:none; -webkit-user-select:none; user-select:none; cursor:grab; }
+#grab:active{ cursor:grabbing; }
+
+.wact{
+  position:absolute; left:0; top:0; width:58px; height:58px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; z-index:95;
+  border:1px solid hsl(var(--border)); background:hsl(var(--surface-raised)/.82);
+  backdrop-filter:blur(22px) saturate(1.3); -webkit-backdrop-filter:blur(22px) saturate(1.3);
+  color:hsl(var(--text-muted)); pointer-events:none;        /* the grab zone owns the gesture */
+  box-shadow:0 10px 28px -14px rgba(0,0,0,.7);
+  will-change:transform, opacity;                            /* promote to its own GPU layer */
+  transition:border-color .25s ease, color .25s ease, box-shadow .3s ease;
+}
+.wact.centered{ color:hsl(var(--text)); border-color:hsl(var(--accent)/.5);
+  box-shadow:0 10px 30px -10px rgba(0,0,0,.7), 0 0 34px -6px hsl(var(--accent-glow)/.5); }
+.wact.hero{ border:none; color:#fff;
+  background:radial-gradient(130% 130% at 30% 25%, hsl(var(--accent)) 0%, hsl(var(--accent-glow)) 55%, hsl(215 80% 52%) 100%);
+  box-shadow:0 0 0 1px hsl(var(--accent-glow)/.5), 0 14px 34px -8px hsl(var(--accent-glow)/.55),
+             inset 0 2px 4px hsl(0 0% 100%/.4), inset 0 -6px 12px hsl(215 80% 40%/.5); }
+.wact.hero.centered{ box-shadow:0 0 0 1px hsl(var(--accent-glow)/.7), 0 16px 42px -6px hsl(var(--accent-glow)/.7),
+             inset 0 2px 4px hsl(0 0% 100%/.5), inset 0 -6px 12px hsl(215 80% 40%/.5); }
+.wact.flash{ animation:flash .42s cubic-bezier(.22,1,.36,1); }
+@keyframes flash{ 0%{ filter:brightness(1);} 22%{ filter:brightness(1.9) saturate(1.3);} 100%{ filter:brightness(1);} }
+.wact.holding{ filter:brightness(1.18); }
+
+.wlabel{ position:absolute; left:0; top:0; z-index:96; pointer-events:none;
+  font-size:11px; font-weight:600; letter-spacing:.5px; color:hsl(var(--text)/.8); text-transform:uppercase;
+  text-shadow:0 1px 6px hsl(var(--surface)/.9); white-space:nowrap; }
+
+.lemniscate{ fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round;
+  stroke-dasharray:.575 .425; stroke-dashoffset:-.2125; }
+
+@media (prefers-reduced-motion:reduce){
+  .wact.flash{ animation:none; }
+}
+</style>
+</head>
+<body>
+<div class="device">
+  <div class="screen" id="root">
+
+    <div class="lab">
+      <h1>Wheel Lab · C</h1>
+      <div class="sub">Tangential drag + critically-damped spring. Grab anywhere in the lower-right and sweep around the corner. Fling it.</div>
+      <div class="dbg" id="dbg">centre <b>—</b> · pos 0.000 · vel 0.00 · updates <b>0</b><br><span class="cap" id="cap">idle</span></div>
+    </div>
+    <div class="log" id="log"></div>
+
+    <!-- THE WHEEL -->
+    <div class="wheel" id="wheel">
+      <div class="wact hero" data-key="wand" aria-label="New thought">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 19 15 9" stroke-opacity=".95"/><path d="M17.5 4.5v4M15.5 6.5h4" stroke-opacity=".9"/>
+          <circle cx="9" cy="15" r=".6" fill="#fff" stroke="none" opacity=".8"/></svg>
+      </div>
+      <div class="wact" data-key="accio" aria-label="Accio — search">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9" opacity=".5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
+      </div>
+      <div class="wact" data-key="sync" aria-label="Sync">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path class="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"/></svg>
+      </div>
+      <div class="wact" data-key="cards" aria-label="Open notes">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="6" width="13" height="15" rx="2.5"/><path d="M8 6V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-1" opacity=".55"/></svg>
+      </div>
+      <div class="wact" data-key="home" aria-label="Home">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 8c3 2.2 6 2.2 7 2.2S16 10.2 19 8"/><path d="M5 13c3 2.2 6 2.2 7 2.2S16 15.2 19 13"/><path d="M5 18c3 2.2 6 2.2 7 2.2S16 20.2 19 18"/></svg>
+      </div>
+      <div class="wlabel" id="wlabel"></div>
+      <!-- LARGE grab zone last so it sits above the buttons and owns every pointer event -->
+      <div id="grab"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = s => document.querySelector(s);
+  const reduce = (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) || false;
+  const haptic = ms => { try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} };
+
+  /* ========================================================================
+     TUNABLES — every physics/feel constant lives here, labelled.
+     ====================================================================== */
+  const T = {
+    // ---- layout / geometry ----
+    STEP_DEG:      30,     // angular gap between neighbouring items on the arc (deg)
+    CENTER_DEG:    130,    // angle of the centred slot, measured from the pivot (deg)
+    RADIUS_MAX:    190,    // arc radius cap (px)
+    RADIUS_FRAC:   0.52,   // arc radius as a fraction of screen width
+    PIVOT_INSET_X: 4,      // pivot x = width  - this (px). Bottom-right corner.
+    PIVOT_INSET_Y: 24,     // pivot y = height - this (px)
+    VISIBLE_SPAN:  2.25,   // hide items whose |offset from centre| exceeds this
+
+    // ---- drag → rotation ----
+    SENSITIVITY:   1.20,   // finger-angle → wheel-angle gain. 1.0 = 1:1 tangential. >1 = livelier
+    MIN_GRAB_R:    42,     // clamp finger radius so right-at-the-pivot isn't hyper-twitchy (px)
+
+    // ---- release physics ----
+    FRICTION:      4.2,    // exponential glide decay: vel *= e^(-FRICTION*dt). Lower = longer coast
+    STIFFNESS:     165,    // detent spring k (1/s^2). Higher = snappier grab
+    DAMPING:       1.0,    // damping ratio. 1.0 = critically damped (no wobble); <1 adds a little life
+    MAX_VEL:       22,     // throw-velocity cap (steps/s) so a hard fling can't blur past control
+    REST_V:        0.02,   // |vel| below this (steps/s) ...
+    REST_X:        0.004,  // ...and |dist-to-detent| below this (steps) => snap & sleep the loop
+
+    // ---- micro-feel ----
+    CENTER_SCALE:  1.14,   // scale of the item sitting dead-centre
+    EDGE_SCALE:    0.56,   // scale of an item one+ steps out (falloff is smooth between)
+    SCALE_FALLOFF: 0.30,   // how fast scale drops per step away from centre
+    MIN_OPACITY:   0.0,    // opacity floor for the outermost visible items
+    OPACITY_FALL:  0.46,   // opacity drop per step away from centre
+    TICK_MS:       5,      // haptic duration on each detent crossing (ms)
+    TICK_POP:      0.07,   // scale bump added to the item as it clicks into centre
+    TICK_PUSH:     1.2,    // radial 1px-ish nudge (px) on a detent click
+    POP_DECAY:     9.0,    // how fast the detent pop decays (1/s)
+
+    // ---- gesture classification ----
+    TAP_SLOP_DEG:  3.2,    // finger rotation under this (deg) at release = a tap, not a drag
+    HOLD_MS:       420,    // press-and-hold on the centred action fires its "hold" action
+  };
+
+  const DEG = Math.PI/180;
+  const STEP_RAD = T.STEP_DEG*DEG;
+
+  const ORDER  = ["accio","wand","sync","cards","home"]; // cyclic; wand starts centred
+  const LABELS = { accio:"Search", wand:"New", sync:"Sync", cards:"Cards", home:"Home" };
+  const HOLDABLE = { wand:"Dictate", sync:"Sync details" };   // centred press-hold actions
+  const N = ORDER.length;
+
+  const root = $("#root"), wheel = $("#wheel"), grab = $("#grab"),
+        wlabel = $("#wlabel"), dbg = $("#dbg"), cap = $("#cap"), logEl = $("#log");
+  const els = {};
+  wheel.querySelectorAll(".wact").forEach(el => els[el.dataset.key] = el);
+
+  /* ---- state ---- */
+  let pos = ORDER.indexOf("wand");   // continuous index at centre (detents = integers)
+  let vel = 0;                        // steps / second
+  let updates = 0;                    // render counter (debug)
+  let lastCenter = Math.round(pos);   // for detent-crossing ticks
+  let pop = 0;                        // decaying detent-pop amount (adds to centre scale + radial nudge)
+  let caption = "idle";
+
+  /* ---- cached geometry (recomputed only on resize) ---- */
+  let GEO = { pivotX:0, pivotY:0, R:190 };
+  function measure(){
+    const W = root.clientWidth || 390, H = root.clientHeight || 844;
+    GEO.pivotX = W - T.PIVOT_INSET_X;
+    GEO.pivotY = H - T.PIVOT_INSET_Y;
+    GEO.R = Math.min(T.RADIUS_MAX, W*T.RADIUS_FRAC);
+  }
+
+  function wrap(o){ o = ((o % N) + N) % N; if (o > N/2) o -= N; return o; } // signed cyclic offset
+  const centerKey = () => ORDER[((Math.round(pos)%N)+N)%N];
+
+  /* ========================================================================
+     RENDER — transforms ONLY. No left/top, no layout reads, in the loop.
+     ====================================================================== */
+  function render(){
+    updates++;
+    const { pivotX, pivotY, R } = GEO;
+    for (let i=0;i<N;i++){
+      const el = els[ORDER[i]];
+      const o  = wrap(i - pos);        // signed distance from centre, in steps
+      const ao = Math.abs(o);
+      if (ao > T.VISIBLE_SPAN){ el.style.opacity = "0"; continue; }
+
+      const centred = ao < 0.5;
+      // radius gets a tiny outward nudge for the item clicking into centre (detent "push")
+      const r = R + (centred ? pop*T.TICK_PUSH : 0);
+      const a = (T.CENTER_DEG + o*T.STEP_DEG) * DEG;
+      const x = pivotX + r*Math.cos(a);
+      const y = pivotY - r*Math.sin(a);
+
+      // scale eases up toward centre; centred item gets the detent pop on top
+      let s = Math.max(T.EDGE_SCALE, T.CENTER_SCALE - T.SCALE_FALLOFF*ao);
+      if (centred) s += pop*T.TICK_POP;
+      const op = Math.max(T.MIN_OPACITY, 1 - T.OPACITY_FALL*ao);
+
+      el.style.opacity = op.toFixed(3);
+      el.style.zIndex  = String(100 - Math.round(ao*10));
+      // translate3d promotes to GPU; translate(-50%,-50%) centres the box; scale is composited
+      el.style.transform = `translate3d(${x.toFixed(2)}px,${y.toFixed(2)}px,0) translate(-50%,-50%) scale(${s.toFixed(3)})`;
+      el.classList.toggle("centered", centred);
+    }
+    // label under the centre slot
+    const ca = T.CENTER_DEG*DEG;
+    const lx = pivotX + R*Math.cos(ca), ly = pivotY - R*Math.sin(ca) + 46;
+    const settled = Math.abs(pos - Math.round(pos)) < 0.22;
+    wlabel.textContent = LABELS[centerKey()];
+    wlabel.style.transform = `translate3d(${lx.toFixed(1)}px,${ly.toFixed(1)}px,0) translate(-50%,-50%)`;
+    wlabel.style.opacity = settled ? "1" : "0";
+
+    dbg.innerHTML = `centre <b>${LABELS[centerKey()]}</b> · pos ${pos.toFixed(3)} · vel ${vel.toFixed(2)} · updates <b>${updates}</b><br>` +
+                    `<span class="cap">${caption}</span>`;
+  }
+
+  /* ========================================================================
+     THE LOOP — one rAF. Advances physics when free, renders every frame,
+     and puts itself to sleep when the wheel is at rest (battery-friendly).
+     ====================================================================== */
+  let running = false, lastT = 0;
+  function wake(){ if(running) return; running = true; lastT = performance.now(); requestAnimationFrame(frame); }
+  function frame(now){
+    if(!running) return;
+    let dt = (now - lastT)/1000; lastT = now;
+    if (dt > 0.05) dt = 0.05;        // clamp after a stall so physics can't explode
+    if (dt <= 0)  dt = 1/60;
+
+    if (!dragging) step(dt);         // while dragging, pos is driven by the finger
+    pop *= Math.exp(-T.POP_DECAY*dt);
+    if (pop < 0.001) pop = 0;
+
+    tickCheck();
+    render();
+
+    // sleep when settled: free, basically still, and no pop left
+    if (!dragging && Math.abs(vel) < T.REST_V && Math.abs(Math.round(pos)-pos) < T.REST_X && pop === 0){
+      pos = Math.round(pos); vel = 0; running = false;
+      if (caption === "gliding" || caption === "settling"){ caption = "idle"; }
+      render();
+      return;
+    }
+    requestAnimationFrame(frame);
+  }
+
+  /* ---- free integration: exponential-friction glide + critically-damped detent spring ---- */
+  function step(dt){
+    const target = Math.round(pos);  // nearest detent — self-correcting, so momentum carries across
+    const dist = target - pos;
+
+    // critically-damped spring toward the nearest detent
+    const k = T.STIFFNESS;
+    const c = 2*Math.sqrt(k)*T.DAMPING;      // c = 2·√k at ratio 1.0 → critical, no wobble
+    const accel = k*dist - c*vel;
+    vel += accel*dt;
+
+    // exponential friction — gives the long inertial coast on top of the spring
+    vel *= Math.exp(-T.FRICTION*dt);
+
+    pos += vel*dt;
+    if (Math.abs(vel) > 0.25 && caption === "settling") {} else if (Math.abs(dist) < 0.5 && Math.abs(vel) < 3) caption = "settling";
+  }
+
+  /* ---- detent tick: haptic + pop each time a new item crosses centre ---- */
+  function tickCheck(){
+    const c = Math.round(pos);
+    if (c !== lastCenter){
+      lastCenter = c;
+      if (!reduce){ haptic(T.TICK_MS); pop = 1; }  // pop decays in the loop
+    }
+  }
+
+  /* ========================================================================
+     GESTURE — tangential drag anywhere in the grab zone.
+       · map finger rotation around the pivot → pos (×SENSITIVITY)
+       · track velocity (EMA) for the throw
+       · negligible rotation + a .wact under the finger = tap → select+execute
+       · hold on the centred action = hold-action
+     ====================================================================== */
+  let dragging = false, rootRect = null, pivotCX = 0, pivotCY = 0;
+  let lastTheta = 0, lastPos = 0, lastMoveT = 0, movedRad = 0;
+  let downKey = null, downWasCentered = false, held = false, holdTimer = null;
+
+  // finger angle around the pivot, in CLIENT coords (radius-clamped near the pivot)
+  function angleAt(cx, cy){
+    let dx = cx - pivotCX, dy = pivotCY - cy;         // dy flipped: up is positive
+    const r = Math.hypot(dx, dy);
+    if (r < T.MIN_GRAB_R && r > 0){ const s = T.MIN_GRAB_R/r; dx*=s; dy*=s; }
+    return Math.atan2(dy, dx);
+  }
+  // which action is visually under a client point (buttons are pointer-events:none, so hit-test by distance)
+  function keyAt(cx, cy){
+    const lx = cx - rootRect.left, ly = cy - rootRect.top;
+    let best = null, bd = 34;                          // within ~34px of a button centre
+    for (let i=0;i<N;i++){
+      const el = els[ORDER[i]];
+      if (parseFloat(el.style.opacity||"1") < 0.35) continue;
+      const m = /translate3d\(([-\d.]+)px,([-\d.]+)px/.exec(el.style.transform||"");
+      if (!m) continue;
+      const d = Math.hypot(lx-parseFloat(m[1]), ly-parseFloat(m[2]));
+      if (d < bd){ bd = d; best = ORDER[i]; }
+    }
+    return best;
+  }
+
+  grab.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    rootRect = root.getBoundingClientRect();
+    pivotCX = rootRect.left + GEO.pivotX; pivotCY = rootRect.top + GEO.pivotY;
+    dragging = true; vel = 0; movedRad = 0; held = false;
+    lastTheta = angleAt(e.clientX, e.clientY);
+    lastPos = pos; lastMoveT = (e.timeStamp || performance.now());
+    downKey = keyAt(e.clientX, e.clientY);
+    downWasCentered = (downKey && downKey === centerKey());
+    caption = "dragging";
+    try{ grab.setPointerCapture(e.pointerId); }catch(_){}
+
+    if (downWasCentered && HOLDABLE[downKey]){
+      holdTimer = setTimeout(() => {
+        if (movedRad < T.TAP_SLOP_DEG*DEG && dragging){
+          held = true; els[downKey].classList.add("holding");
+          caption = "hold: " + LABELS[downKey];
+          execHold(downKey);
+        }
+      }, T.HOLD_MS);
+    }
+    wake();
+  });
+
+  grab.addEventListener("pointermove", e => {
+    if(!dragging) return;
+    e.preventDefault();
+    const theta = angleAt(e.clientX, e.clientY);
+    let d = theta - lastTheta;
+    if (d >  Math.PI) d -= 2*Math.PI;        // unwrap
+    if (d < -Math.PI) d += 2*Math.PI;
+    lastTheta = theta;
+    movedRad += Math.abs(d);
+    if (movedRad > T.TAP_SLOP_DEG*DEG && holdTimer){ clearTimeout(holdTimer); holdTimer = null; }
+
+    // CCW finger rotation (increasing angle) brings the next item up to centre
+    pos += -d/STEP_RAD * T.SENSITIVITY;
+
+    // velocity: EMA of instantaneous steps/sec (smooths jitter, keeps the throw honest)
+    const now = e.timeStamp || performance.now();
+    let dts = (now - lastMoveT)/1000; if (dts <= 0) dts = 1/60;
+    const instV = (pos - lastPos)/dts;
+    vel = vel*0.55 + instV*0.45;
+    lastPos = pos; lastMoveT = now;
+    if (!held) caption = "dragging";
+  });
+
+  function endDrag(e){
+    if(!dragging) return;
+    dragging = false;
+    if (holdTimer){ clearTimeout(holdTimer); holdTimer = null; }
+    if (downKey) els[downKey].classList.remove("holding");
+
+    if (held){ held = false; vel = 0; caption = "settling"; wake(); return; }  // hold already fired
+
+    const wasTap = movedRad < T.TAP_SLOP_DEG*DEG;
+    if (wasTap && downKey){
+      // TAP on a visible action → select + execute. Snap it to centre for feedback.
+      vel = 0;
+      const idx = ORDER.indexOf(downKey);
+      pos = pos + wrap(idx - pos);     // shortest path to that detent
+      exec(downKey);
+      wake();
+      return;
+    }
+
+    // DRAG release → inertial glide + spring settle
+    vel = Math.max(-T.MAX_VEL, Math.min(T.MAX_VEL, vel));
+    caption = Math.abs(vel) > 1.2 ? "gliding" : "settling";
+    if (reduce){ pos = Math.round(pos); vel = 0; }   // reduced-motion: instant snap, no coast
+    wake();
+  }
+  grab.addEventListener("pointerup", endDrag);
+  grab.addEventListener("pointercancel", endDrag);
+
+  /* ========================================================================
+     ACTIONS — this is a lab, so they just flash + log.
+     ====================================================================== */
+  let logN = 0;
+  function logit(msg){
+    logN++;
+    const d = document.createElement("div");
+    d.textContent = "› " + msg;
+    logEl.prepend(d);
+    while (logEl.children.length > 6) logEl.lastChild.remove();
+  }
+  function flash(key){ const el = els[key]; if(!el) return; el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+  function exec(key){ flash(key); haptic(reduce?0:9); logit("TAP · " + LABELS[key]); caption = "tap: " + LABELS[key]; }
+  function execHold(key){ flash(key); haptic(reduce?0:16); logit("HOLD · " + (HOLDABLE[key]||LABELS[key])); }
+
+  /* ---- boot ---- */
+  measure();
+  render();
+  window.addEventListener("resize", () => { measure(); render(); });
+  // one settle on load so the wand eases into centre from a hair off (unless reduced motion)
+  if (!reduce){ pos += 0.0001; wake(); }
+})();
+</script>
+</body>
+</html>

@@ -100,5 +100,26 @@ deep blue-black stone, the magical-blue accent and gold. Magical AND highly prac
     all `#id` refs resolve, 12 slots + 5 wheel actions render.
   - Still a prototype with seed data (writing/search/dictation simulated); sync cast is
     animated. Real vault + OneDrive wiring remains Phase 3.
-- **Next:** owner re-tests on device and names anything to refine before we lock the
-  spec and start the real build (Phase 3) on the PWA-CAPTURE runtime.
+- 2026-10-08: **Round-4 — the thumb-wheel rebuilt for feel** (owner: v3 wheel felt
+  "very stuck… almost not useful"). Root causes: only the 58px buttons were grabbable,
+  62px-per-step, `left/top` written every frame (layout thrash), no momentum. Ran **3
+  UX/interaction experts in parallel** (`concepts/wheel-lab/wheel-A|B|C.html`): A =
+  angular drag + inertia→spring; B = native iOS scroll-snap momentum; C = tangential
+  drag + single blended friction / critically-damped spring + detent micro-feel.
+  **Synthesised C into the app** (hardened with A's pointer-capture/large-grab-zone):
+  - A large invisible `#grab` zone owns the gesture — spin the dial from anywhere in
+    the thumb corner, not just the buttons.
+  - Tangential 1:1 drag around the hub; release → inertial coast that eases onto the
+    nearest action via a critically-damped spring (no wobble); visual detent "pop" +
+    scale/glow as each action reaches centre (iOS Safari ignores web vibration, so the
+    feel is carried visually). Buttons are `pointer-events:none`; positioned with
+    `transform` only → 60fps, zero layout thrash. Single rAF that sleeps at rest.
+  - Tap any visible action = run it (snaps it to centre); hold centred Wand = speak,
+    hold centred Sync = details. All physics constants are labelled tunables (`T`).
+  - Verified: integrated file boots clean (jsdom), wheel drives on drag + tap with no
+    errors, reel/note/accio/sync/cards flows intact.
+  - Lab files A/B/C kept under `concepts/wheel-lab/` so the owner can feel the
+    alternatives on device if desired.
+- **Next:** owner re-tests the new wheel on device (does the weight/snap feel right —
+  tune `SENSITIVITY`/`FRICTION`/`STIFFNESS` if not), then lock the spec and start the
+  real build (Phase 3) on the PWA-CAPTURE runtime.
