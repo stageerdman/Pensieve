@@ -282,52 +282,55 @@ export default function App() {
               onSelect={selectTab}
               onClose={closeTab}
             />
-            <div className="flex shrink-0 items-center">
+            {/* One tight group (gap-0.5) for every right-side control, so the sync rune
+                sits in the same box as the 3-dots menu and the panel toggle — the header's
+                gap-2 only separates this group from the tabs. */}
+            <div className="flex shrink-0 items-center gap-0.5">
               <SyncStatus sync={sync} titleFor={titleFor} pending={pendingSync} />
-            </div>
-            {onHome ? (
-              <div className="flex shrink-0 items-center gap-0.5">
-                <IconButton label="New note" title="New note  ⌘N" onClick={() => void newNote()}>
-                  <Plus size={18} />
-                </IconButton>
-                <GalleryCustomise
-                  state={gallery.state}
-                  onToggleField={gallery.toggleField}
-                  onSetSnippetLines={gallery.setSnippetLines}
-                  onSetWorkingSetPersist={gallery.setWorkingSetPersist}
-                />
-              </div>
-            ) : (
-              current && (
-                <div className="flex shrink-0 items-center gap-0.5">
-                  <OverflowMenu
-                    items={[
-                      {
-                        icon: <Clock size={16} />,
-                        label: "Timeline",
-                        shortcut: "⌘T",
-                        onSelect: toggleTimeline,
-                        active: timelineOpen,
-                      },
-                      {
-                        icon: <Trash size={16} />,
-                        label: "Delete note",
-                        shortcut: "⌘⌫",
-                        onSelect: askDelete,
-                      },
-                    ]}
-                  />
-                  <IconButton
-                    label="Note details"
-                    title="Note details  ⌘⇧\"
-                    active={detailsOpen}
-                    onClick={toggleDetails}
-                  >
-                    <PanelRight />
+              {onHome ? (
+                <>
+                  <IconButton label="New note" title="New note  ⌘N" onClick={() => void newNote()}>
+                    <Plus size={18} />
                   </IconButton>
-                </div>
-              )
-            )}
+                  <GalleryCustomise
+                    state={gallery.state}
+                    onToggleField={gallery.toggleField}
+                    onSetSnippetLines={gallery.setSnippetLines}
+                    onSetWorkingSetPersist={gallery.setWorkingSetPersist}
+                  />
+                </>
+              ) : (
+                current && (
+                  <>
+                    <OverflowMenu
+                      items={[
+                        {
+                          icon: <Clock size={16} />,
+                          label: "Timeline",
+                          shortcut: "⌘T",
+                          onSelect: toggleTimeline,
+                          active: timelineOpen,
+                        },
+                        {
+                          icon: <Trash size={16} />,
+                          label: "Delete note",
+                          shortcut: "⌘⌫",
+                          onSelect: askDelete,
+                        },
+                      ]}
+                    />
+                    <IconButton
+                      label="Note details"
+                      title="Note details  ⌘⇧\"
+                      active={detailsOpen}
+                      onClick={toggleDetails}
+                    >
+                      <PanelRight />
+                    </IconButton>
+                  </>
+                )
+              )}
+            </div>
           </header>
         )}
 
