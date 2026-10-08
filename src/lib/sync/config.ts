@@ -1,8 +1,8 @@
 // Sync configuration: the Azure app registration and the remote vault location.
 //
-// The Azure config (incl. the client secret) lives in the OS keychain, not in any
-// committed file — load it via the native bridge. For dev/browser runs we fall
-// back to Vite env vars so the portable layer can be exercised without a keychain.
+// The Azure config (incl. the client secret) lives in the native secret store, not
+// in any committed file — load it via the native bridge. For dev/browser runs we fall
+// back to Vite env vars so the portable layer can be exercised without the native store.
 
 import type { AzureConfig } from "./types";
 import { secretGet } from "./native";
@@ -18,7 +18,7 @@ export const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 /** The vault's folder on OneDrive — the cloud mirror of the local `.md` tree. */
 export const REMOTE_ROOT = "Pensieve";
 
-/** Keychain keys (within the native sync service namespace). */
+/** Secret-store keys (within the native sync store). */
 export const KEY_AZURE_CONFIG = "azure-config";
 export const KEY_REFRESH_TOKEN = "refresh-token";
 
@@ -28,7 +28,7 @@ export function authorityFor(tenant: string): string {
 
 let cached: AzureConfig | null = null;
 
-/** Load the Azure app config once (keychain on desktop, env in dev). Throws a
+/** Load the Azure app config once (secret store on desktop, env in dev). Throws a
  *  clear error if nothing is configured so a missing setup is one obvious message. */
 export async function getAzureConfig(): Promise<AzureConfig> {
   if (cached) return cached;
@@ -37,7 +37,7 @@ export async function getAzureConfig(): Promise<AzureConfig> {
     const raw = await secretGet(KEY_AZURE_CONFIG);
     if (!raw) {
       throw new Error(
-        "OneDrive is not configured: no Azure app config in the keychain. Run the one-time setup (see updates/…/wiki.md).",
+        "OneDrive is not configured: no Azure app config in the secret store. Run the one-time setup (see updates/…/wiki.md).",
       );
     }
     cached = normalise(JSON.parse(raw));
