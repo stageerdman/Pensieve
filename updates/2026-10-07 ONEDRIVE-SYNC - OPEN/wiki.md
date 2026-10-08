@@ -157,6 +157,38 @@ single-writer discipline; revisit if real multi-device editing lands.
   both-changed conflict, deletion propagation.
 - Full suite 275/275, tsc clean.
 
+## Follow-up findings — the two "bugs" (2026-10-08)
+Durable lessons from the owner-reported "sign-in expired every sync" + "infinite
+syncing":
+
+- **Secret-less refresh WORKS for Pensieve's own app.** Earlier we assumed the
+  public-client (empty `clientSecret`, redirect `localhost:8711/callback`) path
+  would hit `AADSTS70002` like the onedrive-manager "Web" app did. It does **not** —
+  a live `refresh_token` grant against the stored token returned HTTP 200 and
+  rotated the token. So the own-app public-client desktop path is fine; **don't**
+  switch desktop back to the confidential app or touch the Azure portal for this.
+  (Diagnose with a one-off node script that reads keychain `azure-config` +
+  `refresh-token`, POSTs the grant, and — crucially — **persists the rotated token
+  back** on success so the app's live state isn't broken.)
+- **The real "expired" bug was a UI mislabel.** `SyncStatus` returned the literal
+  "Sign-in expired." for *every* `error` phase. Any Graph 5xx / network blip /
+  delta hiccup therefore read as an expiry. Lesson: never hardcode one error cause;
+  classify (invalid_grant = expired; 5xx/network = transient; else show the real
+  message) and surface it honestly.
+- **Rotating refresh tokens need single-flight redemption.** MS rotates (and
+  invalidates) the refresh token on each use. Two concurrent cold `getAccessToken`
+  calls would redeem the SAME token → the second gets `invalid_grant` → a bogus
+  "expired". `tokens.ts` now shares one in-flight refresh. Also: persist the rotated
+  token, but a keychain-write failure must NOT discard the access token just minted.
+- **Motion = transfer, full stop.** A rune that flows for "unsynced changes" or
+  "disconnected" reads as "syncing forever". Reserve animation for the active
+  `syncing` state; let colour (gold = changes waiting, red = not backing up) carry
+  the rest.
+- **Panel data not in v1:** account (`/me`), quota (`/me/drive`), and live transfer
+  progress. The engine emits `onProgress` after classifying the work (so the item
+  total is known up front); the local-deletions guard must use the *post-download*
+  on-disk set or a freshly-pulled note looks deleted.
+
 ## Phase 5 — status UI, conflict resolution, tests (2026-10-07) ✅
 Built the user-facing surface. Two UX experts ran in parallel and converged; I
 synthesized and built one design (design.md: a whisper, not a shout).
