@@ -28,10 +28,15 @@ so native Delete and Copy/Cut/Paste now operate on the selected blocks. This cov
 the multi-row `TextSelection` and the single-row `NodeSelection`.
 
 ## Roadmap
-- [ ] Phase 1 — Focus the view on marquee end; unit test it. Typecheck + tests green.
+- [x] Phase 1 — Focus the view on marquee end; unit test it. Typecheck + tests green.
 - [ ] Phase 2 — Build the native app; owner verifies Delete and Copy/Paste on a
       multi-block selection. Merge to main, close out.
 
 ## Status
 - Started 2026-10-08. Diagnosis confirmed by code read (no `.focus()` anywhere in the
   marquee/drag path).
+- Phase 1 done: `useBlockMarquee.onUp` now calls `editor.prosemirrorView?.focus?.()`
+  after a real drag. Two new unit tests (focuses on drag-end, does not on a plain click).
+  Full suite 297/297 green, `tsc --noEmit` clean. Committed + pushed on
+  `update/editor-block-ops`.
+- Phase 2 in progress: native `.app` building; awaiting owner verification before merge.
