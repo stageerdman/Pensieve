@@ -130,45 +130,36 @@ body{
 .lens:active{ filter:brightness(1.05); }
 
 /* ===========================================================================
-   THE THUMB-WHEEL — a real dial around the bottom-right thumb (round-4).
-   Grab ANYWHERE in the corner (#grab owns the gesture); the point under your
-   thumb sticks to the wheel; fling it and it coasts, then clicks onto the
-   nearest action (tangential drag + critically-damped spring). Hidden only
-   while typing. Positions are set with transforms only → 60fps, no layout.
+   THE THUMB-WHEEL — native-scroll dial (round-5). An invisible iOS scroll
+   container (.dial) over the thumb corner provides ALL the physics (momentum,
+   snap, rubber-band); we read scrollTop → a float index and lay the buttons on
+   an arc with transforms only. A persistent hub (the empty circle) lets you
+   drag to resize the arc (design-mode overlay) and hold to switch sides.
    =========================================================================== */
-.wheel{ position:absolute; inset:0; z-index:90; transition:opacity .28s var(--ease), transform .3s var(--spring); }
-.wheel::before{  /* a soft glow pooling in the thumb corner, hinting the live zone */
-  content:""; position:absolute; right:-40px; bottom:-40px; width:320px; height:320px;
-  background:radial-gradient(circle at 70% 70%, hsl(var(--accent-glow)/.09), hsl(var(--surface)/.5) 30%, transparent 64%); pointer-events:none; }
-/* The large invisible grab zone — so the dial spins from anywhere in the corner. */
-#grab{ position:absolute; right:0; bottom:0; width:74%; height:56%; z-index:91;
-  touch-action:none; -webkit-user-select:none; user-select:none; }
-.app-root.typing .wheel{ opacity:0; transform:translateY(26px); }
-.app-root.typing #grab{ pointer-events:none; }
-
+.corner-glow{ position:absolute; right:-60px; bottom:-60px; width:340px; height:340px; z-index:87; pointer-events:none;
+  background:radial-gradient(circle at 70% 70%, hsl(var(--accent-glow)/.13), transparent 62%); transition:opacity .28s var(--ease); }
+.app-root.side-left .corner-glow{ left:-60px; right:auto; }
+.wheel{ position:absolute; inset:0; z-index:88; pointer-events:none; transition:opacity .28s var(--ease); }
 .wact{
   position:absolute; left:0; top:0; width:58px; height:58px; border-radius:50%;
-  display:flex; align-items:center; justify-content:center; z-index:95;
   border:1px solid hsl(var(--border)); background:hsl(var(--surface-raised)/.82);
   backdrop-filter:blur(22px) saturate(1.3); -webkit-backdrop-filter:blur(22px) saturate(1.3);
-  color:hsl(var(--text-muted)); pointer-events:none;          /* #grab owns the gesture */
-  box-shadow:0 10px 28px -14px rgba(0,0,0,.7); will-change:transform,opacity;
-  transition:border-color .25s var(--ease), color .25s var(--ease), box-shadow .3s var(--ease); }
-.wact.centered{ color:hsl(var(--text)); border-color:hsl(var(--accent)/.5);
-  box-shadow:0 10px 30px -10px rgba(0,0,0,.7), 0 0 34px -6px hsl(var(--accent-glow)/.5); }
-.wact.hero{ border:none; color:#fff;
+  color:hsl(var(--text-muted)); display:flex; align-items:center; justify-content:center;
+  box-shadow:0 10px 28px -14px rgba(0,0,0,.7); will-change:transform,opacity; pointer-events:none;
+  transition:border-color .25s var(--ease), color .25s var(--ease), box-shadow .25s var(--ease); }
+.wact.hero{ width:66px; height:66px; border:none; color:#fff;
   background:radial-gradient(130% 130% at 30% 25%, hsl(var(--accent)) 0%, hsl(var(--accent-glow)) 55%, hsl(215 80% 52%) 100%);
   box-shadow:0 0 0 1px hsl(var(--accent-glow)/.5), 0 14px 34px -8px hsl(var(--accent-glow)/.55),
              inset 0 2px 4px hsl(0 0% 100%/.4), inset 0 -6px 12px hsl(215 80% 40%/.5); }
-.wact.hero.centered{ box-shadow:0 0 0 1px hsl(var(--accent-glow)/.7), 0 16px 42px -6px hsl(var(--accent-glow)/.7),
-             inset 0 2px 4px hsl(0 0% 100%/.5), inset 0 -6px 12px hsl(215 80% 40%/.5); }
 .wact.hero::before{ content:""; position:absolute; inset:-9px; border-radius:50%;
-  background:radial-gradient(circle, hsl(var(--accent-glow)/.32), transparent 70%); z-index:-1; opacity:0; transition:opacity .3s; }
+  background:radial-gradient(circle, hsl(var(--accent-glow)/.3), transparent 70%); z-index:-1; opacity:0; transition:opacity .3s; }
 .wact.hero.centered::before{ opacity:1; animation:breathe 4s var(--ease) infinite; }
 @keyframes breathe{ 0%,100%{ transform:scale(.85); opacity:.5; } 50%{ transform:scale(1.12); opacity:.9; } }
-.wact.flash{ animation:flash .42s var(--spring); }
-@keyframes flash{ 0%{ filter:brightness(1);} 22%{ filter:brightness(1.9) saturate(1.3);} 100%{ filter:brightness(1);} }
-.wact.holding{ filter:brightness(1.18); }
+.wact.centered:not(.hero){ color:hsl(var(--text)); border-color:hsl(var(--accent)/.45);
+  box-shadow:0 10px 30px -12px rgba(0,0,0,.75), 0 0 0 1px hsl(var(--accent)/.25); }
+.wact.flash{ animation:wflash .42s var(--ease); }
+@keyframes wflash{ 0%{ filter:brightness(1.9) } 100%{ filter:brightness(1) } }
+.wact.holding{ filter:brightness(1.15); }
 .wact[data-state="reminder"]{ color:hsl(var(--gold)); border-color:hsl(var(--gold)/.4); }
 .wact[data-state="syncing"]{ color:hsl(var(--gold)); border-color:hsl(var(--gold)/.5); }
 .wact[data-state="offline"]{ color:hsl(var(--danger)); border-color:hsl(var(--danger)/.45); }
@@ -176,15 +167,50 @@ body{
   position:absolute; top:-3px; right:-3px; min-width:17px; height:17px; padding:0 4px; border-radius:9px;
   background:hsl(var(--accent)); color:#07101f; font-size:11px; font-weight:700;
   display:flex; align-items:center; justify-content:center; border:2px solid hsl(var(--surface)); }
-.wheel-label{ position:absolute; left:0; top:0; z-index:96; pointer-events:none;
-  font-size:11px; font-weight:600; letter-spacing:.5px; color:hsl(var(--text)/.8); text-transform:uppercase;
-  text-shadow:0 1px 6px hsl(var(--surface)/.9); white-space:nowrap; transition:opacity .2s; }
-
-/* lemniscate (sync rune) */
 .lemniscate{ fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round;
   stroke-dasharray:.575 .425; stroke-dashoffset:-.2125; }
 .wact[data-state="syncing"] .lemniscate{ animation:sync-flow 1.1s linear infinite; filter:drop-shadow(0 0 1.5px hsl(var(--gold)/.9)); }
 @keyframes sync-flow{ from{ stroke-dashoffset:-.2125; } to{ stroke-dashoffset:.7875; } }
+.wheel-label{ position:absolute; left:0; top:0; z-index:89; pointer-events:none;
+  font-size:11px; font-weight:600; letter-spacing:.4px; color:hsl(var(--text)/.8); text-transform:uppercase;
+  transform:translate(-50%,-50%); text-shadow:0 1px 6px hsl(var(--surface)/.9); transition:opacity .18s var(--ease); white-space:nowrap; }
+
+/* the invisible native-scroll dial — iOS owns the momentum + snap */
+.dial{ position:absolute; right:0; bottom:0; z-index:90; width:70%; height:66%;
+  overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; scroll-snap-type:y mandatory;
+  touch-action:pan-y; scrollbar-width:none; -webkit-user-select:none; user-select:none; }
+.app-root.side-left .dial{ left:0; right:auto; }
+.dial::-webkit-scrollbar{ display:none; }
+.dial .snap{ scroll-snap-align:start; scroll-snap-stop:normal; width:100%; }
+
+/* design-mode overlay — the arc outline, a spoke, and a live number while resizing */
+.design-layer{ position:absolute; inset:0; width:100%; height:100%; z-index:92; pointer-events:none; opacity:0; transition:opacity .18s var(--ease); }
+.design-layer.on{ opacity:1; }
+.design-layer .ring{ fill:none; stroke:hsl(var(--accent)/.7); stroke-width:1.4; stroke-dasharray:5 7; }
+.design-layer .spoke{ stroke:hsl(var(--accent)/.85); stroke-width:1.4; stroke-dasharray:4 5; }
+.design-layer .dot{ fill:hsl(var(--accent)); }
+.design-num{ position:absolute; left:0; top:0; z-index:93; pointer-events:none; transform:translate(-50%,-50%);
+  font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; color:hsl(var(--accent));
+  background:hsl(var(--surface-sunken)/.94); border:1px solid hsl(var(--accent)/.45); border-radius:8px; padding:3px 8px;
+  opacity:0; transition:opacity .18s var(--ease); white-space:nowrap; }
+.design-num.on{ opacity:1; }
+
+/* the adjustable hub — the empty circle, always present */
+.hub{ position:absolute; left:0; top:0; z-index:94; width:40px; height:40px;
+  display:flex; align-items:center; justify-content:center; pointer-events:auto; cursor:grab;
+  transform:translate(-50%,-50%); -webkit-user-select:none; user-select:none; touch-action:none; }
+.hub:active{ cursor:grabbing; }
+.hub .rim{ position:absolute; inset:0; border-radius:50%; border:1.5px dashed hsl(var(--text-muted)/.7);
+  background:hsl(var(--surface-raised)/.45); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  transition:border-color .2s, transform .2s var(--spring); }
+.hub.active .rim{ border-color:hsl(var(--accent)); border-style:solid; transform:scale(1.1); }
+.hub .fill{ position:absolute; inset:-4px; transform:rotate(-90deg); }   /* hold-to-flip progress ring */
+.hub .fill circle{ fill:none; stroke:hsl(var(--gold)); stroke-width:2.5; stroke-linecap:round;
+  stroke-dasharray:1; stroke-dashoffset:1; filter:drop-shadow(0 0 3px hsl(var(--gold)/.7)); }
+.hub .dot2{ width:4px; height:4px; border-radius:50%; background:hsl(var(--text-muted)/.85); }
+
+.app-root.typing .wheel, .app-root.typing .wheel-label, .app-root.typing .corner-glow{ opacity:0; }
+.app-root.typing .dial, .app-root.typing .hub{ opacity:0; pointer-events:none; }
 
 /* ---- Sync details panel (press-hold sync; or a tap when offline) ---- */
 .sync-panel{
@@ -343,32 +369,27 @@ body{
       <div class="lens" id="lens"></div>
     </div>
 
-    <!-- THUMB-WHEEL (actions positioned by JS along the arc) -->
-    <div class="wheel" id="wheel">
-      <div class="wact hero" data-key="wand" aria-label="New thought (hold to speak)">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M5 19 15 9" stroke-opacity=".95"/><path d="M17.5 4.5v4M15.5 6.5h4" stroke-opacity=".9"/>
-          <circle cx="9" cy="15" r=".6" fill="#fff" stroke="none" opacity=".8"/></svg>
-      </div>
-      <div class="wact" data-key="accio" aria-label="Accio — search">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="9" opacity=".5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
-      </div>
-      <div class="wact" data-key="sync" data-state="synced" aria-label="Sync (hold for details)">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path class="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"/></svg>
-      </div>
-      <div class="wact" data-key="cards" aria-label="Open notes">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="6" width="13" height="15" rx="2.5"/><path d="M8 6V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-1" opacity=".55"/></svg>
-        <span class="tab-count" id="tabCount" style="display:none">0</span>
-      </div>
-      <div class="wact" data-key="home" aria-label="Home">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M5 8c3 2.2 6 2.2 7 2.2S16 10.2 19 8"/><path d="M5 13c3 2.2 6 2.2 7 2.2S16 15.2 19 13"/><path d="M5 18c3 2.2 6 2.2 7 2.2S16 20.2 19 18"/></svg>
-      </div>
-      <div class="wheel-label" id="wheelLabel"></div>
-      <!-- LARGE grab zone, last so it sits above the buttons and owns every pointer event -->
-      <div id="grab"></div>
+    <!-- THUMB-WHEEL — native-scroll dial (B). Buttons + track built by JS. -->
+    <div class="corner-glow" id="cornerGlow"></div>
+    <div class="wheel" id="wheel"></div>
+    <div class="wheel-label" id="wheelLabel"></div>
+
+    <!-- design-mode overlay (shown only while dragging the hub to resize) -->
+    <svg class="design-layer" id="designLayer" aria-hidden="true">
+      <circle id="dRing" class="ring" cx="0" cy="0" r="0"/>
+      <line id="dSpoke" class="spoke" x1="0" y1="0" x2="0" y2="0"/>
+      <circle id="dDot" class="dot" cx="0" cy="0" r="4"/>
+    </svg>
+    <div class="design-num" id="designNum"></div>
+
+    <!-- the invisible native-scroll container that drives the dial -->
+    <div class="dial" id="dial"><div id="dialTrack"></div></div>
+
+    <!-- the adjustable hub (the empty circle): drag = resize · hold = switch side -->
+    <div class="hub" id="hub" aria-label="Adjust menu — drag to resize, hold to switch sides">
+      <span class="rim"></span>
+      <svg class="fill" viewBox="0 0 46 46"><circle cx="23" cy="23" r="21" pathLength="1"/></svg>
+      <span class="dot2"></span>
     </div>
 
     <!-- SYNC PANEL -->
@@ -664,161 +685,168 @@ body{
   }
 
   /* =========================================================================
-     THE THUMB-WHEEL — tangential drag + critically-damped-spring physics.
-     Grab ANYWHERE in the bottom-right (#grab owns the gesture); the point under
-     your thumb sticks to the dial; fling it and it coasts, then clicks onto the
-     nearest action. One rAF, state-driven, transforms only. (expert round-4)
+     THE THUMB-WHEEL — native-scroll dial (B) + an adjustable hub. (round-5)
+     An invisible iOS scroll container (#dial) over the thumb corner provides the
+     physics (momentum, snap, rubber-band); we read scrollTop → a float index and
+     lay the buttons on an arc with transforms only. The hub (empty circle) is
+     always present: DRAG it to resize the arc (live design-mode overlay) and
+     HOLD it ~2s (a ring fills) to switch the wheel to the opposite side.
+     Tapping a button runs it in place — it does NOT scroll to it; only your
+     own scrolling moves the dial.
      ======================================================================= */
   (function wheelEngine(){
-    const T = {
-      STEP_DEG:30, CENTER_DEG:130, RADIUS_MAX:190, RADIUS_FRAC:0.52,
-      PIVOT_INSET_X:4, PIVOT_INSET_Y:24, VISIBLE_SPAN:2.25,
-      SENSITIVITY:1.20, MIN_GRAB_R:42,
-      FRICTION:4.2, STIFFNESS:165, DAMPING:1.0, MAX_VEL:22, REST_V:0.02, REST_X:0.004,
-      CENTER_SCALE:1.14, EDGE_SCALE:0.56, SCALE_FALLOFF:0.30, OPACITY_FALL:0.46,
-      TICK_MS:5, TICK_POP:0.07, TICK_PUSH:1.2, POP_DECAY:9.0,
-      TAP_SLOP_DEG:3.2, HOLD_MS:420
+    const CFG = {
+      SNAP_PX:92, CYCLES:9, STEP_DEG:31, MAX_VIS:2.25,
+      HUB_RIGHT:6, HUB_BOTTOM:30, TAP_MOVE:9, TAP_SCROLL:3, HOLD_MS:420,
+      LABEL_DROP:46, HUB_R:60, R_MIN:118, R_MAX:300, FLIP_MS:2000
     };
-    const DEG = Math.PI/180, STEP_RAD = T.STEP_DEG*DEG;
-    const ORDER  = ["accio","wand","sync","cards","home"];      // cyclic; wand starts centred
+    const ICONS = {
+      accio:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" opacity=".5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>`,
+      wand:`<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19 15 9" stroke-opacity=".95"/><path d="M17.5 4.5v4M15.5 6.5h4" stroke-opacity=".9"/><circle cx="9" cy="15" r=".6" fill="#fff" stroke="none" opacity=".8"/></svg>`,
+      sync:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path class="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"/></svg>`,
+      cards:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="15" rx="2.5"/><path d="M8 6V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-1" opacity=".55"/></svg>`,
+      home:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8c3 2.2 6 2.2 7 2.2S16 10.2 19 8"/><path d="M5 13c3 2.2 6 2.2 7 2.2S16 15.2 19 13"/><path d="M5 18c3 2.2 6 2.2 7 2.2S16 20.2 19 18"/></svg>`
+    };
+    const ORDER  = ["accio","wand","sync","cards","home"];     // cyclic; wand starts centred
     const LABELS = { accio:"Search", wand:"New", sync:"Sync", cards:"Cards", home:"Home" };
-    const HOLDABLE = { wand:1, sync:1 };                         // centred press-hold actions
-    const N = ORDER.length;
-    const wheelEl = $("#wheel"), grab = $("#grab"), wlabel = $("#wheelLabel");
+    const HERO = "wand", N = ORDER.length;
+
+    const store = {
+      get(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:v; }catch(e){ return d; } },
+      set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+    };
+    let side = store.get("pensieve.wheelSide","right");         // 'right' | 'left'
+    let RADIUS = Math.max(CFG.R_MIN, Math.min(CFG.R_MAX, parseFloat(store.get("pensieve.wheelRadius","150"))||150));
+
+    const wheel=$("#wheel"), wheelLabel=$("#wheelLabel"), dial=$("#dial"), dialTrack=$("#dialTrack"),
+          hub=$("#hub"), hubFill=$("#hub .fill circle"), design=$("#designLayer"), designNum=$("#designNum"),
+          dRing=$("#dRing"), dSpoke=$("#dSpoke"), dDot=$("#dDot");
     const els = {};
-    wheelEl.querySelectorAll(".wact").forEach(el => els[el.dataset.key] = el);
+    ORDER.forEach(key => { const el=document.createElement("div"); el.className="wact"+(key===HERO?" hero":""); el.dataset.key=key; el.innerHTML=ICONS[key]; wheel.appendChild(el); els[key]=el; });
+    els.cards.insertAdjacentHTML("beforeend", '<span class="tab-count" id="tabCount" style="display:none">0</span>');
 
-    let pos = ORDER.indexOf("wand"), vel = 0, lastCenter = Math.round(pos), pop = 0;
-    let GEO = { pivotX:0, pivotY:0, R:190 };
-    function measure(){
-      const W = root.clientWidth || 390, H = root.clientHeight || 844;
-      GEO.pivotX = W - T.PIVOT_INSET_X; GEO.pivotY = H - T.PIVOT_INSET_Y;
-      GEO.R = Math.min(T.RADIUS_MAX, W*T.RADIUS_FRAC);
-    }
-    function wrap(o){ o = ((o % N) + N) % N; if (o > N/2) o -= N; return o; }
-    const centerKey = () => ORDER[((Math.round(pos)%N)+N)%N];
+    const TOTAL = CFG.CYCLES*N;
+    (function buildTrack(){ const frag=document.createDocumentFragment();
+      for(let k=0;k<TOTAL;k++){ const s=document.createElement("div"); s.className="snap"; s.style.height=CFG.SNAP_PX+"px"; frag.appendChild(s); }
+      dialTrack.appendChild(frag); })();
 
-    function render(){
-      const { pivotX, pivotY, R } = GEO;
-      for (let i=0;i<N;i++){
-        const el = els[ORDER[i]], o = wrap(i - pos), ao = Math.abs(o);
-        if (ao > T.VISIBLE_SPAN){ el.style.opacity = "0"; continue; }
-        const centred = ao < 0.5;
-        const r = R + (centred ? pop*T.TICK_PUSH : 0);
-        const a = (T.CENTER_DEG + o*T.STEP_DEG) * DEG;
-        const x = pivotX + r*Math.cos(a), y = pivotY - r*Math.sin(a);
-        let s = Math.max(T.EDGE_SCALE, T.CENTER_SCALE - T.SCALE_FALLOFF*ao);
-        if (centred) s += pop*T.TICK_POP;
-        el.style.opacity = Math.max(0, 1 - T.OPACITY_FALL*ao).toFixed(3);
-        el.style.zIndex  = String(100 - Math.round(ao*10));
-        el.style.transform = `translate3d(${x.toFixed(2)}px,${y.toFixed(2)}px,0) translate(-50%,-50%) scale(${s.toFixed(3)})`;
-        el.classList.toggle("centered", centred);
+    let W=0,H=0,pivotX=0,pivotY=0;
+    function applySide(){ root.classList.toggle("side-left", side==="left"); }
+    function cacheGeom(){ const r=root.getBoundingClientRect(); W=r.width; H=r.height;
+      pivotX = side==="right" ? W-CFG.HUB_RIGHT : CFG.HUB_RIGHT; pivotY = H-CFG.HUB_BOTTOM; }
+    const centerDeg = () => side==="right" ? 150 : 30;
+    const sideSign  = () => side==="right" ? 1 : -1;
+
+    let pos = ORDER.indexOf("wand"); const centers = {}; let lastCentered = -1;
+    function wrap(o){ o=((o%N)+N)%N; if(o>N/2) o-=N; return o; }
+    function centredIndex(){ return ((Math.round(pos)%N)+N)%N; }
+    function centredKey(){ return ORDER[centredIndex()]; }
+
+    function layoutArc(){
+      const DEG=Math.PI/180, C=centerDeg(), sgn=sideSign();
+      for(let i=0;i<N;i++){
+        const key=ORDER[i], el=els[key], o=wrap(i-pos), ao=Math.abs(o);
+        if(ao>CFG.MAX_VIS){ el.style.opacity="0"; centers[key]={x:0,y:0,r:0,vis:false}; continue; }
+        const ang=(C + sgn*o*CFG.STEP_DEG)*DEG;
+        const x=pivotX+RADIUS*Math.cos(ang), y=pivotY-RADIUS*Math.sin(ang);
+        const scale=Math.max(.52,1-.24*ao), op=Math.max(0,1-.42*ao);
+        el.style.transform=`translate3d(${x}px,${y}px,0) translate(-50%,-50%) scale(${scale})`;
+        el.style.opacity=op; el.style.zIndex=String(100-Math.round(ao*10));
+        el.classList.toggle("centered", ao<.5);
+        const baseR=(key===HERO?33:29); centers[key]={x,y,r:baseR*scale,vis:op>.25};
       }
-      const ca = T.CENTER_DEG*DEG, lx = pivotX + R*Math.cos(ca), ly = pivotY - R*Math.sin(ca) + 46;
-      wlabel.textContent = LABELS[centerKey()];
-      wlabel.style.transform = `translate3d(${lx.toFixed(1)}px,${ly.toFixed(1)}px,0) translate(-50%,-50%)`;
-      wlabel.style.opacity = (Math.abs(pos - Math.round(pos)) < 0.22) ? "1" : "0";
+      const ca=C*DEG, lx=pivotX+RADIUS*Math.cos(ca), ly=pivotY-RADIUS*Math.sin(ca);
+      wheelLabel.style.transform=`translate3d(${lx}px,${ly+CFG.LABEL_DROP}px,0) translate(-50%,-50%)`;
+      wheelLabel.textContent=LABELS[centredKey()];
+      wheelLabel.style.opacity=(Math.abs(pos-Math.round(pos))<.22)?"1":"0";
+      const hx=pivotX+CFG.HUB_R*Math.cos(ca), hy=pivotY-CFG.HUB_R*Math.sin(ca);
+      hub.style.transform=`translate3d(${hx}px,${hy}px,0) translate(-50%,-50%)`;
+      const ci=centredIndex(); if(ci!==lastCentered){ lastCentered=ci; if(Math.abs(pos-Math.round(pos))<.5) haptic(6); }
     }
 
-    let running = false, lastT = 0;
-    function wake(){ if(running) return; running = true; lastT = performance.now(); requestAnimationFrame(frame); }
-    function frame(now){
-      if(!running) return;
-      let dt = (now - lastT)/1000; lastT = now;
-      if (dt > 0.05) dt = 0.05; if (dt <= 0) dt = 1/60;
-      if (!dragging) step(dt);
-      pop *= Math.exp(-T.POP_DECAY*dt); if (pop < 0.001) pop = 0;
-      tickCheck(); render();
-      if (!dragging && Math.abs(vel) < T.REST_V && Math.abs(Math.round(pos)-pos) < T.REST_X && pop === 0){
-        pos = Math.round(pos); vel = 0; running = false; render(); return;
-      }
-      requestAnimationFrame(frame);
-    }
-    function step(dt){
-      const target = Math.round(pos), dist = target - pos;    // nearest detent, self-correcting
-      const k = T.STIFFNESS, c = 2*Math.sqrt(k)*T.DAMPING;      // critical damping → no wobble
-      vel += (k*dist - c*vel)*dt;                              // detent spring
-      vel *= Math.exp(-T.FRICTION*dt);                         // inertial coast on top
-      pos += vel*dt;
-    }
-    function tickCheck(){ const c = Math.round(pos); if (c !== lastCenter){ lastCenter = c; if (!reduce){ haptic(T.TICK_MS); pop = 1; } } }
+    /* ---- looping / recentre (seamless): keep scrollTop ≥1 cycle from each end ---- */
+    const CYCLE_PX = N*CFG.SNAP_PX;
+    function recentre(){ const st=dial.scrollTop, minST=CYCLE_PX, maxST=(TOTAL-N)*CFG.SNAP_PX;
+      if(st<minST){ dial.scrollTop=st+CYCLE_PX; return true; } if(st>maxST){ dial.scrollTop=st-CYCLE_PX; return true; } return false; }
+    let ticking=false;
+    function onScroll(){ if(ticking) return; ticking=true;
+      requestAnimationFrame(()=>{ recentre(); pos=dial.scrollTop/CFG.SNAP_PX; layoutArc(); ticking=false; }); }
+    dial.addEventListener("scroll", onScroll, { passive:true });
 
-    let dragging = false, rootRect = null, pivotCX = 0, pivotCY = 0;
-    let lastTheta = 0, lastPos = 0, lastMoveT = 0, movedRad = 0;
-    let downKey = null, downWasCentered = false, held = false, holdTimer = null;
-    function angleAt(cx, cy){
-      let dx = cx - pivotCX, dy = pivotCY - cy; const r = Math.hypot(dx, dy);
-      if (r < T.MIN_GRAB_R && r > 0){ const s = T.MIN_GRAB_R/r; dx*=s; dy*=s; }
-      return Math.atan2(dy, dx);
-    }
-    function keyAt(cx, cy){
-      const lx = cx - rootRect.left, ly = cy - rootRect.top; let best = null, bd = 34;
-      for (let i=0;i<N;i++){
-        const el = els[ORDER[i]]; if (parseFloat(el.style.opacity||"1") < 0.35) continue;
-        const m = /translate3d\(([-\d.]+)px,([-\d.]+)px/.exec(el.style.transform||""); if (!m) continue;
-        const d = Math.hypot(lx-parseFloat(m[1]), ly-parseFloat(m[2])); if (d < bd){ bd = d; best = ORDER[i]; }
-      }
-      return best;
-    }
-
-    grab.addEventListener("pointerdown", e => {
-      e.preventDefault();
-      rootRect = root.getBoundingClientRect();
-      pivotCX = rootRect.left + GEO.pivotX; pivotCY = rootRect.top + GEO.pivotY;
-      dragging = true; vel = 0; movedRad = 0; held = false;
-      lastTheta = angleAt(e.clientX, e.clientY); lastPos = pos; lastMoveT = (e.timeStamp || performance.now());
-      downKey = keyAt(e.clientX, e.clientY); downWasCentered = (downKey && downKey === centerKey());
-      try{ grab.setPointerCapture(e.pointerId); }catch(_){}
-      if (downWasCentered && HOLDABLE[downKey]){
-        holdTimer = setTimeout(() => {
-          if (movedRad < T.TAP_SLOP_DEG*DEG && dragging){ held = true; els[downKey].classList.add("holding"); execHold(downKey); }
-        }, T.HOLD_MS);
-      }
-      wake();
-    });
-    grab.addEventListener("pointermove", e => {
-      if(!dragging) return; e.preventDefault();
-      const theta = angleAt(e.clientX, e.clientY); let d = theta - lastTheta;
-      if (d >  Math.PI) d -= 2*Math.PI; if (d < -Math.PI) d += 2*Math.PI; lastTheta = theta;
-      movedRad += Math.abs(d);
-      if (movedRad > T.TAP_SLOP_DEG*DEG && holdTimer){ clearTimeout(holdTimer); holdTimer = null; }
-      pos += -d/STEP_RAD * T.SENSITIVITY;
-      const now = e.timeStamp || performance.now(); let dts = (now - lastMoveT)/1000; if (dts <= 0) dts = 1/60;
-      vel = vel*0.55 + ((pos - lastPos)/dts)*0.45; lastPos = pos; lastMoveT = now;
-    });
-    function endDrag(){
-      if(!dragging) return; dragging = false;
-      if (holdTimer){ clearTimeout(holdTimer); holdTimer = null; }
-      if (downKey) els[downKey].classList.remove("holding");
-      if (held){ held = false; vel = 0; wake(); return; }                       // hold already fired
-      if (movedRad < T.TAP_SLOP_DEG*DEG && downKey){                             // a tap → run it
-        vel = 0; pos = pos + wrap(ORDER.indexOf(downKey) - pos); exec(downKey); wake(); return;
-      }
-      vel = Math.max(-T.MAX_VEL, Math.min(T.MAX_VEL, vel));                      // fling
-      if (reduce){ pos = Math.round(pos); vel = 0; }
-      wake();
-    }
-    grab.addEventListener("pointerup", endDrag);
-    grab.addEventListener("pointercancel", endDrag);
-
-    function flash(key){ const el = els[key]; if(!el) return; el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
-    function exec(key){
-      flash(key); haptic(reduce?0:9);
+    /* ---- taps & hold on the dial (scroller is on top → hit-test the arc) ---- */
+    let pX=0,pY=0,pScroll=0,holdTimer=null,didHold=false,sRect=null;
+    function hitTest(cx,cy){ if(!sRect) sRect=root.getBoundingClientRect(); const lx=cx-sRect.left, ly=cy-sRect.top;
+      let best=null,bestD=Infinity;
+      for(const key of ORDER){ const c=centers[key]; if(!c||!c.vis) continue; const d=Math.hypot(lx-c.x,ly-c.y); if(d<=c.r+12 && d<bestD){ bestD=d; best=key; } }
+      return best; }
+    function insideCentred(cx,cy){ const c=centers[centredKey()]; if(!c||!c.vis) return false; if(!sRect) sRect=root.getBoundingClientRect();
+      const lx=cx-sRect.left, ly=cy-sRect.top; return Math.hypot(lx-c.x,ly-c.y)<=c.r+12; }
+    function flash(key){ const el=els[key]; if(!el) return; el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+    function execAction(key){ flash(key); haptic(10);           // run in place — no scroll-to-centre
       if(key==="wand") openNewNote(false);
       else if(key==="accio") openAccio();
       else if(key==="sync") syncTap();
       else if(key==="cards") toggleSwitcher();
       else if(key==="home") goHome();
     }
-    function execHold(key){
-      flash(key); haptic(reduce?0:16);
-      if(key==="wand") openNewNote(true);
-      else if(key==="sync") openPanel();
+    function holdAction(key){ didHold=true; if(key!=="wand"&&key!=="sync") return;
+      els[key].classList.add("holding"); flash(key); haptic(16);
+      if(key==="wand") openNewNote(true); else if(key==="sync") openPanel();
     }
+    dial.addEventListener("pointerdown", e=>{ sRect=root.getBoundingClientRect(); pX=e.clientX; pY=e.clientY; pScroll=dial.scrollTop; didHold=false;
+      clearTimeout(holdTimer);
+      holdTimer=setTimeout(()=>{ if(Math.abs(dial.scrollTop-pScroll)<=CFG.TAP_SCROLL && insideCentred(pX,pY)) holdAction(centredKey()); }, CFG.HOLD_MS); });
+    dial.addEventListener("pointermove", e=>{ if(Math.hypot(e.clientX-pX,e.clientY-pY)>CFG.TAP_MOVE || Math.abs(dial.scrollTop-pScroll)>CFG.TAP_SCROLL) clearTimeout(holdTimer); });
+    function endPointer(e){ clearTimeout(holdTimer); for(const k in els) els[k].classList.remove("holding"); if(didHold) return;
+      const moved=Math.hypot((e.clientX||pX)-pX,(e.clientY||pY)-pY), scrolled=Math.abs(dial.scrollTop-pScroll);
+      if(moved<=CFG.TAP_MOVE && scrolled<=CFG.TAP_SCROLL){ const key=hitTest(e.clientX||pX,e.clientY||pY); if(key) execAction(key); } }
+    dial.addEventListener("pointerup", endPointer);
+    dial.addEventListener("pointercancel", ()=>{ clearTimeout(holdTimer); for(const k in els) els[k].classList.remove("holding"); });
 
-    measure(); render();
-    window.addEventListener("resize", () => { measure(); render(); });
-    if (!reduce){ pos += 0.0001; wake(); }   // one gentle settle so the wand eases into centre
+    /* ---- the adjustable hub: drag = resize · hold ~2s = switch side ---- */
+    let hubDrag=false, hubMoved=0, hubSX=0, hubSY=0, hubMode="", flipRAF=null, flipFired=false;
+    function setFill(p){ hubFill.style.strokeDashoffset = String(1 - Math.max(0,Math.min(1,p))); }
+    function resetFill(){ if(flipRAF) cancelAnimationFrame(flipRAF); flipRAF=null; setFill(0); }
+    function startFlipFill(){ flipFired=false; const begin=performance.now();
+      if(flipRAF) cancelAnimationFrame(flipRAF);
+      (function tick(now){ if(hubMode!=="flip"){ return; } const p=Math.min(1,(now-begin)/CFG.FLIP_MS); setFill(p);
+        if(p>=1){ if(!flipFired){ flipFired=true; doFlip(); } return; } flipRAF=requestAnimationFrame(tick); })(begin);
+    }
+    function doFlip(){ side = side==="right" ? "left" : "right"; store.set("pensieve.wheelSide", side);
+      haptic(30); applySide(); sRect=null; cacheGeom(); layoutArc(); resetFill(); }
+    function showDesign(on){ design.classList.toggle("on",on); designNum.classList.toggle("on",on); hub.classList.toggle("active",on); }
+    function paintDesign(cx,cy){ if(!sRect) sRect=root.getBoundingClientRect();
+      const lx=cx-sRect.left, ly=cy-sRect.top;
+      let r=Math.hypot(lx-pivotX, ly-pivotY); r=Math.max(CFG.R_MIN,Math.min(CFG.R_MAX,r)); RADIUS=r;
+      dRing.setAttribute("cx",pivotX); dRing.setAttribute("cy",pivotY); dRing.setAttribute("r",r);
+      const ca=centerDeg()*Math.PI/180, ex=pivotX+r*Math.cos(ca), ey=pivotY-r*Math.sin(ca);
+      dSpoke.setAttribute("x1",pivotX); dSpoke.setAttribute("y1",pivotY); dSpoke.setAttribute("x2",ex); dSpoke.setAttribute("y2",ey);
+      dDot.setAttribute("cx",ex); dDot.setAttribute("cy",ey);
+      designNum.style.left=ex+"px"; designNum.style.top=(ey-22)+"px"; designNum.textContent=Math.round(r)+" px";
+      layoutArc();
+    }
+    hub.addEventListener("pointerdown", e=>{ e.preventDefault(); e.stopPropagation();
+      sRect=root.getBoundingClientRect(); hubDrag=true; hubMoved=0; hubSX=e.clientX; hubSY=e.clientY; hubMode="flip";
+      try{ hub.setPointerCapture(e.pointerId); }catch(_){}
+      hub.classList.add("active"); startFlipFill(); });
+    hub.addEventListener("pointermove", e=>{ if(!hubDrag) return; e.preventDefault();
+      hubMoved=Math.max(hubMoved, Math.hypot(e.clientX-hubSX, e.clientY-hubSY));
+      if(hubMoved>8 && hubMode!=="resize"){ hubMode="resize"; resetFill(); showDesign(true); }
+      if(hubMode==="resize") paintDesign(e.clientX,e.clientY); });
+    function hubEnd(e){ if(!hubDrag) return; hubDrag=false;
+      try{ hub.releasePointerCapture(e.pointerId); }catch(_){}
+      if(hubMode==="resize"){ showDesign(false); store.set("pensieve.wheelRadius", String(Math.round(RADIUS))); layoutArc(); }
+      hub.classList.remove("active"); resetFill(); hubMode=""; }
+    hub.addEventListener("pointerup", hubEnd);
+    hub.addEventListener("pointercancel", hubEnd);
+
+    /* ---- boot ---- */
+    function boot(){ applySide(); cacheGeom();
+      const mid = Math.floor(CFG.CYCLES/2)*N + ORDER.indexOf("wand");
+      dial.scrollTop = mid*CFG.SNAP_PX; pos = dial.scrollTop/CFG.SNAP_PX; setFill(0); layoutArc(); }
+    requestAnimationFrame(boot);
+    window.addEventListener("resize", () => { sRect=null; cacheGeom(); layoutArc(); });
+    window.__wheel = { boot, onScroll, endPointer, flip:doFlip, get pos(){ return pos; }, get side(){ return side; }, get radius(){ return RADIUS; } };   // test hook
   })();
 
   function goHome(){

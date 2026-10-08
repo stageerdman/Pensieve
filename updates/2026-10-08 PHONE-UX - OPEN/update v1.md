@@ -120,6 +120,22 @@ deep blue-black stone, the magical-blue accent and gold. Magical AND highly prac
     errors, reel/note/accio/sync/cards flows intact.
   - Lab files A/B/C kept under `concepts/wheel-lab/` so the owner can feel the
     alternatives on device if desired.
-- **Next:** owner re-tests the new wheel on device (does the weight/snap feel right —
-  tune `SENSITIVITY`/`FRICTION`/`STIFFNESS` if not), then lock the spec and start the
-  real build (Phase 3) on the PWA-CAPTURE runtime.
+- 2026-10-08: **Round-5 — switched the wheel to the native-scroll model (B) + an
+  adjustable hub.** Owner felt **wheel-B** was the smoothest of the three (it rides iOS's
+  own momentum/snap), so B is now the app's wheel:
+  - Invisible `.dial` scroll container over the thumb corner drives a float `pos`
+    (scrollTop/snap); buttons laid on the arc by transform only; seamless looping via
+    cycle-recentre. iOS owns all the physics.
+  - **Tap a button → runs in place; it does NOT scroll to it** (owner's note). The dial
+    only moves when you scroll. Hold the centred Wand = speak, hold centred Sync = details.
+  - **The hub (an "empty circle") — always present, two gestures:**
+    · **Drag** → resize the arc (how far the buttons sit from the corner). A live
+      **design-mode overlay** appears: the arc-circle outline, a spoke from the corner to
+      the centred button, and a number (px) that changes as you pull in/out.
+    · **Hold ~2s** (a gold ring fills as you hold) → **switch the wheel to the opposite
+      side** (right ↔ left) — pivot, arc, dial, hub, glow all mirror.
+  - Side + radius **persist** (localStorage). jsdom-verified: boots clean; drag-resize,
+    flip, tap, and reel/note/sync/cards flows all drive without error.
+  - Lab files A/B/C stay under `concepts/wheel-lab/`.
+- **Next:** owner tests on device — does the resize range / hub placement / flip feel
+  right? Then lock the spec and start the real build (Phase 3) on the PWA-CAPTURE runtime.
