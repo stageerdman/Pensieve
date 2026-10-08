@@ -175,11 +175,13 @@ body{
   font-size:11px; font-weight:600; letter-spacing:.4px; color:hsl(var(--text)/.8); text-transform:uppercase;
   transform:translate(-50%,-50%); text-shadow:0 1px 6px hsl(var(--surface)/.9); transition:opacity .18s var(--ease); white-space:nowrap; }
 
-/* the invisible native-scroll dial — iOS owns the momentum + snap */
-.dial{ position:absolute; right:0; bottom:0; z-index:90; width:70%; height:66%;
+/* the invisible native-scroll dial — iOS owns the momentum + snap.
+   Kept to the thumb corner so the rest of the screen still scrolls the reel. */
+.dial{ position:absolute; right:0; bottom:0; z-index:90; width:60%; height:52%;
   overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; scroll-snap-type:y mandatory;
   touch-action:pan-y; scrollbar-width:none; -webkit-user-select:none; user-select:none; }
 .app-root.side-left .dial{ left:0; right:auto; }
+.app-root.side-left .sync-panel{ left:16px; right:auto; transform-origin:bottom left; }
 .dial::-webkit-scrollbar{ display:none; }
 .dial .snap{ scroll-snap-align:start; scroll-snap-stop:normal; width:100%; }
 
@@ -195,22 +197,25 @@ body{
   opacity:0; transition:opacity .18s var(--ease); white-space:nowrap; }
 .design-num.on{ opacity:1; }
 
-/* the adjustable hub — the empty circle, always present */
-.hub{ position:absolute; left:0; top:0; z-index:94; width:40px; height:40px;
-  display:flex; align-items:center; justify-content:center; pointer-events:auto; cursor:grab;
-  transform:translate(-50%,-50%); -webkit-user-select:none; user-select:none; touch-action:none; }
-.hub:active{ cursor:grabbing; }
-.hub .rim{ position:absolute; inset:0; border-radius:50%; border:1.5px dashed hsl(var(--text-muted)/.7);
-  background:hsl(var(--surface-raised)/.45); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
-  transition:border-color .2s, transform .2s var(--spring); }
-.hub.active .rim{ border-color:hsl(var(--accent)); border-style:solid; transform:scale(1.1); }
-.hub .fill{ position:absolute; inset:-4px; transform:rotate(-90deg); }   /* hold-to-flip progress ring */
-.hub .fill circle{ fill:none; stroke:hsl(var(--gold)); stroke-width:2.5; stroke-linecap:round;
-  stroke-dasharray:1; stroke-dashoffset:1; filter:drop-shadow(0 0 3px hsl(var(--gold)/.7)); }
-.hub .dot2{ width:4px; height:4px; border-radius:50%; background:hsl(var(--text-muted)/.85); }
+/* the "Adjust" menu option renders as an empty dashed circle */
+.wact.adjust{ background:hsl(var(--surface-raised)/.5); border-style:dashed; border-color:hsl(var(--text-muted)/.6); }
+.wact.adjust.centered{ border-style:solid; border-color:hsl(var(--accent)/.6); color:hsl(var(--accent)); }
+
+/* the adjust GRIP — an invisible touch target that sits exactly over the centred
+   button, live ONLY when the empty-circle option is centred. Drag = resize,
+   hold ~2s = switch side. Its fill-ring is centred on the button → aligned. */
+.grip{ position:absolute; left:0; top:0; z-index:94; width:74px; height:74px;
+  transform:translate(-50%,-50%); display:flex; align-items:center; justify-content:center;
+  pointer-events:none; cursor:grab; -webkit-user-select:none; user-select:none; touch-action:none; }
+.grip.live{ pointer-events:auto; }
+.grip:active{ cursor:grabbing; }
+.grip .fill{ position:absolute; inset:0; transform:rotate(-90deg); opacity:0; transition:opacity .15s var(--ease); }
+.grip.holding .fill{ opacity:1; }
+.grip .fill circle{ fill:none; stroke:hsl(var(--gold)); stroke-width:3; stroke-linecap:round;
+  stroke-dasharray:1; stroke-dashoffset:1; filter:drop-shadow(0 0 4px hsl(var(--gold)/.8)); }
 
 .app-root.typing .wheel, .app-root.typing .wheel-label, .app-root.typing .corner-glow{ opacity:0; }
-.app-root.typing .dial, .app-root.typing .hub{ opacity:0; pointer-events:none; }
+.app-root.typing .dial, .app-root.typing .grip{ opacity:0; pointer-events:none; }
 
 /* ---- Sync details panel (press-hold sync; or a tap when offline) ---- */
 .sync-panel{
@@ -385,11 +390,10 @@ body{
     <!-- the invisible native-scroll container that drives the dial -->
     <div class="dial" id="dial"><div id="dialTrack"></div></div>
 
-    <!-- the adjustable hub (the empty circle): drag = resize · hold = switch side -->
-    <div class="hub" id="hub" aria-label="Adjust menu — drag to resize, hold to switch sides">
-      <span class="rim"></span>
-      <svg class="fill" viewBox="0 0 46 46"><circle cx="23" cy="23" r="21" pathLength="1"/></svg>
-      <span class="dot2"></span>
+    <!-- adjust grip — overlays the centred button, live only when the empty-circle
+         option ("Adjust") is centred: drag = resize · hold ~2s = switch side -->
+    <div class="grip" id="adjustGrip" aria-hidden="true">
+      <svg class="fill" viewBox="0 0 74 74"><circle cx="37" cy="37" r="34" pathLength="1"/></svg>
     </div>
 
     <!-- SYNC PANEL -->
@@ -685,44 +689,46 @@ body{
   }
 
   /* =========================================================================
-     THE THUMB-WHEEL — native-scroll dial (B) + an adjustable hub. (round-5)
-     An invisible iOS scroll container (#dial) over the thumb corner provides the
-     physics (momentum, snap, rubber-band); we read scrollTop → a float index and
-     lay the buttons on an arc with transforms only. The hub (empty circle) is
-     always present: DRAG it to resize the arc (live design-mode overlay) and
-     HOLD it ~2s (a ring fills) to switch the wheel to the opposite side.
-     Tapping a button runs it in place — it does NOT scroll to it; only your
-     own scrolling moves the dial.
+     THE THUMB-WHEEL — native-scroll dial (B). (round-6)
+     An invisible iOS scroll container (#dial, kept to the thumb corner so the
+     reel still scrolls elsewhere) drives a float index; buttons are laid on an
+     arc by transform only; seamless cycle-recentre loop. iOS owns the physics.
+     "Adjust" is a 6th menu option (an empty circle). When it is the CENTRED
+     option a grip goes live over it: DRAG = resize the arc (design-mode overlay),
+     HOLD ~2s (ring fills) = switch the wheel to the opposite side. Tapping any
+     button runs it IN PLACE — it never scrolls to it; only your scroll moves it.
      ======================================================================= */
   (function wheelEngine(){
     const CFG = {
       SNAP_PX:92, CYCLES:9, STEP_DEG:31, MAX_VIS:2.25,
       HUB_RIGHT:6, HUB_BOTTOM:30, TAP_MOVE:9, TAP_SCROLL:3, HOLD_MS:420,
-      LABEL_DROP:46, HUB_R:60, R_MIN:118, R_MAX:300, FLIP_MS:2000
+      LABEL_DROP:46, R_MIN:118, R_MAX:300, FLIP_MS:2000
     };
     const ICONS = {
       accio:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" opacity=".5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>`,
       wand:`<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19 15 9" stroke-opacity=".95"/><path d="M17.5 4.5v4M15.5 6.5h4" stroke-opacity=".9"/><circle cx="9" cy="15" r=".6" fill="#fff" stroke="none" opacity=".8"/></svg>`,
       sync:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path class="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"/></svg>`,
       cards:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="15" rx="2.5"/><path d="M8 6V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-1" opacity=".55"/></svg>`,
-      home:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8c3 2.2 6 2.2 7 2.2S16 10.2 19 8"/><path d="M5 13c3 2.2 6 2.2 7 2.2S16 15.2 19 13"/><path d="M5 18c3 2.2 6 2.2 7 2.2S16 20.2 19 18"/></svg>`
+      home:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8c3 2.2 6 2.2 7 2.2S16 10.2 19 8"/><path d="M5 13c3 2.2 6 2.2 7 2.2S16 15.2 19 13"/><path d="M5 18c3 2.2 6 2.2 7 2.2S16 20.2 19 18"/></svg>`,
+      adjust:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8" stroke-dasharray="2.6 3"/><path d="M12 8v8M8 12h8" opacity=".55"/></svg>`
     };
-    const ORDER  = ["accio","wand","sync","cards","home"];     // cyclic; wand starts centred
-    const LABELS = { accio:"Search", wand:"New", sync:"Sync", cards:"Cards", home:"Home" };
+    const ORDER  = ["accio","wand","sync","cards","home","adjust"];   // cyclic; wand starts centred
+    const LABELS = { accio:"Search", wand:"New", sync:"Sync", cards:"Cards", home:"Home", adjust:"Adjust" };
     const HERO = "wand", N = ORDER.length;
 
     const store = {
       get(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:v; }catch(e){ return d; } },
       set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
     };
-    let side = store.get("pensieve.wheelSide","right");         // 'right' | 'left'
+    let side = store.get("pensieve.wheelSide","right");          // 'right' | 'left'
     let RADIUS = Math.max(CFG.R_MIN, Math.min(CFG.R_MAX, parseFloat(store.get("pensieve.wheelRadius","150"))||150));
 
     const wheel=$("#wheel"), wheelLabel=$("#wheelLabel"), dial=$("#dial"), dialTrack=$("#dialTrack"),
-          hub=$("#hub"), hubFill=$("#hub .fill circle"), design=$("#designLayer"), designNum=$("#designNum"),
-          dRing=$("#dRing"), dSpoke=$("#dSpoke"), dDot=$("#dDot");
+          grip=$("#adjustGrip"), gripFill=$("#adjustGrip .fill circle"),
+          design=$("#designLayer"), designNum=$("#designNum"), dRing=$("#dRing"), dSpoke=$("#dSpoke"), dDot=$("#dDot");
     const els = {};
-    ORDER.forEach(key => { const el=document.createElement("div"); el.className="wact"+(key===HERO?" hero":""); el.dataset.key=key; el.innerHTML=ICONS[key]; wheel.appendChild(el); els[key]=el; });
+    ORDER.forEach(key => { const el=document.createElement("div");
+      el.className="wact"+(key===HERO?" hero":"")+(key==="adjust"?" adjust":""); el.dataset.key=key; el.innerHTML=ICONS[key]; wheel.appendChild(el); els[key]=el; });
     els.cards.insertAdjacentHTML("beforeend", '<span class="tab-count" id="tabCount" style="display:none">0</span>');
 
     const TOTAL = CFG.CYCLES*N;
@@ -755,12 +761,13 @@ body{
         el.classList.toggle("centered", ao<.5);
         const baseR=(key===HERO?33:29); centers[key]={x,y,r:baseR*scale,vis:op>.25};
       }
-      const ca=C*DEG, lx=pivotX+RADIUS*Math.cos(ca), ly=pivotY-RADIUS*Math.sin(ca);
-      wheelLabel.style.transform=`translate3d(${lx}px,${ly+CFG.LABEL_DROP}px,0) translate(-50%,-50%)`;
+      const ca=C*DEG, cx=pivotX+RADIUS*Math.cos(ca), cy=pivotY-RADIUS*Math.sin(ca);
+      wheelLabel.style.transform=`translate3d(${cx}px,${cy+CFG.LABEL_DROP}px,0) translate(-50%,-50%)`;
       wheelLabel.textContent=LABELS[centredKey()];
       wheelLabel.style.opacity=(Math.abs(pos-Math.round(pos))<.22)?"1":"0";
-      const hx=pivotX+CFG.HUB_R*Math.cos(ca), hy=pivotY-CFG.HUB_R*Math.sin(ca);
-      hub.style.transform=`translate3d(${hx}px,${hy}px,0) translate(-50%,-50%)`;
+      // the grip tracks the centred button; it is LIVE only when "Adjust" is centred
+      grip.style.transform=`translate3d(${cx}px,${cy}px,0) translate(-50%,-50%)`;
+      grip.classList.toggle("live", centredKey()==="adjust" && Math.abs(pos-Math.round(pos))<.3);
       const ci=centredIndex(); if(ci!==lastCentered){ lastCentered=ci; if(Math.abs(pos-Math.round(pos))<.5) haptic(6); }
     }
 
@@ -773,7 +780,7 @@ body{
       requestAnimationFrame(()=>{ recentre(); pos=dial.scrollTop/CFG.SNAP_PX; layoutArc(); ticking=false; }); }
     dial.addEventListener("scroll", onScroll, { passive:true });
 
-    /* ---- taps & hold on the dial (scroller is on top → hit-test the arc) ---- */
+    /* ---- taps & hold on the dial (scroller on top → hit-test the arc) ---- */
     let pX=0,pY=0,pScroll=0,holdTimer=null,didHold=false,sRect=null;
     function hitTest(cx,cy){ if(!sRect) sRect=root.getBoundingClientRect(); const lx=cx-sRect.left, ly=cy-sRect.top;
       let best=null,bestD=Infinity;
@@ -782,7 +789,8 @@ body{
     function insideCentred(cx,cy){ const c=centers[centredKey()]; if(!c||!c.vis) return false; if(!sRect) sRect=root.getBoundingClientRect();
       const lx=cx-sRect.left, ly=cy-sRect.top; return Math.hypot(lx-c.x,ly-c.y)<=c.r+12; }
     function flash(key){ const el=els[key]; if(!el) return; el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
-    function execAction(key){ flash(key); haptic(10);           // run in place — no scroll-to-centre
+    function execAction(key){ if(key==="adjust") return;        // Adjust acts via the grip, not a tap
+      flash(key); haptic(10);                                   // run in place — no scroll-to-centre
       if(key==="wand") openNewNote(false);
       else if(key==="accio") openAccio();
       else if(key==="sync") syncTap();
@@ -803,18 +811,18 @@ body{
     dial.addEventListener("pointerup", endPointer);
     dial.addEventListener("pointercancel", ()=>{ clearTimeout(holdTimer); for(const k in els) els[k].classList.remove("holding"); });
 
-    /* ---- the adjustable hub: drag = resize · hold ~2s = switch side ---- */
-    let hubDrag=false, hubMoved=0, hubSX=0, hubSY=0, hubMode="", flipRAF=null, flipFired=false;
-    function setFill(p){ hubFill.style.strokeDashoffset = String(1 - Math.max(0,Math.min(1,p))); }
-    function resetFill(){ if(flipRAF) cancelAnimationFrame(flipRAF); flipRAF=null; setFill(0); }
-    function startFlipFill(){ flipFired=false; const begin=performance.now();
+    /* ---- the adjust grip (only live when "Adjust" is centred): drag=resize, hold=flip ---- */
+    let gDrag=false, gMoved=0, gSX=0, gSY=0, gMode="", flipRAF=null, flipFired=false;
+    function setFill(p){ gripFill.style.strokeDashoffset = String(1 - Math.max(0,Math.min(1,p))); }
+    function resetFill(){ if(flipRAF) cancelAnimationFrame(flipRAF); flipRAF=null; setFill(0); grip.classList.remove("holding"); }
+    function startFlipFill(){ flipFired=false; grip.classList.add("holding"); const begin=performance.now();
       if(flipRAF) cancelAnimationFrame(flipRAF);
-      (function tick(now){ if(hubMode!=="flip"){ return; } const p=Math.min(1,(now-begin)/CFG.FLIP_MS); setFill(p);
+      (function tick(now){ if(gMode!=="flip"){ return; } const p=Math.min(1,(now-begin)/CFG.FLIP_MS); setFill(p);
         if(p>=1){ if(!flipFired){ flipFired=true; doFlip(); } return; } flipRAF=requestAnimationFrame(tick); })(begin);
     }
     function doFlip(){ side = side==="right" ? "left" : "right"; store.set("pensieve.wheelSide", side);
       haptic(30); applySide(); sRect=null; cacheGeom(); layoutArc(); resetFill(); }
-    function showDesign(on){ design.classList.toggle("on",on); designNum.classList.toggle("on",on); hub.classList.toggle("active",on); }
+    function showDesign(on){ design.classList.toggle("on",on); designNum.classList.toggle("on",on); }
     function paintDesign(cx,cy){ if(!sRect) sRect=root.getBoundingClientRect();
       const lx=cx-sRect.left, ly=cy-sRect.top;
       let r=Math.hypot(lx-pivotX, ly-pivotY); r=Math.max(CFG.R_MIN,Math.min(CFG.R_MAX,r)); RADIUS=r;
@@ -822,23 +830,24 @@ body{
       const ca=centerDeg()*Math.PI/180, ex=pivotX+r*Math.cos(ca), ey=pivotY-r*Math.sin(ca);
       dSpoke.setAttribute("x1",pivotX); dSpoke.setAttribute("y1",pivotY); dSpoke.setAttribute("x2",ex); dSpoke.setAttribute("y2",ey);
       dDot.setAttribute("cx",ex); dDot.setAttribute("cy",ey);
-      designNum.style.left=ex+"px"; designNum.style.top=(ey-22)+"px"; designNum.textContent=Math.round(r)+" px";
+      designNum.style.left=ex+"px"; designNum.style.top=(ey-24)+"px"; designNum.textContent=Math.round(r)+" px";
       layoutArc();
     }
-    hub.addEventListener("pointerdown", e=>{ e.preventDefault(); e.stopPropagation();
-      sRect=root.getBoundingClientRect(); hubDrag=true; hubMoved=0; hubSX=e.clientX; hubSY=e.clientY; hubMode="flip";
-      try{ hub.setPointerCapture(e.pointerId); }catch(_){}
-      hub.classList.add("active"); startFlipFill(); });
-    hub.addEventListener("pointermove", e=>{ if(!hubDrag) return; e.preventDefault();
-      hubMoved=Math.max(hubMoved, Math.hypot(e.clientX-hubSX, e.clientY-hubSY));
-      if(hubMoved>8 && hubMode!=="resize"){ hubMode="resize"; resetFill(); showDesign(true); }
-      if(hubMode==="resize") paintDesign(e.clientX,e.clientY); });
-    function hubEnd(e){ if(!hubDrag) return; hubDrag=false;
-      try{ hub.releasePointerCapture(e.pointerId); }catch(_){}
-      if(hubMode==="resize"){ showDesign(false); store.set("pensieve.wheelRadius", String(Math.round(RADIUS))); layoutArc(); }
-      hub.classList.remove("active"); resetFill(); hubMode=""; }
-    hub.addEventListener("pointerup", hubEnd);
-    hub.addEventListener("pointercancel", hubEnd);
+    grip.addEventListener("pointerdown", e=>{ if(!grip.classList.contains("live")) return;
+      e.preventDefault(); e.stopPropagation();
+      sRect=root.getBoundingClientRect(); gDrag=true; gMoved=0; gSX=e.clientX; gSY=e.clientY; gMode="flip";
+      try{ grip.setPointerCapture(e.pointerId); }catch(_){}
+      startFlipFill(); });
+    grip.addEventListener("pointermove", e=>{ if(!gDrag) return; e.preventDefault();
+      gMoved=Math.max(gMoved, Math.hypot(e.clientX-gSX, e.clientY-gSY));
+      if(gMoved>8 && gMode!=="resize"){ gMode="resize"; resetFill(); showDesign(true); }
+      if(gMode==="resize") paintDesign(e.clientX,e.clientY); });
+    function gripEnd(e){ if(!gDrag) return; gDrag=false;
+      try{ grip.releasePointerCapture(e.pointerId); }catch(_){}
+      if(gMode==="resize"){ showDesign(false); store.set("pensieve.wheelRadius", String(Math.round(RADIUS))); layoutArc(); }
+      resetFill(); gMode=""; }
+    grip.addEventListener("pointerup", gripEnd);
+    grip.addEventListener("pointercancel", gripEnd);
 
     /* ---- boot ---- */
     function boot(){ applySide(); cacheGeom();
@@ -846,7 +855,7 @@ body{
       dial.scrollTop = mid*CFG.SNAP_PX; pos = dial.scrollTop/CFG.SNAP_PX; setFill(0); layoutArc(); }
     requestAnimationFrame(boot);
     window.addEventListener("resize", () => { sRect=null; cacheGeom(); layoutArc(); });
-    window.__wheel = { boot, onScroll, endPointer, flip:doFlip, get pos(){ return pos; }, get side(){ return side; }, get radius(){ return RADIUS; } };   // test hook
+    window.__wheel = { boot, onScroll, endPointer, flip:doFlip, get pos(){ return pos; }, get side(){ return side; }, get radius(){ return RADIUS; }, get centred(){ return centredKey(); } };
   })();
 
   function goHome(){
@@ -994,7 +1003,7 @@ body{
 
   /* ---- elastic-scroll guard on real phones ---- */
   document.addEventListener("touchmove", e=>{
-    if(!e.target.closest(".reel,.accio-results,.note-surface,.tabs-rail")) e.preventDefault();
+    if(!e.target.closest(".reel,.accio-results,.note-surface,.tabs-rail,.dial")) e.preventDefault();
   }, { passive:false });
 
   /* ---- boot ---- (the wheel engine self-boots + self-handles its own resize) */

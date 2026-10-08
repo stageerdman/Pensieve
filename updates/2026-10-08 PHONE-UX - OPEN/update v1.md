@@ -137,5 +137,22 @@ deep blue-black stone, the magical-blue accent and gold. Magical AND highly prac
   - Side + radius **persist** (localStorage). jsdom-verified: boots clean; drag-resize,
     flip, tap, and reel/note/sync/cards flows all drive without error.
   - Lab files A/B/C stay under `concepts/wheel-lab/`.
-- **Next:** owner tests on device — does the resize range / hub placement / flip feel
-  right? Then lock the spec and start the real build (Phase 3) on the PWA-CAPTURE runtime.
+- 2026-10-08: **Round-6 — owner feedback on the dial.** Four fixes:
+  1. **Adjust is now a 6th MENU OPTION** (an empty dashed circle), not a separate
+     always-there hub. Scroll it to centre; a grip then goes live *over that button*.
+  2. **Scrolling fixed** — the global `touchmove` guard wasn't whitelisting `.dial`, so
+     iOS native scroll on the wheel was being `preventDefault`-ed (wheel wouldn't spin).
+     Added `.dial`; also **shrank the dial to the thumb corner** (60%×52%) so the reel
+     (background) stays scrollable everywhere else + via the lens.
+  3. **Side-flip completeness** — on flip, the dial, corner-glow, AND the sync panel now
+     all move to the active side (was leaving the right-hand "hole"). *(Owner to confirm
+     the hole is gone — may need a screenshot.)*
+  4. **Alignment** — resize (design overlay: pivot-centred arc-circle + spoke + px
+     number) and hold-to-flip (gold ring around the centred button) are now separate
+     gestures that never co-show, each correctly placed; the grip's ring is centred on
+     the button, so no more misaligned circles.
+  - Tap a button still runs it IN PLACE (no scroll-to-centre). jsdom-verified: 6 options,
+    54 snaps, grip resize/flip, dial whitelisted, side flip, flows all clean.
+- **Next:** owner tests on device — scrolling (wheel + background), the Adjust option's
+  resize/flip, and whether the left-side "hole" is gone (screenshot if not). Then lock
+  the spec and start the real build (Phase 3) on the PWA-CAPTURE runtime.
