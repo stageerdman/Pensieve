@@ -337,23 +337,16 @@ body{
 /* Apple-Notes model: ONE editor. The first line is the title (auto-H1); everything
    after it is body. No separate title field. */
 .note-date{ flex:1; min-width:0; text-align:center; font-size:12.5px; color:hsl(var(--text-muted)); }
-.note-body{ font-size:17px; line-height:1.6; outline:none; min-height:60vh; }
+.note-body{ font-size:17px; line-height:1.6; outline:none; min-height:60vh;
+  -webkit-user-select:text; user-select:text; -webkit-touch-callout:default; cursor:text;
+  overflow-wrap:break-word; word-break:normal; }
 .note-body h1{ font-size:27px; font-weight:700; letter-spacing:-.5px; line-height:1.25; margin:0 0 .4em; }
 .note-body div, .note-body p{ margin:0 0 .15em; }
 .note-body ul{ margin:.1em 0 .4em; padding-left:1.25em; }
 .note-body li{ margin:0 0 .12em; }
 /* placeholder sits on the empty first-line title */
 .note-body.title-empty > h1:first-child::before{ content:"Title"; color:hsl(var(--text-muted)/.5); pointer-events:none; }
-/* Dictate FAB sits on the corner OPPOSITE the menu so the persistent menu never
-   collides with it (menu right → mic left; mirrors when the menu flips sides). */
-.note-mic{ position:absolute; left:22px; right:auto; bottom:calc(24px + env(safe-area-inset-bottom) + var(--kb)); width:56px; height:56px; border-radius:50%;
-  border:1px solid hsl(var(--border)); background:hsl(var(--surface-raised)); color:hsl(var(--text));
-  display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:5;
-  box-shadow:0 12px 30px -10px rgba(0,0,0,.7); transition:bottom .2s var(--ease), background .3s, color .3s, border-color .3s; }
-.app-root.side-left .note-mic{ right:22px; left:auto; }
-.note-mic.listening{ background:hsl(var(--accent)/.2); color:hsl(var(--accent)); border-color:hsl(var(--accent)/.5); animation:pulse 1.4s var(--ease) infinite; }
-/* with the keyboard up, the toolbar carries Voice → hide the floating FAB */
-.app-root.kb-open .note-mic{ opacity:0; pointer-events:none; }
+/* (Standalone dictate FAB removed — Voice lives in the keyboard toolbar for now.) */
 
 /* ---- keyboard accessory toolbar (Apple-Notes-style) — formatting + voice,
         docked just above the keyboard; visible ONLY while editing a note with
@@ -488,7 +481,6 @@ body{
       <div class="note-surface" id="noteSurface">
         <div class="note-body" id="noteBody" contenteditable="true" spellcheck="true"></div>
       </div>
-      <button class="note-mic" id="noteMic" aria-label="Dictate"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/></svg></button>
       <!-- keyboard accessory toolbar: formatting + voice, like Apple Notes -->
       <div class="note-toolbar" id="noteToolbar">
         <div class="fmt">
@@ -538,6 +530,7 @@ body{
     if(up !== kbUp){
       kbUp = up; root.classList.toggle("kb-open", up);
       if(!up) onKeyboardClosed();
+      else if(root.classList.contains("editing-note") && typeof keepCaretVisible==="function") setTimeout(keepCaretVisible, 60);
     }
   }
   function onKeyboardClosed(){
@@ -666,7 +659,7 @@ body{
   /* =========================================================================
      NOTE VIEW — one surface for reading + writing. Autosaves (no "Pour in").
      ======================================================================= */
-  const note = $("#note"), noteBody = $("#noteBody"),
+  const note = $("#note"), noteBody = $("#noteBody"), noteSurface = $("#noteSurface"),
         noteDate = $("#noteDate"), noteSaved = $("#noteSaved"),
         noteToolbar = $("#noteToolbar");
   let current = null;
@@ -688,6 +681,30 @@ body{
     noteBody.classList.toggle("title-empty", !h || h.tagName !== "H1" || !h.textContent.trim());
   }
   function focusTitle(){ const h = noteBody.firstElementChild; if(h){ noteBody.focus(); placeCaret(h, 0); } }
+
+  /* Keep the caret above the keyboard + toolbar. The note is a full-screen overlay, so
+     the browser doesn't know the keyboard covers the bottom — we scroll the surface
+     manually using visualViewport (which DOES exclude the keyboard). */
+  const TOOLBAR_H = 52;
+  let caretRAF = null;
+  function keepCaretVisible(){
+    if(caretRAF) return;
+    caretRAF = requestAnimationFrame(() => {
+      caretRAF = null;
+      const sel = window.getSelection(); if(!sel || !sel.rangeCount) return;
+      const rng = sel.getRangeAt(0);
+      let rect = (rng && typeof rng.getBoundingClientRect === "function") ? rng.getBoundingClientRect() : null;
+      if(!rect || (!rect.height && !rect.top && !rect.bottom)){ const b = currentBlock(); if(b) rect = b.getBoundingClientRect(); }
+      if(!rect) return;
+      const vv = window.visualViewport;
+      const top = vv ? vv.offsetTop : 0;
+      const h = vv ? vv.height : window.innerHeight;
+      const safeBottom = top + h - (kbUp ? TOOLBAR_H : 0) - 30;   // 30 = breathing room
+      const safeTop = top + 70;                                   // below the top bar
+      if(rect.bottom > safeBottom) noteSurface.scrollTop += (rect.bottom - safeBottom);
+      else if(rect.top < safeTop)  noteSurface.scrollTop -= (safeTop - rect.top);
+    });
+  }
 
   function fmtNow(){
     const n = new Date();
@@ -757,7 +774,7 @@ body{
     noteSaved.classList.add("show");
     setTimeout(()=>noteSaved.classList.remove("show"), 1400);
   }
-  noteBody.addEventListener("input", () => { syncPlaceholders(); scheduleSave(); });
+  noteBody.addEventListener("input", () => { syncPlaceholders(); scheduleSave(); keepCaretVisible(); });
 
   // Enter at the end of the TITLE line breaks out into a normal body line (Apple Notes).
   noteBody.addEventListener("keydown", e => {
@@ -771,7 +788,7 @@ body{
     const div = document.createElement("div");
     if(frag.textContent && frag.textContent.length) div.appendChild(frag); else div.innerHTML = "<br>";
     block.after(div);
-    placeCaret(div, 0); syncPlaceholders(); scheduleSave();
+    placeCaret(div, 0); syncPlaceholders(); scheduleSave(); keepCaretVisible();
   });
 
   // Editing mode (focus-driven): hides the note's top chrome and arms the toolbar.
@@ -1276,8 +1293,8 @@ body{
       if(isEl) el.textContent=s; else { el.value=s; el.dispatchEvent(new Event("input")); }
       if(i<text.length) setTimeout(tick,26); else done&&done(); })();
   }
-  const noteMic=$("#noteMic"), tbVoice=$("#tbVoice"); let dict=false;
-  function setMicListening(on){ noteMic.classList.toggle("listening",on); if(tbVoice) tbVoice.classList.toggle("listening",on); }
+  const tbVoice=$("#tbVoice"); let dict=false;
+  function setMicListening(on){ if(tbVoice) tbVoice.classList.toggle("listening",on); }
   function startDictation(){
     if(dict) return; dict=true; setMicListening(true);
     const h = noteBody.firstElementChild;
@@ -1288,15 +1305,16 @@ body{
     setTimeout(()=>typeInto(div,SAMPLE,true,()=>{ setMicListening(false); dict=false; commit(); }),650);
   }
   function toggleDictation(){ dict ? (setMicListening(false), dict=false) : startDictation(); }
-  noteMic.addEventListener("click", toggleDictation);
   const accioMic=$("#accioMic");
   accioMic.addEventListener("click", ()=>{ if(accioVoice) return; accioVoice=true; accioMic.classList.add("listening"); accioInput.value="";
     const p=SEARCHES[Math.floor(Math.random()*SEARCHES.length)];
     setTimeout(()=>typeInto(accioInput,p,false,()=>{ accioMic.classList.remove("listening"); accioVoice=false; }),600); });
 
-  /* ---- elastic-scroll guard on real phones ---- */
+  /* ---- elastic-scroll guard on real phones ----
+     Whitelist the whole .note so iOS text selection (loupe + handles) and the editor's
+     own scroll are never fought by preventDefault. */
   document.addEventListener("touchmove", e=>{
-    if(!e.target.closest(".reel,.accio-results,.note-surface,.tabs-rail,.note-toolbar")) e.preventDefault();
+    if(!e.target.closest(".reel,.accio-results,.note,.tabs-rail")) e.preventDefault();
   }, { passive:false });
 
   /* ---- boot ---- (the wheel engine self-boots + self-handles its own resize) */

@@ -251,6 +251,24 @@ deep blue-black stone, the magical-blue accent and gold. Magical AND highly prac
   - `goHome` refactored onto `exitNote`. jsdom-verified: from an open note, Accio → note
      closes + accio opens (accio-open set); Cards → note closes + switcher opens;
      `#switcherDone` gone; no errors.
-- **Next:** owner tests on device — Accio/Cards always behave from inside a note; Cards
-  switcher with no Back button. Then lock the full Wand spec and start Phase 3 (PWA-CAPTURE
-  runtime + mirror the title-H1 rule in the desktop editor).
+- 2026-10-09: **Round-12 — editor fixes (mic, selection, caret-scroll).**
+  1. **Removed the standalone dictate FAB** in notes (markup + CSS + JS). Voice now lives
+     ONLY in the keyboard toolbar (`#tbVoice`) — the floating-mic experience is parked for
+     later.
+  2. **Text selection.** Double-tap/word-select was grabbing too much. Two fixes: explicit
+     `-webkit-user-select:text; user-select:text; -webkit-touch-callout:default` on
+     `.note-body`, and the elastic-scroll `touchmove` guard now whitelists the **whole
+     `.note`** (was only `.note-surface`) so iOS's selection loupe/handles and the editor's
+     own scroll are never `preventDefault`-ed. *(Needs device confirmation.)*
+  3. **Caret follows typing.** The note is a full-screen overlay, so the browser didn't
+     know the keyboard covered the bottom and let the caret slide behind the UI. Added
+     `keepCaretVisible()` — on input / Enter-breakout / keyboard-open it reads the caret
+     rect and scrolls `#noteSurface` so the caret stays above the keyboard + 52px toolbar
+     (uses visualViewport, which excludes the keyboard; falls back to the current block's
+     rect; guarded for no-Range-rect environments).
+  - jsdom-verified: boot clean; FAB gone; type → Enter → body DIV; toolbar Voice →
+     listening; keepCaretVisible runs without throwing. No errors.
+- **Next:** owner tests on device — (a) voice only in the toolbar; (b) double-tap selects a
+  single word, selection handles behave; (c) typing/new lines keep the caret visible above
+  the keyboard (no more text hiding behind the UI). If selection is still off on device,
+  dig deeper (may need the exact gesture/OS). Then lock the Wand spec → Phase 3.
