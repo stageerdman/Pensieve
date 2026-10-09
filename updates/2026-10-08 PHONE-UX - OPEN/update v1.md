@@ -186,7 +186,30 @@ deep blue-black stone, the magical-blue accent and gold. Magical AND highly prac
   `COLLAPSE_R:64`, `FLICK_DIST:34`, `FLICK_VEL:520`, `COLLAPSE_STIFF:150`,
   `COLLAPSE_DAMP:0.6` (slight overshoot), `PEND_PX:8`. Rotate, tap, Adjust, side-flip,
   and all flows remain intact; collapse never false-fires on rotate/tap/hold.
-- **Next:** owner tests the gravity-well on device — flick-in/flick-out feel, thresholds
-  (does a normal rotate/tap ever trigger it?), the lone-wand resting spot + overshoot.
-  Tune `FLICK_DIST/FLICK_VEL/COLLAPSE_DAMP/COLLAPSE_R` to taste. Then lock the full Wand
-  spec and start Phase 3 on the PWA-CAPTURE runtime.
+- 2026-10-09: **Round-9 — the menu is now a PERSISTENT global layer + colour-coded.**
+  Owner: the collapse idea is done/great; the *principle* changes — the menu lives on
+  **every** surface and vanishes only when the keyboard is up.
+  1. **Persistent menu.** Raised the whole menu subsystem above the content overlays
+     (`.wheel` z88→150, label 151, design-layer/num 152/153, grip 154; the menu-summoned
+     sync-panel 120→156 and cast-spell 110→158 sit above it). So the wheel floats over the
+     note / cards-switcher / thread while reading, and only `.app-root.typing` (keyboard
+     raised, already wired to focus/blur) hides it. Moved the note's dictate FAB to the
+     **opposite corner** from the menu (mirrors with side-flip) so they never collide.
+  2. **Accio = violet.** New `--accio:266 72% 74%`; the Accio button now has a decent
+     purple-transparent radial-gradient fill, a purplish border, and a violet icon (plus a
+     violet centred ring). Scoped `.wact[data-key="accio"]` so it beats the generic centred
+     style.
+  3. **Sync = state colour.** New `--warn` (orange). Sync button: **normal/muted when
+     synced**, **orange when it needs backup** (`reminder`/`syncing`), **red when it fails**
+     (`failed`, with a soft alert pulse) or offline. Scoped to `[data-key="sync"]` so the
+     state wins even when the button is centred. Added a real **`failed`** state to the
+     machine: `castSpell` can fail (`FAIL_RATE:0.4`, and the first cast of a session always
+     fails once so the owner can *see* red on device), panel shows "Backup didn't finish /
+     Try again", and tapping sync retries. Set `FAIL_RATE=0` for always-succeeds.
+  - jsdom-verified: boots clean (`__wheel` up, wheel z-index 150), Accio→`--accio`, sync
+     states map synced→muted / reminder+syncing→warn / failed+offline→danger, and a driven
+     tap runs syncing→failed→retry→syncing with zero errors.
+- **Next:** owner tests on device — menu present/usable on note + cards + search-empty,
+  gone only with the keyboard; dictate FAB no longer clashing; Accio violet reads right;
+  sync orange/red legibility + the fail→retry flow feels honest. Tune colours/`FAIL_RATE`.
+  Then lock the full Wand spec and start Phase 3 on the PWA-CAPTURE runtime.

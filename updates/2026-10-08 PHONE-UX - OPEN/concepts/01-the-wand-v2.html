@@ -27,7 +27,9 @@
   --surface:222 24% 11%; --surface-sunken:222 22% 13%; --surface-raised:222 18% 17%;
   --text:216 18% 84%; --text-muted:218 12% 60%; --border:222 16% 21%;
   --accent:215 85% 74%; --accent-glow:218 100% 72%; --gold:43 92% 55%;
-  --success:150 50% 62%; --danger:0 70% 70%;
+  --success:150 50% 62%; --danger:0 72% 66%;
+  --warn:30 95% 58%;       /* sync "needs backup" — orange                        */
+  --accio:266 72% 74%;     /* Accio / recall — violet                             */
   --cat-blue:212 70% 68%; --cat-purple:270 55% 74%; --cat-green:145 50% 62%;
   --cat-pink:330 60% 74%; --cat-orange:24 85% 68%; --cat-yellow:45 80% 66%; --cat-red:0 70% 70%;
   --font:-apple-system,"SF Pro Text",system-ui,sans-serif;
@@ -140,7 +142,10 @@ body{
   background:radial-gradient(circle at 70% 70%, hsl(var(--accent-glow)/.13), transparent 62%); transition:opacity .28s var(--ease); }
 .app-root.side-left .corner-glow{ left:-60px; right:auto;
   background:radial-gradient(circle at 30% 70%, hsl(var(--accent-glow)/.13), transparent 62%); }
-.wheel{ position:absolute; inset:0; z-index:88; pointer-events:none; transition:opacity .28s var(--ease); }
+/* The menu is a PERSISTENT top layer — it floats above every surface (note z140,
+   switcher z135, accio z130, thread z145). The ONLY thing that hides it is the
+   keyboard (.app-root.typing, below). */
+.wheel{ position:absolute; inset:0; z-index:150; pointer-events:none; transition:opacity .28s var(--ease); }
 .wact{
   position:absolute; left:0; top:0; width:58px; height:58px; border-radius:50%;
   border:1px solid hsl(var(--border)); background:hsl(var(--surface-raised)/.82);
@@ -163,30 +168,47 @@ body{
 .wact.flash{ animation:wflash .42s var(--ease); }
 @keyframes wflash{ 0%{ filter:brightness(1.9) } 100%{ filter:brightness(1) } }
 .wact.holding{ filter:brightness(1.15); }
-.wact[data-state="reminder"]{ color:hsl(var(--gold)); border-color:hsl(var(--gold)/.4); }
-.wact[data-state="syncing"]{ color:hsl(var(--gold)); border-color:hsl(var(--gold)/.5); }
-.wact[data-state="offline"]{ color:hsl(var(--danger)); border-color:hsl(var(--danger)/.45); }
+
+/* Accio — a decent violet-tinted button (background, border, icon all purplish) */
+.wact[data-key="accio"]{
+  background:
+    radial-gradient(130% 130% at 30% 25%, hsl(var(--accio)/.26), hsl(var(--accio)/.09) 72%),
+    hsl(var(--surface-raised)/.62);
+  border-color:hsl(var(--accio)/.5); color:hsl(var(--accio)); }
+.wact[data-key="accio"].centered{ color:hsl(var(--accio)); border-color:hsl(var(--accio)/.85);
+  box-shadow:0 10px 30px -12px rgba(0,0,0,.75), 0 0 0 1px hsl(var(--accio)/.4); }
+
+/* Sync button colour = backup state: needs-backup → orange, failed/offline → red,
+   idle/synced → normal. Scoped to [data-key="sync"] so state beats the centred style. */
+.wact[data-key="sync"][data-state="reminder"]{ color:hsl(var(--warn)); border-color:hsl(var(--warn)/.5);
+  box-shadow:0 10px 28px -14px rgba(0,0,0,.7), 0 0 0 1px hsl(var(--warn)/.35); }
+.wact[data-key="sync"][data-state="syncing"]{ color:hsl(var(--warn)); border-color:hsl(var(--warn)/.6); }
+.wact[data-key="sync"][data-state="failed"]{ color:hsl(var(--danger)); border-color:hsl(var(--danger)/.6);
+  animation:syncAlert 1.8s var(--ease) infinite; }
+.wact[data-key="sync"][data-state="offline"]{ color:hsl(var(--danger)); border-color:hsl(var(--danger)/.45); }
+@keyframes syncAlert{ 0%,100%{ box-shadow:0 10px 28px -14px rgba(0,0,0,.7), 0 0 0 1px hsl(var(--danger)/.3); }
+  50%{ box-shadow:0 10px 28px -14px rgba(0,0,0,.7), 0 0 0 2px hsl(var(--danger)/.65); } }
 .wact .tab-count{
   position:absolute; top:-3px; right:-3px; min-width:17px; height:17px; padding:0 4px; border-radius:9px;
   background:hsl(var(--accent)); color:#07101f; font-size:11px; font-weight:700;
   display:flex; align-items:center; justify-content:center; border:2px solid hsl(var(--surface)); }
 .lemniscate{ fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round;
   stroke-dasharray:.575 .425; stroke-dashoffset:-.2125; }
-.wact[data-state="syncing"] .lemniscate{ animation:sync-flow 1.1s linear infinite; filter:drop-shadow(0 0 1.5px hsl(var(--gold)/.9)); }
+.wact[data-state="syncing"] .lemniscate{ animation:sync-flow 1.1s linear infinite; filter:drop-shadow(0 0 1.5px hsl(var(--warn)/.9)); }
 @keyframes sync-flow{ from{ stroke-dashoffset:-.2125; } to{ stroke-dashoffset:.7875; } }
-.wheel-label{ position:absolute; left:0; top:0; z-index:89; pointer-events:none;
+.wheel-label{ position:absolute; left:0; top:0; z-index:151; pointer-events:none;
   font-size:11px; font-weight:600; letter-spacing:.4px; color:hsl(var(--text)/.8); text-transform:uppercase;
   transform:translate(-50%,-50%); text-shadow:0 1px 6px hsl(var(--surface)/.9); transition:opacity .18s var(--ease); white-space:nowrap; }
 
 .app-root.side-left .sync-panel{ left:16px; right:auto; transform-origin:bottom left; }
 
 /* design-mode overlay — the arc outline, a spoke, and a live number while resizing */
-.design-layer{ position:absolute; inset:0; width:100%; height:100%; z-index:92; pointer-events:none; opacity:0; transition:opacity .18s var(--ease); }
+.design-layer{ position:absolute; inset:0; width:100%; height:100%; z-index:152; pointer-events:none; opacity:0; transition:opacity .18s var(--ease); }
 .design-layer.on{ opacity:1; }
 .design-layer .ring{ fill:none; stroke:hsl(var(--accent)/.7); stroke-width:1.4; stroke-dasharray:5 7; }
 .design-layer .spoke{ stroke:hsl(var(--accent)/.85); stroke-width:1.4; stroke-dasharray:4 5; }
 .design-layer .dot{ fill:hsl(var(--accent)); }
-.design-num{ position:absolute; left:0; top:0; z-index:93; pointer-events:none; transform:translate(-50%,-50%);
+.design-num{ position:absolute; left:0; top:0; z-index:153; pointer-events:none; transform:translate(-50%,-50%);
   font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; color:hsl(var(--accent));
   background:hsl(var(--surface-sunken)/.94); border:1px solid hsl(var(--accent)/.45); border-radius:8px; padding:3px 8px;
   opacity:0; transition:opacity .18s var(--ease); white-space:nowrap; }
@@ -199,7 +221,7 @@ body{
 /* the adjust GRIP — an invisible touch target that sits exactly over the centred
    button, live ONLY when the empty-circle option is centred. Drag = resize,
    hold ~2s = switch side. Its fill-ring is centred on the button → aligned. */
-.grip{ position:absolute; left:0; top:0; z-index:110; width:74px; height:74px;  /* above the buttons (max z100) */
+.grip{ position:absolute; left:0; top:0; z-index:154; width:74px; height:74px;  /* above the buttons + menu layer */
   transform:translate(-50%,-50%); display:flex; align-items:center; justify-content:center;
   pointer-events:none; cursor:grab; -webkit-user-select:none; user-select:none; touch-action:none; }
 .grip.live{ pointer-events:auto; }
@@ -214,7 +236,7 @@ body{
 
 /* ---- Sync details panel (press-hold sync; or a tap when offline) ---- */
 .sync-panel{
-  position:absolute; right:16px; bottom:calc(120px + env(safe-area-inset-bottom)); z-index:120;
+  position:absolute; right:16px; bottom:calc(120px + env(safe-area-inset-bottom)); z-index:156;
   width:286px; border-radius:16px; border:1px solid hsl(var(--border));
   background:hsl(var(--surface-raised)/.98); backdrop-filter:blur(26px); -webkit-backdrop-filter:blur(26px);
   padding:15px; box-shadow:0 24px 60px -18px rgba(0,0,0,.85);
@@ -226,8 +248,8 @@ body{
 .sync-panel .glyph{ margin-top:1px; flex:none; color:hsl(var(--text-muted)); }
 .sync-panel .title{ font-size:15px; font-weight:600; }
 .sync-panel .sub{ margin-top:4px; font-size:12.5px; line-height:1.45; color:hsl(var(--text-muted)); }
-.sync-panel[data-state="offline"] .glyph{ color:hsl(var(--danger)); }
-.sync-panel[data-state="reminder"] .glyph, .sync-panel[data-state="syncing"] .glyph{ color:hsl(var(--gold)); }
+.sync-panel[data-state="offline"] .glyph, .sync-panel[data-state="failed"] .glyph{ color:hsl(var(--danger)); }
+.sync-panel[data-state="reminder"] .glyph, .sync-panel[data-state="syncing"] .glyph{ color:hsl(var(--warn)); }
 .sync-panel .primary{
   margin-top:14px; width:100%; height:38px; border-radius:11px; border:1px solid hsl(var(--accent)/.5);
   background:hsl(var(--accent)/.14); color:hsl(var(--accent)); font-family:var(--font); font-size:14px; font-weight:600; cursor:pointer;
@@ -235,6 +257,10 @@ body{
 .sync-panel .primary:active{ background:hsl(var(--accent)/.24); }
 .sync-panel .primary[disabled]{ opacity:.5; border-color:hsl(var(--border)); background:transparent; color:hsl(var(--text-muted)); cursor:default; }
 .sync-panel[data-state="offline"] .primary{ border-color:hsl(var(--danger)/.5); background:transparent; color:hsl(var(--danger)); }
+.sync-panel[data-state="failed"] .primary{ border-color:hsl(var(--danger)/.55); background:hsl(var(--danger)/.12); color:hsl(var(--danger)); }
+.sync-panel[data-state="failed"] .primary:active{ background:hsl(var(--danger)/.22); }
+.sync-panel[data-state="reminder"] .primary{ border-color:hsl(var(--warn)/.55); background:hsl(var(--warn)/.14); color:hsl(var(--warn)); }
+.sync-panel[data-state="reminder"] .primary:active{ background:hsl(var(--warn)/.24); }
 .sync-panel .foot{
   margin-top:14px; padding-top:12px; border-top:1px solid hsl(var(--border));
   display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; color:hsl(var(--text-muted)); }
@@ -242,7 +268,7 @@ body{
 .sync-panel .foot button{ border:none; background:none; color:hsl(var(--text-muted)); font-size:12px; cursor:pointer; flex:none; }
 
 /* ---- Sync spell overlay (the cast) ---- */
-.spell{ position:absolute; inset:0; z-index:110; pointer-events:none; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .4s var(--ease); }
+.spell{ position:absolute; inset:0; z-index:158; pointer-events:none; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .4s var(--ease); }
 .spell.show{ opacity:1; }
 .spell .ring{ position:absolute; width:64px; height:64px; border-radius:50%; border:1.5px solid hsl(var(--gold)/.6); }
 .spell .ring.go{ animation:ripple 1.7s var(--ease) forwards; }
@@ -309,10 +335,13 @@ body{
 .note-body{ font-size:17px; line-height:1.6; outline:none; min-height:200px; }
 .note-body:empty::before{ content:"Start writing…"; color:hsl(var(--text-muted)/.5); }
 .note-body p{ margin:0 0 .8em; }
-.note-mic{ position:absolute; right:22px; bottom:calc(24px + env(safe-area-inset-bottom) + var(--kb)); width:56px; height:56px; border-radius:50%;
+/* Dictate FAB sits on the corner OPPOSITE the menu so the persistent menu never
+   collides with it (menu right → mic left; mirrors when the menu flips sides). */
+.note-mic{ position:absolute; left:22px; right:auto; bottom:calc(24px + env(safe-area-inset-bottom) + var(--kb)); width:56px; height:56px; border-radius:50%;
   border:1px solid hsl(var(--border)); background:hsl(var(--surface-raised)); color:hsl(var(--text));
   display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:5;
   box-shadow:0 12px 30px -10px rgba(0,0,0,.7); transition:bottom .2s var(--ease), background .3s, color .3s, border-color .3s; }
+.app-root.side-left .note-mic{ right:22px; left:auto; }
 .note-mic.listening{ background:hsl(var(--accent)/.2); color:hsl(var(--accent)); border-color:hsl(var(--accent)/.5); animation:pulse 1.4s var(--ease) infinite; }
 
 .thread{ position:absolute; inset:0; z-index:145; pointer-events:none; }
@@ -1071,6 +1100,10 @@ body{
   const syncWact = document.querySelector('.wact[data-key="sync"]'), syncPanel=$("#syncPanel"), spell=$("#spell");
   let syncState = navigator.onLine ? "synced" : "offline";
   let dirty = false;
+  // PROTOTYPE ONLY — so the owner can feel the red "failed" colour on device.
+  // FAIL_RATE = chance a backup fails; first cast of a session always fails once
+  // to showcase it. Set FAIL_RATE = 0 for "always succeeds".
+  const FAIL_RATE = 0.4; let demoForceFail = true;
   function markDirty(){ dirty = true; if(syncState!=="syncing" && syncState!=="offline") setSync("reminder"); }
   function setSync(s){
     syncState=s;
@@ -1083,6 +1116,7 @@ body{
     if(syncState==="synced"){ T.textContent="Everything's backed up."; S.textContent="Your memories are safe in the cloud."; pr.textContent="Back up now"; }
     else if(syncState==="reminder"){ T.textContent="Changes ready to back up."; S.textContent="New writing lives on this device until you cast."; pr.textContent="Back up now"; }
     else if(syncState==="syncing"){ T.textContent="Backing up…"; S.textContent="Weaving your memories to the cloud."; pr.textContent="Backing up…"; pr.disabled=true; }
+    else if(syncState==="failed"){ T.textContent="Backup didn't finish."; S.textContent="Something interrupted the cast. Your memories are safe on this device — give it another try."; pr.textContent="Try again"; }
     else if(syncState==="offline"){ T.textContent="You're offline."; S.textContent="Everything's saved here. It'll back up on its own once you're connected."; pr.textContent="Waiting for connection"; pr.disabled=true; }
   }
   function openPanel(){ paintPanel(); syncPanel.classList.add("open"); haptic(8); }
@@ -1102,8 +1136,16 @@ body{
     const ring=$("#spellRing"), rune=$("#spellRune");
     ring.classList.remove("go"); rune.classList.remove("go"); void ring.offsetWidth; void rune.offsetWidth;
     ring.classList.add("go"); rune.classList.add("go");
-    setTimeout(()=>{ $("#spellLabel").textContent="All memories safe · just now"; $("#spellLabel").style.color="hsl(var(--success))"; }, 1300);
-    setTimeout(()=>{ spell.classList.remove("show"); dirty=false; setSync(navigator.onLine?"synced":"offline"); }, 1900);
+    const willFail = demoForceFail || Math.random() < FAIL_RATE; demoForceFail = false;
+    setTimeout(()=>{
+      if(willFail){ $("#spellLabel").textContent="Couldn't reach the cloud"; $("#spellLabel").style.color="hsl(var(--danger))"; }
+      else { $("#spellLabel").textContent="All memories safe · just now"; $("#spellLabel").style.color="hsl(var(--success))"; }
+    }, 1300);
+    setTimeout(()=>{
+      spell.classList.remove("show");
+      if(willFail){ setSync("failed"); haptic(30); }          // stays dirty — tap sync to retry
+      else { dirty=false; setSync(navigator.onLine?"synced":"offline"); }
+    }, 1900);
   }
 
   /* =========================================================================
