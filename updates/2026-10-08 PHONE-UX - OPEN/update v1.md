@@ -355,7 +355,45 @@ deep blue-black stone, the magical-blue accent and gold. Magical AND highly prac
      state, highlight) while the reel stays filtered behind; Enter→pill; stray label hidden
      while searching + restored after; the spurious-close-right-after-open does NOT collapse
      the bar while a genuine later close does; New clears the filter; zero runtime errors.
-- **Next:** owner tests on device — (a) searching shows results in front of you, reopen is
-  reliable, Enter shows results, no stray label/line, mic gone, Adjust works; (b) the settle
-  from typing → pill feels like one object; (c) confirm scrolling + word-selection still good.
-  Then lock the Wand spec → Phase 3 (wire to the real vault + PWA-CAPTURE runtime).
+- 2026-10-09: **Round-16 — feed inertia + the LOUPE (a real magnifying glass).** Owner:
+  "first scroll should be almost flawless — too much resistance, it immediately stops; I want
+  inertia. And I LITERALLY want the magnifying window to look like a magnifying glass — zoom
+  one thought, but SEE the transition in the glass as I scroll; and the glass keeps hiding
+  behind 2-3 bottles — instead DEFORM the row so the focal row widens and others can't hide
+  under it." Ran 2 parallel UX experts (scroll-physics + the magnifier metaphor), synthesized,
+  then a UI coder built it. Shipped:
+  1. **Inertia.** Removed `scroll-snap-type:y mandatory` **and** `scroll-snap-stop:always`
+     (the latter forced a hard stop at every card → one card per flick, the "resistance").
+     The reel now coasts on native momentum; a **90ms scroll-idle JS settle** eases to the
+     nearest slot (`clamp(dist·2.2,140,260)ms`, easeOutCubic), guarded by a `settling` flag
+     **and** a divergence check that aborts the settle the instant a finger re-grabs mid-glide
+     (never fight the finger). Resting focus is still `round(scrollTop/SLOT_H)` — decoupled
+     from CSS snap entirely.
+  2. **The LOUPE.** Killed the fixed `.lens` box. A fixed transparent glass frame (rim +
+     sheen + faint chromatic fringe, `pointer-events:none`) is pinned on the focal line
+     (`~42%` down the reel); memories **glide through it and swell continuously** via a
+     vertical fisheye driven by *fractional* `f=scrollTop/SLOT_H` (Hann lobe, `R=2` slots,
+     focal `1.75×`). Neighbours are **parted away** by the closed-form integral of that curve
+     (odd, `W(0)=0` → the focal line never drifts), so nothing can hide under the glass by
+     construction. Focal row reveals its 3-line snippet; it's top-most by `z=round(scale·1000)`.
+     A velocity-gated haptic ticks as memories cross the glass (silent during fast flings).
+  - **Deviation (noted):** magnification is driven by a per-frame `--m` custom property
+     (flask dims + font-size grow, **width held**) instead of `transform:scale` — a uniform
+     scale blew the full-width row ~135px off-screen (clipped by `overflow-x:hidden`). A loupe
+     over a *vertical list* grows height+content, not width. Costs a reflow of the ~7 window
+     cards/frame (bounded; negligible expected). **Watch on device;** if it janks, scale the
+     text block from a left origin instead.
+  - **Layering trap fixed:** card z-indices reach ~1750; `.screen` has `isolation:isolate` and
+     `.app`/`.reel` formed no stacking context, so cards would have rendered **over** the
+     wheel/note/summon. Fix: `.reel{ position:relative; z-index:0; isolation:isolate }`
+     contains them; `.glass` sits just above the reel but below the menu/note layers.
+  - jsdom-verified (19 checks): clean boot; 12 slots each with a snippet; focal `--m≈1.75`
+     with the focal line fixed (`ty≈0`); continuity at half-scroll; off-window identity;
+     focal z on top; settle lands on slot multiples; tap opens; Accio filters/highlights/
+     restores; empty-state glass. Zero runtime errors.
+- **Next:** owner device feel-pass — (a) the flick now coasts through many memories and kisses
+  into place (real inertia); (b) the glass reads as glass and the swell travels through it as
+  you scroll; (c) no bottle ever hides under the glass; (d) confirm the `--m` reflow stays
+  smooth on-device (the one thing jsdom can't measure). Earlier rounds' device notes
+  (searching, reopen, Adjust, word-selection) still pending. Then lock the Wand spec →
+  Phase 3 (wire to the real vault + PWA-CAPTURE runtime).

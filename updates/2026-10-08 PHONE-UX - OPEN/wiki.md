@@ -131,3 +131,38 @@ fire its `resize` → `.kb-open` → `onKeyboardClosed`.
 - The mock `.home-indicator` bar is hidden on phone/standalone — the OS draws its own, so ours
   read as a stray pull-line. Voice search was removed from the Accio bar (dictation stays in
   the note toolbar).
+
+## The feed: inertia + the LOUPE (round-16, locked)
+- **`scroll-snap-stop:always` is the inertia killer.** With `scroll-snap-type:y mandatory`, it
+  forces a hard stop at *every* snap point → a flick can only ever advance ONE card ("too much
+  resistance, stops immediately"). For a feed that should coast, **remove BOTH**: let the reel
+  ride native momentum, then do a **JS scroll-idle settle** (~90ms of quiet → ease to the
+  nearest slot, 140–260ms easeOutCubic). Resting focus = `round(scrollTop/SLOT_H)`, fully
+  decoupled from CSS snap. Don't use `proximity` either — it hands the landing back to the
+  browser and fights the JS settle (double-animation hitch on WebKit).
+- **A JS settle MUST never fight the finger.** Track the scrollTop you last wrote; if reality
+  diverges (user re-grabbed mid-glide) abort immediately. A `settling` flag alone isn't enough
+  — it stops re-arming but the rAF keeps writing scrollTop over the user.
+- **The magnifier is a fisheye on the list, not an overlay box.** The old fixed `.lens` card
+  *was* the thing hiding behind bottles (a separate box with the focal card merely
+  `opacity:0`), and it popped discretely. Replace it with: a FIXED transparent glass frame
+  (rim + sheen, `pointer-events:none`) pinned on the focal line, and the **focal row itself
+  swells** via a vertical fisheye. Drive it off **fractional** `f=scrollTop/SLOT_H` recomputed
+  per scroll frame (NOT a rounded index) → memories visibly swell entering the glass and
+  shrink leaving it ("see the transition in the glass").
+- **Parting = the integral of the magnification curve.** Hann lobe `w(x)=½(1+cos(πx/R))` for
+  scale; the neighbours' offset is its closed-form integral `W(x)=½(x+(R/π)sin(πx/R))`, which
+  is **odd with W(0)=0** → the focal line never drifts and every other row is pushed *exactly*
+  clear of the glass. That's why "bottles hiding under the glass" becomes structurally
+  impossible — not a z-index patch, a geometric one. Focal row is also top-most via
+  `z=round(scale·1000)`.
+- **Don't uniform-`scale()` a full-width row.** It scales WIDTH too → the row blows ~135px off
+  each screen edge and `overflow-x:hidden` clips it (flask scales off-screen). A loupe over a
+  *vertical list* grows height + content size, width held. Drive it with a per-frame `--m`
+  custom property on font-size/flask dims. Tradeoff: that reflows the ~7 in-window cards each
+  frame (vs transform-only/compositor). Fine at this scale; revisit if device feel janks.
+- **Layering trap:** per-card `z-index` up to ~scale·1000 (~1750) will render cards OVER the
+  wheel/note/summon, because `.screen{ isolation:isolate }` is the stacking root and
+  `.app`/`.reel` (positioned but `z-index:auto`) form no context of their own. Contain them:
+  `.reel{ position:relative; z-index:0; isolation:isolate }`; put the glass just above the
+  reel but below the menu/note layers.

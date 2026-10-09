@@ -55,8 +55,13 @@ body{
              0 0 90px -20px hsl(var(--accent-glow)/.18);
 }
 @media (max-width:420px),(display-mode:standalone){
-  body{ padding:0; position:fixed; inset:0; width:100%; }   /* pin the body — iOS can't scroll/bounce it */
-  .device{ width:100vw; height:100dvh; border-radius:0; padding:0; box-shadow:none; }
+  /* pin the body to the (keyboard-aware) viewport — iOS can't scroll/bounce it, and
+     with interactive-widget=resizes-content this box shrinks when the keyboard opens */
+  body{ padding:0; position:fixed; inset:0; width:100%; background:hsl(var(--surface));
+        align-items:stretch; justify-content:stretch; }
+  /* fill that box edge-to-edge. NOT 100dvh + centring — that left dark bands at the top
+     and bottom when the frame shrank for the keyboard (read as a "shadow" + a gap below) */
+  .device{ position:absolute; inset:0; width:auto; height:auto; border-radius:0; padding:0; box-shadow:none; }
   .screen{ border-radius:0 !important; }
   /* on a real phone the OS draws its own home indicator — our mock one is a stray line */
   .home-indicator{ display:none; }
@@ -83,56 +88,64 @@ body{
 .header h1{ margin:0; font-size:25px; font-weight:700; letter-spacing:-.4px; }
 .header .count{ font-size:13px; color:hsl(var(--text-muted)); font-variant-numeric:tabular-nums; }
 
-/* The reel scrolls small, uniform cards. The magnification is NOT on the cards —
-   it lives in a separate, fixed .lens overlay. So the glass holds still while the
-   bottles drift under it. */
+/* The reel scrolls small, uniform cards under a FIXED glass loupe. The focal row
+   swells into a magnified reading; neighbours are parted so none can hide under
+   the glass. All magnification is per-frame (transform + --m) off the LIVE scroll
+   position, so memories visibly swell entering the glass and shrink leaving it.
+   NO CSS scroll-snap — native momentum carries the fling; JS settles at rest. */
 .reel{
   flex:1; min-height:0; overflow-y:auto; overflow-x:hidden;
   overscroll-behavior:contain; touch-action:pan-y;   /* the ONE scroller — no bounce leaks to the shell */
-  scroll-snap-type:y mandatory; -webkit-overflow-scrolling:touch;
+  -webkit-overflow-scrolling:touch;                   /* native iOS momentum */
+  position:relative; z-index:0; isolation:isolate;    /* contain card z-indices BELOW the wheel/summon/note */
   padding:0 16px; scrollbar-width:none;
   -webkit-mask-image:linear-gradient(180deg, transparent 0, #000 7%, #000 92%, transparent 100%);
           mask-image:linear-gradient(180deg, transparent 0, #000 7%, #000 92%, transparent 100%);
 }
 .reel::-webkit-scrollbar{ display:none; }
-.slot{ height:var(--slot); scroll-snap-align:start; scroll-snap-stop:always; display:flex; align-items:center; }
+.slot{ height:var(--slot); display:flex; align-items:center; position:relative; }
+/* A card magnifies by --m (set per-frame): flask + text grow in place, WIDTH stays
+   within the glass (no uniform scale → no horizontal blow-out), neighbours part via
+   a translateY written in JS. */
 .card{
   width:100%; display:flex; align-items:center; gap:13px; padding:9px 13px; border-radius:14px;
-  opacity:.5; transition:opacity .35s var(--ease); cursor:pointer;
+  position:relative; cursor:pointer; opacity:1;
 }
-.card .flask{ width:36px; height:48px; flex:none; }
-.card .title{ font-size:14.5px; font-weight:600; letter-spacing:-.1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.card .meta{ font-size:11.5px; color:hsl(var(--text-muted)); margin-top:1px; }
-.card.under{ opacity:0; }        /* the one directly beneath the glass — hidden, the lens shows it */
-.card:active{ filter:brightness(1.1); }
+.card .flask{ width:calc(36px * var(--m,1)); height:calc(48px * var(--m,1)); flex:none; }
+.card .body{ min-width:0; flex:1; }
+.card .title{ font-size:calc(14.5px * var(--m,1)); font-weight:600; letter-spacing:-.1px; line-height:1.2;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.card .meta{ font-size:calc(11.5px * var(--m,1)); color:hsl(var(--text-muted)); margin-top:calc(1px * var(--m,1)); }
+/* snippet is OUT of flow (absolute) so base rows stay single-line/compact and the
+   84px scroll grid stays rigid; it blooms (opacity) only near the focal line. */
+.card .snippet{
+  position:absolute; pointer-events:none; opacity:0;
+  left:calc(13px + 36px*var(--m,1) + 13px); right:14px; top:calc(50% + 14px);
+  font-size:13.5px; line-height:1.42; color:hsl(var(--text-muted));
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.card:active{ filter:brightness(1.12); }
 
-/* THE LENS — a fixed magnifying glass. Never scrolls. Shows whatever is under it. */
-.lens{
-  position:absolute; left:14px; right:14px; z-index:40; cursor:pointer;
-  display:flex; align-items:flex-start; gap:15px; padding:15px 17px; border-radius:19px;
-  background:linear-gradient(180deg, hsl(var(--surface-raised)/.96), hsl(var(--surface-sunken)/.96));
-  border:1px solid hsl(var(--accent)/.26);
-  box-shadow:0 22px 56px -22px rgba(0,0,0,.9), inset 0 1px 0 hsl(var(--text)/.06),
-             0 0 40px -14px hsl(var(--accent-glow)/.3);
-  touch-action:none; -webkit-user-select:none; user-select:none;
+/* THE GLASS — a fixed loupe pinned on the focal line. Transparent centre (the
+   deformed focal card shows through); it only paints rim + sheen, and pointer
+   events pass straight through to the reel. top/height set in layoutReel(). */
+.glass{
+  position:absolute; left:14px; right:14px; z-index:30; pointer-events:none; overflow:hidden;
+  border-radius:22px; border:1.5px solid hsl(var(--accent)/.5);
+  background:linear-gradient(158deg, hsl(0 0% 100%/.08) 0%, hsl(0 0% 100%/.02) 20%, transparent 40%);
+  box-shadow:
+    inset 0 1px 0 hsl(0 0% 100%/.18),
+    inset 0 0 0 1px hsl(var(--accent-glow)/.14),
+    0 0 46px -10px hsl(var(--accent-glow)/.34),
+    0 22px 56px -30px rgba(0,0,0,.82);
 }
-.lens::after{  /* the faint rim of the glass */
-  content:""; position:absolute; inset:0; border-radius:19px; pointer-events:none;
-  box-shadow:inset 0 0 0 1px hsl(var(--accent-glow)/.14);
-}
-.lens .flask{ width:60px; height:80px; flex:none; margin-top:1px; }
-.lens .body{ min-width:0; flex:1; }
-.lens .title{ font-size:18px; font-weight:700; letter-spacing:-.2px; line-height:1.25; }
-.lens .meta{ font-size:12px; color:hsl(var(--text-muted)); margin-top:3px; }
-.lens .snippet{
-  margin-top:8px; font-size:13.5px; line-height:1.45; color:hsl(var(--text-muted));
-  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
-}
-.lens.pop .lens-inner{ animation:lensPop .3s var(--spring); }
-.lens-inner{ display:contents; }
-@keyframes lensPop{ 0%{ opacity:.45; transform:translateY(3px) scale(.985); } 100%{ opacity:1; transform:none; } }
-.lens.empty{ justify-content:center; align-items:center; color:hsl(var(--text-muted)); border-style:dashed; box-shadow:none; }
-.lens:active{ filter:brightness(1.05); }
+.glass::before{  /* specular streak near the top edge */
+  content:""; position:absolute; left:7%; right:42%; top:7px; height:9px; border-radius:9px;
+  background:linear-gradient(90deg, hsl(0 0% 100%/.18), transparent); filter:blur(2px); opacity:.75; }
+.glass::after{   /* faint chromatic fringe on the rim only — sells "glass edge" */
+  content:""; position:absolute; inset:0; border-radius:22px; pointer-events:none;
+  box-shadow:inset 0 1.5px 0 hsl(190 90% 70%/.11), inset 0 -1.5px 0 hsl(320 90% 70%/.11); }
+.glass.empty{ display:flex; align-items:center; justify-content:center; text-align:center; padding:0 24px;
+  color:hsl(var(--text-muted)); font-size:14px; border-style:dashed; background:none; box-shadow:none; }
 
 /* ===========================================================================
    THE THUMB-WHEEL — the BUTTONS are the drag handles. Grab a button and swing it
@@ -146,7 +159,8 @@ body{
 /* The menu is a PERSISTENT top layer — it floats above every surface (note z140,
    summon-bar z132, thread z145). It hides while the keyboard is up (.kb-open) or
    while the summon bar is open (.searching). */
-.wheel{ position:absolute; inset:0; z-index:150; pointer-events:none; transition:opacity .28s var(--ease); }
+.wheel{ position:absolute; inset:0; z-index:150; pointer-events:none; transition:opacity .28s var(--ease);
+  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
 .wact{
   position:absolute; left:0; top:0; width:58px; height:58px; border-radius:50%;
   border:1px solid hsl(var(--border)); background:hsl(var(--surface-raised)/.82);
@@ -154,6 +168,7 @@ body{
   color:hsl(var(--text-muted)); display:flex; align-items:center; justify-content:center;
   box-shadow:0 10px 28px -14px rgba(0,0,0,.7); will-change:transform,opacity;
   pointer-events:auto; touch-action:none; cursor:grab;   /* buttons ARE the drag handles */
+  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;  /* long-hold must not select the icon/label */
   transition:border-color .25s var(--ease), color .25s var(--ease), box-shadow .25s var(--ease); }
 .wact:active{ cursor:grabbing; }
 .wact.hero{ width:66px; height:66px; border:none; color:#fff;
@@ -195,6 +210,7 @@ body{
 @keyframes sync-flow{ from{ stroke-dashoffset:-.2125; } to{ stroke-dashoffset:.7875; } }
 .wheel-label{ position:absolute; left:0; top:0; z-index:151; pointer-events:none;
   font-size:11px; font-weight:600; letter-spacing:.4px; color:hsl(var(--text)/.8); text-transform:uppercase;
+  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
   transform:translate(-50%,-50%); text-shadow:0 1px 6px hsl(var(--surface)/.9); transition:opacity .18s var(--ease); white-space:nowrap; }
 
 .app-root.side-left .sync-panel{ left:16px; right:auto; transform-origin:bottom left; }
@@ -290,31 +306,36 @@ body{
 /* The summon bar — a lone bottom bar under the thumb. It rides above the keyboard
    and NEVER lives inside a scroller, so a stray scroll can't make it vanish. */
 .summon{ position:absolute; left:0; right:0; bottom:0; z-index:132; pointer-events:none;
-  margin:0 16px calc(22px + env(safe-area-inset-bottom) + var(--kb)); display:flex; align-items:center; gap:12px;
+  margin:0 16px calc(14px + env(safe-area-inset-bottom) + var(--kb)); display:flex; align-items:center; gap:12px;
   height:60px; padding:0 8px 0 18px; border-radius:30px; background:hsl(var(--surface-raised)/.98);
   backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px);
   border:1px solid hsl(var(--accio)/.5); box-shadow:0 0 40px -6px hsl(var(--accio)/.4), 0 20px 50px -16px rgba(0,0,0,.8);
   transform:translateY(160%); opacity:0; transition:transform .42s var(--spring), opacity .2s var(--ease); }
 .app-root.searching .summon{ transform:none; opacity:1; pointer-events:auto; }
+/* keyboard up → sit right above it. Drop the home-indicator inset (the keyboard already
+   covers it) so the bar isn't floating a safe-area's worth too high. */
+.app-root.kb-open .summon{ margin-bottom:calc(4px + var(--kb)); }
 .summon .sigil{ color:hsl(var(--accio)); flex:none; display:flex; }
 .summon input{ flex:1; min-width:0; background:none; border:none; outline:none; color:hsl(var(--text)); font-size:17px; font-family:var(--font); }
 .summon input::placeholder{ color:hsl(var(--text-muted)); }
 
 /* The filter pill — a quiet scope chip at the top while a search is held but the
-   keyboard is down. Tap the body to edit the query; tap ✕ to summon everything back. */
+   keyboard is down. The whole chip is the control: tap it and it pops away, summoning
+   everything back. (No ✕ — the tag itself is the button.) */
 .accio-pill{ flex:none; display:none; align-items:center; gap:8px; align-self:flex-start;
-  margin:2px 24px 4px; max-width:calc(100% - 48px); height:30px; padding:0 6px 0 11px; border-radius:16px;
+  margin:2px 24px 4px; max-width:calc(100% - 48px); height:30px; padding:0 13px; border-radius:16px;
   background:hsl(var(--accio)/.14); border:1px solid hsl(var(--accio)/.45); color:hsl(var(--accio));
-  font-size:13px; font-weight:600; cursor:pointer; -webkit-user-select:none; user-select:none; }
+  font-size:13px; font-weight:600; cursor:pointer; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+  transition:background .18s var(--ease); }
 .app-root.filtering:not(.searching) .accio-pill{ display:flex; }
+.accio-pill:active{ background:hsl(var(--accio)/.26); }
+.accio-pill.pop{ animation:pillPop .26s var(--spring-soft); }
+@keyframes pillPop{ 0%{ transform:scale(1); } 45%{ transform:scale(1.12); } 100%{ transform:scale(.6); opacity:0; } }
 .accio-pill .glyph{ flex:none; display:flex; opacity:.9; }
 .accio-pill .q{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.accio-pill .x{ flex:none; width:22px; height:22px; border-radius:50%; border:none; cursor:pointer;
-  background:hsl(var(--accio)/.18); color:hsl(var(--accio)); display:flex; align-items:center; justify-content:center; }
-.accio-pill .x:active{ background:hsl(var(--accio)/.32); }
 
 /* live match highlight on the reel + lens + result rows */
-.card mark, .lens mark, .sr mark{ background:hsl(var(--accio)/.22); color:hsl(var(--accio)); border-radius:3px; }
+.card mark, .glass mark, .sr mark{ background:hsl(var(--accio)/.22); color:hsl(var(--accio)); border-radius:3px; }
 .summon .scount{ flex:none; font-size:12px; color:hsl(var(--text-muted)); font-variant-numeric:tabular-nums;
   min-width:16px; text-align:center; padding-right:6px; }
 
@@ -333,7 +354,11 @@ body{
 .search-results{ display:flex; flex-direction:column; gap:7px; overflow-y:auto; overscroll-behavior:contain;
   touch-action:pan-y; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding:0 16px 8px; max-height:100%;
   /* clear the summon bar (60px) + its bottom margin + keyboard inset */
-  margin-bottom:calc(var(--kb) + 94px + env(safe-area-inset-bottom));
+  margin-bottom:calc(var(--kb) + 94px + env(safe-area-inset-bottom)); }
+/* top fade is ONLY for when results overflow and scroll under the top edge. When the
+   list is short (e.g. a single result) the container hugs the card — applying the fade
+   there would eat the top of the card itself (the "dark block falling onto the note"). */
+.search-results.overflowing{
   -webkit-mask-image:linear-gradient(180deg, transparent 0, #000 12%); mask-image:linear-gradient(180deg, transparent 0, #000 12%); }
 .search-results::-webkit-scrollbar{ display:none; }
 .sr{ flex:none; display:flex; align-items:center; gap:12px; padding:9px 13px; border-radius:13px;
@@ -399,6 +424,9 @@ body{
   transform:translateY(130%); opacity:0; pointer-events:none;
   transition:transform .26s var(--spring), opacity .18s var(--ease); }
 .app-root.kb-open.editing-note .note-toolbar{ transform:none; opacity:1; pointer-events:auto; }
+/* keyboard up → the toolbar docks ON the keyboard; the home-indicator inset would
+   float it a safe-area's worth too high, so zero it while the keyboard is shown. */
+.app-root.kb-open .note-toolbar{ padding-bottom:0; }
 .note-toolbar .fmt{ display:flex; align-items:center; gap:6px; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none; }
 .note-toolbar .fmt::-webkit-scrollbar{ display:none; }
 .note-toolbar .tb{ flex:none; height:36px; padding:0 13px; border-radius:9px; border:1px solid hsl(var(--border));
@@ -428,13 +456,12 @@ body{
     <!-- HOME — the one surface. Accio filters this reel in place. -->
     <div class="app">
       <div class="header"><h1>Pensieve</h1><span class="count" id="count"></span></div>
-      <div class="accio-pill" id="accioPill">
+      <div class="accio-pill" id="accioPill" role="button" aria-label="Clear search">
         <span class="glyph"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8" opacity=".5"/><circle cx="12" cy="12" r="3.5"/></svg></span>
         <span class="q" id="accioPillQ"></span>
-        <button class="x" id="accioPillX" aria-label="Clear search"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <div class="reel" id="reel"><div class="reel-track" id="reelTrack"></div></div>
-      <div class="lens" id="lens"></div>
+      <div class="glass" id="lens"></div>
     </div>
 
     <!-- THUMB-WHEEL — native-scroll dial (B). Buttons + track built by JS. -->
@@ -605,7 +632,10 @@ body{
     { t:"What 'extremely fast' really means", c:"Not benchmarks. It means the gap between having a thought and it being safe is near zero. Design for that gap.", cat:"--cat-blue", shape:"beaker", fill:.6, d:"Fri" }
   ];
   let uid = 0;
-  DATA.forEach(d => d.id = ++uid);
+  // `.d` is the live/recency label (becomes "Just now" when you edit). `.created` is the
+  // stable CREATED date — it never changes, drives the today/yesterday/week filters, and
+  // is what the note shows by default.
+  DATA.forEach(d => { d.id = ++uid; d.created = d.d; });
   function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
 
   /* =========================================================================
@@ -614,21 +644,61 @@ body{
      ======================================================================= */
   const reel = $("#reel"), reelTrack = $("#reelTrack"), lens = $("#lens");
   const SLOT_H = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--slot")) || 84;
-  const LENS_OFFSET = 112;   // focal line: distance from the top of the reel to the glass
+  // THE LOUPE geometry. The scroll grid stays a rigid stack of SLOT_H boxes; the
+  // focal line sits ~42% down the reel (room above for the parted upper neighbour +
+  // the glass rim) and the glass is ~one magnified-row tall, centred on that line.
+  const FOCAL_FRAC = 0.42, GLASS_H = 150;
+  let focalLineY = 28;
 
   // The Accio filter. Empty = everything. VIEW is whatever the reel is currently
   // showing (the full vault, or the matches) — the ONE list of notes on the phone.
   let filterQuery = "";
   let VIEW = DATA;
+
+  /* ---- Accio understands TIME, not just words ------------------------------
+     Typing "yesterday", "today", "last week" or "recent" filters by WHEN — on its
+     own, or alongside text ("lighthouse yesterday"). "recent" = the potions you've
+     most recently opened. The date words are stripped from the text before matching
+     so they never fight the word search (or the highlight). */
+  const openedOrder = [];                 // note ids, most-recently-opened LAST
+  function noteOpened(id){ const i=openedOrder.indexOf(id); if(i>=0) openedOrder.splice(i,1); openedOrder.push(id); }
+  function dayBucket(ds){                  // classify a card's display date into a bucket
+    const s=(ds||"").toLowerCase();
+    if(s==="just now"||s==="today"||/\bago\b/.test(s)) return "today";   // "Just now", "2m ago", "Today"
+    if(s==="yesterday") return "yesterday";
+    if(/^(mon|tue|wed|thu|fri|sat|sun)/.test(s)) return "week";          // weekday → within this week
+    return "older";
+  }
+  const DATE_TOKENS = [
+    { re:/\btoday\b/,                                 kind:"today" },
+    { re:/\byesterday\b/,                             kind:"yesterday" },
+    { re:/\b(?:last|this|past)\s*week\b|\bweek\b/,     kind:"week" },
+    { re:/\brecent(?:ly)?\b/,                         kind:"recent" },
+  ];
+  function parseQuery(raw){                // → { text, dates[] }
+    let text=(raw||"").toLowerCase(); const dates=[];
+    for(const t of DATE_TOKENS){ if(t.re.test(text)){ dates.push(t.kind); text=text.replace(t.re," "); } }
+    return { text:text.replace(/\s+/g," ").trim(), dates };
+  }
+  function passesDate(d,dates){
+    if(!dates.length) return true;
+    const b=dayBucket(d.created || d.d);   // today/yesterday/week = CREATED date
+    return dates.some(k => k==="recent" ? openedOrder.includes(d.id)   // recent = recently OPENED
+      : k==="week" ? (b==="today"||b==="yesterday"||b==="week") : b===k);
+  }
+  function passesText(d,text){ return !text || (d.t+" "+d.c).toLowerCase().includes(text); }
+
   function viewData(){
-    const q = filterQuery.trim().toLowerCase();
-    return q ? DATA.filter(d => (d.t + " " + d.c).toLowerCase().includes(q)) : DATA;
+    const { text, dates } = parseQuery(filterQuery);
+    if(!text && !dates.length) return DATA;
+    return DATA.filter(d => passesText(d,text) && passesDate(d,dates));
   }
 
   function cardHTML(d){
     return `<div class="card">
       <div class="flask">${flaskSVG(d.shape, CAT_HUE[d.cat], d.fill)}</div>
-      <div class="body"><div class="title">${hl(d.t||"New thought", filterQuery)}</div><div class="meta">${esc(d.d)}</div></div></div>`;
+      <div class="body"><div class="title">${hl(d.t||"New thought")}</div><div class="meta">${esc(d.created||d.d)}</div></div>
+      <div class="snippet">${hl(d.c||"…")}</div></div>`;
   }
   function renderReel(){
     VIEW = viewData();
@@ -640,51 +710,109 @@ body{
       slot.addEventListener("click", () => { const d = DATA.find(x => x.id == slot.dataset.id); if (d) openNote(d); });
     });
     layoutReel();
+    liveSlots.clear();                 // new DOM → forget the old window
+    lens.classList.toggle("empty", !VIEW.length);
+    lens.textContent = VIEW.length ? "" : (filterQuery.trim() ? "Nothing answered that call." : "Nothing here yet.");
     focusIdx = -1;
     updateLens(true);
   }
+  // Pad the track so a slot's CENTRE lands on the focal line, and pin the glass there.
+  // (At scrollTop = i·SLOT_H, slot i is centred on the line → f = scrollTop/SLOT_H = i.)
   function layoutReel(){
     const H = reel.clientHeight || 500;
-    reelTrack.style.paddingTop = LENS_OFFSET + "px";
-    reelTrack.style.paddingBottom = Math.max(0, H - LENS_OFFSET - SLOT_H) + "px";
-    reel.style.scrollPaddingTop = LENS_OFFSET + "px";
-    lens.style.top = (reel.offsetTop + LENS_OFFSET) + "px";
+    focalLineY = Math.round(H * FOCAL_FRAC);
+    reelTrack.style.paddingTop = (focalLineY - SLOT_H/2) + "px";
+    reelTrack.style.paddingBottom = Math.max(0, H - focalLineY - SLOT_H/2) + "px";
+    lens.style.height = GLASS_H + "px";
+    lens.style.top = (reel.offsetTop + focalLineY - GLASS_H/2) + "px";
   }
+  /* ---- THE LOUPE — a scroll-linked vertical fisheye -------------------------
+     The focal row swells into the magnified reading; neighbours are pushed clear
+     by the integral of the same curve, so NOTHING can hide under the glass. Driven
+     by the FRACTIONAL scroll position (f = scrollTop/SLOT_H), recomputed per frame,
+     so a memory visibly swells entering the glass and shrinks leaving it. Only the
+     ~7 slots in the window are touched → scales to hundreds of cards. */
+  const LOUPE_R = 2.0;                               // influence radius, in slots (±R react)
+  const LOUPE_MAX = reduce ? 1.5 : 1.75;             // focal magnification
+  const REVEAL_IN = 0.55;                            // Hann weight where the snippet begins to bloom
+  const smoothstep01 = t => { t = Math.max(0, Math.min(1, t)); return t*t*(3-2*t); };
   let focusIdx = -1;
-  function updateLens(force){
-    const idx = Math.max(0, Math.min(VIEW.length-1, Math.round(reel.scrollTop / SLOT_H)));
-    // mark the card directly under the glass so it doesn't peek out behind it
-    const slots = reelTrack.children;
-    for (let i=0;i<slots.length;i++){ const c = slots[i].firstElementChild; if(c) c.classList.toggle("under", i===idx); }
-    if (idx === focusIdx && !force) return;
-    focusIdx = idx;
-    const d = VIEW[idx];
-    if(!d){ lens.className="lens empty";
-      lens.innerHTML = filterQuery.trim() ? "Nothing answered that call." : "Nothing here yet."; return; }
-    lens.className = "lens";
-    lens.innerHTML = `<div class="lens-inner">
-      <div class="flask">${flaskSVG(d.shape, CAT_HUE[d.cat], d.fill)}</div>
-      <div class="body"><div class="title">${hl(d.t||"New thought", filterQuery)}</div><div class="meta">${esc(d.d)}</div>
-        <div class="snippet">${hl(d.c||"…", filterQuery)}</div></div></div>`;
-    if(!reduce){ lens.classList.add("pop"); }
-    lens.dataset.id = d.id;
+  const liveSlots = new Set();                       // slot indices currently deformed
+  function resetSlot(slot){
+    const c = slot && slot.firstElementChild; if(!c) return;
+    c.style.transform = ""; c.style.opacity = ""; c.style.removeProperty("--m");
+    slot.style.zIndex = ""; c.classList.remove("live");
+    const sn = c.querySelector(".snippet"); if(sn) sn.style.opacity = "0";
   }
-  let rafing = false;
-  reel.addEventListener("scroll", () => {
-    if (rafing) return; rafing = true;
-    requestAnimationFrame(() => { updateLens(false); rafing = false; });
-  }, { passive:true });
+  // `force` is accepted for call-site compatibility; the layout is always recomputed.
+  function updateLens(force){
+    const slots = reelTrack.children, n = slots.length;
+    if(!n){ focusIdx = -1; liveSlots.clear(); return; }
+    const f = reel.scrollTop / SLOT_H;
+    const lo = Math.max(0, Math.floor(f - LOUPE_R - 1)), hi = Math.min(n-1, Math.ceil(f + LOUPE_R + 1));
+    for(const i of Array.from(liveSlots)){ if(i < lo || i > hi){ resetSlot(slots[i]); liveSlots.delete(i); } }
+    const m1 = LOUPE_MAX - 1, PI = Math.PI;
+    for(let i=lo;i<=hi;i++){
+      const slot = slots[i], c = slot.firstElementChild; if(!c) continue;
+      const x = i - f, ax = Math.abs(x);
+      const w  = ax < LOUPE_R ? 0.5*(1 + Math.cos(PI*x/LOUPE_R)) : 0;        // Hann lobe, 1 at centre → 0 at ±R
+      const scale = 1 + m1*w;
+      // parting = ∫ magnification (odd, W(0)=0 → focal line never drifts)
+      const W  = ax >= LOUPE_R ? Math.sign(x)*LOUPE_R/2 : 0.5*(x + (LOUPE_R/PI)*Math.sin(PI*x/LOUPE_R));
+      const ty = SLOT_H*m1*W;
+      const reveal = Math.max(0, Math.min(1, (w - REVEAL_IN)/(1 - REVEAL_IN)));
+      c.style.setProperty("--m", scale.toFixed(4));
+      c.style.transform = `translateY(${ty.toFixed(2)}px)`;
+      c.style.opacity = (0.85 + 0.15*smoothstep01(w)).toFixed(3);          // gentle focus pull, stays readable
+      slot.style.zIndex = String(Math.round(scale*1000));                   // focal card always on top
+      c.classList.add("live");
+      const sn = c.querySelector(".snippet"); if(sn) sn.style.opacity = reveal.toFixed(3);
+      liveSlots.add(i);
+    }
+    focusIdx = Math.max(0, Math.min(n-1, Math.round(f)));
+  }
 
-  // The lens is the glass: drag on it scrolls the reel; a tap opens the focused memory.
-  let lDrag=false, lY=0, lStart=0, lMoved=0;
-  lens.addEventListener("pointerdown", e=>{ lDrag=true; lY=e.clientY; lStart=reel.scrollTop; lMoved=0; lens.setPointerCapture(e.pointerId); });
-  lens.addEventListener("pointermove", e=>{ if(!lDrag) return; const dy=e.clientY-lY; lMoved=Math.max(lMoved,Math.abs(dy)); reel.scrollTop = lStart - dy; });
-  const lensEnd = e=>{ if(!lDrag) return; lDrag=false;
-    if(lMoved < 8){ const d = VIEW[focusIdx]; if(d) openNote(d); }
-    else { reel.scrollTo({ top: Math.round(reel.scrollTop/SLOT_H)*SLOT_H, behavior: reduce?"auto":"smooth" }); }
-  };
-  lens.addEventListener("pointerup", lensEnd);
-  lens.addEventListener("pointercancel", ()=>{ lDrag=false; });
+  /* ---- scroll feel: native momentum + a soft JS settle to the nearest slot ----
+     CSS snap is gone (it clamped the fling to one card). We let the reel coast
+     freely, then after ~90ms of quiet nudge it to the nearest slot. */
+  let settleTimer = null, settling = false;
+  const easeOutCubic = t => 1 - Math.pow(1-t, 3);
+  function settle(){
+    if(!reelTrack.children.length) return;
+    const start = reel.scrollTop, target = Math.round(start/SLOT_H)*SLOT_H, dist = target - start;
+    if(Math.abs(dist) < 1) return;
+    if(reduce){ reel.scrollTop = target; updateLens(true); return; }
+    settling = true;
+    const ms = Math.min(260, Math.max(140, Math.abs(dist)*2.2)), t0 = performance.now();
+    let setPos = start;        // the scrollTop WE last wrote — if reality diverges, a finger grabbed it
+    (function step(now){
+      // user re-grabbed mid-settle → let them scroll; never fight the finger
+      if(Math.abs(reel.scrollTop - setPos) > 2){ settling = false; return; }
+      const p = Math.min(1, (now - t0)/ms);
+      setPos = start + dist*easeOutCubic(p);
+      reel.scrollTop = setPos;
+      updateLens(false);
+      if(p < 1) requestAnimationFrame(step);
+      else { setPos = target; reel.scrollTop = target; updateLens(true); settling = false; if(!reduce) haptic(6); }
+    })(t0);
+  }
+
+  // one rAF-coalesced layout per scroll frame + a velocity-gated tick as memories
+  // cross the glass (silent during a fast fling), then arm the settle on quiet.
+  let rafing = false, lastTop = 0, lastT = 0;
+  reel.addEventListener("scroll", () => {
+    if(!rafing){ rafing = true; requestAnimationFrame(() => {
+      const now = performance.now(), dt = Math.max(1, now - lastT);
+      const vel = Math.abs(reel.scrollTop - lastTop)/dt;          // px/ms
+      lastTop = reel.scrollTop; lastT = now;
+      const prev = focusIdx;
+      updateLens(false);
+      if(!settling && !reduce && focusIdx !== prev && prev !== -1 && vel < 0.9) haptic(8);
+      rafing = false;
+    }); }
+    if(settling) return;                                          // ignore our own settle scrolls
+    clearTimeout(settleTimer); settleTimer = setTimeout(settle, 90);
+  }, { passive:true });
 
   /* =========================================================================
      NOTE VIEW — one surface for reading + writing. Autosaves (no "Pour in").
@@ -778,8 +906,10 @@ body{
   }
   function openNote(d){
     current = d;
+    noteOpened(d.id);             // remember it so Accio "recent" can find it again
     hideSearchBar();              // drop the summon bar if up; the filter/pill persists
-    noteDate.textContent = d.when || (d.d === "Just now" ? fmtNow() : "Written " + d.d);
+    // show the CREATED date by default (editing never overwrites it)
+    noteDate.textContent = d.when || ("Written " + (d.created || d.d));
     if(d.fresh){
       noteBody.innerHTML = "<h1><br></h1>";            // empty title line, caret-ready
     } else {
@@ -793,7 +923,7 @@ body{
   }
   function openNewNote(dictate){
     clearSearch();                // a fresh thought lands on a clean, unfiltered home
-    const d = { id:++uid, t:"", c:"", cat:randCat(), shape:SHAPES[Math.floor(Math.random()*SHAPES.length)], fill:.18, d:"Just now", when:fmtNow(), fresh:true, isNew:true };
+    const d = { id:++uid, t:"", c:"", cat:randCat(), shape:SHAPES[Math.floor(Math.random()*SHAPES.length)], fill:.18, d:"Just now", created:"Just now", when:fmtNow(), fresh:true, isNew:true };
     conjure(() => {
       openNote(d);
       setTimeout(() => { focusTitle(); if (dictate) startDictation(); }, 460);
@@ -1228,19 +1358,25 @@ body{
 
   // relevance for the typing sheet: title-start > title-anywhere > body; then recency.
   function rankedView(){
-    const q=filterQuery.trim().toLowerCase();
-    if(!q) return DATA.slice();                 // empty = everything, recency order
-    return DATA.map((d,i)=>{ const t=(d.t||"").toLowerCase(), c=(d.c||"").toLowerCase();
-        let s=-1; if(t.startsWith(q)) s=0; else if(t.includes(q)) s=1; else if(c.includes(q)) s=2;
-        return {d,i,s}; })
-      .filter(x=>x.s>=0).sort((a,b)=> a.s-b.s || a.i-b.i).map(x=>x.d);
+    const { text, dates } = parseQuery(filterQuery);
+    if(!text && !dates.length) return DATA.slice();          // empty = everything, recency order
+    let list = DATA.map((d,i)=>({d,i})).filter(x => passesText(x.d,text) && passesDate(x.d,dates));
+    if(text){                                                 // text present → rank by match strength
+      list = list.map(x=>{ const t=(x.d.t||"").toLowerCase(), c=(x.d.c||"").toLowerCase();
+          let s=2; if(t.startsWith(text)) s=0; else if(t.includes(text)) s=1; else if(c.includes(text)) s=2;
+          return {...x,s}; })
+        .sort((a,b)=> a.s-b.s || a.i-b.i);
+    } else if(dates.includes("recent")){                      // "recent" alone → most-recently-opened first
+      list.sort((a,b)=> openedOrder.indexOf(b.d.id) - openedOrder.indexOf(a.d.id));
+    }
+    return list.map(x=>x.d);
   }
   function resultRow(d){
     return `<div class="sr" data-id="${d.id}">
       <div class="flask">${flaskSVG(d.shape,CAT_HUE[d.cat],d.fill)}</div>
-      <div class="body"><div class="title">${hl(d.t||"New thought", filterQuery)}</div>
-        <div class="snip">${hl(d.c||"…", filterQuery)}</div></div>
-      <div class="when">${esc(d.d)}</div></div>`;
+      <div class="body"><div class="title">${hl(d.t||"New thought")}</div>
+        <div class="snip">${hl(d.c||"…")}</div></div>
+      <div class="when">${esc(d.created||d.d)}</div></div>`;
   }
   function renderSearch(){
     const list = rankedView(), q = filterQuery.trim();
@@ -1251,7 +1387,10 @@ body{
     searchResults.innerHTML = list.slice(0,30).reverse().map(resultRow).join("");
     searchResults.querySelectorAll(".sr").forEach(row =>
       row.addEventListener("click", ()=>{ const d=DATA.find(x=>x.id==row.dataset.id); if(d) openNote(d); }));
+    searchResults.classList.remove("overflowing");   // measure clean, then fade only if it scrolls
     searchResults.scrollTop = searchResults.scrollHeight;
+    requestAnimationFrame(() =>
+      searchResults.classList.toggle("overflowing", searchResults.scrollHeight > searchResults.clientHeight + 4));
   }
 
   function applyFilter(){
@@ -1296,11 +1435,17 @@ body{
     if(document.activeElement === accioInput) return;
     if(root.classList.contains("searching")) settleSearch();
   }, 90); });
-  // the pill: tap the body to edit the query, tap ✕ to summon everything back
-  accioPill.addEventListener("click", e => { if(e.target.closest("#accioPillX")) return; openAccio(); });
-  $("#accioPillX").addEventListener("click", e => { e.stopPropagation(); clearSearch(); haptic(8); });
+  // the pill IS the clear button: tap it → it pops away and summons everything back.
+  accioPill.addEventListener("click", () => {
+    haptic(8);
+    if(reduce){ clearSearch(); return; }
+    accioPill.classList.add("pop");
+    setTimeout(() => { accioPill.classList.remove("pop"); clearSearch(); }, 180);
+  });
 
-  function hl(t,q){ q=(q||"").trim(); if(!q) return esc(t); const i=t.toLowerCase().indexOf(q.toLowerCase()); if(i<0) return esc(t);
+  // highlight only the WORD part of the query (date tokens like "yesterday" aren't text matches)
+  function hl(t){ const q=parseQuery(filterQuery).text; if(!q) return esc(t);
+    const i=t.toLowerCase().indexOf(q); if(i<0) return esc(t);
     return esc(t.slice(0,i))+"<mark>"+esc(t.slice(i,i+q.length))+"</mark>"+esc(t.slice(i+q.length)); }
 
   /* =========================================================================
