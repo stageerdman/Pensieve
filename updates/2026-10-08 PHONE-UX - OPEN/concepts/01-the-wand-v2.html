@@ -697,7 +697,22 @@ body{
       HUB_RIGHT:6, HUB_BOTTOM:30, LABEL_DROP:46,
       R_MIN:118, R_MAX:300, FLIP_MS:2000, HOLD_MS:420,
       TAP_DEG:4,                 // total finger rotation (deg) under this = a tap
-      FRICTION:3.0, STIFFNESS:115, DAMPING:1.0, MAX_VEL:30, REST_V:0.02, REST_X:0.004
+      FRICTION:3.0, STIFFNESS:115, DAMPING:1.0, MAX_VEL:30, REST_V:0.02, REST_X:0.004,
+      /* ---- COLLAPSE & EXPAND — "gravity well (flick)" ------------------------
+         Every button decomposes its drag into RADIAL (toward/away the corner
+         pivot) vs TANGENTIAL (swing = rotate). A short radial INWARD flick past a
+         small threshold sucks the whole wheel into the lone wand with a springy,
+         slightly-overshooting pull; a short OUTWARD flick on the lone wand springs
+         it back out to the last arc/RADIUS. Distance is measured from the pivot,
+         so the sign logic is identical on both corners. */
+      COLLAPSE_R:64,             // resting radius of the lone wand from the corner pivot (px)
+      COLLAPSE_SPAN:150,         // finger radial travel (px) that maps to a full 0→1 drag
+      PEND_PX:8,                 // radial/tangential travel (px) before a drag commits to a mode
+      FLICK_DIST:34,             // radial travel (px) that TRIGGERS the suck-in/-out (short flick)
+      FLICK_VEL:520,             // radial speed (px/s) that TRIGGERS it by momentum alone
+      COLLAPSE_STIFF:150,        // suck-in / spring-out stiffness (gravity pull)
+      COLLAPSE_DAMP:0.6,         // <1 → slight overshoot, then settle onto the wand
+      COL_REST_V:0.02, COL_REST_X:0.004
     };
     const ICONS = {
       accio:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" opacity=".5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>`,
@@ -735,30 +750,54 @@ body{
     function angleDeg(clientX,clientY){ const lx=(clientX-sRect.left)-pivotX, ly=pivotY-(clientY-sRect.top); return Math.atan2(ly,lx)/DEG; }
 
     let pos = ORDER.indexOf("wand"), vel = 0, lastCentered = -1;
+    /* collapse state: collapseT 0=full arc @ RADIUS · 1=all sucked into the lone wand */
+    let collapseT = 0, collapseV = 0, collapseTarget = 0, collapseDragging = false;
+    /* while collapsing we also spring the rotation onto the wand so the lone button IS the hero */
+    let rotTarget = null;
     function wrap(o){ o=((o%N)+N)%N; if(o>N/2) o-=N; return o; }
     function centredIndex(){ return ((Math.round(pos)%N)+N)%N; }
     function centredKey(){ return ORDER[centredIndex()]; }
     const settled = () => Math.abs(pos-Math.round(pos)) < .22;
 
     function layoutArc(){
-      const C=centerDeg(), sgn=sideSign();
+      const C=centerDeg(), sgn=sideSign(), t=collapseT, tC=Math.max(0,Math.min(1,t));
+      const ca=C*DEG;
+      // the collapsed point — a thumb-comfortable small radius out from the corner, on the centre spoke
+      const ccx=pivotX+CFG.COLLAPSE_R*Math.cos(ca), ccy=pivotY-CFG.COLLAPSE_R*Math.sin(ca);
       for(let i=0;i<N;i++){
-        const key=ORDER[i], el=els[key], o=wrap(i-pos), ao=Math.abs(o);
-        if(ao>CFG.MAX_VIS){ el.style.opacity="0"; el.style.pointerEvents="none"; continue; }
+        const key=ORDER[i], el=els[key], isHero=(key===HERO);
+        const o=wrap(i-pos), ao=Math.abs(o), farHidden=ao>CFG.MAX_VIS;
+        // far buttons stay hidden while expanded; the hero is always laid out (it owns the collapsed point)
+        if(farHidden && t<0.001 && !isHero){ el.style.opacity="0"; el.style.pointerEvents="none"; continue; }
         const ang=(C + sgn*o*CFG.STEP_DEG)*DEG;
-        const x=pivotX+RADIUS*Math.cos(ang), y=pivotY-RADIUS*Math.sin(ang);
-        const scale=Math.max(.52,1-.24*ao), op=Math.max(0,1-.42*ao);
+        const ex=pivotX+RADIUS*Math.cos(ang), ey=pivotY-RADIUS*Math.sin(ang);
+        const escale=Math.max(.52,1-.24*ao), eop=farHidden?0:Math.max(0,1-.42*ao);
+        // interpolate every button from its arc seat to the collapsed point by collapseT
+        const x=ex+(ccx-ex)*t, y=ey+(ccy-ey)*t;
+        let scale, op, z, pe;
+        if(isHero){                        // the wand grows to full & rises on top as it collapses
+          scale=escale+(1-escale)*t;
+          op=Math.max(0,Math.min(1, eop+(1-eop)*t));
+          z=110+Math.round(tC*40);
+          pe = op>.25 ? "auto" : "none";
+        } else {                           // the other five fade + shrink into the point
+          op=Math.max(0, eop*(1-tC));
+          scale=escale*(1-0.4*tC);
+          z=100-Math.round(ao*10);
+          pe = (op>.25 && tC<.5) ? "auto" : "none";
+        }
         el.style.transform=`translate3d(${x}px,${y}px,0) translate(-50%,-50%) scale(${scale})`;
-        el.style.opacity=op; el.style.zIndex=String(100-Math.round(ao*10));
-        el.style.pointerEvents = op>.25 ? "auto" : "none";
-        el.classList.toggle("centered", ao<.5);
+        el.style.opacity=String(op); el.style.zIndex=String(z); el.style.pointerEvents=pe;
+        el.classList.toggle("centered", (ao<.5 && tC<.5) || (isHero && tC>.5));
       }
-      const ca=C*DEG, cx=pivotX+RADIUS*Math.cos(ca), cy=pivotY-RADIUS*Math.sin(ca);
+      const cx=pivotX+RADIUS*Math.cos(ca), cy=pivotY-RADIUS*Math.sin(ca);
       wheelLabel.style.transform=`translate3d(${cx}px,${cy+CFG.LABEL_DROP}px,0) translate(-50%,-50%)`;
       wheelLabel.textContent=LABELS[centredKey()];
-      wheelLabel.style.opacity = settled() ? "1" : "0";
-      grip.style.transform=`translate3d(${cx}px,${cy}px,0) translate(-50%,-50%)`;
-      grip.classList.toggle("live", centredKey()==="adjust" && Math.abs(pos-Math.round(pos))<.3);
+      wheelLabel.style.opacity = (settled() && tC<.05) ? "1" : "0";
+      // grip tracks the centred seat as it slides toward the point; live only while fully expanded
+      const gx=cx+(ccx-cx)*t, gy=cy+(ccy-cy)*t;
+      grip.style.transform=`translate3d(${gx}px,${gy}px,0) translate(-50%,-50%)`;
+      grip.classList.toggle("live", centredKey()==="adjust" && Math.abs(pos-Math.round(pos))<.3 && tC<.05);
       const ci=centredIndex(); if(ci!==lastCentered){ lastCentered=ci; if(settled()) haptic(6); }
     }
 
@@ -768,10 +807,24 @@ body{
     function stopLoop(){ running=false; if(raf) cancelAnimationFrame(raf); raf=null; }
     function frame(now){ if(!running) return;
       let dt=(now-lastT)/1000; lastT=now; if(dt>0.05) dt=0.05; if(dt<=0) dt=1/60;
-      const target=Math.round(pos), dist=target-pos, k=CFG.STIFFNESS, c=2*Math.sqrt(k)*CFG.DAMPING;
+      // rotation spring — settles to the nearest detent, OR onto the wand while collapsing
+      const target = rotTarget==null ? Math.round(pos) : rotTarget;
+      const dist=target-pos, k=CFG.STIFFNESS, c=2*Math.sqrt(k)*CFG.DAMPING;
       vel += (k*dist - c*vel)*dt; vel *= Math.exp(-CFG.FRICTION*dt); pos += vel*dt;
+      // collapse spring — the gravity pull that finishes the suck-in/-out (skipped while a finger drives it)
+      let colRest = true;
+      if(!collapseDragging){
+        const kc=CFG.COLLAPSE_STIFF, cc=2*Math.sqrt(kc)*CFG.COLLAPSE_DAMP;
+        collapseV += (kc*(collapseTarget-collapseT) - cc*collapseV)*dt; collapseT += collapseV*dt;
+        colRest = Math.abs(collapseV)<CFG.COL_REST_V && Math.abs(collapseTarget-collapseT)<CFG.COL_REST_X;
+      } else { colRest = false; }
       layoutArc();
-      if(Math.abs(vel)<CFG.REST_V && Math.abs(Math.round(pos)-pos)<CFG.REST_X){ pos=Math.round(pos); vel=0; running=false; layoutArc(); return; }
+      const rotRest = Math.abs(vel)<CFG.REST_V && Math.abs(target-pos)<CFG.REST_X;
+      if(rotRest && colRest){
+        pos=target; vel=0; collapseT=collapseTarget; collapseV=0;
+        if(collapseTarget===0) rotTarget=null;      // back to free detents once fully expanded
+        running=false; layoutArc(); return;
+      }
       raf=requestAnimationFrame(frame);
     }
 
@@ -791,28 +844,75 @@ body{
       else if(key==="cards") toggleSwitcher();
       else if(key==="home") goHome();
     }
+    // shortest rotation that brings the wand to centre (avoids a long spin on collapse)
+    function wandRotTarget(){ return pos + wrap(ORDER.indexOf(HERO)-pos); }
     function onBtnDown(e){
-      const key=e.currentTarget.dataset.key; cacheGeom(); stopLoop();
-      drag={ key, lastA:angleDeg(e.clientX,e.clientY), movedDeg:0, lastPos:pos, lastT:(e.timeStamp||performance.now()) };
+      const key=e.currentTarget.dataset.key; const now=e.timeStamp||performance.now();
+      cacheGeom(); stopLoop();
+      const a=angleDeg(e.clientX,e.clientY), r=fingerR(e.clientX,e.clientY);
+      drag={ key, mode:"pending", A0:a, lastA:a, R0:r, lastR:r, startT:collapseT,
+             movedDeg:0, lastPos:pos, lastT:now, radV:0, committed:false };
       vel=0; heldFired=false;
       try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){}
       e.preventDefault(); e.stopPropagation();
       if((key==="wand"||key==="sync") && isCentred(key)) startHold(key);
     }
     function onBtnMove(e){ if(!drag) return; e.preventDefault();
-      const A=angleDeg(e.clientX,e.clientY); let d=A-drag.lastA; while(d>180)d-=360; while(d<-180)d+=360; drag.lastA=A;
-      drag.movedDeg += Math.abs(d);
-      if(drag.movedDeg>CFG.TAP_DEG && holdTimer) clearTimeout(holdTimer);
-      pos += -d/(sideSign()*CFG.STEP_DEG);
+      const A=angleDeg(e.clientX,e.clientY), curR=fingerR(e.clientX,e.clientY);
       const now=e.timeStamp||performance.now(); let dt=(now-drag.lastT)/1000; if(dt<=0) dt=1/60;
-      vel = vel*0.6 + ((pos-drag.lastPos)/dt)*0.4; drag.lastPos=pos; drag.lastT=now;
-      layoutArc();
+      let d=A-drag.lastA; while(d>180)d-=360; while(d<-180)d+=360;
+      drag.movedDeg += Math.abs(d);
+      const dRad=curR-drag.R0;                                   // + = outward, − = inward (side-neutral)
+      drag.radV = drag.radV*0.6 + ((curR-drag.lastR)/dt)*0.4;    // radial speed (px/s), smoothed
+      if((drag.movedDeg>CFG.TAP_DEG || Math.abs(dRad)>3) && holdTimer){ clearTimeout(holdTimer); holdTimer=null; }
+
+      if(drag.mode==="pending"){
+        let da=A-drag.A0; while(da>180)da-=360; while(da<-180)da+=360;
+        const arc=da*DEG*drag.R0;                                // tangential travel (px)
+        if(Math.max(Math.abs(dRad),Math.abs(arc))>CFG.PEND_PX){
+          // radial-dominant OR already collapsed → collapse/expand; else swing = rotate
+          if(Math.abs(dRad)>=Math.abs(arc) || drag.startT>0.5){ drag.mode="radial"; collapseDragging=true; }
+          else { drag.mode="rotate"; }
+          drag.lastPos=pos;
+        }
+      }
+
+      if(drag.mode==="rotate"){
+        pos += -d/(sideSign()*CFG.STEP_DEG);
+        vel = vel*0.6 + ((pos-drag.lastPos)/dt)*0.4; drag.lastPos=pos;
+        layoutArc();
+      } else if(drag.mode==="radial" && !drag.committed){
+        // track the finger a little for feedback: well opens as the finger pulls inward
+        collapseT = Math.max(0, Math.min(1, drag.startT + (-dRad)/CFG.COLLAPSE_SPAN));
+        const opening = drag.startT < 0.5;                       // opening the well (collapsing) vs closing (expanding)
+        const closeDist = opening ? (-dRad) : (dRad);            // travel in the committing direction (px)
+        const closeVel  = opening ? (-drag.radV) : (drag.radV);  // speed in the committing direction (px/s)
+        if(closeDist>CFG.FLICK_DIST || closeVel>CFG.FLICK_VEL){   // short flick → hand off to the gravity spring
+          drag.committed=true; collapseDragging=false;
+          collapseTarget = opening ? 1 : 0;
+          rotTarget = collapseTarget===1 ? wandRotTarget() : null;
+          collapseV = -drag.radV/CFG.COLLAPSE_SPAN;              // carry the flick's momentum into the spring
+          wake();
+        } else { layoutArc(); }
+      }
+      drag.lastA=A; drag.lastR=curR; drag.lastT=now;
     }
-    function onBtnUp(e){ if(!drag) return; const key=drag.key, moved=drag.movedDeg; drag=null; clearTimeout(holdTimer);
-      els[key] && els[key].classList.remove("holding");
+    function onBtnUp(e){ if(!drag) return; const d=drag; drag=null;
+      if(holdTimer){ clearTimeout(holdTimer); holdTimer=null; }
+      els[d.key] && els[d.key].classList.remove("holding");
       if(heldFired){ heldFired=false; wake(); return; }
-      if(moved < CFG.TAP_DEG){ vel=0; execAction(key); wake(); return; }   // tap — run in place
-      vel = Math.max(-CFG.MAX_VEL, Math.min(CFG.MAX_VEL, vel)); wake();     // fling → glide + settle
+      if(d.mode==="radial"){                                      // let go mid-gesture → settle to whichever side of the well
+        collapseDragging=false;
+        if(!d.committed){
+          collapseTarget = collapseT>0.5 ? 1 : 0;
+          rotTarget = collapseTarget===1 ? wandRotTarget() : null;
+          collapseV = -d.radV/CFG.COLLAPSE_SPAN;
+        }
+        wake(); return;
+      }
+      if(d.mode==="rotate"){ vel=Math.max(-CFG.MAX_VEL,Math.min(CFG.MAX_VEL,vel)); wake(); return; }  // fling → glide + settle
+      if(d.movedDeg < CFG.TAP_DEG){ vel=0; execAction(d.key); wake(); return; }  // tap — run in place
+      wake();
     }
     ORDER.forEach(key => { const el=els[key];
       el.addEventListener("pointerdown", onBtnDown);
@@ -879,7 +979,12 @@ body{
     function boot(){ applySide(); cacheGeom(); pos=ORDER.indexOf("wand"); vel=0; setFill(0); layoutArc(); }
     requestAnimationFrame(boot);
     window.addEventListener("resize", () => { cacheGeom(); layoutArc(); });
-    window.__wheel = { boot, flip:doFlip, get pos(){ return pos; }, set pos(v){ pos=v; layoutArc(); }, get side(){ return side; }, get radius(){ return RADIUS; }, get centred(){ return centredKey(); } };
+    // debug/animated collapse control (also used by the verification harness)
+    function setCollapsed(on){ collapseTarget = on?1:0; rotTarget = on ? wandRotTarget() : null; collapseV=0; wake(); }
+    window.__wheel = { boot, flip:doFlip, collapse:()=>setCollapsed(true), expand:()=>setCollapsed(false),
+      get pos(){ return pos; }, set pos(v){ pos=v; layoutArc(); },
+      get side(){ return side; }, get radius(){ return RADIUS; }, get centred(){ return centredKey(); },
+      get collapseT(){ return collapseT; }, get collapseTarget(){ return collapseTarget; } };
   })();
 
   function goHome(){

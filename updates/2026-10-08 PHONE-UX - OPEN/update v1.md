@@ -168,6 +168,25 @@ deep blue-black stone, the magical-blue accent and gold. Magical AND highly prac
     gestures. Typing hides the whole wheel + buttons. Side + radius persist.
   - jsdom-verified: 6 options, dial gone, drag rotates, tap runs, grip resize/flip, glow
     mirrored, flows intact.
-- **Next:** owner tests on device — rotate by grabbing buttons (smooth? inertia right?),
-  background scroll free again, Adjust radial-resize vs tangential-rotate, glow on both
-  sides. Then lock the spec and start Phase 3 on the PWA-CAPTURE runtime.
+- 2026-10-09: **Round-8 — collapse & expand (owner: "circle menu works amazingly").**
+  Added a radial collapse so the whole wheel can fold into a single lone **wand** at the
+  active corner and pull back out to its last position. Every button now **decomposes its
+  drag** into tangential (swing → rotate, unchanged) vs radial (toward/away from the
+  corner pivot → collapse/expand), reusing the Adjust grip's pending-threshold pattern.
+  Side-neutral, so it works mirrored on **both corners**. Built **3 feels in parallel**
+  (3 agents → lab files, all jsdom-verified) for the owner to try on device:
+  · **A retract** — direct 1:1 pull in/out along the spokes, spring-snaps on release.
+  · **B fan-fold** — arc folds shut like an umbrella (spacing→0 + radius-in, staggered),
+    fans open with overshoot.
+  · **C gravity-well** — a short inward *flick* sucks the buttons into the corner on a
+    damped spring; flick the lone wand out to spring them back. Least finger travel.
+  **Owner picked C (gravity-well): "the best experience."** Folded C into the main Wand
+  (`01-the-wand-v2.html`); removed A and B and the `collapse-lab/` folder. Merged file
+  re-verified clean in jsdom (`__wheel` boots, collapseT=0, no errors). Tunables in CFG:
+  `COLLAPSE_R:64`, `FLICK_DIST:34`, `FLICK_VEL:520`, `COLLAPSE_STIFF:150`,
+  `COLLAPSE_DAMP:0.6` (slight overshoot), `PEND_PX:8`. Rotate, tap, Adjust, side-flip,
+  and all flows remain intact; collapse never false-fires on rotate/tap/hold.
+- **Next:** owner tests the gravity-well on device — flick-in/flick-out feel, thresholds
+  (does a normal rotate/tap ever trigger it?), the lone-wand resting spot + overshoot.
+  Tune `FLICK_DIST/FLICK_VEL/COLLAPSE_DAMP/COLLAPSE_R` to taste. Then lock the full Wand
+  spec and start Phase 3 on the PWA-CAPTURE runtime.
