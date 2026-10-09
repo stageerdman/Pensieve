@@ -237,8 +237,20 @@ deep blue-black stone, the magical-blue accent and gold. Magical AND highly prac
   - jsdom-verified end-to-end: boot clean; new note → empty H1 + menu still visible (no
      kb-open); Enter-in-title → body DIV; commit splits title/body ("Groceries" + "milk,
      eggs"); Accio opens → kb up → kb down → auto-closes; conjure animation path clean.
-- **Next:** owner tests on device — (a) new note keeps the menu, tapping the title raises
-  the keyboard + the format bar; (b) first line is H1, Enter drops to body, feels like
-  Apple Notes; (c) the toolbar's Title/Body/Bold/List + Voice/Done; (d) Accio closes when
-  the keyboard does. Then lock the full Wand spec and start Phase 3 (PWA-CAPTURE runtime +
-  mirror the title-H1 rule in the desktop TipTap editor).
+- 2026-10-09: **Round-11 — cross-surface navigation via the menu.** Added a shared
+  `exitNote()` (commit + close + clear current + un-edit) so menu actions work from inside
+  a note instead of opening a sheet *behind* it (accio z130 / switcher z135 are below the
+  note z140):
+  1. **Accio from a note** opened the keyboard over the half-hidden note ("I see shit").
+     `openAccio` now `exitNote()` + `closeSwitcher` first → always searches from home.
+  2. **Cards from a note** did nothing visible (switcher opened behind the note).
+     `openSwitcher` now `exitNote()` first → the switcher shows (with the note you just
+     left among the cards).
+  3. **Removed the "Back" button** from the Cards switcher (markup + handler + CSS) — the
+     persistent menu (Home / tap a card) handles leaving it.
+  - `goHome` refactored onto `exitNote`. jsdom-verified: from an open note, Accio → note
+     closes + accio opens (accio-open set); Cards → note closes + switcher opens;
+     `#switcherDone` gone; no errors.
+- **Next:** owner tests on device — Accio/Cards always behave from inside a note; Cards
+  switcher with no Back button. Then lock the full Wand spec and start Phase 3 (PWA-CAPTURE
+  runtime + mirror the title-H1 rule in the desktop editor).
