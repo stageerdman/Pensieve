@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#0a0e14" />
+<title>Pensieve — The Wand</title>
+<style>
+/* ============================================================================
+   PENSIEVE · PHONE · "THE WAND"  (v3 — owner round-3 notes)
+   · Reel = a STATIONARY magnifier. The potions scroll underneath a fixed lens;
+     whatever sits under the glass is enlarged with its details. The lens never
+     moves. (round(scrollTop/slot) → deterministic focus, snaps into place.)
+   · No fake chrome. No pretend clock / signal / storage meters / demo switches.
+     Sync reflects the *real* device state (online/offline) + what you've edited.
+   · Menu = a thumb-WHEEL anchored bottom-right. One big action in the middle,
+     two small ones on the arc; scroll to rotate what's centred (snaps); tap any
+     to run it. Always present — vanishes only while the keyboard is up.
+   · Accio opens the bar AND the keyboard, caret ready.
+   · Cards has an explicit way back to the menu.
+   Self-contained: no network, no fonts, no CDNs. SVG inline.
+   ========================================================================== */
+
+:root{
+  --surface:222 24% 11%; --surface-sunken:222 22% 13%; --surface-raised:222 18% 17%;
+  --text:216 18% 84%; --text-muted:218 12% 60%; --border:222 16% 21%;
+  --accent:215 85% 74%; --accent-glow:218 100% 72%; --gold:43 92% 55%;
+  --success:150 50% 62%; --danger:0 70% 70%;
+  --cat-blue:212 70% 68%; --cat-purple:270 55% 74%; --cat-green:145 50% 62%;
+  --cat-pink:330 60% 74%; --cat-orange:24 85% 68%; --cat-yellow:45 80% 66%; --cat-red:0 70% 70%;
+  --font:-apple-system,"SF Pro Text",system-ui,sans-serif;
+  --radius:16px;
+  --spring:cubic-bezier(.22,1,.36,1);
+  --spring-soft:cubic-bezier(.34,1.4,.64,1);
+  --ease:cubic-bezier(.4,0,.2,1);
+  --slot:84px;             /* small-card slot height — the reel's reliable grid  */
+  --kb:0px;                /* live keyboard inset (visualViewport)               */
+}
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ margin:0; height:100%; }
+body{
+  font-family:var(--font); color:hsl(var(--text));
+  background:radial-gradient(1200px 800px at 50% -10%, #11182400, #0a0e14 70%), #0a0e14;
+  display:flex; align-items:center; justify-content:center; min-height:100dvh; padding:24px; overflow:hidden;
+}
+
+/* ---- Device frame (reads as iPhone on desktop; full-bleed on a real phone) --- */
+.device{
+  position:relative; width:390px; height:844px; border-radius:54px; background:#000; padding:11px; flex:none;
+  box-shadow:0 0 0 2px #1c222c, 0 0 0 11px #05070a, 0 40px 120px -20px rgba(0,0,0,.9),
+             0 0 90px -20px hsl(var(--accent-glow)/.18);
+}
+@media (max-width:420px),(display-mode:standalone){
+  body{ padding:0; }
+  .device{ width:100vw; height:100dvh; border-radius:0; padding:0; box-shadow:none; }
+  .screen{ border-radius:0 !important; }
+}
+.screen{
+  position:relative; width:100%; height:100%; border-radius:44px; overflow:hidden;
+  background:hsl(var(--surface)); isolation:isolate;
+  background-image:
+    radial-gradient(120% 70% at 20% -5%, hsl(var(--accent-glow)/.10), transparent 55%),
+    radial-gradient(90% 60% at 95% 8%, hsl(var(--cat-purple)/.08), transparent 50%),
+    radial-gradient(140% 90% at 50% 120%, hsl(218 60% 20% /.35), transparent 60%);
+}
+.home-indicator{
+  position:absolute; bottom:8px; left:50%; transform:translateX(-50%);
+  width:134px; height:5px; border-radius:3px; background:hsl(var(--text)/.5); z-index:200; pointer-events:none;
+}
+
+/* ===========================================================================
+   HOME — header + the flask reel (a fixed magnifier)
+   =========================================================================== */
+.app{ position:absolute; inset:0; display:flex; flex-direction:column;
+  padding-top:calc(14px + env(safe-area-inset-top)); }
+.header{ padding:6px 24px 6px; display:flex; align-items:baseline; justify-content:space-between; flex:none; }
+.header h1{ margin:0; font-size:25px; font-weight:700; letter-spacing:-.4px; }
+.header .count{ font-size:13px; color:hsl(var(--text-muted)); font-variant-numeric:tabular-nums; }
+
+/* The reel scrolls small, uniform cards. The magnification is NOT on the cards —
+   it lives in a separate, fixed .lens overlay. So the glass holds still while the
+   bottles drift under it. */
+.reel{
+  flex:1; min-height:0; overflow-y:auto; overflow-x:hidden;
+  scroll-snap-type:y mandatory; -webkit-overflow-scrolling:touch;
+  padding:0 16px; scrollbar-width:none;
+  -webkit-mask-image:linear-gradient(180deg, transparent 0, #000 7%, #000 92%, transparent 100%);
+          mask-image:linear-gradient(180deg, transparent 0, #000 7%, #000 92%, transparent 100%);
+}
+.reel::-webkit-scrollbar{ display:none; }
+.slot{ height:var(--slot); scroll-snap-align:start; scroll-snap-stop:always; display:flex; align-items:center; }
+.card{
+  width:100%; display:flex; align-items:center; gap:13px; padding:9px 13px; border-radius:14px;
+  opacity:.5; transition:opacity .35s var(--ease); cursor:pointer;
+}
+.card .flask{ width:36px; height:48px; flex:none; }
+.card .title{ font-size:14.5px; font-weight:600; letter-spacing:-.1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.card .meta{ font-size:11.5px; color:hsl(var(--text-muted)); margin-top:1px; }
+.card.under{ opacity:0; }        /* the one directly beneath the glass — hidden, the lens shows it */
+.card:active{ filter:brightness(1.1); }
+
+/* THE LENS — a fixed magnifying glass. Never scrolls. Shows whatever is under it. */
+.lens{
+  position:absolute; left:14px; right:14px; z-index:40; cursor:pointer;
+  display:flex; align-items:flex-start; gap:15px; padding:15px 17px; border-radius:19px;
+  background:linear-gradient(180deg, hsl(var(--surface-raised)/.96), hsl(var(--surface-sunken)/.96));
+  border:1px solid hsl(var(--accent)/.26);
+  box-shadow:0 22px 56px -22px rgba(0,0,0,.9), inset 0 1px 0 hsl(var(--text)/.06),
+             0 0 40px -14px hsl(var(--accent-glow)/.3);
+  touch-action:none; -webkit-user-select:none; user-select:none;
+}
+.lens::after{  /* the faint rim of the glass */
+  content:""; position:absolute; inset:0; border-radius:19px; pointer-events:none;
+  box-shadow:inset 0 0 0 1px hsl(var(--accent-glow)/.14);
+}
+.lens .flask{ width:60px; height:80px; flex:none; margin-top:1px; }
+.lens .body{ min-width:0; flex:1; }
+.lens .title{ font-size:18px; font-weight:700; letter-spacing:-.2px; line-height:1.25; }
+.lens .meta{ font-size:12px; color:hsl(var(--text-muted)); margin-top:3px; }
+.lens .snippet{
+  margin-top:8px; font-size:13.5px; line-height:1.45; color:hsl(var(--text-muted));
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+}
+.lens.pop .lens-inner{ animation:lensPop .3s var(--spring); }
+.lens-inner{ display:contents; }
+@keyframes lensPop{ 0%{ opacity:.45; transform:translateY(3px) scale(.985); } 100%{ opacity:1; transform:none; } }
+.lens.empty{ justify-content:center; align-items:center; color:hsl(var(--text-muted)); border-style:dashed; box-shadow:none; }
+.lens:active{ filter:brightness(1.05); }
+
+/* ===========================================================================
+   THE THUMB-WHEEL (round-7) — the BUTTONS are the drag handles. Grab a button
+   and swing it around the arc to rotate (inertial glide + detent on release);
+   everywhere else falls through to scroll the background. Buttons are laid out
+   with transforms only. "Adjust" is the empty-circle option; when centred its
+   grip gives a radial drag = resize and a ~2s hold = switch side.
+   =========================================================================== */
+.corner-glow{ position:absolute; right:-60px; bottom:-60px; width:340px; height:340px; z-index:87; pointer-events:none;
+  background:radial-gradient(circle at 70% 70%, hsl(var(--accent-glow)/.13), transparent 62%); transition:opacity .28s var(--ease); }
+.app-root.side-left .corner-glow{ left:-60px; right:auto;
+  background:radial-gradient(circle at 30% 70%, hsl(var(--accent-glow)/.13), transparent 62%); }
+.wheel{ position:absolute; inset:0; z-index:88; pointer-events:none; transition:opacity .28s var(--ease); }
+.wact{
+  position:absolute; left:0; top:0; width:58px; height:58px; border-radius:50%;
+  border:1px solid hsl(var(--border)); background:hsl(var(--surface-raised)/.82);
+  backdrop-filter:blur(22px) saturate(1.3); -webkit-backdrop-filter:blur(22px) saturate(1.3);
+  color:hsl(var(--text-muted)); display:flex; align-items:center; justify-content:center;
+  box-shadow:0 10px 28px -14px rgba(0,0,0,.7); will-change:transform,opacity;
+  pointer-events:auto; touch-action:none; cursor:grab;   /* buttons ARE the drag handles */
+  transition:border-color .25s var(--ease), color .25s var(--ease), box-shadow .25s var(--ease); }
+.wact:active{ cursor:grabbing; }
+.wact.hero{ width:66px; height:66px; border:none; color:#fff;
+  background:radial-gradient(130% 130% at 30% 25%, hsl(var(--accent)) 0%, hsl(var(--accent-glow)) 55%, hsl(215 80% 52%) 100%);
+  box-shadow:0 0 0 1px hsl(var(--accent-glow)/.5), 0 14px 34px -8px hsl(var(--accent-glow)/.55),
+             inset 0 2px 4px hsl(0 0% 100%/.4), inset 0 -6px 12px hsl(215 80% 40%/.5); }
+.wact.hero::before{ content:""; position:absolute; inset:-9px; border-radius:50%;
+  background:radial-gradient(circle, hsl(var(--accent-glow)/.3), transparent 70%); z-index:-1; opacity:0; transition:opacity .3s; }
+.wact.hero.centered::before{ opacity:1; animation:breathe 4s var(--ease) infinite; }
+@keyframes breathe{ 0%,100%{ transform:scale(.85); opacity:.5; } 50%{ transform:scale(1.12); opacity:.9; } }
+.wact.centered:not(.hero){ color:hsl(var(--text)); border-color:hsl(var(--accent)/.45);
+  box-shadow:0 10px 30px -12px rgba(0,0,0,.75), 0 0 0 1px hsl(var(--accent)/.25); }
+.wact.flash{ animation:wflash .42s var(--ease); }
+@keyframes wflash{ 0%{ filter:brightness(1.9) } 100%{ filter:brightness(1) } }
+.wact.holding{ filter:brightness(1.15); }
+.wact[data-state="reminder"]{ color:hsl(var(--gold)); border-color:hsl(var(--gold)/.4); }
+.wact[data-state="syncing"]{ color:hsl(var(--gold)); border-color:hsl(var(--gold)/.5); }
+.wact[data-state="offline"]{ color:hsl(var(--danger)); border-color:hsl(var(--danger)/.45); }
+.wact .tab-count{
+  position:absolute; top:-3px; right:-3px; min-width:17px; height:17px; padding:0 4px; border-radius:9px;
+  background:hsl(var(--accent)); color:#07101f; font-size:11px; font-weight:700;
+  display:flex; align-items:center; justify-content:center; border:2px solid hsl(var(--surface)); }
+.lemniscate{ fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round;
+  stroke-dasharray:.575 .425; stroke-dashoffset:-.2125; }
+.wact[data-state="syncing"] .lemniscate{ animation:sync-flow 1.1s linear infinite; filter:drop-shadow(0 0 1.5px hsl(var(--gold)/.9)); }
+@keyframes sync-flow{ from{ stroke-dashoffset:-.2125; } to{ stroke-dashoffset:.7875; } }
+.wheel-label{ position:absolute; left:0; top:0; z-index:89; pointer-events:none;
+  font-size:11px; font-weight:600; letter-spacing:.4px; color:hsl(var(--text)/.8); text-transform:uppercase;
+  transform:translate(-50%,-50%); text-shadow:0 1px 6px hsl(var(--surface)/.9); transition:opacity .18s var(--ease); white-space:nowrap; }
+
+.app-root.side-left .sync-panel{ left:16px; right:auto; transform-origin:bottom left; }
+
+/* design-mode overlay — the arc outline, a spoke, and a live number while resizing */
+.design-layer{ position:absolute; inset:0; width:100%; height:100%; z-index:92; pointer-events:none; opacity:0; transition:opacity .18s var(--ease); }
+.design-layer.on{ opacity:1; }
+.design-layer .ring{ fill:none; stroke:hsl(var(--accent)/.7); stroke-width:1.4; stroke-dasharray:5 7; }
+.design-layer .spoke{ stroke:hsl(var(--accent)/.85); stroke-width:1.4; stroke-dasharray:4 5; }
+.design-layer .dot{ fill:hsl(var(--accent)); }
+.design-num{ position:absolute; left:0; top:0; z-index:93; pointer-events:none; transform:translate(-50%,-50%);
+  font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; color:hsl(var(--accent));
+  background:hsl(var(--surface-sunken)/.94); border:1px solid hsl(var(--accent)/.45); border-radius:8px; padding:3px 8px;
+  opacity:0; transition:opacity .18s var(--ease); white-space:nowrap; }
+.design-num.on{ opacity:1; }
+
+/* the "Adjust" menu option renders as an empty dashed circle */
+.wact.adjust{ background:hsl(var(--surface-raised)/.5); border-style:dashed; border-color:hsl(var(--text-muted)/.6); }
+.wact.adjust.centered{ border-style:solid; border-color:hsl(var(--accent)/.6); color:hsl(var(--accent)); }
+
+/* the adjust GRIP — an invisible touch target that sits exactly over the centred
+   button, live ONLY when the empty-circle option is centred. Drag = resize,
+   hold ~2s = switch side. Its fill-ring is centred on the button → aligned. */
+.grip{ position:absolute; left:0; top:0; z-index:110; width:74px; height:74px;  /* above the buttons (max z100) */
+  transform:translate(-50%,-50%); display:flex; align-items:center; justify-content:center;
+  pointer-events:none; cursor:grab; -webkit-user-select:none; user-select:none; touch-action:none; }
+.grip.live{ pointer-events:auto; }
+.grip:active{ cursor:grabbing; }
+.grip .fill{ position:absolute; inset:0; transform:rotate(-90deg); opacity:0; transition:opacity .15s var(--ease); }
+.grip.holding .fill{ opacity:1; }
+.grip .fill circle{ fill:none; stroke:hsl(var(--gold)); stroke-width:3; stroke-linecap:round;
+  stroke-dasharray:1; stroke-dashoffset:1; filter:drop-shadow(0 0 4px hsl(var(--gold)/.8)); }
+
+.app-root.typing .wheel, .app-root.typing .wheel-label, .app-root.typing .corner-glow{ opacity:0; pointer-events:none; }
+.app-root.typing .wact, .app-root.typing .grip{ opacity:0; pointer-events:none; }
+
+/* ---- Sync details panel (press-hold sync; or a tap when offline) ---- */
+.sync-panel{
+  position:absolute; right:16px; bottom:calc(120px + env(safe-area-inset-bottom)); z-index:120;
+  width:286px; border-radius:16px; border:1px solid hsl(var(--border));
+  background:hsl(var(--surface-raised)/.98); backdrop-filter:blur(26px); -webkit-backdrop-filter:blur(26px);
+  padding:15px; box-shadow:0 24px 60px -18px rgba(0,0,0,.85);
+  transform:translateY(12px) scale(.96); transform-origin:bottom right; opacity:0; pointer-events:none;
+  transition:transform .32s var(--spring), opacity .24s var(--ease);
+}
+.sync-panel.open{ transform:none; opacity:1; pointer-events:auto; }
+.sync-panel .ph{ display:flex; gap:11px; align-items:flex-start; }
+.sync-panel .glyph{ margin-top:1px; flex:none; color:hsl(var(--text-muted)); }
+.sync-panel .title{ font-size:15px; font-weight:600; }
+.sync-panel .sub{ margin-top:4px; font-size:12.5px; line-height:1.45; color:hsl(var(--text-muted)); }
+.sync-panel[data-state="offline"] .glyph{ color:hsl(var(--danger)); }
+.sync-panel[data-state="reminder"] .glyph, .sync-panel[data-state="syncing"] .glyph{ color:hsl(var(--gold)); }
+.sync-panel .primary{
+  margin-top:14px; width:100%; height:38px; border-radius:11px; border:1px solid hsl(var(--accent)/.5);
+  background:hsl(var(--accent)/.14); color:hsl(var(--accent)); font-family:var(--font); font-size:14px; font-weight:600; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; gap:7px; transition:background .2s var(--ease); }
+.sync-panel .primary:active{ background:hsl(var(--accent)/.24); }
+.sync-panel .primary[disabled]{ opacity:.5; border-color:hsl(var(--border)); background:transparent; color:hsl(var(--text-muted)); cursor:default; }
+.sync-panel[data-state="offline"] .primary{ border-color:hsl(var(--danger)/.5); background:transparent; color:hsl(var(--danger)); }
+.sync-panel .foot{
+  margin-top:14px; padding-top:12px; border-top:1px solid hsl(var(--border));
+  display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; color:hsl(var(--text-muted)); }
+.sync-panel .foot .acct{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sync-panel .foot button{ border:none; background:none; color:hsl(var(--text-muted)); font-size:12px; cursor:pointer; flex:none; }
+
+/* ---- Sync spell overlay (the cast) ---- */
+.spell{ position:absolute; inset:0; z-index:110; pointer-events:none; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .4s var(--ease); }
+.spell.show{ opacity:1; }
+.spell .ring{ position:absolute; width:64px; height:64px; border-radius:50%; border:1.5px solid hsl(var(--gold)/.6); }
+.spell .ring.go{ animation:ripple 1.7s var(--ease) forwards; }
+@keyframes ripple{ from{ transform:scale(.2); opacity:.9; } to{ transform:scale(9); opacity:0; } }
+.spell .rune{ width:76px; height:76px; color:hsl(var(--gold)); filter:drop-shadow(0 0 16px hsl(var(--gold)/.7)); }
+.spell .rune .lemniscate{ stroke-width:1.4; animation:sync-flow .9s linear infinite; }
+.spell .rune.go{ animation:runePop 1.7s var(--spring) forwards; }
+@keyframes runePop{ 0%{ transform:scale(.4); opacity:0; } 25%{ opacity:1; } 80%{ transform:scale(1.08); opacity:1; } 100%{ transform:scale(.7); opacity:0; } }
+.spell .label{ position:absolute; bottom:180px; font-size:13px; font-weight:600; letter-spacing:.4px; color:hsl(var(--gold)); }
+
+/* ===========================================================================
+   ACCIO — summon bar (Sigil) + results. Opens bar AND keyboard, caret ready.
+   =========================================================================== */
+.accio{ position:absolute; inset:0; z-index:130; display:flex; flex-direction:column; justify-content:flex-end;
+  background:hsl(222 28% 7%/0); backdrop-filter:blur(0); opacity:0; pointer-events:none;
+  transition:background .3s var(--ease), backdrop-filter .3s var(--ease), opacity .3s var(--ease); }
+.accio.open{ background:hsl(222 28% 7%/.62); backdrop-filter:blur(9px); -webkit-backdrop-filter:blur(9px); opacity:1; pointer-events:auto; }
+.accio-results{ flex:1; min-height:0; overflow-y:auto; padding:calc(24px + env(safe-area-inset-top)) 16px 10px;
+  display:flex; flex-direction:column; justify-content:flex-end; gap:6px; scrollbar-width:none;
+  -webkit-mask-image:linear-gradient(180deg,transparent,#000 14%); mask-image:linear-gradient(180deg,transparent,#000 14%); }
+.accio-results::-webkit-scrollbar{ display:none; }
+.hit{ display:flex; align-items:center; gap:13px; padding:10px 14px; border-radius:13px;
+  background:hsl(var(--surface-raised)/.6); border:1px solid hsl(var(--border)/.6);
+  opacity:0; transform:translateY(8px); animation:hitIn .34s var(--spring) forwards; cursor:pointer; }
+@keyframes hitIn{ to{ opacity:1; transform:none; } }
+.hit .flask{ width:32px; height:42px; flex:none; }
+.hit .title{ font-size:15px; font-weight:600; }
+.hit .meta{ font-size:12px; color:hsl(var(--text-muted)); }
+.hit mark{ background:hsl(var(--gold)/.25); color:hsl(var(--gold)); border-radius:3px; }
+.accio-empty{ text-align:center; color:hsl(var(--text-muted)); font-size:14px; padding:30px; }
+.summon{ flex:none; margin:0 16px calc(22px + env(safe-area-inset-bottom) + var(--kb)); display:flex; align-items:center; gap:12px;
+  height:60px; padding:0 8px 0 18px; border-radius:30px; background:hsl(var(--surface-raised)/.98);
+  border:1px solid hsl(var(--accent)/.4); box-shadow:0 0 40px -6px hsl(var(--accent-glow)/.4), 0 20px 50px -16px rgba(0,0,0,.8);
+  transform:translateY(130%); transition:transform .42s var(--spring); }
+.accio.open .summon{ transform:none; }
+.summon .sigil{ color:hsl(var(--accent)); flex:none; display:flex; }
+.summon input{ flex:1; min-width:0; background:none; border:none; outline:none; color:hsl(var(--text)); font-size:17px; font-family:var(--font); }
+.summon input::placeholder{ color:hsl(var(--text-muted)); }
+.mic{ width:44px; height:44px; border-radius:50%; flex:none; border:none; background:hsl(var(--surface-sunken));
+  color:hsl(var(--text-muted)); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .3s var(--ease); }
+.mic.listening{ background:hsl(var(--accent)/.2); color:hsl(var(--accent)); animation:pulse 1.4s var(--ease) infinite; }
+@keyframes pulse{ 0%,100%{ box-shadow:0 0 0 0 hsl(var(--accent)/.4); } 50%{ box-shadow:0 0 0 10px hsl(var(--accent)/0); } }
+
+/* ===========================================================================
+   NOTE VIEW — full screen for reading & writing (Apple Notes-smooth, autosave)
+   =========================================================================== */
+.note{ position:absolute; inset:0; z-index:140; background:hsl(var(--surface));
+  background-image:radial-gradient(120% 60% at 50% -10%, hsl(var(--accent-glow)/.12), transparent 55%);
+  display:flex; flex-direction:column; padding-top:calc(14px + env(safe-area-inset-top));
+  transform:translateY(100%); transition:transform .5s var(--spring); }
+.note.open{ transform:none; }
+.note-top{ display:flex; align-items:center; justify-content:space-between; padding:4px 14px 0; flex:none; transition:opacity .25s var(--ease); }
+.app-root.typing .note-top{ opacity:0; pointer-events:none; }
+.note-top button{ border:none; background:none; cursor:pointer; color:hsl(var(--text-muted)); padding:10px; display:flex; align-items:center; gap:5px; font-family:var(--font); font-size:15px; }
+.note-top .back{ color:hsl(var(--accent)); }
+.note-saved{ font-size:12px; color:hsl(var(--text-muted)); display:flex; align-items:center; gap:5px; opacity:0; transition:opacity .3s var(--ease); }
+.note-saved.show{ opacity:1; }
+.note-saved i{ width:5px; height:5px; border-radius:50%; background:hsl(var(--success)); display:block; }
+.note-surface{ flex:1; min-height:0; overflow-y:auto; padding:10px 24px calc(40vh + var(--kb)); scrollbar-width:none; }
+.note-surface::-webkit-scrollbar{ display:none; }
+.note-title{ font-size:27px; font-weight:700; letter-spacing:-.5px; outline:none; }
+.note-title:empty::before{ content:"New thought"; color:hsl(var(--text-muted)/.5); }
+.note-date{ font-size:13px; color:hsl(var(--text-muted)); margin:6px 0 16px; }
+.note-body{ font-size:17px; line-height:1.6; outline:none; min-height:200px; }
+.note-body:empty::before{ content:"Start writing…"; color:hsl(var(--text-muted)/.5); }
+.note-body p{ margin:0 0 .8em; }
+.note-mic{ position:absolute; right:22px; bottom:calc(24px + env(safe-area-inset-bottom) + var(--kb)); width:56px; height:56px; border-radius:50%;
+  border:1px solid hsl(var(--border)); background:hsl(var(--surface-raised)); color:hsl(var(--text));
+  display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:5;
+  box-shadow:0 12px 30px -10px rgba(0,0,0,.7); transition:bottom .2s var(--ease), background .3s, color .3s, border-color .3s; }
+.note-mic.listening{ background:hsl(var(--accent)/.2); color:hsl(var(--accent)); border-color:hsl(var(--accent)/.5); animation:pulse 1.4s var(--ease) infinite; }
+
+.thread{ position:absolute; inset:0; z-index:145; pointer-events:none; }
+
+/* ===========================================================================
+   TABS — Arc-style switcher. Side-by-side; swipe a card UP to close.
+   An explicit "Done" returns to the menu.
+   =========================================================================== */
+.switcher{ position:absolute; inset:0; z-index:135; background:hsl(222 28% 7%/.7);
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  display:flex; flex-direction:column; opacity:0; pointer-events:none; transition:opacity .3s var(--ease);
+  padding-top:calc(16px + env(safe-area-inset-top)); }
+.switcher.open{ opacity:1; pointer-events:auto; }
+.switcher h2{ margin:4px 24px 2px; font-size:15px; font-weight:600; color:hsl(var(--text-muted)); }
+.switcher .hint{ margin:0 24px 6px; font-size:12px; color:hsl(var(--text-muted)/.7); }
+.tabs-rail{ flex:1; min-height:0; display:flex; gap:16px; overflow-x:auto; overflow-y:hidden;
+  padding:12px 24px 12px; scroll-snap-type:x mandatory; scrollbar-width:none; align-items:stretch; }
+.tabs-rail::-webkit-scrollbar{ display:none; }
+.tab-card{ flex:none; width:230px; scroll-snap-align:center; border-radius:20px; border:1px solid hsl(var(--border));
+  background:linear-gradient(180deg, hsl(var(--surface-raised)), hsl(var(--surface-sunken)));
+  box-shadow:0 20px 50px -22px rgba(0,0,0,.8); padding:18px; display:flex; flex-direction:column; cursor:pointer;
+  transition:transform .3s var(--spring), opacity .3s var(--ease); position:relative; touch-action:pan-x; }
+.tab-card .tx{ display:flex; align-items:center; gap:12px; }
+.tab-card .flask{ width:40px; height:52px; flex:none; }
+.tab-card .ttl{ font-size:16px; font-weight:700; letter-spacing:-.2px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.tab-card .tdate{ font-size:12px; color:hsl(var(--text-muted)); margin-top:2px; }
+.tab-card .tbody{ margin-top:14px; font-size:14px; line-height:1.5; color:hsl(var(--text-muted));
+  display:-webkit-box; -webkit-line-clamp:8; -webkit-box-orient:vertical; overflow:hidden; flex:1; }
+.tab-card .close-hint{ position:absolute; top:10px; right:14px; font-size:11px; color:hsl(var(--text-muted)/.6); }
+.tabs-empty{ flex:1; display:flex; align-items:center; justify-content:center; color:hsl(var(--text-muted)); font-size:14px; padding:40px; text-align:center; }
+.switcher-done{ flex:none; display:flex; justify-content:center; padding:4px 24px calc(26px + env(safe-area-inset-bottom)); }
+.switcher-done button{
+  height:46px; padding:0 30px; border-radius:23px; border:1px solid hsl(var(--border));
+  background:hsl(var(--surface-raised)/.92); color:hsl(var(--text)); font-family:var(--font); font-size:15px; font-weight:600;
+  display:flex; align-items:center; gap:8px; cursor:pointer; box-shadow:0 10px 28px -14px rgba(0,0,0,.7);
+  transition:transform .2s var(--spring); }
+.switcher-done button:active{ transform:scale(.95); }
+
+@media (prefers-reduced-motion:reduce){
+  *{ animation-duration:.001s !important; transition-duration:.08s !important; }
+  .wact.hero::before{ animation:none; }
+  .lemniscate{ animation:none !important; }
+}
+</style>
+</head>
+<body>
+<div class="device">
+  <div class="screen app-root" id="root">
+
+    <!-- HOME -->
+    <div class="app">
+      <div class="header"><h1>Pensieve</h1><span class="count" id="count"></span></div>
+      <div class="reel" id="reel"><div class="reel-track" id="reelTrack"></div></div>
+      <div class="lens" id="lens"></div>
+    </div>
+
+    <!-- THUMB-WHEEL — native-scroll dial (B). Buttons + track built by JS. -->
+    <div class="corner-glow" id="cornerGlow"></div>
+    <div class="wheel" id="wheel"></div>
+    <div class="wheel-label" id="wheelLabel"></div>
+
+    <!-- design-mode overlay (shown only while dragging the hub to resize) -->
+    <svg class="design-layer" id="designLayer" aria-hidden="true">
+      <circle id="dRing" class="ring" cx="0" cy="0" r="0"/>
+      <line id="dSpoke" class="spoke" x1="0" y1="0" x2="0" y2="0"/>
+      <circle id="dDot" class="dot" cx="0" cy="0" r="4"/>
+    </svg>
+    <div class="design-num" id="designNum"></div>
+
+    <!-- adjust grip — overlays the centred button, live only when the empty-circle
+         option ("Adjust") is centred: drag = resize · hold ~2s = switch side -->
+    <div class="grip" id="adjustGrip" aria-hidden="true">
+      <svg class="fill" viewBox="0 0 74 74"><circle cx="37" cy="37" r="34" pathLength="1"/></svg>
+    </div>
+
+    <!-- SYNC PANEL -->
+    <div class="sync-panel" id="syncPanel" data-state="synced">
+      <div class="ph">
+        <span class="glyph"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path class="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"/></svg></span>
+        <div style="min-width:0;flex:1">
+          <div class="title" id="spTitle">Everything's backed up.</div>
+          <div class="sub" id="spSub">Your memories are safe in the cloud.</div>
+        </div>
+      </div>
+      <button class="primary" id="spPrimary">Back up now</button>
+      <div class="foot">
+        <span class="acct">jakub.cervenka@icloud.com</span>
+        <button id="spSignout">Sign out</button>
+      </div>
+    </div>
+
+    <!-- SYNC SPELL -->
+    <div class="spell" id="spell">
+      <div class="ring" id="spellRing"></div>
+      <svg class="rune" id="spellRune" viewBox="0 0 24 24" fill="none"><path class="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"/></svg>
+      <div class="label" id="spellLabel">Weaving to the cloud…</div>
+    </div>
+
+    <!-- ACCIO -->
+    <div class="accio" id="accio">
+      <div class="accio-results" id="accioResults"></div>
+      <div class="summon">
+        <span class="sigil"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" opacity=".5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></span>
+        <input id="accioInput" type="text" placeholder="Accio a memory…" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search" enterkeyhint="search" />
+        <button class="mic" id="accioMic" aria-label="Search by voice"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/></svg></button>
+      </div>
+    </div>
+
+    <!-- NOTE VIEW (read + write) -->
+    <div class="note" id="note">
+      <div class="note-top">
+        <button class="back" id="noteBack"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 5-7 7 7 7"/></svg></button>
+        <div class="note-saved" id="noteSaved"><i></i> Saved</div>
+      </div>
+      <div class="note-surface" id="noteSurface">
+        <div class="note-title" id="noteTitle" contenteditable="true" spellcheck="false"></div>
+        <div class="note-date" id="noteDate"></div>
+        <div class="note-body" id="noteBody" contenteditable="true" spellcheck="false"></div>
+      </div>
+      <button class="note-mic" id="noteMic" aria-label="Dictate"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/></svg></button>
+    </div>
+
+    <!-- TABS SWITCHER -->
+    <div class="switcher" id="switcher">
+      <h2>Open</h2>
+      <p class="hint">Swipe a card up to close · tap to open</p>
+      <div class="tabs-rail" id="tabsRail"></div>
+      <div class="switcher-done"><button id="switcherDone">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 5-7 7 7 7"/></svg>
+        Back</button></div>
+    </div>
+
+    <div class="thread" id="thread"></div>
+    <div class="home-indicator"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (s,r=document)=>r.querySelector(s);
+  const root = $("#root");
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const haptic = (ms=8)=>{ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} };
+
+  /* ---- live keyboard inset (so bars ride above the keyboard on real phones) -- */
+  function updateKB(){
+    const vv = window.visualViewport;
+    if(!vv){ return; }
+    const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    root.style.setProperty("--kb", kb + "px");
+  }
+  if(window.visualViewport){
+    visualViewport.addEventListener("resize", updateKB);
+    visualViewport.addEventListener("scroll", updateKB);
+  }
+
+  /* ---- Flask SVG ---------------------------------------------------------- */
+  const SHAPES = ["round","erlenmeyer","vial","potion","teardrop","beaker"];
+  const CAT_HUE = { "--cat-blue":"212 70% 68%","--cat-purple":"270 55% 74%","--cat-green":"145 50% 62%",
+    "--cat-pink":"330 60% 74%","--cat-orange":"24 85% 68%","--cat-yellow":"45 80% 66%","--cat-red":"0 70% 70%","--cat-gold":"43 92% 55%" };
+  function flaskSVG(shape, hue, fill){
+    const id="g"+Math.random().toString(36).slice(2,8);
+    const liquid=`hsl(${hue})`, deep=`hsl(${hue.split(" ")[0]} ${hue.split(" ")[1]} 46%)`;
+    const shapes={
+      round:{ body:"M24 10v10a14 14 0 1 1-0.001 0Z M18 10h12", top:20, bottom:58, clip:"M24 20a14 14 0 1 0 0.001 0Z" },
+      erlenmeyer:{ body:"M20 8h8v14l9 30a3 3 0 0 1-3 4H14a3 3 0 0 1-3-4l9-30z M19 8h10", top:22, bottom:54, clip:"M20 22 12 52a3 3 0 0 0 3 4h18a3 3 0 0 0 3-4L28 22z" },
+      vial:{ body:"M18 8h12v40a6 6 0 0 1-12 0z M17 8h14", top:18, bottom:52, clip:"M18 18h12v30a6 6 0 0 1-12 0z" },
+      potion:{ body:"M21 8h6v6c5 2 9 7 9 14a15 15 0 0 1-30 0c0-7 4-12 9-14z M20 8h8", top:22, bottom:58, clip:"M24 22a13 13 0 1 0 0.001 0Z" },
+      teardrop:{ body:"M24 8c6 10 11 17 11 26a11 11 0 0 1-22 0c0-9 5-16 11-26z", top:24, bottom:56, clip:"M24 24c4 6 9 11 9 18a9 9 0 0 1-18 0c0-7 5-12 9-18z" },
+      beaker:{ body:"M15 10h18l-2 4v34a4 4 0 0 1-4 4H21a4 4 0 0 1-4-4V14z M14 10h20 M31 20h4", top:18, bottom:52, clip:"M17 18h14v30a4 4 0 0 1-4 4H21a4 4 0 0 1-4-4z" }
+    };
+    const s=shapes[shape]||shapes.round, fh=s.bottom-s.top;
+    const top=s.bottom-Math.max(6, fh*Math.max(.12,Math.min(1,fill)));
+    return `<svg viewBox="0 0 48 68" width="100%" height="100%" aria-hidden="true"><defs>
+      <radialGradient id="${id}g" cx="50%" cy="60%" r="60%"><stop offset="0%" stop-color="${liquid}" stop-opacity=".55"/><stop offset="100%" stop-color="${liquid}" stop-opacity="0"/></radialGradient>
+      <linearGradient id="${id}l" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${liquid}" stop-opacity=".9"/><stop offset="100%" stop-color="${deep}" stop-opacity=".95"/></linearGradient>
+      <clipPath id="${id}c"><path d="${s.clip}"/></clipPath></defs>
+      <ellipse cx="24" cy="46" rx="22" ry="22" fill="url(#${id}g)"/>
+      <g clip-path="url(#${id}c)"><rect x="0" y="${top}" width="48" height="${s.bottom-top+2}" fill="url(#${id}l)"/>
+        <rect x="0" y="${top}" width="48" height="2" fill="#fff" opacity=".25"/>
+        <path d="M24 ${s.bottom} C 20 ${s.bottom-10}, 28 ${s.bottom-16}, 23 ${s.bottom-26} S 25 ${top+2}, 24 ${top}" stroke="#fff" stroke-width="1" fill="none" opacity=".5" stroke-linecap="round"/></g>
+      <path d="${s.body}" fill="hsl(216 20% 92% / .05)" stroke="hsl(216 30% 88% / .55)" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>
+      <rect x="19" y="${s.top+2}" width="2.4" height="${Math.max(8,fh*.5)}" rx="1.2" fill="#fff" opacity=".35" clip-path="url(#${id}c)"/></svg>`;
+  }
+
+  /* ---- Seed data (stand-ins for your real vault) -------------------------- */
+  const DATA = [
+    { t:"The bridge idea for the sync layer", c:"If each flask carries its own cTag, I never have to diff the whole vault — just ask Graph what moved since the last delta token. Lightweight by design.", cat:"--cat-blue", shape:"round", fill:.8, d:"2m ago" },
+    { t:"Why mornings feel heavier lately", c:"Noticed I open the day reacting instead of choosing. One line before coffee — what matters today — seems to reset it.", cat:"--cat-purple", shape:"erlenmeyer", fill:.6, d:"Today" },
+    { t:"Dad's story about the lighthouse", c:"He said the keeper never watched the sea — he watched the lamp. The job was to keep the light, not to fear the dark.", cat:"--cat-gold", shape:"potion", fill:.95, d:"Yesterday" },
+    { t:"Run — 6k, felt effortless", c:"Negative split without trying. Sleep was 7h40. The two are the same sentence.", cat:"--cat-green", shape:"vial", fill:.4, d:"Yesterday" },
+    { t:"A name for the coach mode", c:"Not 'assistant'. Something that reads the whole pensieve and tells me what I keep circling back to. 'The Mirror'?", cat:"--cat-pink", shape:"teardrop", fill:.5, d:"Mon" },
+    { t:"Groceries + the olive oil place", c:"The small tin from the Tuesday market, lemons, the sourdough starter needs feeding Thursday.", cat:"--cat-orange", shape:"beaker", fill:.3, d:"Mon" },
+    { t:"Half-dream: the glass library", c:"Rooms made of vials, each glowing a different colour. I could pour a memory from one shelf into another and it would change colour.", cat:"--cat-purple", shape:"potion", fill:.7, d:"Sun" },
+    { t:"Quote I don't want to lose", c:"'We are what we repeatedly do.' Stick it where the morning line lives.", cat:"--cat-yellow", shape:"vial", fill:.45, d:"Sun" },
+    { t:"The phone app is capture, not control", c:"Open, thumb, done. Everything at the bottom. The desktop can be the cathedral; the phone is the doorway.", cat:"--cat-blue", shape:"round", fill:.85, d:"Sat" },
+    { t:"Idea: flasks should breathe", c:"A barely-there scale pulse on the focused flask. Alive, not animated. 4s cycle, ease.", cat:"--cat-green", shape:"erlenmeyer", fill:.55, d:"Sat" },
+    { t:"Call Mara back about the trip", c:"She floated the last week of June. Check if the cabin by the water is still open before replying.", cat:"--cat-red", shape:"teardrop", fill:.35, d:"Fri" },
+    { t:"What 'extremely fast' really means", c:"Not benchmarks. It means the gap between having a thought and it being safe is near zero. Design for that gap.", cat:"--cat-blue", shape:"beaker", fill:.6, d:"Fri" }
+  ];
+  let uid = 0;
+  DATA.forEach(d => d.id = ++uid);
+  function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
+
+  /* =========================================================================
+     THE REEL — small uniform cards scroll under a fixed magnifier (.lens).
+     Focus = round(scrollTop / slot): deterministic, snaps, never misaligns.
+     ======================================================================= */
+  const reel = $("#reel"), reelTrack = $("#reelTrack"), lens = $("#lens");
+  $("#count").textContent = DATA.length + " memories";
+  const SLOT_H = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--slot")) || 84;
+  const LENS_OFFSET = 112;   // focal line: distance from the top of the reel to the glass
+
+  function cardHTML(d){
+    return `<div class="card">
+      <div class="flask">${flaskSVG(d.shape, CAT_HUE[d.cat], d.fill)}</div>
+      <div class="body"><div class="title">${esc(d.t||"New thought")}</div><div class="meta">${esc(d.d)}</div></div></div>`;
+  }
+  function renderReel(){
+    reelTrack.innerHTML = DATA.map(d => `<div class="slot" data-id="${d.id}">${cardHTML(d)}</div>`).join("");
+    reelTrack.querySelectorAll(".slot").forEach(slot => {
+      slot.addEventListener("click", () => { const d = DATA.find(x => x.id == slot.dataset.id); if (d) openNote(d); });
+    });
+    layoutReel();
+    focusIdx = -1;
+    updateLens(true);
+  }
+  function layoutReel(){
+    const H = reel.clientHeight || 500;
+    reelTrack.style.paddingTop = LENS_OFFSET + "px";
+    reelTrack.style.paddingBottom = Math.max(0, H - LENS_OFFSET - SLOT_H) + "px";
+    reel.style.scrollPaddingTop = LENS_OFFSET + "px";
+    lens.style.top = (reel.offsetTop + LENS_OFFSET) + "px";
+  }
+  let focusIdx = -1;
+  function updateLens(force){
+    const idx = Math.max(0, Math.min(DATA.length-1, Math.round(reel.scrollTop / SLOT_H)));
+    // mark the card directly under the glass so it doesn't peek out behind it
+    const slots = reelTrack.children;
+    for (let i=0;i<slots.length;i++){ const c = slots[i].firstElementChild; if(c) c.classList.toggle("under", i===idx); }
+    if (idx === focusIdx && !force) return;
+    focusIdx = idx;
+    const d = DATA[idx];
+    if(!d){ lens.className="lens empty"; lens.innerHTML="Nothing here yet."; return; }
+    lens.className = "lens";
+    lens.innerHTML = `<div class="lens-inner">
+      <div class="flask">${flaskSVG(d.shape, CAT_HUE[d.cat], d.fill)}</div>
+      <div class="body"><div class="title">${esc(d.t||"New thought")}</div><div class="meta">${esc(d.d)}</div>
+        <div class="snippet">${esc(d.c||"…")}</div></div></div>`;
+    if(!reduce){ lens.classList.add("pop"); }
+    lens.dataset.id = d.id;
+  }
+  let rafing = false;
+  reel.addEventListener("scroll", () => {
+    if (rafing) return; rafing = true;
+    requestAnimationFrame(() => { updateLens(false); rafing = false; });
+  }, { passive:true });
+
+  // The lens is the glass: drag on it scrolls the reel; a tap opens the focused memory.
+  let lDrag=false, lY=0, lStart=0, lMoved=0;
+  lens.addEventListener("pointerdown", e=>{ lDrag=true; lY=e.clientY; lStart=reel.scrollTop; lMoved=0; lens.setPointerCapture(e.pointerId); });
+  lens.addEventListener("pointermove", e=>{ if(!lDrag) return; const dy=e.clientY-lY; lMoved=Math.max(lMoved,Math.abs(dy)); reel.scrollTop = lStart - dy; });
+  const lensEnd = e=>{ if(!lDrag) return; lDrag=false;
+    if(lMoved < 8){ const d = DATA[focusIdx]; if(d) openNote(d); }
+    else { reel.scrollTo({ top: Math.round(reel.scrollTop/SLOT_H)*SLOT_H, behavior: reduce?"auto":"smooth" }); }
+  };
+  lens.addEventListener("pointerup", lensEnd);
+  lens.addEventListener("pointercancel", ()=>{ lDrag=false; });
+
+  /* =========================================================================
+     NOTE VIEW — one surface for reading + writing. Autosaves (no "Pour in").
+     ======================================================================= */
+  const note = $("#note"), noteTitle = $("#noteTitle"), noteBody = $("#noteBody"),
+        noteDate = $("#noteDate"), noteSaved = $("#noteSaved");
+  let current = null;
+  const openTabs = [];
+
+  function fmtNow(){
+    const n = new Date();
+    return n.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"}) + " · " +
+           n.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});
+  }
+  function pushTab(d){
+    const i = openTabs.findIndex(x => x.id === d.id);
+    if (i >= 0) openTabs.splice(i,1);
+    openTabs.unshift(d);
+    refreshTabCount();
+  }
+  function refreshTabCount(){
+    const el = $("#tabCount");
+    if (openTabs.length){ el.style.display="flex"; el.textContent = openTabs.length; }
+    else el.style.display="none";
+  }
+
+  function openNote(d){
+    current = d;
+    pushTab(d);
+    closeAccio(true); closeSwitcher(true);
+    noteTitle.textContent = d.t || "";
+    noteBody.innerHTML = d.fresh ? "" : `<p>${esc(d.c)}</p>`;
+    noteDate.textContent = d.when || (d.d === "Just now" ? fmtNow() : "Written " + d.d);
+    note.classList.add("open");
+  }
+  function openNewNote(dictate){
+    const d = { id:++uid, t:"", c:"", cat:randCat(), shape:SHAPES[Math.floor(Math.random()*SHAPES.length)], fill:.18, d:"Just now", when:fmtNow(), fresh:true, isNew:true };
+    conjure(() => {
+      openNote(d);
+      setTimeout(() => { noteTitle.focus(); if (dictate) startDictation(); }, 460);
+    });
+    haptic(10);
+  }
+  function randCat(){ const k=Object.keys(CAT_HUE); return k[Math.floor(Math.random()*k.length)]; }
+
+  let saveT = null;
+  function scheduleSave(){ noteSaved.classList.remove("show"); clearTimeout(saveT); saveT = setTimeout(commit, 450); }
+  function commit(){
+    if (!current) return;
+    current.t = (noteTitle.textContent||"").trim();
+    current.c = (noteBody.textContent||"").trim();
+    current.fill = Math.min(1, Math.max(.18, current.c.length/220));
+    current.d = "Just now";
+    if (current.isNew && (current.t || current.c)){
+      current.isNew = false; current.fresh = false;
+      DATA.unshift(current);
+      $("#count").textContent = DATA.length + " memories";
+      renderReel();
+      reel.scrollTo({ top:0, behavior: reduce?"auto":"smooth" });
+    } else {
+      renderReel();
+    }
+    markDirty();
+    noteSaved.classList.add("show");
+    setTimeout(()=>noteSaved.classList.remove("show"), 1400);
+  }
+  noteTitle.addEventListener("input", scheduleSave);
+  noteBody.addEventListener("input", scheduleSave);
+
+  // Typing mode: focus hides the wheel + note chrome; blur restores.
+  function setTyping(on){ root.classList.toggle("typing", on); }
+  [noteTitle, noteBody].forEach(el => {
+    el.addEventListener("focus", () => setTyping(true));
+    el.addEventListener("blur", () => setTyping(false));
+  });
+  noteDate.addEventListener("click", () => { noteTitle.blur(); noteBody.blur(); });
+  $("#noteBack").addEventListener("click", () => { commit(); note.classList.remove("open"); setTyping(false); current = null; });
+
+  /* ---- the "thought-thread" the wand draws when conjuring ---- */
+  const thread = $("#thread");
+  function conjure(cb){
+    if (reduce){ cb(); return; }
+    const wandEl = $('.wact[data-key="wand"]');
+    const w = wandEl.getBoundingClientRect(), sc = root.getBoundingClientRect();
+    const x = w.left + w.width/2 - sc.left, y = w.top + w.height/2 - sc.top;
+    const svg = document.createElementNS("http://www.w3.org/2000/svg","svg");
+    svg.setAttribute("width", sc.width); svg.setAttribute("height", sc.height); svg.style.cssText="position:absolute;inset:0";
+    svg.innerHTML = `<defs><linearGradient id="thr" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="hsl(218 100% 72%)" stop-opacity="0"/><stop offset="60%" stop-color="hsl(215 85% 74%)" stop-opacity=".9"/><stop offset="100%" stop-color="#fff"/></linearGradient></defs>
+      <path d="M${x} ${y} C ${x-40} ${y-160}, ${x+60} ${y-300}, ${sc.width/2} 150" stroke="url(#thr)" stroke-width="2.5" fill="none" stroke-linecap="round" style="filter:drop-shadow(0 0 6px hsl(218 100% 72% / .8))"/>`;
+    thread.appendChild(svg);
+    const p = svg.querySelector("path");
+    p.style.strokeDasharray="600";
+    p.animate([{strokeDashoffset:600},{strokeDashoffset:0}],{duration:420,easing:"cubic-bezier(.22,1,.36,1)"});
+    p.animate([{opacity:1,offset:.6},{opacity:0}],{duration:640,easing:"ease-out"}).onfinish=()=>svg.remove();
+    setTimeout(cb, 170);
+  }
+
+  /* =========================================================================
+     THE THUMB-WHEEL — buttons ARE the handles. (round-7)
+     Rotation happens ONLY when you grab a menu button and swing it around the
+     arc; the button sticks to your finger (angular/1:1) and releases with a
+     light inertial glide that settles onto the nearest detent. There is NO big
+     catch-zone — every gap, the centre, around, and outside the ring all fall
+     straight through to the background (the reel scrolls normally).
+     "Adjust" is a 6th option (empty circle); when it is centred a grip over it
+     gives DRAG = resize, HOLD ~2s = switch side. Tapping a button runs it in
+     place; it never scrolls to it.
+     ======================================================================= */
+  (function wheelEngine(){
+    const CFG = {
+      STEP_DEG:31, CENTER_R:150, MAX_VIS:2.25,
+      HUB_RIGHT:6, HUB_BOTTOM:30, LABEL_DROP:46,
+      R_MIN:118, R_MAX:300, FLIP_MS:2000, HOLD_MS:420,
+      TAP_DEG:4,                 // total finger rotation (deg) under this = a tap
+      FRICTION:3.0, STIFFNESS:115, DAMPING:1.0, MAX_VEL:30, REST_V:0.02, REST_X:0.004,
+
+      /* ---- COLLAPSE & EXPAND · "Fan-fold (umbrella)" ---------------------
+         Every button decomposes its drag (same pending-threshold as the grip):
+         tangential swing = rotate · radial IN = fold shut · radial OUT = fan open.
+         The fold closes the arc like an umbrella: the angular STEP shrinks to ~0
+         AND the radius eases inward, so all buttons sweep together onto the hero
+         wand, which rests a small radius out from the active corner at centre. */
+      COLLAPSE_R:94,             // collapsed radius — the lone wand's thumb-rest, small out from the corner
+      PENDING_PX:8,              // radial/tangential travel (px) before a button drag commits to a mode
+      FOLD_TRIGGER:0.12,         // a SHORT radial drag that moves collapseT past this completes to the far end
+      FOLD_STAGGER:0.34,         // stagger: outer buttons lag this fraction of the fold (arrive last / leave first)
+      FOLD_STAGGER_SPAN:2.4,     // arc-offset mapped to full lag (≈ the outermost visible button)
+      FOLD_SPLAY:0.6,            // expand overshoot: how far past rest the arc fans before settling
+      FOLD_OVERSHOOT:0.12,       // allowed spring travel beyond [0,1] (the life/overshoot band)
+      // the fold's own spring (separate from rotation) — underdamped → springy, alive, with a tiny end overshoot
+      C_STIFFNESS:150, C_DAMPING:0.62, C_FRICTION:2.0, C_REST_V:0.02, C_REST_X:0.004
+    };
+    const ICONS = {
+      accio:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" opacity=".5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>`,
+      wand:`<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19 15 9" stroke-opacity=".95"/><path d="M17.5 4.5v4M15.5 6.5h4" stroke-opacity=".9"/><circle cx="9" cy="15" r=".6" fill="#fff" stroke="none" opacity=".8"/></svg>`,
+      sync:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path class="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"/></svg>`,
+      cards:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="15" rx="2.5"/><path d="M8 6V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-1" opacity=".55"/></svg>`,
+      home:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8c3 2.2 6 2.2 7 2.2S16 10.2 19 8"/><path d="M5 13c3 2.2 6 2.2 7 2.2S16 15.2 19 13"/><path d="M5 18c3 2.2 6 2.2 7 2.2S16 20.2 19 18"/></svg>`,
+      adjust:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8" stroke-dasharray="2.6 3"/><path d="M12 8v8M8 12h8" opacity=".55"/></svg>`
+    };
+    const ORDER  = ["accio","wand","sync","cards","home","adjust"];
+    const LABELS = { accio:"Search", wand:"New", sync:"Sync", cards:"Cards", home:"Home", adjust:"Adjust" };
+    const HERO = "wand", N = ORDER.length, DEG = Math.PI/180;
+
+    const store = {
+      get(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:v; }catch(e){ return d; } },
+      set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+    };
+    let side = store.get("pensieve.wheelSide","right");
+    let RADIUS = Math.max(CFG.R_MIN, Math.min(CFG.R_MAX, parseFloat(store.get("pensieve.wheelRadius","150"))||150));
+
+    const wheel=$("#wheel"), wheelLabel=$("#wheelLabel"),
+          grip=$("#adjustGrip"), gripFill=$("#adjustGrip .fill circle"),
+          design=$("#designLayer"), designNum=$("#designNum"), dRing=$("#dRing"), dSpoke=$("#dSpoke"), dDot=$("#dDot");
+    const els = {};
+    ORDER.forEach(key => { const el=document.createElement("div");
+      el.className="wact"+(key===HERO?" hero":"")+(key==="adjust"?" adjust":""); el.dataset.key=key; el.innerHTML=ICONS[key]; wheel.appendChild(el); els[key]=el; });
+    els.cards.insertAdjacentHTML("beforeend", '<span class="tab-count" id="tabCount" style="display:none">0</span>');
+
+    let W=0,H=0,pivotX=0,pivotY=0,sRect=null;
+    function applySide(){ root.classList.toggle("side-left", side==="left"); }
+    function cacheGeom(){ sRect=root.getBoundingClientRect(); W=sRect.width; H=sRect.height;
+      pivotX = side==="right" ? W-CFG.HUB_RIGHT : CFG.HUB_RIGHT; pivotY = H-CFG.HUB_BOTTOM; }
+    const centerDeg = () => side==="right" ? CFG.CENTER_R : (180-CFG.CENTER_R);
+    const sideSign  = () => side==="right" ? 1 : -1;
+    function angleDeg(clientX,clientY){ const lx=(clientX-sRect.left)-pivotX, ly=pivotY-(clientY-sRect.top); return Math.atan2(ly,lx)/DEG; }
+
+    let pos = ORDER.indexOf("wand"), vel = 0, lastCentered = -1;
+    // fold state: 0 = full arc at RADIUS · 1 = everything folded onto the lone wand at COLLAPSE_R
+    let collapseT = 0, collapseV = 0, collapseTarget = 0;
+    const clamp = (v,a,b)=> v<a?a:(v>b?b:v);
+    function wrap(o){ o=((o%N)+N)%N; if(o>N/2) o-=N; return o; }
+    function centredIndex(){ return ((Math.round(pos)%N)+N)%N; }
+    function centredKey(){ return ORDER[centredIndex()]; }
+    const settled = () => Math.abs(pos-Math.round(pos)) < .22;
+
+    function layoutArc(){
+      const C=centerDeg(), sgn=sideSign();
+      // expand-side overshoot (collapseT dips below 0 as the fan springs open) → a uniform splay past rest
+      const openBoost = collapseT<0 ? -collapseT : 0;
+      const splay = 1 + openBoost*CFG.FOLD_SPLAY;
+      for(let i=0;i<N;i++){
+        const key=ORDER[i], el=els[key], o=wrap(i-pos), ao=Math.abs(o), isHero=(key===HERO);
+        // hero is never culled while folding — it is the lone survivor at collapseT=1
+        if(ao>CFG.MAX_VIS && !(isHero && collapseT>0.01)){ el.style.opacity="0"; el.style.pointerEvents="none"; continue; }
+        // staggered per-button fold progress: outer buttons (larger ao) start later → arrive last, leave first
+        const lead = Math.min(1, ao/CFG.FOLD_STAGGER_SPAN);
+        const start = lead*CFG.FOLD_STAGGER, win = 1-CFG.FOLD_STAGGER;
+        let ct = clamp((collapseT-start)/win, 0, 1); ct = ct*ct*(3-2*ct);   // smooth window
+        // fan-fold: STEP shrinks toward 0 and radius eases inward together (umbrella shut)
+        const stepEff = CFG.STEP_DEG*(1-ct)*splay;
+        const r = (RADIUS + (CFG.COLLAPSE_R-RADIUS)*ct)*(1 + openBoost*CFG.FOLD_SPLAY*0.5);
+        const ang=(C + sgn*o*stepEff)*DEG;
+        const x=pivotX+r*Math.cos(ang), y=pivotY-r*Math.sin(ang);
+        const baseScale=Math.max(.52,1-.24*ao), baseOp=Math.max(0,1-.42*ao);
+        const scale = baseScale*(isHero?1:(1-0.4*ct));
+        const op = isHero ? (baseOp+(1-baseOp)*ct) : baseOp*(1-ct);   // hero → full & others → gone as they stack
+        el.style.transform=`translate3d(${x}px,${y}px,0) translate(-50%,-50%) scale(${scale})`;
+        el.style.opacity=op;
+        el.style.zIndex=String(100-Math.round(ao*10) + (isHero?Math.round(ct*120):0));
+        el.style.pointerEvents = (op>.25 || (isHero && collapseT>0.4)) ? "auto" : "none";
+        el.classList.toggle("centered", ao<.5);
+      }
+      const ca=C*DEG, cx=pivotX+RADIUS*Math.cos(ca), cy=pivotY-RADIUS*Math.sin(ca);
+      wheelLabel.style.transform=`translate3d(${cx}px,${cy+CFG.LABEL_DROP}px,0) translate(-50%,-50%)`;
+      wheelLabel.textContent=LABELS[centredKey()];
+      wheelLabel.style.opacity = (settled() && collapseT<0.4) ? "1" : "0";
+      grip.style.transform=`translate3d(${cx}px,${cy}px,0) translate(-50%,-50%)`;
+      grip.classList.toggle("live", centredKey()==="adjust" && Math.abs(pos-Math.round(pos))<.3 && collapseT<0.2);
+      const ci=centredIndex(); if(ci!==lastCentered){ lastCentered=ci; if(settled()) haptic(6); }
+    }
+
+    /* ---- inertia loop (only runs after release; sleeps at rest) ---- */
+    let running=false, lastT=0, raf=null;
+    function wake(){ if(running) return; running=true; lastT=performance.now(); raf=requestAnimationFrame(frame); }
+    function stopLoop(){ running=false; if(raf) cancelAnimationFrame(raf); raf=null; }
+    function frame(now){ if(!running) return;
+      let dt=(now-lastT)/1000; lastT=now; if(dt>0.05) dt=0.05; if(dt<=0) dt=1/60;
+      // rotation spring → nearest detent
+      const target=Math.round(pos), dist=target-pos, k=CFG.STIFFNESS, c=2*Math.sqrt(k)*CFG.DAMPING;
+      vel += (k*dist - c*vel)*dt; vel *= Math.exp(-CFG.FRICTION*dt); pos += vel*dt;
+      const posRest = Math.abs(vel)<CFG.REST_V && Math.abs(Math.round(pos)-pos)<CFG.REST_X;
+      // fold spring → the nearest end (0/1); underdamped so it fans with a tiny overshoot
+      const cd=collapseTarget-collapseT, ck=CFG.C_STIFFNESS, cc=2*Math.sqrt(ck)*CFG.C_DAMPING;
+      collapseV += (ck*cd - cc*collapseV)*dt; collapseV *= Math.exp(-CFG.C_FRICTION*dt); collapseT += collapseV*dt;
+      if(collapseT < -CFG.FOLD_OVERSHOOT){ collapseT=-CFG.FOLD_OVERSHOOT; if(collapseV<0) collapseV=0; }
+      if(collapseT > 1+CFG.FOLD_OVERSHOOT){ collapseT=1+CFG.FOLD_OVERSHOOT; if(collapseV>0) collapseV=0; }
+      let colRest = Math.abs(collapseV)<CFG.C_REST_V && Math.abs(collapseTarget-collapseT)<CFG.C_REST_X;
+      if(colRest){ collapseT=collapseTarget; collapseV=0; }
+      layoutArc();
+      if(posRest && colRest){ pos=Math.round(pos); vel=0; running=false; layoutArc(); return; }
+      raf=requestAnimationFrame(frame);
+    }
+
+    /* ---- grab a button → rotate (button sticks to finger); release → glide ---- */
+    let drag=null, holdTimer=null, heldFired=false;
+    function isCentred(key){ return centredKey()===key && settled(); }
+    function startHold(key){ clearTimeout(holdTimer); heldFired=false;
+      holdTimer=setTimeout(()=>{ if(drag && drag.movedDeg<CFG.TAP_DEG){ heldFired=true;
+        els[key].classList.add("holding"); flash(key); haptic(16);
+        if(key==="wand") openNewNote(true); else if(key==="sync") openPanel(); } }, CFG.HOLD_MS); }
+    function flash(key){ const el=els[key]; if(!el) return; el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+    function execAction(key){ if(key==="adjust") return;
+      flash(key); haptic(10);
+      if(key==="wand") openNewNote(false);
+      else if(key==="accio") openAccio();
+      else if(key==="sync") syncTap();
+      else if(key==="cards") toggleSwitcher();
+      else if(key==="home") goHome();
+    }
+    // on release, finish the fold to the nearest end; a SHORT radial drag still completes it
+    function settleCollapse(fromDrag){
+      if(fromDrag && fromDrag.mode==="radial"){
+        const delta = collapseT - fromDrag.startCollapse;
+        if(Math.abs(delta) > CFG.FOLD_TRIGGER) collapseTarget = delta>0 ? 1 : 0;
+        else collapseTarget = Math.round(fromDrag.startCollapse);
+      } else {
+        collapseTarget = collapseT>=0.5 ? 1 : 0;
+      }
+    }
+    function onBtnDown(e){
+      const key=e.currentTarget.dataset.key; cacheGeom(); stopLoop();
+      drag={ key, mode:"pending", startA:angleDeg(e.clientX,e.clientY), startR:fingerR(e.clientX,e.clientY),
+             lastA:angleDeg(e.clientX,e.clientY), lastPos:pos, lastT:(e.timeStamp||performance.now()),
+             movedDeg:0, startCollapse:collapseT };
+      vel=0; collapseV=0; heldFired=false;
+      try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){}
+      e.preventDefault(); e.stopPropagation();
+      if((key==="wand"||key==="sync") && isCentred(key)) startHold(key);
+    }
+    function onBtnMove(e){ if(!drag) return; e.preventDefault();
+      const A=angleDeg(e.clientX,e.clientY), curR=fingerR(e.clientX,e.clientY), now=e.timeStamp||performance.now();
+      if(drag.mode==="pending"){
+        // same radial-vs-tangential decomposition the grip uses
+        const dRad=curR-drag.startR;
+        let da=A-drag.startA; while(da>180)da-=360; while(da<-180)da+=360;
+        const arc=da*DEG*drag.startR;                        // tangential travel (px)
+        drag.movedDeg = Math.max(drag.movedDeg, Math.abs(da));
+        if(Math.max(Math.abs(dRad),Math.abs(arc))>CFG.PENDING_PX){
+          if(holdTimer) clearTimeout(holdTimer);
+          drag.mode = Math.abs(dRad)>=Math.abs(arc) ? "radial" : "rotate";
+          drag.lastA=A; drag.lastPos=pos; drag.lastT=now;
+        }
+        return;
+      }
+      if(drag.mode==="radial"){
+        // radial IN (finger toward the corner → curR shrinks) folds; OUT expands. Side-neutral (distance from pivot).
+        const dRad=curR-drag.startR, span=Math.max(1, RADIUS-CFG.COLLAPSE_R);
+        collapseT = clamp(drag.startCollapse + (-dRad)/span, 0, 1);
+        layoutArc();
+        return;
+      }
+      // rotate — button sticks to the finger (angular/1:1)
+      let d=A-drag.lastA; while(d>180)d-=360; while(d<-180)d+=360; drag.lastA=A;
+      drag.movedDeg += Math.abs(d);
+      pos += -d/(sideSign()*CFG.STEP_DEG);
+      let dt=(now-drag.lastT)/1000; if(dt<=0) dt=1/60;
+      vel = vel*0.6 + ((pos-drag.lastPos)/dt)*0.4; drag.lastPos=pos; drag.lastT=now;
+      layoutArc();
+    }
+    function onBtnUp(e){ if(!drag) return; const d=drag; drag=null; clearTimeout(holdTimer);
+      els[d.key] && els[d.key].classList.remove("holding");
+      if(heldFired){ heldFired=false; settleCollapse(); wake(); return; }
+      if(d.mode==="radial"){ settleCollapse(d); wake(); return; }            // complete fold/unfold to nearest end
+      if(d.mode==="pending" && d.movedDeg < CFG.TAP_DEG){ vel=0; execAction(d.key); settleCollapse(); wake(); return; }  // tap — run in place
+      vel = Math.max(-CFG.MAX_VEL, Math.min(CFG.MAX_VEL, vel)); settleCollapse(); wake();   // fling → glide + settle
+    }
+    ORDER.forEach(key => { const el=els[key];
+      el.addEventListener("pointerdown", onBtnDown);
+      el.addEventListener("pointermove", onBtnMove);
+      el.addEventListener("pointerup", onBtnUp);
+      el.addEventListener("pointercancel", onBtnUp);
+    });
+
+    /* ---- the adjust grip (live only when "Adjust" is centred):
+           HOLD = flip side · RADIAL drag (straight out/in) = resize ·
+           TANGENTIAL drag (swing sideways) = rotate the wheel like any button. ---- */
+    let gDrag=false, gMode="", gA0=0, gR0=0, gLastA=0, gLastPos=0, gLastT=0, flipRAF=null, flipFired=false;
+    function setFill(p){ gripFill.style.strokeDashoffset = String(1 - Math.max(0,Math.min(1,p))); }
+    function resetFill(){ if(flipRAF) cancelAnimationFrame(flipRAF); flipRAF=null; setFill(0); grip.classList.remove("holding"); }
+    function startFlipFill(){ flipFired=false; grip.classList.add("holding"); const begin=performance.now();
+      if(flipRAF) cancelAnimationFrame(flipRAF);
+      (function tick(now){ if(gMode!=="pending") return; const p=Math.min(1,(now-begin)/CFG.FLIP_MS); setFill(p);
+        if(p>=1){ if(!flipFired){ flipFired=true; doFlip(); } return; } flipRAF=requestAnimationFrame(tick); })(begin); }
+    function doFlip(){ side = side==="right" ? "left" : "right"; store.set("pensieve.wheelSide", side);
+      haptic(30); applySide(); cacheGeom(); layoutArc(); resetFill(); }
+    function showDesign(on){ design.classList.toggle("on",on); designNum.classList.toggle("on",on); }
+    function fingerR(cx,cy){ return Math.hypot((cx-sRect.left)-pivotX, (cy-sRect.top)-pivotY); }
+    function paintDesign(cx,cy){
+      let r=fingerR(cx,cy); r=Math.max(CFG.R_MIN,Math.min(CFG.R_MAX,r)); RADIUS=r;
+      dRing.setAttribute("cx",pivotX); dRing.setAttribute("cy",pivotY); dRing.setAttribute("r",r);
+      const ca=centerDeg()*DEG, ex=pivotX+r*Math.cos(ca), ey=pivotY-r*Math.sin(ca);
+      dSpoke.setAttribute("x1",pivotX); dSpoke.setAttribute("y1",pivotY); dSpoke.setAttribute("x2",ex); dSpoke.setAttribute("y2",ey);
+      dDot.setAttribute("cx",ex); dDot.setAttribute("cy",ey);
+      designNum.style.left=ex+"px"; designNum.style.top=(ey-24)+"px"; designNum.textContent=Math.round(r)+" px";
+      layoutArc();
+    }
+    grip.addEventListener("pointerdown", e=>{ if(!grip.classList.contains("live")) return;
+      e.preventDefault(); e.stopPropagation(); cacheGeom(); stopLoop();
+      gDrag=true; gMode="pending"; gA0=angleDeg(e.clientX,e.clientY); gR0=fingerR(e.clientX,e.clientY);
+      gLastA=gA0; gLastPos=pos; gLastT=(e.timeStamp||performance.now()); vel=0;
+      try{ grip.setPointerCapture(e.pointerId); }catch(_){}
+      startFlipFill(); });
+    grip.addEventListener("pointermove", e=>{ if(!gDrag) return; e.preventDefault();
+      const A=angleDeg(e.clientX,e.clientY), curR=fingerR(e.clientX,e.clientY), now=e.timeStamp||performance.now();
+      if(gMode==="pending"){
+        const dRad=curR-gR0; let da=A-gA0; while(da>180)da-=360; while(da<-180)da+=360;
+        const arc=da*DEG*gR0;                                   // tangential travel (px)
+        if(Math.max(Math.abs(dRad),Math.abs(arc))>8){ resetFill();
+          if(Math.abs(dRad)>=Math.abs(arc)){ gMode="resize"; showDesign(true); }
+          else { gMode="rotate"; gLastA=A; gLastPos=pos; gLastT=now; }
+        }
+      }
+      if(gMode==="resize"){ paintDesign(e.clientX,e.clientY); }
+      else if(gMode==="rotate"){ let d=A-gLastA; while(d>180)d-=360; while(d<-180)d+=360; gLastA=A;
+        pos += -d/(sideSign()*CFG.STEP_DEG);
+        let dt=(now-gLastT)/1000; if(dt<=0) dt=1/60; vel=vel*0.6+((pos-gLastPos)/dt)*0.4; gLastPos=pos; gLastT=now;
+        layoutArc();
+      }
+    });
+    function gripEnd(e){ if(!gDrag) return; gDrag=false;
+      try{ grip.releasePointerCapture(e.pointerId); }catch(_){}
+      if(gMode==="resize"){ showDesign(false); store.set("pensieve.wheelRadius", String(Math.round(RADIUS))); layoutArc(); }
+      else if(gMode==="rotate"){ vel=Math.max(-CFG.MAX_VEL,Math.min(CFG.MAX_VEL,vel)); resetFill(); gMode=""; wake(); return; }
+      resetFill(); gMode=""; }
+    grip.addEventListener("pointerup", gripEnd);
+    grip.addEventListener("pointercancel", gripEnd);
+
+    /* ---- boot ---- */
+    function boot(){ applySide(); cacheGeom(); pos=ORDER.indexOf("wand"); vel=0; collapseT=0; collapseV=0; collapseTarget=0; setFill(0); layoutArc(); }
+    requestAnimationFrame(boot);
+    window.addEventListener("resize", () => { cacheGeom(); layoutArc(); });
+    window.__wheel = { boot, flip:doFlip, layout:layoutArc,
+      get pos(){ return pos; }, set pos(v){ pos=v; layoutArc(); },
+      get side(){ return side; }, get radius(){ return RADIUS; }, get centred(){ return centredKey(); },
+      get collapseT(){ return collapseT; }, set collapseT(v){ collapseT=v; layoutArc(); },
+      fold(v){ collapseTarget=clamp(v,0,1); wake(); } };
+  })();
+
+  function goHome(){
+    closeAccio(true); closeSwitcher(true);
+    if (current) commit();
+    note.classList.remove("open"); setTyping(false); current=null;
+    reel.scrollTo({ top:0, behavior: reduce?"auto":"smooth" });
+    haptic(8);
+  }
+
+  /* =========================================================================
+     ACCIO — opens the bar AND the keyboard, caret ready (synchronous focus).
+     ======================================================================= */
+  const accio=$("#accio"), accioInput=$("#accioInput"), accioResults=$("#accioResults");
+  function openAccio(){
+    accio.classList.add("open"); renderAccio(""); haptic(8);
+    setTyping(true);
+    accioInput.focus();           // synchronous → iOS raises the keyboard
+  }
+  function closeAccio(silent){ accio.classList.remove("open"); accioInput.value=""; accioInput.blur(); if(!silent) setTyping(false); }
+  accio.addEventListener("click", e => { if(e.target===accio) closeAccio(); });
+  accioInput.addEventListener("focus", ()=> setTyping(true));
+  accioInput.addEventListener("blur", ()=>{ if(!accio.classList.contains("open")) setTyping(false); });
+  accioInput.addEventListener("keydown", e => { if(e.key==="Escape") closeAccio(); });
+  function hl(t,q){ if(!q) return esc(t); const i=t.toLowerCase().indexOf(q.toLowerCase()); if(i<0) return esc(t);
+    return esc(t.slice(0,i))+"<mark>"+esc(t.slice(i,i+q.length))+"</mark>"+esc(t.slice(i+q.length)); }
+  function renderAccio(q){
+    q=q.trim();
+    const m = DATA.filter(d => !q || (d.t+" "+d.c).toLowerCase().includes(q.toLowerCase()));
+    accioResults.innerHTML="";
+    if(!m.length){ accioResults.innerHTML=`<div class="accio-empty">No flask holds “${esc(q)}” — yet.</div>`; return; }
+    m.slice(0,8).forEach((d,i)=>{
+      const row=document.createElement("div"); row.className="hit"; row.style.animationDelay=(i*30)+"ms";
+      row.innerHTML=`<div class="flask">${flaskSVG(d.shape,CAT_HUE[d.cat],d.fill)}</div>
+        <div><div class="title">${hl(d.t,q)}</div><div class="meta">${esc(d.d)}</div></div>`;
+      row.addEventListener("click", ()=> openNote(d));
+      accioResults.appendChild(row);
+    });
+  }
+  accioInput.addEventListener("input", ()=>renderAccio(accioInput.value));
+
+  /* =========================================================================
+     TABS SWITCHER — Arc-style; swipe a card UP to close; "Back" returns home.
+     ======================================================================= */
+  const switcher=$("#switcher"), tabsRail=$("#tabsRail");
+  function toggleSwitcher(){ switcher.classList.contains("open") ? closeSwitcher() : openSwitcher(); }
+  function openSwitcher(){ renderTabs(); switcher.classList.add("open"); haptic(8); }
+  function closeSwitcher(silent){ switcher.classList.remove("open"); }
+  $("#switcherDone").addEventListener("click", ()=> closeSwitcher());
+  function renderTabs(){
+    tabsRail.innerHTML="";
+    if(!openTabs.length){ tabsRail.innerHTML=`<div class="tabs-empty">No open notes.<br>Tap the wand to begin one.</div>`; return; }
+    openTabs.forEach(d=>{
+      const c=document.createElement("div"); c.className="tab-card";
+      c.innerHTML=`<span class="close-hint">swipe up to close</span>
+        <div class="tx"><div class="flask">${flaskSVG(d.shape,CAT_HUE[d.cat],d.fill)}</div>
+          <div style="min-width:0"><div class="ttl">${esc(d.t||"New thought")}</div><div class="tdate">${esc(d.d)}</div></div></div>
+        <div class="tbody">${esc(d.c||"…")}</div>`;
+      let sy=0, dragging=false, moved=0;
+      c.addEventListener("click", ()=>{ if(Math.abs(moved)<8) openNote(d); });
+      c.addEventListener("pointerdown", e=>{ sy=e.clientY; dragging=true; moved=0; c.style.transition="none"; });
+      c.addEventListener("pointermove", e=>{ if(!dragging) return; moved=e.clientY-sy;
+        if(moved<0){ c.style.transform=`translateY(${moved}px)`; c.style.opacity=String(Math.max(.2,1+moved/260)); } });
+      const endDrag=()=>{ if(!dragging) return; dragging=false; c.style.transition="";
+        if(moved < -90){ c.style.transform="translateY(-120%)"; c.style.opacity="0";
+          const i=openTabs.findIndex(x=>x.id===d.id); if(i>=0) openTabs.splice(i,1);
+          refreshTabCount();
+          setTimeout(()=>{ renderTabs(); }, 240); haptic(12);
+        } else { c.style.transform=""; c.style.opacity=""; } };
+      c.addEventListener("pointerup", endDrag);
+      c.addEventListener("pointercancel", endDrag);
+      tabsRail.appendChild(c);
+    });
+  }
+
+  /* =========================================================================
+     SYNC — reflects the REAL device state (online/offline) + unsaved edits.
+       synced   — nothing to do
+       reminder — you've edited since the last back-up
+       syncing  — the cast is running
+       offline  — the device has no connection (navigator.onLine)
+     Tap sync → cast (when online). Hold / tap-when-offline → details.
+     ======================================================================= */
+  const syncWact = document.querySelector('.wact[data-key="sync"]'), syncPanel=$("#syncPanel"), spell=$("#spell");
+  let syncState = navigator.onLine ? "synced" : "offline";
+  let dirty = false;
+  function markDirty(){ dirty = true; if(syncState!=="syncing" && syncState!=="offline") setSync("reminder"); }
+  function setSync(s){
+    syncState=s;
+    syncWact.dataset.state=s; syncPanel.dataset.state=s;
+    paintPanel();
+  }
+  function paintPanel(){
+    const T=$("#spTitle"), S=$("#spSub"), pr=$("#spPrimary");
+    pr.disabled=false; pr.style.display="flex";
+    if(syncState==="synced"){ T.textContent="Everything's backed up."; S.textContent="Your memories are safe in the cloud."; pr.textContent="Back up now"; }
+    else if(syncState==="reminder"){ T.textContent="Changes ready to back up."; S.textContent="New writing lives on this device until you cast."; pr.textContent="Back up now"; }
+    else if(syncState==="syncing"){ T.textContent="Backing up…"; S.textContent="Weaving your memories to the cloud."; pr.textContent="Backing up…"; pr.disabled=true; }
+    else if(syncState==="offline"){ T.textContent="You're offline."; S.textContent="Everything's saved here. It'll back up on its own once you're connected."; pr.textContent="Waiting for connection"; pr.disabled=true; }
+  }
+  function openPanel(){ paintPanel(); syncPanel.classList.add("open"); haptic(8); }
+  function closePanel(){ syncPanel.classList.remove("open"); }
+  function syncTap(){ if(syncState==="offline"){ openPanel(); return; } castSpell(); }
+
+  root.addEventListener("pointerdown", e=>{ if(syncPanel.classList.contains("open") && !syncPanel.contains(e.target) && !syncWact.contains(e.target)) closePanel(); }, true);
+  $("#spSignout").addEventListener("click", ()=> closePanel());
+  $("#spPrimary").addEventListener("click", ()=>{ if(syncState==="offline"||syncState==="syncing") return; closePanel(); castSpell(); });
+  window.addEventListener("online", ()=>{ setSync(dirty ? "reminder" : "synced"); });
+  window.addEventListener("offline", ()=>{ setSync("offline"); });
+
+  function castSpell(){
+    if(syncState==="syncing" || syncState==="offline") return;
+    setSync("syncing"); haptic(14);
+    spell.classList.add("show"); $("#spellLabel").textContent="Weaving to the cloud…"; $("#spellLabel").style.color="";
+    const ring=$("#spellRing"), rune=$("#spellRune");
+    ring.classList.remove("go"); rune.classList.remove("go"); void ring.offsetWidth; void rune.offsetWidth;
+    ring.classList.add("go"); rune.classList.add("go");
+    setTimeout(()=>{ $("#spellLabel").textContent="All memories safe · just now"; $("#spellLabel").style.color="hsl(var(--success))"; }, 1300);
+    setTimeout(()=>{ spell.classList.remove("show"); dirty=false; setSync(navigator.onLine?"synced":"offline"); }, 1900);
+  }
+
+  /* =========================================================================
+     SPEECH — simulate dictation (listening state + sample text)
+     ======================================================================= */
+  const SAMPLE="I keep coming back to the idea that the phone shouldn't make me think. It should just catch the thought before it escapes.";
+  const SEARCHES=["lighthouse","morning line","sync layer","the trip"];
+  function typeInto(el,text,isEl,done){
+    if(reduce){ isEl?el.textContent=text:el.value=text; done&&done(); return; }
+    let i=0; (function tick(){ i+=Math.max(1,Math.round(Math.random()*2)); const s=text.slice(0,i);
+      if(isEl) el.textContent=s; else { el.value=s; el.dispatchEvent(new Event("input")); }
+      if(i<text.length) setTimeout(tick,26); else done&&done(); })();
+  }
+  const noteMic=$("#noteMic"); let dict=false;
+  function startDictation(){
+    if(dict) return; dict=true; noteMic.classList.add("listening");
+    if(!noteTitle.textContent) noteTitle.textContent="A thought, spoken";
+    noteBody.focus();
+    setTimeout(()=>typeInto(noteBody,SAMPLE,true,()=>{ noteMic.classList.remove("listening"); dict=false; commit(); }),650);
+  }
+  noteMic.addEventListener("click", ()=>{ dict ? (noteMic.classList.remove("listening"),dict=false) : startDictation(); });
+  const accioMic=$("#accioMic"); let ls=false;
+  accioMic.addEventListener("click", ()=>{ if(ls) return; ls=true; accioMic.classList.add("listening"); accioInput.value="";
+    const p=SEARCHES[Math.floor(Math.random()*SEARCHES.length)];
+    setTimeout(()=>typeInto(accioInput,p,false,()=>{ accioMic.classList.remove("listening"); ls=false; }),600); });
+
+  /* ---- elastic-scroll guard on real phones ---- */
+  document.addEventListener("touchmove", e=>{
+    if(!e.target.closest(".reel,.accio-results,.note-surface,.tabs-rail")) e.preventDefault();
+  }, { passive:false });
+
+  /* ---- boot ---- (the wheel engine self-boots + self-handles its own resize) */
+  renderReel();
+  setSync(syncState);
+  requestAnimationFrame(()=>{ layoutReel(); updateLens(true); });
+  window.addEventListener("resize", () => { layoutReel(); updateLens(true); updateKB(); });
+})();
+</script>
+</body>
+</html>
