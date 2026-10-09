@@ -94,12 +94,40 @@ fire its `resize` → `.kb-open` → `onKeyboardClosed`.
   `touch-action:none` on `body`** — a `touch-action` on an ancestor can suppress panning in
   descendant scrollers on iOS and break the reel. Let the guard do the locking.
 
-## The Wand menu is three seats — New · Accio · Sync (locked)
-- A capture phone has two verbs (make · find) + one status light. `ORDER` = `["sync","accio",
-  "wand"]` with `wand` the centred HERO. **Home is the base surface, not a button**
+## The Wand menu — New · Accio · Sync + Adjust (locked)
+- A capture phone has two verbs (make · find) + a status light + settings. `ORDER` =
+  `["adjust","accio","wand","sync"]` with `wand` the centred HERO (Accio + Sync flank it;
+  Adjust at the far edge, touched rarely). **Home is the base surface, not a button**
   (leaving any layer returns there). **Cards** (an open-tabs switcher) was a desktop metaphor
   that doesn't belong on a capture phone — dropped.
-- **Adjust was removed** (seat + resize/flip grip + design-layer). It can't move to a
-  hub long-press because long-press-wand is the loved hold-to-speak gesture. Stored
-  `wheelSide`/`wheelRadius` prefs are still honoured; if handedness flip is wanted back,
-  add it as an explicit settings item, not a gesture.
+- **Adjust stays** (round-15 reinstated it after round-14 dropped it). It's the ONLY home for
+  resize + side-flip: it can't be a hub long-press because long-press-wand is the loved
+  hold-to-speak gesture, and tap-hold-sync opens the sync panel. So resize/flip needs its own
+  seat + grip. `wheelSide`/`wheelRadius` persist in localStorage.
+
+## Searching = "gravity flips to the keyboard" (locked)
+- At REST the reel hangs from the top lens (eye rests high). The instant Accio opens, eye +
+  thumb move to the BOTTOM, so results must appear THERE — not at the top. A `.search-sheet`
+  (scrim over the dimmed reel) holds a `.search-results` stack anchored just above the summon
+  bar; results pour UP, **best match nearest the bar** (rendered LAST, scrolled to bottom),
+  dense rows. This directly fixed "my 1 result is hidden at the top while I'm looking at the
+  bottom." Still ONE `filterQuery` — the sheet is the reel's data re-presented for thumb
+  scanning, alive only while `.searching`; the reel filters behind it for the settle.
+- **Enter / the blue key = commit → HELD**: `preventDefault`, drop the keyboard, bar→pill,
+  reel keeps the matches. Never submits/clears. Empty query + Enter → clear to RESTING.
+- **Reopen reliability (the "keyboard pops up then drops" bug).** Cause: the *previous*
+  keyboard's dismissal tail fires a spurious `visualViewport` "close" onto the just-opened
+  bar. Fix, three rules: (1) focus the input **synchronously inside the tap gesture** (never
+  from a timeout); (2) `onKeyboardClosed` is **disarmed until the keyboard is confirmed up
+  this session** (`searchArmed`, set in `updateKB` on the up-transition) AND **ignores any
+  close within ~400ms of opening** (`searchOpenedAt` jitter window); (3) `openAccio` cancels
+  any in-flight blur-close timer. Don't drive the keyboard off focus side-effects.
+- **Inline style beats a class.** `layoutArc` sets the centred `#wheelLabel` opacity *inline*,
+  which overrode the `.searching` CSS hide → a stray "ACCIO" floated over the bar. Fix: make
+  `layoutArc` honour searching/kb-open when it sets that inline opacity, and call a new
+  `__wheel.refresh()` from `openAccio`/`hideSearchBar` so it updates the instant the bar
+  toggles (don't wait for the next wheel interaction). General lesson: if JS writes an inline
+  style, a CSS class can't hide it later — update it from JS or use the same channel.
+- The mock `.home-indicator` bar is hidden on phone/standalone — the OS draws its own, so ours
+  read as a stray pull-line. Voice search was removed from the Accio bar (dictation stays in
+  the note toolbar).

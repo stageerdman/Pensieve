@@ -321,7 +321,41 @@ deep blue-black stone, the magical-blue accent and gold. Magical AND highly prac
      grip/tab-count; live filter narrows + highlights + empty-state; both keyboard-close
      paths (desktop blur + iOS visualViewport) collapse to the pill with the filter intact;
      pill ✕ restores all; New clears the filter; zero runtime errors.
-- **Next:** owner tests on device — (a) Accio feels like a summon, filter is instant, pill is
-  obvious, nothing lingers; (b) only the reel/note scroll, no page bounce, no note-pull; (c)
-  confirm the earlier word-selection fix. Then lock the Wand spec → Phase 3 (wire to the
-  real vault + PWA-CAPTURE runtime).
+- 2026-10-09: **Round-15 — searching experience + Accio fixes (owner round-14 device notes).**
+  Re-ran 2 parallel UX experts (the "searching" moment + the state/transition lifecycle);
+  they converged on **"gravity flips to the keyboard."** Built:
+  1. **While typing, results pour UP from the bar.** New `.search-sheet` (a scrim over the
+     dimmed reel) holds a `.search-results` stack anchored just above the summon bar, best
+     match **nearest the thumb** (rendered last), dense rows (flask · title · snippet ·
+     date) with the violet highlight. Fixes "my 1 result was hidden at the TOP while I'm
+     looking at the bottom." Single-result row inflates into a mini-lens. It's the **same
+     single `filterQuery`** — the sheet is the reel's data re-presented for thumb-scanning,
+     and exists ONLY while `.searching`. Match count rides the bar (`#accioCount`).
+  2. **Enter / the blue key** now commits: drop the keyboard, collapse the bar → pill, reel
+     shows the matches for hands-free scrolling (→ HELD). Empty query + Enter → clears.
+  3. **Reopen reliability (the "keyboard pops up then immediately drops" bug).** Root cause:
+     the *previous* keyboard's dismissal tail fired a spurious viewport "close" onto the
+     freshly-opened bar. Fix: focus stays synchronous-in-gesture; `onKeyboardClosed` is
+     **disarmed until the keyboard is confirmed up this session** (`searchArmed`) AND ignores
+     any close within a 400ms jitter window after opening (`searchOpenedAt`); `openAccio`
+     also cancels any in-flight blur-close timer. Reopening is now one reliable tap.
+  4. **Stray "ACCIO" over the bar — fixed.** `layoutArc` sets the centred wheel label's
+     opacity inline, which beat the `.searching` CSS hide; now it respects searching/kb-open
+     and `openAccio`/`hideSearchBar` call a new `__wheel.refresh()` so the label clears the
+     instant the bar opens.
+  5. **Mic removed** from the Accio bar (voice search parked; dictation still lives in the
+     note toolbar).
+  6. **Stray bottom line removed** — the mock `.home-indicator` is hidden on phone/standalone
+     (the OS draws its own; ours read as a duplicate pull-line).
+  7. **Adjust (settings) restored** — owner wants resize/side-flip back. Re-added the Adjust
+     seat + grip + design-overlay (hold = flip side · radial drag = resize). Wheel is now
+     four seats: **Adjust · Accio · New(hero) · Sync** (New centred; Accio + Sync flank it;
+     Adjust at the far edge). *(Supersedes round-14's Adjust cut.)*
+  - jsdom-verified (31 checks): 4 seats incl Adjust; sheet pours results (empty=all, 1-result
+     state, highlight) while the reel stays filtered behind; Enter→pill; stray label hidden
+     while searching + restored after; the spurious-close-right-after-open does NOT collapse
+     the bar while a genuine later close does; New clears the filter; zero runtime errors.
+- **Next:** owner tests on device — (a) searching shows results in front of you, reopen is
+  reliable, Enter shows results, no stray label/line, mic gone, Adjust works; (b) the settle
+  from typing → pill feels like one object; (c) confirm scrolling + word-selection still good.
+  Then lock the Wand spec → Phase 3 (wire to the real vault + PWA-CAPTURE runtime).

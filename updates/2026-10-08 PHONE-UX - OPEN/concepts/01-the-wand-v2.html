@@ -58,6 +58,8 @@ body{
   body{ padding:0; position:fixed; inset:0; width:100%; }   /* pin the body — iOS can't scroll/bounce it */
   .device{ width:100vw; height:100dvh; border-radius:0; padding:0; box-shadow:none; }
   .screen{ border-radius:0 !important; }
+  /* on a real phone the OS draws its own home indicator — our mock one is a stray line */
+  .home-indicator{ display:none; }
 }
 .screen{
   position:relative; width:100%; height:100%; border-radius:44px; overflow:hidden; overscroll-behavior:none;
@@ -197,13 +199,42 @@ body{
 
 .app-root.side-left .sync-panel{ left:16px; right:auto; transform-origin:bottom left; }
 
+/* design-mode overlay — the arc outline, a spoke, and a live number while resizing */
+.design-layer{ position:absolute; inset:0; width:100%; height:100%; z-index:152; pointer-events:none; opacity:0; transition:opacity .18s var(--ease); }
+.design-layer.on{ opacity:1; }
+.design-layer .ring{ fill:none; stroke:hsl(var(--accent)/.7); stroke-width:1.4; stroke-dasharray:5 7; }
+.design-layer .spoke{ stroke:hsl(var(--accent)/.85); stroke-width:1.4; stroke-dasharray:4 5; }
+.design-layer .dot{ fill:hsl(var(--accent)); }
+.design-num{ position:absolute; left:0; top:0; z-index:153; pointer-events:none; transform:translate(-50%,-50%);
+  font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; color:hsl(var(--accent));
+  background:hsl(var(--surface-sunken)/.94); border:1px solid hsl(var(--accent)/.45); border-radius:8px; padding:3px 8px;
+  opacity:0; transition:opacity .18s var(--ease); white-space:nowrap; }
+.design-num.on{ opacity:1; }
+
+/* the "Adjust" (settings) menu option renders as an empty dashed circle */
+.wact.adjust{ background:hsl(var(--surface-raised)/.5); border-style:dashed; border-color:hsl(var(--text-muted)/.6); }
+.wact.adjust.centered{ border-style:solid; border-color:hsl(var(--accent)/.6); color:hsl(var(--accent)); }
+
+/* the adjust GRIP — an invisible touch target that sits exactly over the centred
+   button, live ONLY when the empty-circle option is centred. Drag = resize,
+   hold ~2s = switch side. Its fill-ring is centred on the button → aligned. */
+.grip{ position:absolute; left:0; top:0; z-index:154; width:74px; height:74px;  /* above the buttons + menu layer */
+  transform:translate(-50%,-50%); display:flex; align-items:center; justify-content:center;
+  pointer-events:none; cursor:grab; -webkit-user-select:none; user-select:none; touch-action:none; }
+.grip.live{ pointer-events:auto; }
+.grip:active{ cursor:grabbing; }
+.grip .fill{ position:absolute; inset:0; transform:rotate(-90deg); opacity:0; transition:opacity .15s var(--ease); }
+.grip.holding .fill{ opacity:1; }
+.grip .fill circle{ fill:none; stroke:hsl(var(--gold)); stroke-width:3; stroke-linecap:round;
+  stroke-dasharray:1; stroke-dashoffset:1; filter:drop-shadow(0 0 4px hsl(var(--gold)/.8)); }
+
 /* The menu hides ONLY when the keyboard is actually up (visualViewport → .kb-open)
    or the Accio search sheet is open. NOT on mere focus — a programmatic focus that
    doesn't raise the keyboard (e.g. opening a new note) must leave the menu present. */
 .app-root.kb-open .wheel, .app-root.kb-open .wheel-label, .app-root.kb-open .corner-glow,
 .app-root.searching .wheel, .app-root.searching .wheel-label, .app-root.searching .corner-glow{ opacity:0; pointer-events:none; }
-.app-root.kb-open .wact,
-.app-root.searching .wact{ opacity:0; pointer-events:none; }
+.app-root.kb-open .wact, .app-root.kb-open .grip,
+.app-root.searching .wact, .app-root.searching .grip{ opacity:0; pointer-events:none; }
 
 /* ---- Sync details panel (press-hold sync; or a tap when offline) ---- */
 .sync-panel{
@@ -282,8 +313,47 @@ body{
   background:hsl(var(--accio)/.18); color:hsl(var(--accio)); display:flex; align-items:center; justify-content:center; }
 .accio-pill .x:active{ background:hsl(var(--accio)/.32); }
 
-/* live match highlight on the reel + lens */
-.card mark, .lens mark{ background:hsl(var(--accio)/.22); color:hsl(var(--accio)); border-radius:3px; }
+/* live match highlight on the reel + lens + result rows */
+.card mark, .lens mark, .sr mark{ background:hsl(var(--accio)/.22); color:hsl(var(--accio)); border-radius:3px; }
+.summon .scount{ flex:none; font-size:12px; color:hsl(var(--text-muted)); font-variant-numeric:tabular-nums;
+  min-width:16px; text-align:center; padding-right:6px; }
+
+/* ===========================================================================
+   SEARCHING sheet — while the keyboard is up, the gravity flips to the thumb:
+   results pour UP from the summon bar, best match nearest the bar. A scrim dims
+   the dormant reel/lens behind. Same single query — this is the reel's data,
+   re-presented for thumb-scanning; it exists ONLY while .searching.
+   =========================================================================== */
+.search-sheet{ position:absolute; inset:0; z-index:128; pointer-events:none; opacity:0;
+  background:hsl(222 30% 6%/0); backdrop-filter:blur(0); -webkit-backdrop-filter:blur(0);
+  display:flex; flex-direction:column; justify-content:flex-end;
+  transition:opacity .22s var(--ease), background .26s var(--ease), backdrop-filter .26s var(--ease); }
+.app-root.searching .search-sheet{ opacity:1; pointer-events:auto;
+  background:hsl(222 30% 6%/.66); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
+.search-results{ display:flex; flex-direction:column; gap:7px; overflow-y:auto; overscroll-behavior:contain;
+  touch-action:pan-y; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding:0 16px 8px; max-height:100%;
+  /* clear the summon bar (60px) + its bottom margin + keyboard inset */
+  margin-bottom:calc(var(--kb) + 94px + env(safe-area-inset-bottom));
+  -webkit-mask-image:linear-gradient(180deg, transparent 0, #000 12%); mask-image:linear-gradient(180deg, transparent 0, #000 12%); }
+.search-results::-webkit-scrollbar{ display:none; }
+.sr{ flex:none; display:flex; align-items:center; gap:12px; padding:9px 13px; border-radius:13px;
+  background:hsl(var(--surface-raised)/.72); border:1px solid hsl(var(--border)/.6);
+  animation:srIn .26s var(--spring) both; cursor:pointer; }
+@keyframes srIn{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:none; } }
+.sr:active{ filter:brightness(1.1); }
+.sr .flask{ width:30px; height:40px; flex:none; }
+.sr .body{ min-width:0; flex:1; }
+.sr .title{ font-size:15px; font-weight:600; letter-spacing:-.1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sr .snip{ font-size:12.5px; color:hsl(var(--text-muted)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+.sr .when{ flex:none; font-size:11px; color:hsl(var(--text-muted)); align-self:flex-start; margin-top:2px; }
+/* the strongest match (rendered LAST → nearest the bar) is primed: lit + a violet meniscus */
+.sr:last-child{ background:hsl(var(--surface-raised)/.96); border-color:hsl(var(--accio)/.55);
+  box-shadow:0 0 28px -10px hsl(var(--accio)/.55); }
+/* the single-result case inflates into a mini-lens (room + it IS the answer) */
+.search-sheet[data-n="1"] .sr{ padding:15px 16px; }
+.search-sheet[data-n="1"] .sr .flask{ width:46px; height:60px; }
+.search-sheet[data-n="1"] .sr .snip{ white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; line-height:1.4; }
+.sr-empty{ text-align:center; color:hsl(var(--text-muted)); font-size:14px; padding:22px 24px; }
 .mic{ width:44px; height:44px; border-radius:50%; flex:none; border:none; background:hsl(var(--surface-sunken));
   color:hsl(var(--text-muted)); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .3s var(--ease); }
 .mic.listening{ background:hsl(var(--accent)/.2); color:hsl(var(--accent)); animation:pulse 1.4s var(--ease) infinite; }
@@ -372,6 +442,20 @@ body{
     <div class="wheel" id="wheel"></div>
     <div class="wheel-label" id="wheelLabel"></div>
 
+    <!-- design-mode overlay (shown only while dragging the hub to resize) -->
+    <svg class="design-layer" id="designLayer" aria-hidden="true">
+      <circle id="dRing" class="ring" cx="0" cy="0" r="0"/>
+      <line id="dSpoke" class="spoke" x1="0" y1="0" x2="0" y2="0"/>
+      <circle id="dDot" class="dot" cx="0" cy="0" r="4"/>
+    </svg>
+    <div class="design-num" id="designNum"></div>
+
+    <!-- adjust grip — overlays the centred button, live only when the Adjust
+         (empty-circle) option is centred: drag = resize · hold ~2s = switch side -->
+    <div class="grip" id="adjustGrip" aria-hidden="true">
+      <svg class="fill" viewBox="0 0 74 74"><circle cx="37" cy="37" r="34" pathLength="1"/></svg>
+    </div>
+
     <!-- SYNC PANEL -->
     <div class="sync-panel" id="syncPanel" data-state="synced">
       <div class="ph">
@@ -395,11 +479,14 @@ body{
       <div class="label" id="spellLabel">Weaving to the cloud…</div>
     </div>
 
-    <!-- ACCIO — the one summon bar. Typing filters the home reel; no results list. -->
+    <!-- ACCIO searching sheet — results pour up from the bar (visible only while typing) -->
+    <div class="search-sheet" id="searchSheet"><div class="search-results" id="searchResults"></div></div>
+
+    <!-- ACCIO — the one summon bar. Typing filters the reel + the sheet above it. -->
     <div class="summon" id="summon">
       <span class="sigil"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" opacity=".5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></span>
       <input id="accioInput" type="text" placeholder="Accio a memory…" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search" enterkeyhint="search" />
-      <button class="mic" id="accioMic" aria-label="Summon by voice"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/></svg></button>
+      <span class="scount" id="accioCount"></span>
     </div>
 
     <!-- NOTE VIEW (read + write) -->
@@ -444,7 +531,7 @@ body{
      Also the SINGLE source of truth for "is the keyboard up": .kb-open. The menu
      hides only on .kb-open (not on focus), and closing the keyboard tears down any
      transient typing sheet (e.g. the Accio bar). */
-  let kbUp = false, accioVoice = false;
+  let kbUp = false, accioVoice = false, searchArmed = false, searchOpenedAt = 0;
   function updateKB(){
     const vv = window.visualViewport;
     if(!vv){ return; }
@@ -453,14 +540,19 @@ body{
     const up = kb > 80;
     if(up !== kbUp){
       kbUp = up; root.classList.toggle("kb-open", up);
-      if(!up) onKeyboardClosed();
-      else if(root.classList.contains("editing-note") && typeof keepCaretVisible==="function") setTimeout(keepCaretVisible, 60);
+      if(up){ searchArmed = true;    // keyboard CONFIRMED up → now a later drop is a real dismiss
+        if(root.classList.contains("editing-note") && typeof keepCaretVisible==="function") setTimeout(keepCaretVisible, 60);
+      } else onKeyboardClosed();
     }
   }
   function onKeyboardClosed(){
     // keyboard dismissed while summoning → settle the search (keep a query as a pill,
     // or clear to everything if it was empty). Never leave a stray bar on screen.
-    if(accioVoice) return;   // voice dictation / voice search running
+    if(accioVoice) return;         // voice dictation / voice search running
+    if(!searchArmed) return;       // kb not yet confirmed up this session → ignore
+    // ignore the jitter window right after opening — the dismissing PREVIOUS keyboard's tail
+    // fires a spurious close here; honouring it is what caused "pops up, then immediately drops".
+    if(Date.now() - searchOpenedAt < 400) return;
     if(root.classList.contains("searching")) settleSearch();
   }
   if(window.visualViewport){
@@ -844,12 +936,14 @@ body{
     const ICONS = {
       accio:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" opacity=".5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>`,
       wand:`<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19 15 9" stroke-opacity=".95"/><path d="M17.5 4.5v4M15.5 6.5h4" stroke-opacity=".9"/><circle cx="9" cy="15" r=".6" fill="#fff" stroke="none" opacity=".8"/></svg>`,
-      sync:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path class="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"/></svg>`
+      sync:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path class="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"/></svg>`,
+      adjust:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8" stroke-dasharray="2.6 3"/><path d="M12 8v8M8 12h8" opacity=".55"/></svg>`
     };
-    // Steve-Jobs cut: a capture phone has two verbs (make · find) + one status light.
-    // New (hero) sits nearest the thumb; Accio next; Sync (touched least) farthest.
-    const ORDER  = ["sync","accio","wand"];
-    const LABELS = { accio:"Accio", wand:"New", sync:"Sync" };
+    // Capture phone: two verbs (New · Accio) + a Sync status light, plus Adjust (settings:
+    // resize / switch side). New is the centred hero; Accio + Sync flank it; Adjust sits
+    // at the far edge (touched rarely).
+    const ORDER  = ["adjust","accio","wand","sync"];
+    const LABELS = { accio:"Accio", wand:"New", sync:"Sync", adjust:"Adjust" };
     const HERO = "wand", N = ORDER.length, DEG = Math.PI/180;
 
     const store = {
@@ -859,10 +953,12 @@ body{
     let side = store.get("pensieve.wheelSide","right");
     let RADIUS = Math.max(CFG.R_MIN, Math.min(CFG.R_MAX, parseFloat(store.get("pensieve.wheelRadius","150"))||150));
 
-    const wheel=$("#wheel"), wheelLabel=$("#wheelLabel");
+    const wheel=$("#wheel"), wheelLabel=$("#wheelLabel"),
+          grip=$("#adjustGrip"), gripFill=$("#adjustGrip .fill circle"),
+          design=$("#designLayer"), designNum=$("#designNum"), dRing=$("#dRing"), dSpoke=$("#dSpoke"), dDot=$("#dDot");
     const els = {};
     ORDER.forEach(key => { const el=document.createElement("div");
-      el.className="wact"+(key===HERO?" hero":""); el.dataset.key=key; el.innerHTML=ICONS[key]; wheel.appendChild(el); els[key]=el; });
+      el.className="wact"+(key===HERO?" hero":"")+(key==="adjust"?" adjust":""); el.dataset.key=key; el.innerHTML=ICONS[key]; wheel.appendChild(el); els[key]=el; });
 
     let W=0,H=0,pivotX=0,pivotY=0,sRect=null;
     function applySide(){ root.classList.toggle("side-left", side==="left"); }
@@ -916,7 +1012,15 @@ body{
       const cx=pivotX+RADIUS*Math.cos(ca), cy=pivotY-RADIUS*Math.sin(ca);
       wheelLabel.style.transform=`translate3d(${cx}px,${cy+CFG.LABEL_DROP}px,0) translate(-50%,-50%)`;
       wheelLabel.textContent=LABELS[centredKey()];
-      wheelLabel.style.opacity = (settled() && tC<.05) ? "1" : "0";
+      // hide the centred label whenever the wheel itself is hidden (searching / keyboard
+      // up) — the inline opacity here would otherwise beat the .searching CSS rule and
+      // leave a stray "ACCIO" floating over the search bar.
+      const wheelHidden = root.classList.contains("searching") || root.classList.contains("kb-open");
+      wheelLabel.style.opacity = (!wheelHidden && settled() && tC<.05) ? "1" : "0";
+      // grip tracks the centred seat as it slides toward the point; live only while fully expanded
+      const gx=cx+(ccx-cx)*t, gy=cy+(ccy-cy)*t;
+      grip.style.transform=`translate3d(${gx}px,${gy}px,0) translate(-50%,-50%)`;
+      grip.classList.toggle("live", centredKey()==="adjust" && Math.abs(pos-Math.round(pos))<.3 && tC<.05);
       const ci=centredIndex(); if(ci!==lastCentered){ lastCentered=ci; if(settled()) haptic(6); }
     }
 
@@ -955,7 +1059,7 @@ body{
         els[key].classList.add("holding"); flash(key); haptic(16);
         if(key==="wand") openNewNote(true); else if(key==="sync") openPanel(); } }, CFG.HOLD_MS); }
     function flash(key){ const el=els[key]; if(!el) return; el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
-    function execAction(key){
+    function execAction(key){ if(key==="adjust") return;   // Adjust is driven by its grip, not a tap
       flash(key); haptic(10);
       if(key==="wand") openNewNote(false);
       else if(key==="accio") openAccio();
@@ -1038,18 +1142,68 @@ body{
       el.addEventListener("pointercancel", onBtnUp);
     });
 
-    // radial distance of a finger from the corner pivot — used by the rotate/collapse drag
+    /* ---- the adjust grip (live only when "Adjust" is centred):
+           HOLD = flip side · RADIAL drag (straight out/in) = resize ·
+           TANGENTIAL drag (swing sideways) = rotate the wheel like any button. ---- */
+    let gDrag=false, gMode="", gA0=0, gR0=0, gLastA=0, gLastPos=0, gLastT=0, flipRAF=null, flipFired=false;
+    function setFill(p){ gripFill.style.strokeDashoffset = String(1 - Math.max(0,Math.min(1,p))); }
+    function resetFill(){ if(flipRAF) cancelAnimationFrame(flipRAF); flipRAF=null; setFill(0); grip.classList.remove("holding"); }
+    function startFlipFill(){ flipFired=false; grip.classList.add("holding"); const begin=performance.now();
+      if(flipRAF) cancelAnimationFrame(flipRAF);
+      (function tick(now){ if(gMode!=="pending") return; const p=Math.min(1,(now-begin)/CFG.FLIP_MS); setFill(p);
+        if(p>=1){ if(!flipFired){ flipFired=true; doFlip(); } return; } flipRAF=requestAnimationFrame(tick); })(begin); }
+    function doFlip(){ side = side==="right" ? "left" : "right"; store.set("pensieve.wheelSide", side);
+      haptic(30); applySide(); cacheGeom(); layoutArc(); resetFill(); }
+    function showDesign(on){ design.classList.toggle("on",on); designNum.classList.toggle("on",on); }
+    // radial distance of a finger from the corner pivot — used by the rotate/collapse drag + resize
     function fingerR(cx,cy){ return Math.hypot((cx-sRect.left)-pivotX, (cy-sRect.top)-pivotY); }
-    // (The "Adjust" seat + its resize/flip grip were removed in the Steve-Jobs cut.
-    //  Side/radius still honour any previously-stored preference.)
+    function paintDesign(cx,cy){
+      let r=fingerR(cx,cy); r=Math.max(CFG.R_MIN,Math.min(CFG.R_MAX,r)); RADIUS=r;
+      dRing.setAttribute("cx",pivotX); dRing.setAttribute("cy",pivotY); dRing.setAttribute("r",r);
+      const ca=centerDeg()*DEG, ex=pivotX+r*Math.cos(ca), ey=pivotY-r*Math.sin(ca);
+      dSpoke.setAttribute("x1",pivotX); dSpoke.setAttribute("y1",pivotY); dSpoke.setAttribute("x2",ex); dSpoke.setAttribute("y2",ey);
+      dDot.setAttribute("cx",ex); dDot.setAttribute("cy",ey);
+      designNum.style.left=ex+"px"; designNum.style.top=(ey-24)+"px"; designNum.textContent=Math.round(r)+" px";
+      layoutArc();
+    }
+    grip.addEventListener("pointerdown", e=>{ if(!grip.classList.contains("live")) return;
+      e.preventDefault(); e.stopPropagation(); cacheGeom(); stopLoop();
+      gDrag=true; gMode="pending"; gA0=angleDeg(e.clientX,e.clientY); gR0=fingerR(e.clientX,e.clientY);
+      gLastA=gA0; gLastPos=pos; gLastT=(e.timeStamp||performance.now()); vel=0;
+      try{ grip.setPointerCapture(e.pointerId); }catch(_){}
+      startFlipFill(); });
+    grip.addEventListener("pointermove", e=>{ if(!gDrag) return; e.preventDefault();
+      const A=angleDeg(e.clientX,e.clientY), curR=fingerR(e.clientX,e.clientY), now=e.timeStamp||performance.now();
+      if(gMode==="pending"){
+        const dRad=curR-gR0; let da=A-gA0; while(da>180)da-=360; while(da<-180)da+=360;
+        const arc=da*DEG*gR0;                                   // tangential travel (px)
+        if(Math.max(Math.abs(dRad),Math.abs(arc))>8){ resetFill();
+          if(Math.abs(dRad)>=Math.abs(arc)){ gMode="resize"; showDesign(true); }
+          else { gMode="rotate"; gLastA=A; gLastPos=pos; gLastT=now; }
+        }
+      }
+      if(gMode==="resize"){ paintDesign(e.clientX,e.clientY); }
+      else if(gMode==="rotate"){ let d=A-gLastA; while(d>180)d-=360; while(d<-180)d+=360; gLastA=A;
+        pos += -d/(sideSign()*CFG.STEP_DEG);
+        let dt=(now-gLastT)/1000; if(dt<=0) dt=1/60; vel=vel*0.6+((pos-gLastPos)/dt)*0.4; gLastPos=pos; gLastT=now;
+        layoutArc();
+      }
+    });
+    function gripEnd(e){ if(!gDrag) return; gDrag=false;
+      try{ grip.releasePointerCapture(e.pointerId); }catch(_){}
+      if(gMode==="resize"){ showDesign(false); store.set("pensieve.wheelRadius", String(Math.round(RADIUS))); layoutArc(); }
+      else if(gMode==="rotate"){ vel=Math.max(-CFG.MAX_VEL,Math.min(CFG.MAX_VEL,vel)); resetFill(); gMode=""; wake(); return; }
+      resetFill(); gMode=""; }
+    grip.addEventListener("pointerup", gripEnd);
+    grip.addEventListener("pointercancel", gripEnd);
 
     /* ---- boot ---- */
-    function boot(){ applySide(); cacheGeom(); pos=ORDER.indexOf("wand"); vel=0; layoutArc(); }
+    function boot(){ applySide(); cacheGeom(); pos=ORDER.indexOf("wand"); vel=0; setFill(0); layoutArc(); }
     requestAnimationFrame(boot);
     window.addEventListener("resize", () => { cacheGeom(); layoutArc(); });
     // debug/animated collapse control (also used by the verification harness)
     function setCollapsed(on){ collapseTarget = on?1:0; rotTarget = on ? wandRotTarget() : null; collapseV=0; wake(); }
-    window.__wheel = { boot, collapse:()=>setCollapsed(true), expand:()=>setCollapsed(false),
+    window.__wheel = { boot, flip:doFlip, refresh:()=>layoutArc(), collapse:()=>setCollapsed(true), expand:()=>setCollapsed(false),
       get pos(){ return pos; }, set pos(v){ pos=v; layoutArc(); },
       get side(){ return side; }, get radius(){ return RADIUS; }, get centred(){ return centredKey(); },
       get collapseT(){ return collapseT; }, get collapseTarget(){ return collapseTarget; } };
@@ -1068,35 +1222,77 @@ body{
      · ✕ (or an empty dismiss) → everything summoned back
      ======================================================================= */
   const summon=$("#summon"), accioInput=$("#accioInput"),
-        accioPill=$("#accioPill"), accioPillQ=$("#accioPillQ");
+        accioPill=$("#accioPill"), accioPillQ=$("#accioPillQ"),
+        accioCount=$("#accioCount"), searchSheet=$("#searchSheet"), searchResults=$("#searchResults");
+  let blurTimer=null, preSearchTop=0;
+
+  // relevance for the typing sheet: title-start > title-anywhere > body; then recency.
+  function rankedView(){
+    const q=filterQuery.trim().toLowerCase();
+    if(!q) return DATA.slice();                 // empty = everything, recency order
+    return DATA.map((d,i)=>{ const t=(d.t||"").toLowerCase(), c=(d.c||"").toLowerCase();
+        let s=-1; if(t.startsWith(q)) s=0; else if(t.includes(q)) s=1; else if(c.includes(q)) s=2;
+        return {d,i,s}; })
+      .filter(x=>x.s>=0).sort((a,b)=> a.s-b.s || a.i-b.i).map(x=>x.d);
+  }
+  function resultRow(d){
+    return `<div class="sr" data-id="${d.id}">
+      <div class="flask">${flaskSVG(d.shape,CAT_HUE[d.cat],d.fill)}</div>
+      <div class="body"><div class="title">${hl(d.t||"New thought", filterQuery)}</div>
+        <div class="snip">${hl(d.c||"…", filterQuery)}</div></div>
+      <div class="when">${esc(d.d)}</div></div>`;
+  }
+  function renderSearch(){
+    const list = rankedView(), q = filterQuery.trim();
+    accioCount.textContent = q ? String(list.length) : "";
+    searchSheet.dataset.n = String(list.length);
+    if(!list.length){ searchResults.innerHTML = `<div class="sr-empty">Nothing answered the summons.</div>`; return; }
+    // strongest match nearest the bar → render it LAST (bottom), then pin the scroll to it
+    searchResults.innerHTML = list.slice(0,30).reverse().map(resultRow).join("");
+    searchResults.querySelectorAll(".sr").forEach(row =>
+      row.addEventListener("click", ()=>{ const d=DATA.find(x=>x.id==row.dataset.id); if(d) openNote(d); }));
+    searchResults.scrollTop = searchResults.scrollHeight;
+  }
 
   function applyFilter(){
     root.classList.toggle("filtering", !!filterQuery.trim());
     accioPillQ.textContent = filterQuery.trim();
-    renderReel();                 // renderReel reads filterQuery → the visible VIEW
-    reel.scrollTop = 0;           // a new result set always starts at the top
+    renderReel();                 // the resting/HELD presentation (reel + lens)
+    renderSearch();               // the typing presentation (pour-up sheet) — same query
+    reel.scrollTop = 0;           // a new result set starts at the top under the lens
     updateLens(true);
   }
   function openAccio(){
+    if(blurTimer){ clearTimeout(blurTimer); blurTimer=null; }   // cancel any in-flight close
+    if(!root.classList.contains("filtering")) preSearchTop = reel.scrollTop;  // remember where we were
     exitNote();                   // always summon from home, never over a note
+    searchArmed=false; searchOpenedAt=Date.now();   // disarm the keyboard-close detector across the open
     root.classList.add("searching");
+    if(window.__wheel) window.__wheel.refresh();   // hide the centred wheel label immediately (no stray "ACCIO")
     accioInput.value = filterQuery;
-    applyFilter();
+    renderSearch();
     haptic(8);
-    accioInput.focus();           // synchronous → iOS raises the keyboard
+    accioInput.focus();           // synchronous, in the tap gesture → iOS raises the keyboard once
+    try{ const L=accioInput.value.length; accioInput.setSelectionRange(L,L); }catch(_){}
   }
   function hideSearchBar(){ root.classList.remove("searching"); accioInput.blur();
+    if(window.__wheel) window.__wheel.refresh();   // restore the wheel label now that the bar is gone
     // the pill may now occupy a row in the home column → re-measure the reel + lens
     layoutReel(); updateLens(true); }
-  // keyboard dropped: keep the query as a pill, or (if empty) clear back to everything
+  // keyboard dropped: keep the query as a pill (HELD), or (if empty) clear to everything (RESTING)
   function settleSearch(){ if(filterQuery.trim()) hideSearchBar(); else clearSearch(); }
-  function clearSearch(){ filterQuery=""; accioInput.value=""; hideSearchBar(); applyFilter(); }
+  function clearSearch(){ filterQuery=""; accioInput.value=""; hideSearchBar(); applyFilter();
+    reel.scrollTop = preSearchTop; updateLens(true); }   // clearing returns you where you were
 
   accioInput.addEventListener("input", ()=>{ filterQuery=accioInput.value; applyFilter(); });
-  accioInput.addEventListener("keydown", e => { if(e.key==="Escape") clearSearch(); });
-  // desktop / no-visualViewport fallback (the .kb-open path in updateKB is primary)
-  accioInput.addEventListener("blur", ()=>{ setTimeout(()=>{
-    if(accioVoice) return;                                   // voice search running
+  accioInput.addEventListener("keydown", e => {
+    if(e.key==="Enter"){ e.preventDefault();               // blue "Search" key → drop kb + show results
+      if(filterQuery.trim()) settleSearch(); else clearSearch(); }
+    else if(e.key==="Escape"){ clearSearch(); }
+  });
+  // desktop / no-visualViewport fallback (the .kb-open path in updateKB is primary on device)
+  accioInput.addEventListener("blur", ()=>{ blurTimer=setTimeout(()=>{ blurTimer=null;
+    if(accioVoice) return;
     if(document.activeElement === accioInput) return;
     if(root.classList.contains("searching")) settleSearch();
   }, 90); });
@@ -1170,7 +1366,6 @@ body{
      SPEECH — simulate dictation (listening state + sample text)
      ======================================================================= */
   const SAMPLE="I keep coming back to the idea that the phone shouldn't make me think. It should just catch the thought before it escapes.";
-  const SEARCHES=["lighthouse","morning line","sync layer","the trip"];
   function typeInto(el,text,isEl,done){
     if(reduce){ isEl?el.textContent=text:el.value=text; done&&done(); return; }
     let i=0; (function tick(){ i+=Math.max(1,Math.round(Math.random()*2)); const s=text.slice(0,i);
@@ -1189,10 +1384,7 @@ body{
     setTimeout(()=>typeInto(div,SAMPLE,true,()=>{ setMicListening(false); dict=false; commit(); }),650);
   }
   function toggleDictation(){ dict ? (setMicListening(false), dict=false) : startDictation(); }
-  const accioMic=$("#accioMic");
-  accioMic.addEventListener("click", ()=>{ if(accioVoice) return; accioVoice=true; accioMic.classList.add("listening"); accioInput.value="";
-    const p=SEARCHES[Math.floor(Math.random()*SEARCHES.length)];
-    setTimeout(()=>typeInto(accioInput,p,false,()=>{ accioMic.classList.remove("listening"); accioVoice=false; }),600); });
+  // (Voice search was removed from the Accio bar — dictation lives only in the note toolbar.)
 
   /* ---- elastic-scroll guard on real phones ----
      Only the reel and the note editor may move under a finger. Everything else
@@ -1201,7 +1393,7 @@ body{
      The whole .note is whitelisted so iOS text selection (loupe + handles) and the
      editor's own scroll are never fought by preventDefault. */
   document.addEventListener("touchmove", e=>{
-    if(!e.target.closest(".reel,.note")) e.preventDefault();
+    if(!e.target.closest(".reel,.note,.search-results")) e.preventDefault();
   }, { passive:false });
 
   /* ---- boot ---- (the wheel engine self-boots + self-handles its own resize) */
