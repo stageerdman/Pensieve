@@ -338,8 +338,7 @@ body{
    after it is body. No separate title field. */
 .note-date{ flex:1; min-width:0; text-align:center; font-size:12.5px; color:hsl(var(--text-muted)); }
 .note-body{ font-size:17px; line-height:1.6; outline:none; min-height:60vh;
-  -webkit-user-select:text; user-select:text; -webkit-touch-callout:default; cursor:text;
-  overflow-wrap:break-word; word-break:normal; }
+  -webkit-user-select:text; user-select:text; -webkit-touch-callout:default; cursor:text; }
 .note-body h1{ font-size:27px; font-weight:700; letter-spacing:-.5px; line-height:1.25; margin:0 0 .4em; }
 .note-body div, .note-body p{ margin:0 0 .15em; }
 .note-body ul{ margin:.1em 0 .4em; padding-left:1.25em; }
@@ -682,6 +681,42 @@ body{
   }
   function focusTitle(){ const h = noteBody.firstElementChild; if(h){ noteBody.focus(); placeCaret(h, 0); } }
 
+  /* ---- deterministic word selection ------------------------------------------
+     WebKit's native double-tap/click word granularity is unreliable in this editor:
+     the browser inserts non-breaking spaces ( ) between words — which WebKit does
+     NOT treat as a word break, so selection runs across them (several words, one
+     cropped) — and autocorrect fragments text nodes, giving 1–2-letter selections.
+     We compute the word ourselves from the tap point: flatten the block's text across
+     all its text nodes, expand to real separators (incl.  ), map back, select. */
+  const WORD_SEP = /[\s.,;:!?()\[\]{}"'“”‘’…—– ]/;
+  function selectWordAtPoint(x, y){
+    let node = null, offset = 0;
+    if(document.caretRangeFromPoint){ const r = document.caretRangeFromPoint(x, y); if(r){ node = r.startContainer; offset = r.startOffset; } }
+    else if(document.caretPositionFromPoint){ const p = document.caretPositionFromPoint(x, y); if(p){ node = p.offsetNode; offset = p.offset; } }
+    if(!node) return false;
+    let block = node;
+    while(block && block.parentNode !== noteBody) block = block.parentNode;
+    if(!block || block.parentNode !== noteBody) return false;
+    const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, null);
+    const parts = []; let full = "", tn;
+    while((tn = walker.nextNode())){ parts.push({ node: tn, start: full.length }); full += tn.nodeValue; }
+    if(!full) return false;
+    let g = 0;
+    if(node.nodeType === 3){ const rec = parts.find(p => p.node === node); g = (rec ? rec.start : 0) + offset; }
+    if(WORD_SEP.test(full[g] || "") && WORD_SEP.test(full[g-1] || "")) return false;  // tapped whitespace → leave to native
+    let s = Math.min(g, full.length), e = s;
+    while(s > 0 && !WORD_SEP.test(full[s-1])) s--;
+    while(e < full.length && !WORD_SEP.test(full[e])) e++;
+    if(e <= s) return false;
+    const locate = gg => { for(const p of parts){ if(gg <= p.start + p.node.nodeValue.length) return { node: p.node, offset: gg - p.start }; }
+      const last = parts[parts.length-1]; return { node: last.node, offset: last.node.nodeValue.length }; };
+    const a = locate(s), b = locate(e);
+    const sel = window.getSelection(), rng = document.createRange();
+    try { rng.setStart(a.node, a.offset); rng.setEnd(b.node, b.offset); } catch(_){ return false; }
+    sel.removeAllRanges(); sel.addRange(rng);
+    return true;
+  }
+
   /* Keep the caret above the keyboard + toolbar. The note is a full-screen overlay, so
      the browser doesn't know the keyboard covers the bottom — we scroll the surface
      manually using visualViewport (which DOES exclude the keyboard). */
@@ -775,6 +810,20 @@ body{
     setTimeout(()=>noteSaved.classList.remove("show"), 1400);
   }
   noteBody.addEventListener("input", () => { syncPlaceholders(); scheduleSave(); keepCaretVisible(); });
+
+  // Desktop: double-click selects exactly the word.
+  noteBody.addEventListener("dblclick", e => { if(selectWordAtPoint(e.clientX, e.clientY)) e.preventDefault(); });
+  // Touch: detect a double-tap and OVERRIDE the native (broken) word selection with ours.
+  let lastTapT = 0, lastTapX = 0, lastTapY = 0;
+  noteBody.addEventListener("pointerup", e => {
+    if(e.pointerType && e.pointerType !== "touch") return;   // mouse handled by dblclick
+    const t = e.timeStamp || performance.now();
+    if(t - lastTapT < 350 && Math.abs(e.clientX-lastTapX) < 24 && Math.abs(e.clientY-lastTapY) < 24){
+      const x = e.clientX, y = e.clientY;
+      setTimeout(() => selectWordAtPoint(x, y), 0);          // run after iOS's own pass → ours wins
+      lastTapT = 0;
+    } else { lastTapT = t; lastTapX = e.clientX; lastTapY = e.clientY; }
+  });
 
   // Enter at the end of the TITLE line breaks out into a normal body line (Apple Notes).
   noteBody.addEventListener("keydown", e => {

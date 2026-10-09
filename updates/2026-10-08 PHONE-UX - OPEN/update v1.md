@@ -268,7 +268,22 @@ deep blue-black stone, the magical-blue accent and gold. Magical AND highly prac
      rect; guarded for no-Range-rect environments).
   - jsdom-verified: boot clean; FAB gone; type → Enter → body DIV; toolbar Voice →
      listening; keepCaretVisible runs without throwing. No errors.
-- **Next:** owner tests on device — (a) voice only in the toolbar; (b) double-tap selects a
-  single word, selection handles behave; (c) typing/new lines keep the caret visible above
-  the keyboard (no more text hiding behind the UI). If selection is still off on device,
-  dig deeper (may need the exact gesture/OS). Then lock the Wand spec → Phase 3.
+- 2026-10-09: **Round-13 — fix broken word selection (researched).** Symptoms: double-tap
+  in the title selected 1–2 letters; in the body it grabbed several words with one cropped
+  mid-word. **Root causes (researched):** (1) WebKit inserts non-breaking spaces (` `)
+  between words in contenteditable and does NOT treat them as word breaks, so native
+  double-tap selection runs across them → "several words, one cropped"; (2) autocorrect /
+  spellcheck fragments text nodes, and WebKit's double-tap word granularity is a documented
+  bug → 1–2-letter selections. (Confirmed not viewport-scale or an ancestor transform /
+  `user-select:none` — checked.) **Fix:** stopped relying on WebKit's granularity — added
+  `selectWordAtPoint(x,y)` that flattens the tapped block's text across ALL its text nodes,
+  expands to real separators (whitespace incl. ` ` + punctuation), maps back to
+  node+offset, and sets the selection. Wired to `dblclick` (desktop) and a double-tap
+  detector on `pointerup` (touch) that runs just after iOS's own pass so ours wins. Removed
+  the `overflow-wrap:break-word` added last round.
+  - jsdom-verified: with a fragmented div `hel|lo wor|ld okay`, tapping "world" selects
+     exactly "world" (crosses both the nbsp and the node boundary); tapping "okay" selects
+     "okay". Boot clean, no errors.
+- **Next:** owner tests on device — double-tap/click selects exactly one word in title AND
+  body (no cropping, no runaway). If still off, capture the exact gesture. Then lock the
+  Wand spec → Phase 3.
