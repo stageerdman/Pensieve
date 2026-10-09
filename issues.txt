@@ -41,4 +41,6 @@ NOTION-UX — deferred polish (non-blocking, from ux-notion-chrome.md):
       curated few if it feels like too much choice.
 
 OPEN ISSUES:
-- (none known)
+- [ ] Desktop editor: adopt the phone's "title = first line = auto-H1" rule (new doc
+      opens with an empty H1 ready; Enter from the title drops to body). Phone prototype
+      (updates/2026-10-08 PHONE-UX/concepts/01-the-wand-v2.html) is the reference.

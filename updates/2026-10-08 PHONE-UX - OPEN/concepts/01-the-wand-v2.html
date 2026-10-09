@@ -144,7 +144,7 @@ body{
   background:radial-gradient(circle at 30% 70%, hsl(var(--accent-glow)/.13), transparent 62%); }
 /* The menu is a PERSISTENT top layer — it floats above every surface (note z140,
    switcher z135, accio z130, thread z145). The ONLY thing that hides it is the
-   keyboard (.app-root.typing, below). */
+   keyboard (.app-root.kb-open, below). */
 .wheel{ position:absolute; inset:0; z-index:150; pointer-events:none; transition:opacity .28s var(--ease); }
 .wact{
   position:absolute; left:0; top:0; width:58px; height:58px; border-radius:50%;
@@ -231,8 +231,13 @@ body{
 .grip .fill circle{ fill:none; stroke:hsl(var(--gold)); stroke-width:3; stroke-linecap:round;
   stroke-dasharray:1; stroke-dashoffset:1; filter:drop-shadow(0 0 4px hsl(var(--gold)/.8)); }
 
-.app-root.typing .wheel, .app-root.typing .wheel-label, .app-root.typing .corner-glow{ opacity:0; pointer-events:none; }
-.app-root.typing .wact, .app-root.typing .grip{ opacity:0; pointer-events:none; }
+/* The menu hides ONLY when the keyboard is actually up (visualViewport → .kb-open)
+   or the Accio search sheet is open. NOT on mere focus — a programmatic focus that
+   doesn't raise the keyboard (e.g. opening a new note) must leave the menu present. */
+.app-root.kb-open .wheel, .app-root.kb-open .wheel-label, .app-root.kb-open .corner-glow,
+.app-root.accio-open .wheel, .app-root.accio-open .wheel-label, .app-root.accio-open .corner-glow{ opacity:0; pointer-events:none; }
+.app-root.kb-open .wact, .app-root.kb-open .grip,
+.app-root.accio-open .wact, .app-root.accio-open .grip{ opacity:0; pointer-events:none; }
 
 /* ---- Sync details panel (press-hold sync; or a tap when offline) ---- */
 .sync-panel{
@@ -321,20 +326,24 @@ body{
   transform:translateY(100%); transition:transform .5s var(--spring); }
 .note.open{ transform:none; }
 .note-top{ display:flex; align-items:center; justify-content:space-between; padding:4px 14px 0; flex:none; transition:opacity .25s var(--ease); }
-.app-root.typing .note-top{ opacity:0; pointer-events:none; }
+.app-root.editing-note .note-top{ opacity:0; pointer-events:none; }
 .note-top button{ border:none; background:none; cursor:pointer; color:hsl(var(--text-muted)); padding:10px; display:flex; align-items:center; gap:5px; font-family:var(--font); font-size:15px; }
 .note-top .back{ color:hsl(var(--accent)); }
 .note-saved{ font-size:12px; color:hsl(var(--text-muted)); display:flex; align-items:center; gap:5px; opacity:0; transition:opacity .3s var(--ease); }
 .note-saved.show{ opacity:1; }
 .note-saved i{ width:5px; height:5px; border-radius:50%; background:hsl(var(--success)); display:block; }
-.note-surface{ flex:1; min-height:0; overflow-y:auto; padding:10px 24px calc(40vh + var(--kb)); scrollbar-width:none; }
+.note-surface{ flex:1; min-height:0; overflow-y:auto; padding:10px 24px calc(40vh + var(--kb) + 54px); scrollbar-width:none; }
 .note-surface::-webkit-scrollbar{ display:none; }
-.note-title{ font-size:27px; font-weight:700; letter-spacing:-.5px; outline:none; }
-.note-title:empty::before{ content:"New thought"; color:hsl(var(--text-muted)/.5); }
-.note-date{ font-size:13px; color:hsl(var(--text-muted)); margin:6px 0 16px; }
-.note-body{ font-size:17px; line-height:1.6; outline:none; min-height:200px; }
-.note-body:empty::before{ content:"Start writing…"; color:hsl(var(--text-muted)/.5); }
-.note-body p{ margin:0 0 .8em; }
+/* Apple-Notes model: ONE editor. The first line is the title (auto-H1); everything
+   after it is body. No separate title field. */
+.note-date{ flex:1; min-width:0; text-align:center; font-size:12.5px; color:hsl(var(--text-muted)); }
+.note-body{ font-size:17px; line-height:1.6; outline:none; min-height:60vh; }
+.note-body h1{ font-size:27px; font-weight:700; letter-spacing:-.5px; line-height:1.25; margin:0 0 .4em; }
+.note-body div, .note-body p{ margin:0 0 .15em; }
+.note-body ul{ margin:.1em 0 .4em; padding-left:1.25em; }
+.note-body li{ margin:0 0 .12em; }
+/* placeholder sits on the empty first-line title */
+.note-body.title-empty > h1:first-child::before{ content:"Title"; color:hsl(var(--text-muted)/.5); pointer-events:none; }
 /* Dictate FAB sits on the corner OPPOSITE the menu so the persistent menu never
    collides with it (menu right → mic left; mirrors when the menu flips sides). */
 .note-mic{ position:absolute; left:22px; right:auto; bottom:calc(24px + env(safe-area-inset-bottom) + var(--kb)); width:56px; height:56px; border-radius:50%;
@@ -343,6 +352,31 @@ body{
   box-shadow:0 12px 30px -10px rgba(0,0,0,.7); transition:bottom .2s var(--ease), background .3s, color .3s, border-color .3s; }
 .app-root.side-left .note-mic{ right:22px; left:auto; }
 .note-mic.listening{ background:hsl(var(--accent)/.2); color:hsl(var(--accent)); border-color:hsl(var(--accent)/.5); animation:pulse 1.4s var(--ease) infinite; }
+/* with the keyboard up, the toolbar carries Voice → hide the floating FAB */
+.app-root.kb-open .note-mic{ opacity:0; pointer-events:none; }
+
+/* ---- keyboard accessory toolbar (Apple-Notes-style) — formatting + voice,
+        docked just above the keyboard; visible ONLY while editing a note with
+        the keyboard up. ---- */
+.note-toolbar{ position:absolute; left:0; right:0; bottom:var(--kb); z-index:8; height:52px;
+  display:flex; align-items:center; gap:10px; padding:0 10px env(safe-area-inset-bottom);
+  background:hsl(var(--surface-raised)/.97); backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px);
+  border-top:1px solid hsl(var(--border));
+  transform:translateY(130%); opacity:0; pointer-events:none;
+  transition:transform .26s var(--spring), opacity .18s var(--ease); }
+.app-root.kb-open.editing-note .note-toolbar{ transform:none; opacity:1; pointer-events:auto; }
+.note-toolbar .fmt{ display:flex; align-items:center; gap:6px; flex:1; min-width:0; overflow-x:auto; scrollbar-width:none; }
+.note-toolbar .fmt::-webkit-scrollbar{ display:none; }
+.note-toolbar .tb{ flex:none; height:36px; padding:0 13px; border-radius:9px; border:1px solid hsl(var(--border));
+  background:hsl(var(--surface-sunken)); color:hsl(var(--text)); font-family:var(--font); font-size:14px; font-weight:600;
+  display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer; -webkit-user-select:none; user-select:none;
+  transition:background .18s var(--ease), color .18s var(--ease), border-color .18s var(--ease); }
+.note-toolbar .tb:active{ background:hsl(var(--surface)); }
+.note-toolbar .tb.active{ border-color:hsl(var(--accent)/.6); color:hsl(var(--accent)); background:hsl(var(--accent)/.12); }
+.note-toolbar .tb-right{ display:flex; align-items:center; gap:6px; flex:none; }
+.note-toolbar .tb.mic{ width:40px; padding:0; }
+.note-toolbar .tb.mic.listening{ color:hsl(var(--accent)); border-color:hsl(var(--accent)/.5); background:hsl(var(--accent)/.14); animation:pulse 1.4s var(--ease) infinite; }
+.note-toolbar .tb.done{ border:none; background:none; color:hsl(var(--accent)); font-weight:700; }
 
 .thread{ position:absolute; inset:0; z-index:145; pointer-events:none; }
 
@@ -454,14 +488,26 @@ body{
     <div class="note" id="note">
       <div class="note-top">
         <button class="back" id="noteBack"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 5-7 7 7 7"/></svg></button>
+        <div class="note-date" id="noteDate"></div>
         <div class="note-saved" id="noteSaved"><i></i> Saved</div>
       </div>
       <div class="note-surface" id="noteSurface">
-        <div class="note-title" id="noteTitle" contenteditable="true" spellcheck="false"></div>
-        <div class="note-date" id="noteDate"></div>
-        <div class="note-body" id="noteBody" contenteditable="true" spellcheck="false"></div>
+        <div class="note-body" id="noteBody" contenteditable="true" spellcheck="true"></div>
       </div>
       <button class="note-mic" id="noteMic" aria-label="Dictate"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/></svg></button>
+      <!-- keyboard accessory toolbar: formatting + voice, like Apple Notes -->
+      <div class="note-toolbar" id="noteToolbar">
+        <div class="fmt">
+          <button class="tb" data-fmt="title" aria-label="Title">Title</button>
+          <button class="tb" data-fmt="body" aria-label="Body">Body</button>
+          <button class="tb" data-fmt="bold" aria-label="Bold"><b>B</b></button>
+          <button class="tb" data-fmt="list" aria-label="Bulleted list">• List</button>
+        </div>
+        <div class="tb-right">
+          <button class="tb mic" id="tbVoice" aria-label="Dictate"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/></svg></button>
+          <button class="tb done" id="tbDone">Done</button>
+        </div>
+      </div>
     </div>
 
     <!-- TABS SWITCHER -->
@@ -487,12 +533,26 @@ body{
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const haptic = (ms=8)=>{ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} };
 
-  /* ---- live keyboard inset (so bars ride above the keyboard on real phones) -- */
+  /* ---- live keyboard inset (so bars ride above the keyboard on real phones) --
+     Also the SINGLE source of truth for "is the keyboard up": .kb-open. The menu
+     hides only on .kb-open (not on focus), and closing the keyboard tears down any
+     transient typing sheet (e.g. the Accio bar). */
+  let kbUp = false, accioVoice = false;
   function updateKB(){
     const vv = window.visualViewport;
     if(!vv){ return; }
     const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
     root.style.setProperty("--kb", kb + "px");
+    const up = kb > 80;
+    if(up !== kbUp){
+      kbUp = up; root.classList.toggle("kb-open", up);
+      if(!up) onKeyboardClosed();
+    }
+  }
+  function onKeyboardClosed(){
+    // keyboard dismissed with nothing searched → the Accio bar must not linger
+    if(typeof accioVoice!=="undefined" && accioVoice) return;   // voice dictation running
+    if(accio && accio.classList.contains("open")) closeAccio();
   }
   if(window.visualViewport){
     visualViewport.addEventListener("resize", updateKB);
@@ -615,10 +675,28 @@ body{
   /* =========================================================================
      NOTE VIEW — one surface for reading + writing. Autosaves (no "Pour in").
      ======================================================================= */
-  const note = $("#note"), noteTitle = $("#noteTitle"), noteBody = $("#noteBody"),
-        noteDate = $("#noteDate"), noteSaved = $("#noteSaved");
+  const note = $("#note"), noteBody = $("#noteBody"),
+        noteDate = $("#noteDate"), noteSaved = $("#noteSaved"),
+        noteToolbar = $("#noteToolbar");
   let current = null;
   const openTabs = [];
+
+  /* ---- single-editor helpers (first line = title = auto-H1, rest = body) ---- */
+  function currentBlock(){
+    const sel = window.getSelection(); let n = sel && sel.anchorNode;
+    if(!n) return null; if(n.nodeType===3) n = n.parentNode;
+    while(n && n.parentNode !== noteBody) n = n.parentNode;
+    return (n && n.parentNode === noteBody) ? n : null;
+  }
+  function placeCaret(node, off){
+    const r = document.createRange(), s = window.getSelection();
+    r.setStart(node, off); r.collapse(true); s.removeAllRanges(); s.addRange(r);
+  }
+  function syncPlaceholders(){
+    const h = noteBody.firstElementChild;
+    noteBody.classList.toggle("title-empty", !h || h.tagName !== "H1" || !h.textContent.trim());
+  }
+  function focusTitle(){ const h = noteBody.firstElementChild; if(h){ noteBody.focus(); placeCaret(h, 0); } }
 
   function fmtNow(){
     const n = new Date();
@@ -641,16 +719,23 @@ body{
     current = d;
     pushTab(d);
     closeAccio(true); closeSwitcher(true);
-    noteTitle.textContent = d.t || "";
-    noteBody.innerHTML = d.fresh ? "" : `<p>${esc(d.c)}</p>`;
     noteDate.textContent = d.when || (d.d === "Just now" ? fmtNow() : "Written " + d.d);
+    if(d.fresh){
+      noteBody.innerHTML = "<h1><br></h1>";            // empty title line, caret-ready
+    } else {
+      const body = d.c
+        ? d.c.split("\n").map(l => l.trim() ? `<div>${esc(l)}</div>` : "<div><br></div>").join("")
+        : "";
+      noteBody.innerHTML = `<h1>${esc(d.t || "")}</h1>` + body;
+    }
+    syncPlaceholders();
     note.classList.add("open");
   }
   function openNewNote(dictate){
     const d = { id:++uid, t:"", c:"", cat:randCat(), shape:SHAPES[Math.floor(Math.random()*SHAPES.length)], fill:.18, d:"Just now", when:fmtNow(), fresh:true, isNew:true };
     conjure(() => {
       openNote(d);
-      setTimeout(() => { noteTitle.focus(); if (dictate) startDictation(); }, 460);
+      setTimeout(() => { focusTitle(); if (dictate) startDictation(); }, 460);
     });
     haptic(10);
   }
@@ -660,8 +745,12 @@ body{
   function scheduleSave(){ noteSaved.classList.remove("show"); clearTimeout(saveT); saveT = setTimeout(commit, 450); }
   function commit(){
     if (!current) return;
-    current.t = (noteTitle.textContent||"").trim();
-    current.c = (noteBody.textContent||"").trim();
+    const h = noteBody.firstElementChild;
+    current.t = (h ? h.textContent : "").trim();               // first line = title
+    const rest = [];
+    let n = h ? h.nextElementSibling : null;
+    while(n){ rest.push(n.textContent); n = n.nextElementSibling; }   // everything after = body
+    current.c = rest.join("\n").trim();
     current.fill = Math.min(1, Math.max(.18, current.c.length/220));
     current.d = "Just now";
     if (current.isNew && (current.t || current.c)){
@@ -677,17 +766,45 @@ body{
     noteSaved.classList.add("show");
     setTimeout(()=>noteSaved.classList.remove("show"), 1400);
   }
-  noteTitle.addEventListener("input", scheduleSave);
-  noteBody.addEventListener("input", scheduleSave);
+  noteBody.addEventListener("input", () => { syncPlaceholders(); scheduleSave(); });
 
-  // Typing mode: focus hides the wheel + note chrome; blur restores.
-  function setTyping(on){ root.classList.toggle("typing", on); }
-  [noteTitle, noteBody].forEach(el => {
-    el.addEventListener("focus", () => setTyping(true));
-    el.addEventListener("blur", () => setTyping(false));
+  // Enter at the end of the TITLE line breaks out into a normal body line (Apple Notes).
+  noteBody.addEventListener("keydown", e => {
+    if(e.key !== "Enter" || e.shiftKey) return;
+    const block = currentBlock();
+    if(!block || block !== noteBody.firstElementChild || block.tagName !== "H1") return;
+    e.preventDefault();
+    const sel = window.getSelection(), rng = sel.getRangeAt(0);
+    const tail = rng.cloneRange(); tail.selectNodeContents(block); tail.setStart(rng.endContainer, rng.endOffset);
+    const frag = tail.extractContents();
+    const div = document.createElement("div");
+    if(frag.textContent && frag.textContent.length) div.appendChild(frag); else div.innerHTML = "<br>";
+    block.after(div);
+    placeCaret(div, 0); syncPlaceholders(); scheduleSave();
   });
-  noteDate.addEventListener("click", () => { noteTitle.blur(); noteBody.blur(); });
-  $("#noteBack").addEventListener("click", () => { commit(); note.classList.remove("open"); setTyping(false); current = null; });
+
+  // Editing mode (focus-driven): hides the note's top chrome and arms the toolbar.
+  // NB: the MENU's visibility is keyboard-driven (.kb-open), not this.
+  function setEditing(on){ root.classList.toggle("editing-note", on); }
+  noteBody.addEventListener("focus", () => setEditing(true));
+  noteBody.addEventListener("blur", () => setEditing(false));
+  noteDate.addEventListener("click", () => noteBody.blur());
+  $("#noteBack").addEventListener("click", () => { commit(); note.classList.remove("open"); setEditing(false); current = null; });
+
+  /* ---- keyboard toolbar: formatting keeps the caret (pointerdown preventDefault) ---- */
+  function applyFmt(f){
+    noteBody.focus();
+    if(f==="title")      document.execCommand("formatBlock", false, "h1");
+    else if(f==="body")  document.execCommand("formatBlock", false, "div");
+    else if(f==="bold")  document.execCommand("bold");
+    else if(f==="list")  document.execCommand("insertUnorderedList");
+    syncPlaceholders(); scheduleSave(); haptic(6);
+  }
+  noteToolbar.querySelectorAll(".tb[data-fmt]").forEach(b => {
+    b.addEventListener("pointerdown", e => { e.preventDefault(); applyFmt(b.dataset.fmt); });
+  });
+  $("#tbVoice").addEventListener("pointerdown", e => { e.preventDefault(); toggleDictation(); });
+  $("#tbDone").addEventListener("pointerdown", e => { e.preventDefault(); noteBody.blur(); });
 
   /* ---- the "thought-thread" the wand draws when conjuring ---- */
   const thread = $("#thread");
@@ -1019,7 +1136,7 @@ body{
   function goHome(){
     closeAccio(true); closeSwitcher(true);
     if (current) commit();
-    note.classList.remove("open"); setTyping(false); current=null;
+    note.classList.remove("open"); setEditing(false); current=null;
     reel.scrollTo({ top:0, behavior: reduce?"auto":"smooth" });
     haptic(8);
   }
@@ -1029,14 +1146,19 @@ body{
      ======================================================================= */
   const accio=$("#accio"), accioInput=$("#accioInput"), accioResults=$("#accioResults");
   function openAccio(){
-    accio.classList.add("open"); renderAccio(""); haptic(8);
-    setTyping(true);
+    accio.classList.add("open"); root.classList.add("accio-open"); renderAccio(""); haptic(8);
     accioInput.focus();           // synchronous → iOS raises the keyboard
   }
-  function closeAccio(silent){ accio.classList.remove("open"); accioInput.value=""; accioInput.blur(); if(!silent) setTyping(false); }
+  function closeAccio(silent){ accio.classList.remove("open"); root.classList.remove("accio-open"); accioInput.value=""; accioInput.blur(); }
   accio.addEventListener("click", e => { if(e.target===accio) closeAccio(); });
-  accioInput.addEventListener("focus", ()=> setTyping(true));
-  accioInput.addEventListener("blur", ()=>{ if(!accio.classList.contains("open")) setTyping(false); });
+  // Keyboard dismissed with nothing searched → the bar must close (not just chill at
+  // the bottom). Primary driver is .kb-open (updateKB); this blur handler covers the
+  // no-visualViewport / desktop case. Skip while voice search is running.
+  accioInput.addEventListener("blur", ()=>{ setTimeout(()=>{
+    if(accioVoice) return;
+    if(document.activeElement && accio.contains(document.activeElement)) return;
+    if(accio.classList.contains("open")) closeAccio();
+  }, 90); });
   accioInput.addEventListener("keydown", e => { if(e.key==="Escape") closeAccio(); });
   function hl(t,q){ if(!q) return esc(t); const i=t.toLowerCase().indexOf(q.toLowerCase()); if(i<0) return esc(t);
     return esc(t.slice(0,i))+"<mark>"+esc(t.slice(i,i+q.length))+"</mark>"+esc(t.slice(i+q.length)); }
@@ -1159,22 +1281,27 @@ body{
       if(isEl) el.textContent=s; else { el.value=s; el.dispatchEvent(new Event("input")); }
       if(i<text.length) setTimeout(tick,26); else done&&done(); })();
   }
-  const noteMic=$("#noteMic"); let dict=false;
+  const noteMic=$("#noteMic"), tbVoice=$("#tbVoice"); let dict=false;
+  function setMicListening(on){ noteMic.classList.toggle("listening",on); if(tbVoice) tbVoice.classList.toggle("listening",on); }
   function startDictation(){
-    if(dict) return; dict=true; noteMic.classList.add("listening");
-    if(!noteTitle.textContent) noteTitle.textContent="A thought, spoken";
-    noteBody.focus();
-    setTimeout(()=>typeInto(noteBody,SAMPLE,true,()=>{ noteMic.classList.remove("listening"); dict=false; commit(); }),650);
+    if(dict) return; dict=true; setMicListening(true);
+    const h = noteBody.firstElementChild;
+    if(h && h.tagName==="H1" && !h.textContent.trim()) h.textContent="A thought, spoken";
+    let div = h ? h.nextElementSibling : null;          // dictate into the body, after the title
+    if(!div){ div=document.createElement("div"); div.innerHTML="<br>"; noteBody.appendChild(div); }
+    noteBody.focus(); syncPlaceholders();
+    setTimeout(()=>typeInto(div,SAMPLE,true,()=>{ setMicListening(false); dict=false; commit(); }),650);
   }
-  noteMic.addEventListener("click", ()=>{ dict ? (noteMic.classList.remove("listening"),dict=false) : startDictation(); });
-  const accioMic=$("#accioMic"); let ls=false;
-  accioMic.addEventListener("click", ()=>{ if(ls) return; ls=true; accioMic.classList.add("listening"); accioInput.value="";
+  function toggleDictation(){ dict ? (setMicListening(false), dict=false) : startDictation(); }
+  noteMic.addEventListener("click", toggleDictation);
+  const accioMic=$("#accioMic");
+  accioMic.addEventListener("click", ()=>{ if(accioVoice) return; accioVoice=true; accioMic.classList.add("listening"); accioInput.value="";
     const p=SEARCHES[Math.floor(Math.random()*SEARCHES.length)];
-    setTimeout(()=>typeInto(accioInput,p,false,()=>{ accioMic.classList.remove("listening"); ls=false; }),600); });
+    setTimeout(()=>typeInto(accioInput,p,false,()=>{ accioMic.classList.remove("listening"); accioVoice=false; }),600); });
 
   /* ---- elastic-scroll guard on real phones ---- */
   document.addEventListener("touchmove", e=>{
-    if(!e.target.closest(".reel,.accio-results,.note-surface,.tabs-rail")) e.preventDefault();
+    if(!e.target.closest(".reel,.accio-results,.note-surface,.tabs-rail,.note-toolbar")) e.preventDefault();
   }, { passive:false });
 
   /* ---- boot ---- (the wheel engine self-boots + self-handles its own resize) */

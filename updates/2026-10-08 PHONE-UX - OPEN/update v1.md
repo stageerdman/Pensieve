@@ -209,7 +209,36 @@ deep blue-black stone, the magical-blue accent and gold. Magical AND highly prac
   - jsdom-verified: boots clean (`__wheel` up, wheel z-index 150), Accio→`--accio`, sync
      states map synced→muted / reminder+syncing→warn / failed+offline→danger, and a driven
      tap runs syncing→failed→retry→syncing with zero errors.
-- **Next:** owner tests on device — menu present/usable on note + cards + search-empty,
-  gone only with the keyboard; dictate FAB no longer clashing; Accio violet reads right;
-  sync orange/red legibility + the fail→retry flow feels honest. Tune colours/`FAIL_RATE`.
-  Then lock the full Wand spec and start Phase 3 on the PWA-CAPTURE runtime.
+- 2026-10-09: **Round-10 — menu-always-present fix + Apple-Notes editor + keyboard bar.**
+  1. **"Menu disappears on new note" — root cause & fix.** `openNewNote` focuses the
+     editor from a `setTimeout` (not a user gesture), so iOS does NOT raise the keyboard —
+     but the `focus` event still fired the old focus-based `.typing`, hiding the wheel with
+     no keyboard to justify it. Rewired: the menu now hides **only on the actual keyboard**
+     (`.kb-open`, derived from visualViewport in `updateKB`, threshold 80px) or the Accio
+     sheet (`.accio-open`). So a new note keeps the menu until you actually tap to type.
+  2. **Title = first line = auto-H1 (Apple Notes / Pensieve model).** Dropped the separate
+     title field. The note is now ONE `#noteBody` contenteditable: first block is an `<h1>`
+     (the title, caret-ready with a "Title" placeholder on a new note), everything after is
+     body. **Enter at the title breaks out into a normal body line** (keydown handler splits
+     at the caret). `openNote`/`commit` updated (title = first block text, body = the rest,
+     joined by newlines). Date moved into the top bar (hidden while editing). *(Desktop
+     TipTap editor must mirror this same rule when Phase 3 builds it — see issues.txt.)*
+  3. **Keyboard accessory toolbar (Apple-Notes-style).** New `#noteToolbar` docked above
+     the keyboard (`bottom:var(--kb)`), visible only while editing with the keyboard up
+     (`.kb-open.editing-note`). Buttons: **Title / Body / B / • List** (execCommand,
+     `pointerdown`+preventDefault so the caret/selection is kept) and **Voice / Done** on
+     the right. Voice shares the dictation path; Done dismisses the keyboard. The floating
+     dictate FAB hides while the toolbar is up (kept for the no-keyboard/reading case).
+  4. **Accio bar no longer lingers.** It opened via `.typing`+focus and never closed on a
+     bare keyboard dismiss. Now `openAccio` sets `.accio-open`; when the keyboard drops
+     (`updateKB` → `onKeyboardClosed`, and a blur fallback for desktop) the bar closes — so
+     it's open only while the keyboard is. Voice-search guarded so the mic doesn't self-close
+     it.
+  - jsdom-verified end-to-end: boot clean; new note → empty H1 + menu still visible (no
+     kb-open); Enter-in-title → body DIV; commit splits title/body ("Groceries" + "milk,
+     eggs"); Accio opens → kb up → kb down → auto-closes; conjure animation path clean.
+- **Next:** owner tests on device — (a) new note keeps the menu, tapping the title raises
+  the keyboard + the format bar; (b) first line is H1, Enter drops to body, feels like
+  Apple Notes; (c) the toolbar's Title/Body/Bold/List + Voice/Done; (d) Accio closes when
+  the keyboard does. Then lock the full Wand spec and start Phase 3 (PWA-CAPTURE runtime +
+  mirror the title-H1 rule in the desktop TipTap editor).
