@@ -57,3 +57,49 @@ MouseEvent`, `Element.prototype.animate/setPointerCapture/scrollTo`, and a fake
 `visualViewport` you can resize to simulate the keyboard. Drive the real DOM (tap `.wact`
 buttons, dispatch events) and assert on classes/structure. The owner does the on-device
 feel pass; serve the file over the LAN (`python3 -m http.server`) for that.
+**Blur vs focus in jsdom:** to test the desktop keyboard-down fallback, call
+`el.blur()` (which really moves `activeElement`), NOT a synthetic `blur` Event — the
+handler guards on `document.activeElement === input`, so a dispatched event alone no-ops.
+To test the iOS path, shrink the fake `visualViewport.height` past the 80px threshold and
+fire its `resize` → `.kb-open` → `onKeyboardClosed`.
+
+## Search = a FILTER on the home reel (locked) — "Home is search"
+- **One surface, one list.** Accio does NOT open a separate results view. The home reel is
+  the only list of notes; a single `filterQuery` narrows it in place (empty = everything).
+  The old `.accio` overlay + its second `#accioResults` list were the *cause* of the
+  "stray/duplicate search bar that lingers" — two lists of the same notes on two surfaces.
+  Deleting the second surface makes the stray bar structurally impossible. **Never render
+  notes in two places.**
+- **Summon, don't reside.** No resting search box. Tap Accio → the lone `.summon` bar rises
+  above the keyboard (thumb zone); typing filters live; matches get a violet `<mark>`.
+- **Decouple search from scroll.** The bar lives OUTSIDE any scroller. On keyboard-down with
+  a query it collapses to a top **pill** (`◎ <q> ✕`) and the reel stays filtered so matches
+  scroll hands-free. This is what fixed "I scroll and the search bar disappears and can't
+  come back" — scrolling can never dismiss the search. Keyboard visibility (not focus, not
+  scroll) drives the collapse (`.kb-open`/visualViewport → `settleSearch`).
+- Root classes: `.searching` = bar up (hides the wheel, like `.kb-open`); `.filtering` =
+  a query is active (shows the pill when `:not(.searching)`, keeps the reel filtered).
+- **The word "Search" is banned from the UI** — it's **Accio** everywhere (wheel label +
+  mic aria). Placeholder is the in-world "Accio a memory…".
+
+## Phone scroll lock — only dedicated elements scroll (locked)
+- The shell never scrolls: `html,body,.screen { overflow:hidden; overscroll-behavior:none }`
+  and on phone the body is pinned `position:fixed; inset:0`. Exactly ONE scroller per
+  surface: the **reel** (`overscroll-behavior:contain; touch-action:pan-y`) and the
+  **note-surface**. `overscroll-behavior:contain` on the reel is what killed the
+  **"pull the note out of the screen" rubber-band** (there was previously NO
+  overscroll-behavior anywhere — that was the bug).
+- The JS `touchmove` guard (`preventDefault` for anything not inside `.reel,.note`) is the
+  real page-lock enforcer and is robust across iOS versions. **Do NOT also put
+  `touch-action:none` on `body`** — a `touch-action` on an ancestor can suppress panning in
+  descendant scrollers on iOS and break the reel. Let the guard do the locking.
+
+## The Wand menu is three seats — New · Accio · Sync (locked)
+- A capture phone has two verbs (make · find) + one status light. `ORDER` = `["sync","accio",
+  "wand"]` with `wand` the centred HERO. **Home is the base surface, not a button**
+  (leaving any layer returns there). **Cards** (an open-tabs switcher) was a desktop metaphor
+  that doesn't belong on a capture phone — dropped.
+- **Adjust was removed** (seat + resize/flip grip + design-layer). It can't move to a
+  hub long-press because long-press-wand is the loved hold-to-speak gesture. Stored
+  `wheelSide`/`wheelRadius` prefs are still honoured; if handedness flip is wanted back,
+  add it as an explicit settings item, not a gesture.

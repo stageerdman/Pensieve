@@ -284,6 +284,44 @@ deep blue-black stone, the magical-blue accent and gold. Magical AND highly prac
   - jsdom-verified: with a fragmented div `hel|lo wor|ld okay`, tapping "world" selects
      exactly "world" (crosses both the nbsp and the node boundary); tapping "okay" selects
      "okay". Boot clean, no errors.
-- **Next:** owner tests on device — double-tap/click selects exactly one word in title AND
-  body (no cropping, no runaway). If still off, capture the exact gesture. Then lock the
-  Wand spec → Phase 3.
+- 2026-10-09: **Round-14 — magical Search (Accio) + rock-solid scrolling.** Commissioned
+  3 parallel UX experts (magical-feel · scroll/layout mechanics · information architecture)
+  as the orchestrator; all three converged on **"Home *is* search"**. Built:
+  1. **Search is now a live filter on the home reel — one surface, one list.** Deleted the
+     separate `.accio` overlay and its second results list (`#accioResults`) entirely; that
+     duplicate list was the root of the "stray search bar that lingers after the menu
+     closes". `renderReel()` now reads a single `filterQuery` → renders the matching subset
+     (empty = everything). Matches are highlighted (`<mark>`, violet) in both the reel cards
+     and the lens; the count reads "N matches"; no results → the lens says *"Nothing
+     answered that call."*
+  2. **Accio is summoned, not resident.** Tap Accio → the lone summon bar rises above the
+     keyboard (under the thumb), caret ready, reel filtering live. The word **"Search" is
+     gone** — the wheel label and everything else say **Accio**.
+  3. **Persistent filter pill.** Drop the keyboard with a query → the bar collapses into a
+     quiet top pill `◎ <query> ✕`; the reel stays filtered so matches scroll **hands-free**
+     (fixes "I scroll and the search bar vanishes and I can't get it back" — search and
+     scroll are now fully decoupled). Tap the pill = edit the query; tap ✕ = everything back.
+     Empty dismiss clears. Driven by the keyboard (`.kb-open`/visualViewport), never by focus
+     or scroll.
+  4. **Scrolling locked — only dedicated elements move.** `html,body` + `.screen`:
+     `overflow:hidden; overscroll-behavior:none`; body pinned `position:fixed` on phone. The
+     reel is the ONE scroller (`overscroll-behavior:contain; touch-action:pan-y`); same for
+     the note surface. This removes the whole-app scroll and the **"pull the note out of the
+     screen" rubber-band** the owner disliked. The `touchmove` guard now whitelists only
+     `.reel,.note`.
+  5. **Steve-Jobs menu cut (owner-approved).** Dropped the **Home** button (Home is the base
+     surface, not a destination) and the **Cards** switcher (redundant with Home on a capture
+     phone; removed the switcher UI + open-tabs tracking). Removed the **Adjust** seat and its
+     resize/flip grip + design-layer overlay. Wheel is now three seats: **New (hero) · Accio
+     · Sync**. *(Note: handedness flip / wheel-resize went away with Adjust — a stored
+     `wheelSide`/`wheelRadius` preference is still honoured, but there's no in-app control for
+     now. Flag for the owner: re-add as a settings item if wanted — it couldn't live on a
+     hub long-press without colliding with the loved hold-to-speak wand gesture.)*
+  - jsdom-verified end-to-end (33 checks): 3 seats only; no switcher/overlay/second-list/
+     grip/tab-count; live filter narrows + highlights + empty-state; both keyboard-close
+     paths (desktop blur + iOS visualViewport) collapse to the pill with the filter intact;
+     pill ✕ restores all; New clears the filter; zero runtime errors.
+- **Next:** owner tests on device — (a) Accio feels like a summon, filter is instant, pill is
+  obvious, nothing lingers; (b) only the reel/note scroll, no page bounce, no note-pull; (c)
+  confirm the earlier word-selection fix. Then lock the Wand spec → Phase 3 (wire to the
+  real vault + PWA-CAPTURE runtime).
