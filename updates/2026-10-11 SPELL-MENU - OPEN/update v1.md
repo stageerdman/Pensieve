@@ -72,9 +72,17 @@ golden menu button. Must feel magical AND instantaneous, and stay lightweight/fa
   signed-arc scroll + void-fade, center nav, tap/hold, background-dismiss), Sync window. PhoneApp
   rewired off the Wand. 113 phone tests green; typecheck + production build clean.
 - 2026-10-11: Serving on LAN `http://192.168.1.149:5174` for the owner's on-device feel-pass.
-- **Next (P6 remainder):** owner device test → feel notes → tune (ring reach/R/centerY, Conditional
-  colour, scroll feel, bloom timing). Then merge to main + `tauri build` is N/A (phone-only; native
-  app unaffected). Close the update after the device sign-off.
+- 2026-10-11: **Feedback pass 1** (owner notes): fixed scroll "mirror" (rigid wheel → angular
+  grab-spin, glyph follows the thumb on both sides); bigger spells (disc 64/R 128); center is now
+  text/arrow not a disc ("see local"/"see general"/wand-flick back arrow); hidden-count indicators;
+  transparent fire-gold orb menu button (no hub); resident Accio bar made clearly visible in-row.
+- 2026-10-11: **Feedback pass 2 — the magic** (2 magical-UX experts synthesized): enchanted glyph
+  material (per-hue radiance + specular + breathing aura), a "conjure" spark entrance (staggered,
+  replays on open/switch/descend), and a NON-BLOCKING "evaporate into glowing sparkles" exit layer;
+  ember orb button + HP back arrow + motes/chevron hidden-count. 114 tests green; build clean.
+- **Next (P6 remainder):** owner device test of the magic → tune numbers (ring reach R/centerY,
+  hidden-count offsets, evaporate mote count/spread, conjure speed, Conditional colour blue↔violet).
+  Then merge to main (phone-only; native app unaffected). Close after device sign-off.
 
 ## Decisions / open questions
 - Conditional colour: proposed accent-blue vs accio-violet ring (TBD in P4, owner to feel-test).
