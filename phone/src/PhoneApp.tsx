@@ -28,7 +28,7 @@ import { useSyncState } from "./hooks/useSyncState";
 import { useCaretVisible } from "./hooks/useCaretVisible";
 import { useWordSelection } from "./hooks/useWordSelection";
 import { useAutosave } from "./hooks/useAutosave";
-import { useSpellMenu, type PoofKind } from "./hooks/useSpellMenu";
+import { useSpellMenu } from "./hooks/useSpellMenu";
 import type { Spell } from "./lib/spells/types";
 import { HOME_DOCK } from "./lib/spells/dockModel";
 
@@ -91,13 +91,6 @@ function loadRecents(): string[] {
   }
 }
 
-// The "Poof bridge": when the ring is dismissed/switched/descended, each glyph leaves behind
-// a GHOST disc that visibly dissolves + a bold eruption of hue-matched motes, plus one hub
-// shockwave and (on close) a scrim echo. It's a top-level layer that survives the overlay
-// unmount and self-removes — never gating the UI. Travel vectors vary by PoofKind.
-type PoofGhost = { x: number; y: number; d: number; hue: string; gx: number; gy: number; gs: number; delay: number };
-type PoofMote = { x: number; y: number; mx: number; my: number; size: number; delay: number; dur: number; hue: string };
-type Poof = { id: number; kind: PoofKind; ghosts: PoofGhost[]; motes: PoofMote[]; hubX: number; hubY: number; hue: string };
 
 export function PhoneApp() {
   const reduce = prefersReducedMotion();
@@ -137,8 +130,8 @@ export function PhoneApp() {
   const [spell, setSpell] = useState({ show: false, castId: 0, label: "", labelColor: "" });
   const [recents, setRecents] = useState<string[]>(loadRecents);
   const [toast, setToast] = useState("");
-  const [poof, setPoof] = useState<Poof | null>(null);
-  const poofId = useRef(0);
+  const [sparkle, setSparkle] = useState(0); // a brief close/switch twinkle (0 = none)
+  const sparkleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // mirrors for use inside stable event callbacks
   const editingRef = useRef(editingNote);
@@ -422,89 +415,18 @@ export function PhoneApp() {
     accio.handleInput(q); // rerun the filter in place (resident, no keyboard)
   }
 
-  // Snapshot the live ring (each glyph's screen rect + hue), THEN let the caller change state.
-  // The ghosts/motes/shockwave play over wherever the UI went — never gating it. Travel vectors
-  // vary by kind so close/descend/ascend/toggle each read differently.
-  function firePoof(kind: PoofKind) {
-    const btns = document.querySelectorAll<HTMLElement>(".spell-overlay .spell-node .spell-btn");
-    if (!btns.length) return;
-    const hubX = window.innerWidth * 0.5;
-    const hubY = window.innerHeight * 0.56; // RING.centerYFrac
-    const formHue = menu.hue === "accent" ? "218 100% 72%" : "43 100% 64%";
-    const ghosts: PoofGhost[] = [];
-    const motes: PoofMote[] = [];
-
-    btns.forEach((btn) => {
-      const r = btn.getBoundingClientRect();
-      if (!r.width) return;
-      const cx = r.left + r.width / 2;
-      const cy = r.top + r.height / 2;
-      const hue = getComputedStyle(btn).getPropertyValue("--sh-glow").trim() || formHue;
-      const vx = hubX - cx;
-      const vy = hubY - cy;
-      const len = Math.hypot(vx, vy) || 1;
-      const ux = vx / len;
-      const uy = vy / len; // toward hub
-      const tx = -uy;
-      const ty = ux; // tangent
-
-      let gx = ux * -10;
-      let gy = -46;
-      let gs = 1.42;
-      if (kind === "descend") {
-        gx = vx * 0.92;
-        gy = vy * 0.92;
-        gs = 0.15;
-      } else if (kind === "ascend") {
-        gx = -ux * 54;
-        gy = -uy * 54 - 10;
-        gs = 1.7;
-      } else if (kind === "toggle") {
-        gx = tx * 70 - ux * 8;
-        gy = ty * 70 - uy * 8;
-        gs = 0.6;
-      }
-      ghosts.push({ x: cx, y: cy, d: r.width, hue, gx, gy, gs, delay: 0 });
-
-      const make = (count: number, sMin: number, sMax: number, reach: number, dMax: number) => {
-        for (let k = 0; k < count; k++) {
-          let mx = (Math.random() * 2 - 1) * 46;
-          let my = -(84 + Math.random() * 78);
-          if (kind === "descend") {
-            mx = vx * (0.7 + Math.random() * 0.5);
-            my = vy * (0.7 + Math.random() * 0.5);
-          } else if (kind === "ascend") {
-            mx = -ux * (reach * 0.9) + (Math.random() * 2 - 1) * 24;
-            my = -uy * (reach * 0.9) - 30;
-          } else if (kind === "toggle") {
-            mx = tx * reach * (0.7 + Math.random() * 0.6) - ux * 10;
-            my = ty * reach * (0.7 + Math.random() * 0.6) - uy * 10;
-          }
-          motes.push({
-            x: cx + (Math.random() * 2 - 1) * r.width * 0.42,
-            y: cy + (Math.random() * 2 - 1) * r.height * 0.42,
-            mx,
-            my,
-            size: sMin + Math.random() * (sMax - sMin),
-            delay: Math.random() * dMax,
-            dur: 560 + Math.random() * 120,
-            hue,
-          });
-        }
-      };
-      make(9, 4, 7, 90, 100); // small sparks
-      make(3, 9, 13, 70, 70); // hero embers
-    });
-
-    if (!ghosts.length) return;
-    const id = ++poofId.current;
-    setPoof({ id, kind, ghosts, motes, hubX, hubY, hue: formHue });
-    setTimeout(() => setPoof((p) => (p && p.id === id ? null : p)), reduce ? 200 : 720);
+  // a brief twinkle at the ring center when the menu closes / switches view — a small bit of
+  // magic that never gates the UI (plays over whatever the UI became; self-clears).
+  function flashSparkle() {
+    if (reduce) return;
+    setSparkle((n) => n + 1);
+    if (sparkleTimer.current) clearTimeout(sparkleTimer.current);
+    sparkleTimer.current = setTimeout(() => setSparkle(0), 300);
   }
 
   /** A leaf spell was cast from the ring (no children, no window). */
   function castSpellAction(s: Spell) {
-    firePoof("close");
+    flashSparkle();
     menu.close();
     if (s.id === "write") openNewNote(false);
     else if (s.id === "accio") accio.openAccio();
@@ -513,7 +435,7 @@ export function PhoneApp() {
   /** Held a spell (Write = speak). */
   function longCastSpell(s: Spell) {
     if (s.longPress === "speak") {
-      firePoof("close");
+      flashSparkle();
       menu.close();
       openNewNote(true);
     }
@@ -637,7 +559,7 @@ export function PhoneApp() {
         api={menu}
         onCast={castSpellAction}
         onLongCast={longCastSpell}
-        onPoof={firePoof}
+        onSparkle={flashSparkle}
         syncState={syncStatus}
         account={ACCOUNT}
         onSyncPrimary={syncWindowPrimary}
@@ -645,47 +567,8 @@ export function PhoneApp() {
       />
       {toast ? <div className="spell-toast">{toast}</div> : null}
 
-      {/* the Poof bridge — ghost discs dissolve + motes erupt + a shockwave; survives the
-          overlay unmount and self-removes. A top-level sibling (like the sync cast). */}
-      {poof ? (
-        <div className={`spell-poof ${poof.kind}${reduce ? " reduce" : ""}`} key={poof.id} aria-hidden="true">
-          <span className="poof-wave" style={{ left: poof.hubX, top: poof.hubY, ["--wh" as string]: poof.hue }} />
-          {poof.kind === "close" ? <span className="poof-echo" style={{ left: poof.hubX, top: poof.hubY }} /> : null}
-          {poof.ghosts.map((g, i) => (
-            <span
-              key={`g${i}`}
-              className="poof-ghost"
-              style={{
-                left: g.x,
-                top: g.y,
-                width: g.d,
-                height: g.d,
-                ["--gx" as string]: `${g.gx}px`,
-                ["--gy" as string]: `${g.gy}px`,
-                ["--gs" as string]: g.gs,
-                ["--gd" as string]: `${g.delay}ms`,
-                ["--gh" as string]: g.hue,
-              }}
-            />
-          ))}
-          {poof.motes.map((m, i) => (
-            <span
-              key={`m${i}`}
-              className="poof-mote"
-              style={{
-                left: m.x,
-                top: m.y,
-                ["--mx" as string]: `${m.mx}px`,
-                ["--my" as string]: `${m.my}px`,
-                ["--ms" as string]: `${m.size}px`,
-                ["--md" as string]: `${m.delay}ms`,
-                ["--mt" as string]: `${m.dur}ms`,
-                ["--mh" as string]: m.hue,
-              }}
-            />
-          ))}
-        </div>
-      ) : null}
+      {/* a brief close/switch twinkle — a top-level sibling so it survives the overlay unmount */}
+      {sparkle ? <span className="spell-sparkle" key={sparkle} aria-hidden="true" /> : null}
 
       {/* NOTE VIEW */}
       <NoteView
