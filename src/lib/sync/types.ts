@@ -2,6 +2,10 @@
 // (see the update doc): OneDrive is a dumb mirror of the vault; our code owns
 // merge/conflict detection. One remote `.md` per note under a single app folder.
 
+// Type-only (erased at build, so no runtime cycle with engine.ts). SyncConflict is a
+// pure domain type that the UI-state shape below references.
+import type { SyncConflict } from "./engine";
+
 /** Azure app registration + endpoints. Loaded from the OS keychain on desktop. */
 export interface AzureConfig {
   clientId: string;
@@ -155,4 +159,41 @@ export class TokenError extends Error {
     super(`Token request failed (${status}): ${code}${description ? ` — ${description}` : ""}`);
     this.name = "TokenError";
   }
+}
+
+// ---------------------------------------------------------------------------
+// Sync UI state — the shape the header affordance renders from. Lives here (the
+// sync domain) rather than in the hook so pure derivation (deriveSyncView) can
+// consume it without importing from the hooks layer. The useSync hook re-exports
+// these for existing call sites.
+// ---------------------------------------------------------------------------
+
+/** The sync surface's state machine. "unavailable" off the native app (sync is a
+ *  desktop capability); otherwise the connection + last-sync + conflict status. */
+export type SyncPhase =
+  | "unavailable"
+  | "disconnected"
+  | "needs-summon" // connected, but this OneDrive has no Pensieve folder yet
+  | "idle"
+  | "syncing"
+  | "synced"
+  | "error"
+  | "conflicts";
+
+/** Why a sync failed — so the UI tells the truth instead of always saying
+ *  "sign-in expired". `expired` = reconnect; `offline` = temporary, try again;
+ *  `other` = a real error, shown verbatim. */
+export type SyncErrorKind = "expired" | "offline" | "other";
+
+export interface SyncUi {
+  phase: SyncPhase;
+  lastSyncedAt: number | null;
+  conflicts: SyncConflict[];
+  error: string | null;
+  errorKind: SyncErrorKind | null;
+  /** Signed-in account + drive quota, loaded lazily (null until known). */
+  account: SyncAccount | null;
+  quota: SyncQuota | null;
+  /** What's transferring right now; null when nothing is in flight. */
+  transfer: SyncProgress | null;
 }
