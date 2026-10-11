@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { useDismiss } from "../hooks/useDismiss";
 import type { CategoryDef } from "../lib/categories/defs";
 import { colorOf } from "../lib/categories/defs";
 import { CATEGORY_COLORS, catBg, catFg, type CategoryColor } from "../lib/categories/palette";
@@ -30,30 +31,17 @@ export function CategoryDropdown({
   const [open, setOpen] = useState(false);
   const [managing, setManaging] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-        setManaging(null);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        if (managing) setManaging(null);
-        else setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open, managing]);
+  const ref = useDismiss<HTMLDivElement>(
+    () => {
+      setOpen(false);
+      setManaging(null);
+    },
+    {
+      enabled: open,
+      // Esc backs out one layer at a time: the manage-popover first, then the dropdown.
+      onEscape: () => (managing ? setManaging(null) : setOpen(false)),
+    },
+  );
 
   // Rows = defined categories, then any names on this note that aren't defined yet.
   const definedNames = defs.map((d) => d.name);

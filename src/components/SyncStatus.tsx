@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useDismiss } from "../hooks/useDismiss";
 import { SyncRune } from "./icons";
 import { SyncFlask } from "./SyncFlask";
 import { SpaceMeter } from "./SpaceMeter";
@@ -29,7 +30,7 @@ export function SyncStatus({
   const { ui, connect, disconnect, syncNow, summon, keepLocal, refreshInfo } = sync;
   const [open, setOpen] = useState(false);
   const [justSynced, setJustSynced] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useDismiss<HTMLDivElement>(() => setOpen(false), { enabled: open });
 
   // Brief success flash right after a sync, then settle back to calm muted.
   useEffect(() => {
@@ -44,24 +45,6 @@ export function SyncStatus({
     if (open) void refreshInfo();
   }, [open, refreshInfo]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
 
   if (ui.phase === "unavailable") return null;
 

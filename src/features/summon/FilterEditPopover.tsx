@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { Filter } from "../../lib/search/types";
+import { useDismiss } from "../../hooks/useDismiss";
 import { DATE_PHRASES, resolveDatePhrase } from "../../lib/search/dates";
 import { normTag } from "../../lib/search/evaluate";
 import { DateRangeCalendar, formatRange } from "./DateRangeCalendar";
@@ -25,25 +26,8 @@ interface Props {
 }
 
 export function FilterEditPopover({ filter, ctx, onReplace, onClose }: Props) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey, true);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey, true);
-    };
-  }, [onClose]);
+  // Capture-phase Escape so it closes the popover before a parent key handler sees it.
+  const ref = useDismiss<HTMLDivElement>(onClose, { escapeCapture: true });
 
   return (
     <div

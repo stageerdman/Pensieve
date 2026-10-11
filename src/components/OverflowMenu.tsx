@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { useDismiss } from "../hooks/useDismiss";
 import { IconButton } from "./IconButton";
 import { MoreHorizontal } from "./icons";
 
@@ -16,26 +17,7 @@ export interface MenuItem {
 
 export function OverflowMenu({ items }: { items: MenuItem[] }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  const ref = useDismiss<HTMLDivElement>(() => setOpen(false), { enabled: open });
 
   return (
     <div ref={ref} className="relative">
