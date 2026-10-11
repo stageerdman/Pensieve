@@ -101,4 +101,30 @@ is a one-line change if violet feels better).
   `.dock-cell` for the dock. New CSS in dedicated files (dock.css, spellmenu.css), imported by index.css.
 
 ## Lessons
-- (to be filled as phases land)
+- **Signed-arc > mod-360 wheel for a scroll ring.** A naive Ferris wheel (`angle = mod((i−p)·pitch,
+  360)`) overlaps the far end onto the top whenever `N·pitch` nears a multiple of 360 (10 spells ×
+  40° → index 9 lands on index 0) and leaves one side empty at rest. The fix: a SIGNED arc
+  `angle = (i−p)·pitch` (no wrap), glyphs fanning up both sides from the focus, hidden once
+  `|angle| ≥ voidEdge`. Gives a true start/end and symmetric fade-into-nothingness. Caught by a unit
+  test before it ever hit the device — the win of keeping geometry pure.
+- **One rewire, not two.** The roadmap split Dock (P2) and overlay (P3), but both gut the same
+  PhoneApp wiring (remove the wheel hook + refs + seat dispatch). Doing them in one pass avoided
+  rewiring PhoneApp twice and a half-broken intermediate commit. Adjust the roadmap to reality.
+- **Keyboard rule reconciliation (inherited lock held).** The dock genuinely hides on `.kb-open`;
+  the resident Accio bar is a separate element from the `.summon` bar — summon only shows on
+  `.searching`, dock only shows when not. No double bar, and the "only the keyboard hides controls"
+  lock is intact.
+- **Name collisions avoided:** dock uses `--dock-*`/`.dock*`; `--slot`/`.slot` stayed the reel's.
+- **Wheel CSS left inert, not deleted.** `.wact/.wheel/.corner-glow/.accio-pill/.sync-panel/.side-left`
+  rules remain in wand.css but render nothing now (elements gone). Harmless; a later cleanup pass can
+  prune them once the Spell Menu is locked.
+- **Reused, didn't rebuild:** Accio query/rank + SummonBar + SearchSheet, the sync machine +
+  SyncSpell cast, panelCopy (the Sync window reuses it), the reel/loupe, the note editor — all kept.
+
+## Device feel-test checklist (owner, P6)
+- Ring reach: is R=112 / centerY=56% comfortable one-handed? (two tunable knobs in `ringLayout.ts`)
+- Scroll feel on the 10-spell General ring: fade, snap, the "fall into nothingness" at the bottom.
+- Conditional colour: accent-blue vs violet — swap `--conditional` to `--accio` if violet feels better.
+- Bloom/open speed: does it feel "almost instantaneous"? (stagger 14ms, open ~260ms)
+- Write tap=write / hold=speak on the ring glyph; Sync window → "Back up now" cast.
+- The resident Accio bar: placeholder, latest-query ghost chip, held-query + clear, recents row.

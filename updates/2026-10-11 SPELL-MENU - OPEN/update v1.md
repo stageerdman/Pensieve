@@ -65,7 +65,16 @@ golden menu button. Must feel magical AND instantaneous, and stay lightweight/fa
   tests green, build, serve LAN URL.
 
 ## Live status
-- 2026-10-11: Recon done (Wand map + UX/visual standard). Decisions locked above. Starting P0.
+- 2026-10-11: Recon done (Wand map + UX/visual standard). Decisions locked above.
+- 2026-10-11: **P0** ✓ scaffold + Wand archived. **P1** ✓ pure model (types/ringLayout/dockModel/
+  registry) + 29 tests. **P2–P5** ✓ built in one coherent rewire — Dock (4-cell bar, gold Orbit
+  button, resident Accio, recents, secondary row), radial Spell Menu (General/Conditional/Detailed,
+  signed-arc scroll + void-fade, center nav, tap/hold, background-dismiss), Sync window. PhoneApp
+  rewired off the Wand. 113 phone tests green; typecheck + production build clean.
+- 2026-10-11: Serving on LAN `http://192.168.1.149:5174` for the owner's on-device feel-pass.
+- **Next (P6 remainder):** owner device test → feel notes → tune (ring reach/R/centerY, Conditional
+  colour, scroll feel, bloom timing). Then merge to main + `tauri build` is N/A (phone-only; native
+  app unaffected). Close the update after the device sign-off.
 
 ## Decisions / open questions
 - Conditional colour: proposed accent-blue vs accio-violet ring (TBD in P4, owner to feel-test).
