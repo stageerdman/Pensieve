@@ -1,6 +1,6 @@
 # SPELL-MENU — iPhone controls & UX overhaul
 
-**Status:** OPEN · started 2026-10-11
+**Status:** CLOSED · started & shipped 2026-10-11 · owner device-verified ("this is perfect! very smooth, very good")
 **Surface:** `phone/` PWA only (desktop untouched)
 
 ## Goal
@@ -80,9 +80,18 @@ golden menu button. Must feel magical AND instantaneous, and stay lightweight/fa
   material (per-hue radiance + specular + breathing aura), a "conjure" spark entrance (staggered,
   replays on open/switch/descend), and a NON-BLOCKING "evaporate into glowing sparkles" exit layer;
   ember orb button + HP back arrow + motes/chevron hidden-count. 114 tests green; build clean.
-- **Next (P6 remainder):** owner device test of the magic → tune numbers (ring reach R/centerY,
-  hidden-count offsets, evaporate mote count/spread, conjure speed, Conditional colour blue↔violet).
-  Then merge to main (phone-only; native app unaffected). Close after device sign-off.
+- 2026-10-11: **UX-team pass** (4 parallel reviewers) → fixed 2 P0 bugs (VoiceOver can't cast;
+  near-miss tap closed the menu), rebuilt the dial feel (held `transition:none` through the whole
+  spin, detent haptic, framerate-independent settle, finite-arc rubber-band), and the constellation
+  node look (dark-well disc, ring from `--sh-glow`, allocated halo). Owner: "works very smooth."
+- 2026-10-11: **Final refinements** (owner): Spell Menu opens over the memory bank on launch;
+  labels decluttered (top-3 above / bottom-3 below, only upper-3 when spells hidden); hidden-counts
+  are number-only, lower, and update LIVE during scroll; fixed the "Accio bar way below the button"
+  CSS-grid row bug (pin every dock cell to row 1).
+- **CLOSED 2026-10-11** — owner device-verified ("this is perfect! very smooth, very good").
+  Merged to `main`; phone-only (native desktop app unaffected; test via `npm run dev:phone`).
+  111 phone tests green. Deferred nice-to-haves live in wiki.md (first-run spin nudge, scrim
+  fade-on-close, "tap center = cast", dynamic-type labels, the dead note-context menu path).
 
 ## Decisions / open questions
 - Conditional colour: proposed accent-blue vs accio-violet ring (TBD in P4, owner to feel-test).
