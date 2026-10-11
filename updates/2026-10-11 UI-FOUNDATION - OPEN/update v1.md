@@ -56,5 +56,19 @@ The big UX update then lands on the actual shippable app, not throwaway vanilla 
   extracted → wiki.md; INIT.md deleted (was untracked, never committed). Phase 0 audit
   commissioned (3 parallel agents).
 - 2026-10-11: Phase 0 audit complete (all 3 agents). Findings → wiki.md; roadmap
-  finalized. Phase 1 (standards + token layer) is decision-independent and ready to start.
-  Phases 3–4 (graduate the phone to React) await the owner's go/no-go on the approach.
+  finalized. Owner confirmed: graduate the phone to React + full desktop cleanup.
+- 2026-10-11: **Phase 1 DONE — standards rulebook + token source of truth.**
+  - Extracted all design tokens into `src/styles/tokens.css` (the single source; `index.css`
+    `@import`s it before Tailwind). Behaviour-neutral: verified light+dark compile into the
+    bundle identically; tsc + build green.
+  - Wrote `STRUCTURE.md` (where code lives — the flat-until-folders rule, the three-layer
+    spine pure↔hook↔component, feature/store boundaries, the `phone/` plan) and `CODING.md`
+    (how to write it — reuse, the layer split, rAF/keyboard/contenteditable rules for phone,
+    styling via tokens, z-layers, logging, testing).
+  - Refreshed `design.md` to match shipped reality: real token list (surface family,
+    accent/accent-glow, gold, Basin, flask-hue + category palettes), a deliberate type scale
+    (added `text-2xs`=11px to kill the 9/10/11 soup), a radius scale, a managed z-layer
+    table, and corrected the stale "no gradients/shadows" rule vs the intentional magical glow.
+  - Added `text-2xs` to `tailwind.config.js` (purely additive). Radius-lock + className
+    migration deferred to Phase 2 (done with per-usage review).
+- Next: Phase 2 — desktop cleanups to the bar (full set).

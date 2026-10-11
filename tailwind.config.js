@@ -24,6 +24,11 @@ export default {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "ui-monospace", "monospace"],
       },
+      fontSize: {
+        // Micro labels / chips / dates / counts — the smallest step in the
+        // deliberate type scale (see design.md). Ends the 9/10/11px soup.
+        "2xs": ["0.6875rem", { lineHeight: "1rem" }], // 11px
+      },
       borderRadius: {
         DEFAULT: "var(--radius)",
         lg: "calc(var(--radius) + 4px)",
