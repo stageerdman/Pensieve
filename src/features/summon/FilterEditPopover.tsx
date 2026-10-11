@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { Filter } from "../../lib/search/types";
+import { useDismiss } from "../../hooks/useDismiss";
 import { DATE_PHRASES, resolveDatePhrase } from "../../lib/search/dates";
 import { normTag } from "../../lib/search/evaluate";
 import { DateRangeCalendar, formatRange } from "./DateRangeCalendar";
@@ -25,25 +26,8 @@ interface Props {
 }
 
 export function FilterEditPopover({ filter, ctx, onReplace, onClose }: Props) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey, true);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey, true);
-    };
-  }, [onClose]);
+  // Capture-phase Escape so it closes the popover before a parent key handler sees it.
+  const ref = useDismiss<HTMLDivElement>(onClose, { escapeCapture: true });
 
   return (
     <div
@@ -64,13 +48,13 @@ export function FilterEditPopover({ filter, ctx, onReplace, onClose }: Props) {
       {(filter.kind === "title" || filter.kind === "text") && (
         <TextEdit value={filter.text} onChange={(text) => onReplace({ ...filter, text } as Filter)} />
       )}
-      {filter.kind === "flag" && <p className="px-1 py-1 text-[12px] text-text-muted">Only pinned thoughts. Right-click the chip to remove it.</p>}
+      {filter.kind === "flag" && <p className="px-1 py-1 text-xs text-text-muted">Only pinned thoughts. Right-click the chip to remove it.</p>}
     </div>
   );
 }
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <p className="mb-1 px-1 text-[10px] uppercase tracking-wider text-text-muted/70">{children}</p>;
+  return <p className="mb-1 px-1 text-2xs uppercase tracking-wider text-text-muted/70">{children}</p>;
 }
 
 function DateEdit({
@@ -110,7 +94,7 @@ function DateEdit({
             type="button"
             onClick={() => setField(f)}
             className={
-              "flex-1 rounded-md border px-2 py-1 text-[12px] capitalize " +
+              "flex-1 rounded-md border px-2 py-1 text-xs capitalize " +
               (filter.field === f ? "border-accent bg-accent/15 text-text" : "border-border text-text-muted")
             }
           >
@@ -126,7 +110,7 @@ function DateEdit({
             type="button"
             onClick={() => setPhrase(p)}
             className={
-              "rounded-md px-2 py-1 text-left text-[13px] " +
+              "rounded-md px-2 py-1 text-left text-sm " +
               (filter.phrase === p ? "bg-accent/15 text-text" : "text-text-muted hover:text-text")
             }
           >
@@ -139,7 +123,7 @@ function DateEdit({
         type="button"
         onClick={() => setShowCal((v) => !v)}
         className={
-          "mt-1 flex w-full items-center justify-between rounded-md px-2 py-1 text-left text-[13px] " +
+          "mt-1 flex w-full items-center justify-between rounded-md px-2 py-1 text-left text-sm " +
           (isCustom ? "bg-accent/15 text-text" : "text-text-muted hover:text-text")
         }
       >
@@ -184,7 +168,7 @@ function SetEdit({
         value={filterText}
         onChange={(e) => setFilterText(e.target.value)}
         placeholder="Filter…"
-        className="summon-input mb-1 w-full rounded-md border border-border bg-surface px-2 py-1 text-[12px] text-text"
+        className="summon-input mb-1 w-full rounded-md border border-border bg-surface px-2 py-1 text-xs text-text"
       />
       <div className="flex flex-col">
         {shown.map((opt) => {
@@ -195,7 +179,7 @@ function SetEdit({
               type="button"
               onClick={() => toggle(opt)}
               className={
-                "flex items-center gap-2 rounded-md px-2 py-1 text-left text-[13px] " +
+                "flex items-center gap-2 rounded-md px-2 py-1 text-left text-sm " +
                 (on ? "text-text" : "text-text-muted hover:text-text")
               }
             >
@@ -205,7 +189,7 @@ function SetEdit({
             </button>
           );
         })}
-        {shown.length === 0 && <p className="px-2 py-1 text-[12px] text-text-muted">No matches.</p>}
+        {shown.length === 0 && <p className="px-2 py-1 text-xs text-text-muted">No matches.</p>}
       </div>
     </div>
   );
@@ -219,7 +203,7 @@ function TextEdit({ value, onChange }: { value: string; onChange: (v: string) =>
         autoFocus
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="summon-input w-full rounded-md border border-border bg-surface px-2 py-1 text-[13px] text-text"
+        className="summon-input w-full rounded-md border border-border bg-surface px-2 py-1 text-sm text-text"
       />
     </div>
   );

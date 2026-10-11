@@ -175,7 +175,7 @@ export function FilterShelf({ items, ctx, onReplace, onPop, onFuse, onRelate, on
       </div>
 
       {selectedIds.length >= 2 && fusible && (
-        <div className="mt-2 flex items-center gap-2 text-[12px] text-text-muted">
+        <div className="mt-2 flex items-center gap-2 text-xs text-text-muted">
           <span>Combine:</span>
           <button
             type="button"
@@ -202,7 +202,7 @@ export function FilterShelf({ items, ctx, onReplace, onPop, onFuse, onRelate, on
       {/* Floating drag ghost that follows the pointer. */}
       {drag && (
         <span
-          className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2 rounded-full border border-accent bg-surface-raised px-3 py-1 text-[13px] text-text opacity-90 shadow-lg"
+          className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2 rounded-full border border-accent bg-surface-raised px-3 py-1 text-sm text-text opacity-90 shadow-lg"
           style={{ left: drag.x, top: drag.y }}
         >
           {drag.label}

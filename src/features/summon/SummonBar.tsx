@@ -50,7 +50,7 @@ export function SummonBar({
         spellCheck={false}
         autoComplete="off"
         placeholder="Accio a memory…   ⌘A"
-        className="summon-input min-w-0 flex-1 bg-transparent text-[15px] text-text outline-none placeholder:text-text-muted"
+        className="summon-input min-w-0 flex-1 bg-transparent text-base text-text outline-none placeholder:text-text-muted"
         onChange={(e) => onChange(e.target.value, e.target.selectionStart ?? e.target.value.length)}
         onSelect={(e) => onCaret((e.target as HTMLInputElement).selectionStart ?? 0)}
         onKeyDown={onKeyDown}
@@ -58,7 +58,7 @@ export function SummonBar({
         onBlur={onBlur}
       />
       {showCount && (
-        <span className="shrink-0 select-none text-[12px] tabular-nums text-text-muted">
+        <span className="shrink-0 select-none text-xs tabular-nums text-text-muted">
           {count} / {total}
         </span>
       )}

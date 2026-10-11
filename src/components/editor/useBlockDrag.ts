@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import type { EditorView } from "@tiptap/pm/view";
-import { log } from "../lib/logger";
+import { log } from "../../lib/logger";
 import { computeDrop, NEST_INDENT, type DropBlock, type DropTarget } from "./blockDrag";
+import { DRAG_THRESHOLD, autoScrollEdge, findScrollParent } from "./dragScroll";
 
 // A block as BlockNote hands it back — we only touch id + children (recursively) here.
 interface Block {
@@ -20,26 +21,12 @@ interface DragEditor {
   nestBlock: () => void;
 }
 
-const DRAG_THRESHOLD = 5;
-const EDGE = 56;
-const MAX_SPEED = 18;
-
 // Drop a block's `id`s (recursively) so re-inserted copies get fresh ids — avoids any
 // duplicate-id window between insert and the removal of the originals.
 function stripIds(b: Block): Record<string, unknown> {
   const { id: _id, children, ...rest } = b;
   void _id;
   return { ...rest, children: Array.isArray(children) ? children.map(stripIds) : [] };
-}
-
-function findScrollParent(el: HTMLElement | null): HTMLElement | null {
-  let e = el?.parentElement ?? null;
-  while (e) {
-    const oy = getComputedStyle(e).overflowY;
-    if ((oy === "auto" || oy === "scroll" || oy === "overlay") && e.scrollHeight > e.clientHeight) return e;
-    e = e.parentElement;
-  }
-  return null;
 }
 
 interface DragState {
@@ -139,14 +126,7 @@ export function useBlockDrag(editor: DragEditor, wrapRef: RefObject<HTMLElement 
     const s = state.current;
     if (!s?.active) return;
     s.raf = 0;
-    const top = s.scroller ? s.scroller.getBoundingClientRect().top : 0;
-    const bottom = s.scroller ? s.scroller.getBoundingClientRect().bottom : window.innerHeight;
-    let dy = 0;
-    if (s.lastY < top + EDGE) dy = -MAX_SPEED * Math.min(1, (top + EDGE - s.lastY) / EDGE);
-    else if (s.lastY > bottom - EDGE) dy = MAX_SPEED * Math.min(1, (s.lastY - (bottom - EDGE)) / EDGE);
-    if (dy !== 0) {
-      if (s.scroller) s.scroller.scrollBy(0, dy);
-      else window.scrollBy(0, dy);
+    if (autoScrollEdge(s.scroller, s.lastY)) {
       recompute();
       s.raf = requestAnimationFrame(autoScroll);
     }

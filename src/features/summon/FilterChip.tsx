@@ -63,7 +63,7 @@ export function FilterChip({
         }}
         title={`${label} — click to edit · shift-click to group · drag to move · right-click to remove`}
         className={
-          "summon-chip-in inline-flex cursor-grab touch-none items-center gap-1.5 rounded-full border px-3 py-1 text-[13px] " +
+          "summon-chip-in inline-flex cursor-grab touch-none items-center gap-1.5 rounded-full border px-3 py-1 text-sm " +
           "transition-colors active:cursor-grabbing " +
           (popping ? "summon-popping " : "") +
           (selected

@@ -149,7 +149,7 @@ export function WorkingSetStrip({
 
   return (
     <div className="mb-8 border-b border-border pb-6">
-      <p className="mb-2 px-0.5 text-[11px] font-medium uppercase tracking-wide text-text-muted/60">
+      <p className="mb-2 px-0.5 text-2xs font-medium uppercase tracking-wide text-text-muted/60">
         Working set
       </p>
       <div

@@ -1,0 +1,30 @@
+/* Phone PWA tokens = the shared desktop source of truth + phone-only extensions.
+   The phone runs dark-first (the Basin) via class="dark" on <html>; the shared file
+   still carries the full light palette so a light theme is a class flip away. */
+@import "../../../src/styles/tokens.css";
+
+:root {
+  /* Phone-only additions (no desktop equivalent):
+     — accio: the search violet (round-9 colour language)
+     — motion curves used by the wheel/loupe/transitions
+     — slot: the reel's uniform card height (px)
+     — kb: the live keyboard inset, written from visualViewport */
+  --accio: 266 72% 74%;
+  --spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --spring-soft: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --slot: 84px;
+  --kb: 0px;
+
+  /* The Wand's own font stack (the prototype's --font) + the category hue triples
+     the ported wand.css reads directly (the .screen ambient gradient uses
+     --cat-purple; the rest mirror flaskSvg's CAT_HUE so the palette is one set). */
+  --font: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  --cat-blue: 212 70% 68%;
+  --cat-purple: 270 55% 74%;
+  --cat-green: 145 50% 62%;
+  --cat-pink: 330 60% 74%;
+  --cat-orange: 24 85% 68%;
+  --cat-yellow: 45 80% 66%;
+  --cat-red: 0 70% 70%;
+}

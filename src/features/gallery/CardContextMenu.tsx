@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { Bookmark } from "../../components/icons";
+import { useDismiss } from "../../hooks/useDismiss";
 
 // The lightweight right-click menu for a flask (in the grid or the working-set strip).
 // A custom popover — never a native confirm/alert (design.md: no blocking dialogs).
@@ -28,26 +29,8 @@ export function CardContextMenu({
   onToggleWorkingSet,
   onClose,
 }: CardContextMenuProps) {
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useDismiss<HTMLDivElement>(onClose);
   const [pos, setPos] = useState({ left: target.x, top: target.y });
-
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [onClose]);
 
   // Keep the menu on screen and move keyboard focus into it.
   useLayoutEffect(() => {

@@ -1,43 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isTauri } from "../lib/store";
 import { createEngine } from "../lib/sync/engine";
-import type { SyncConflict } from "../lib/sync/engine";
 import { connectOneDrive, disconnectOneDrive } from "../lib/sync/connect";
 import { isConnected } from "../lib/sync/tokens";
 import { tauriVault } from "../lib/sync/vault";
 import { ReconnectNeededError, RemoteRootMissingError, TransientSyncError } from "../lib/sync/types";
-import type { SyncAccount, SyncProgress, SyncQuota } from "../lib/sync/types";
+import type { SyncProgress } from "../lib/sync/types";
 import { log } from "../lib/logger";
 
-// The sync surface's state machine. "unavailable" off the native app (sync is a
-// desktop capability); otherwise the connection + last-sync + conflict status.
-export type SyncPhase =
-  | "unavailable"
-  | "disconnected"
-  | "needs-summon" // connected, but this OneDrive has no Pensieve folder yet
-  | "idle"
-  | "syncing"
-  | "synced"
-  | "error"
-  | "conflicts";
-
-/** Why a sync failed — so the UI tells the truth instead of always saying
- *  "sign-in expired". `expired` = reconnect; `offline` = temporary, try again;
- *  `other` = a real error, shown verbatim. */
-export type SyncErrorKind = "expired" | "offline" | "other";
-
-export interface SyncUi {
-  phase: SyncPhase;
-  lastSyncedAt: number | null;
-  conflicts: SyncConflict[];
-  error: string | null;
-  errorKind: SyncErrorKind | null;
-  /** Signed-in account + drive quota, loaded lazily (null until known). */
-  account: SyncAccount | null;
-  quota: SyncQuota | null;
-  /** What's transferring right now; null when nothing is in flight. */
-  transfer: SyncProgress | null;
-}
+// The sync UI-state types now live in the sync domain (lib/sync/types) so pure
+// derivation can consume them; re-exported here for existing call sites.
+import type { SyncPhase, SyncErrorKind, SyncUi } from "../lib/sync/types";
+export type { SyncPhase, SyncErrorKind, SyncUi };
 
 /** Owns OneDrive connection + sync state. `onChanged` is called after a sync that
  *  pulled/removed notes, so the app can refresh its list. */

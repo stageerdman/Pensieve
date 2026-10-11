@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { DEFAULT_ICON, SHAPE_LABELS, type NoteIcon } from "../lib/flasks/icon";
+import { useDismiss } from "../hooks/useDismiss";
 import { colorLabel } from "../lib/categories/palette";
 import { FlaskFor } from "./Flask";
 import { FlaskPicker } from "./FlaskPicker";
@@ -19,29 +20,16 @@ interface FlaskButtonProps {
 
 export function FlaskButton({ icon, chars, seed, onChange }: FlaskButtonProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const ref = useDismiss<HTMLDivElement>(() => setOpen(false), {
+    enabled: open,
+    // Esc returns focus to the trigger (keyboard users don't lose their place).
+    onEscape: () => {
+      setOpen(false);
+      btnRef.current?.focus();
+    },
+  });
   const shown = icon ?? DEFAULT_ICON;
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        setOpen(false);
-        btnRef.current?.focus();
-      }
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
 
   return (
     <div ref={ref} className="relative">

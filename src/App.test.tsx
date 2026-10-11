@@ -25,7 +25,7 @@ function seed(id: string, title: string) {
 // opens the editor surface. The BlockNote editor relies on layout/DOM APIs jsdom
 // doesn't provide, so we mock it to a marker here; its Markdown round-trip is
 // covered by lib/md/extended*.test.ts and verified by running the real app.
-vi.mock("./components/Editor", () => ({
+vi.mock("./components/editor/Editor", () => ({
   Editor: () => <div data-testid="editor" />,
 }));
 

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { useDismiss } from "../../hooks/useDismiss";
 import { IconButton } from "../../components/IconButton";
 import { MoreHorizontal } from "../../components/icons";
 import type { GalleryFields, GalleryState, SnippetLines } from "../../lib/gallery/view";
@@ -32,26 +33,7 @@ export function GalleryCustomise({
   onSetWorkingSetPersist,
 }: GalleryCustomiseProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  const ref = useDismiss<HTMLDivElement>(() => setOpen(false), { enabled: open });
 
   return (
     <div ref={ref} className="relative">
@@ -113,7 +95,7 @@ export function GalleryCustomise({
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="px-2 pb-0.5 pt-1 text-[11px] font-medium uppercase tracking-wide text-text-muted/60">
+      <p className="px-2 pb-0.5 pt-1 text-2xs font-medium uppercase tracking-wide text-text-muted/60">
         {title}
       </p>
       {children}

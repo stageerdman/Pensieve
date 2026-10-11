@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:phone": "vite --config phone/vite.config.ts",
     "build": "tsc && vite build",
+    "build:phone": "tsc -p phone/tsconfig.json && vite build --config phone/vite.config.ts",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
