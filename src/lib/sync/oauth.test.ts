@@ -132,7 +132,7 @@ describe("exchangeCode (browser/fetch transport)", () => {
 
   it("maps a non-2xx response to TokenError, keeping only the first line of the description", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      okResponse({ error: "invalid_grant", error_description: "AADSTS700082: expired\r\nTrace: xyz" }, 400),
+      okResponse({ error: "invalid_grant", error_description: "AADSTS700082: expired\nTrace: xyz" }, 400),
     );
     vi.stubGlobal("fetch", fetchMock);
 
