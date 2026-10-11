@@ -1,0 +1,11 @@
+{
+  "name": "Pensieve",
+  "short_name": "Pensieve",
+  "description": "Capture every thought. The Wand.",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#141a24",
+  "theme_color": "#141a24",
+  "start_url": "/",
+  "icons": []
+}

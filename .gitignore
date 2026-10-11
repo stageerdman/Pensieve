@@ -21,3 +21,6 @@ logs/
 # OS junk
 .DS_Store
 Thumbs.db
+
+# phone PWA build output
+dist-phone/
