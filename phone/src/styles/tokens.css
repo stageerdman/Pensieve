@@ -15,4 +15,16 @@
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --slot: 84px;
   --kb: 0px;
+
+  /* The Wand's own font stack (the prototype's --font) + the category hue triples
+     the ported wand.css reads directly (the .screen ambient gradient uses
+     --cat-purple; the rest mirror flaskSvg's CAT_HUE so the palette is one set). */
+  --font: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  --cat-blue: 212 70% 68%;
+  --cat-purple: 270 55% 74%;
+  --cat-green: 145 50% 62%;
+  --cat-pink: 330 60% 74%;
+  --cat-orange: 24 85% 68%;
+  --cat-yellow: 45 80% 66%;
+  --cat-red: 0 70% 70%;
 }
