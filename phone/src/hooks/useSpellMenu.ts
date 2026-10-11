@@ -16,6 +16,8 @@ import { snapScroll } from "../lib/spells/ringLayout";
 
 export type MenuHue = "gold" | "accent";
 export type CenterKind = "none" | "back" | "to-general" | "to-suggested";
+/** The kind of transition leaving a view — drives the Poof bridge + incoming bloom. */
+export type PoofKind = "close" | "descend" | "ascend" | "toggle";
 
 export interface SpellMenuState {
   open: boolean;
@@ -99,10 +101,7 @@ export function useSpellMenu(context: PageContext): SpellMenuApi {
     setScrollPos(0);
   }, []);
 
-  const setScroll = useCallback(
-    (p: number) => setScrollPos(snapScroll(spells.length, p)),
-    [spells.length],
-  );
+  const setScroll = useCallback((p: number) => setScrollPos(snapScroll(p)), []);
 
   const openWindow = useCallback((spellId: string) => setWindowSpellId(spellId), []);
   const closeWindow = useCallback(() => setWindowSpellId(null), []);

@@ -1,77 +1,66 @@
 import { describe, it, expect } from "vitest";
 import {
   RING,
-  angularGap,
-  dragToScroll,
+  focusIndex,
+  hiddenCounts,
   isScroll,
   layoutRing,
-  maxScroll,
+  ringSpacing,
   snapScroll,
   voidOpacity,
 } from "./ringLayout";
 
-describe("ringLayout — regime selection", () => {
-  it("is static at the capacity and scrolls just above it", () => {
-    expect(isScroll(RING.capacity)).toBe(false); // 8
-    expect(isScroll(RING.capacity + 1)).toBe(true); // 9
+describe("ringLayout — mode + spacing", () => {
+  it("fills a full even circle until the glyphs no longer fit, then uses the fixed pitch", () => {
+    expect(ringSpacing(4)).toBe(90);
+    expect(ringSpacing(6)).toBe(60);
+    expect(ringSpacing(9)).toBe(40); // 9 × 40 = 360 exactly
+    expect(ringSpacing(10)).toBe(RING.pitchDeg); // overflow → arc at the pitch
   });
 
-  it("maxScroll puts the last glyph at the top", () => {
-    expect(maxScroll(9)).toBe(8);
-    expect(maxScroll(1)).toBe(0);
-    expect(maxScroll(0)).toBe(0);
+  it("only enters arc mode (void fade + hidden counts) once a full circle overflows", () => {
+    expect(isScroll(9)).toBe(false);
+    expect(isScroll(10)).toBe(true);
   });
 });
 
-describe("ringLayout — static rings", () => {
+describe("ringLayout — full-circle rings (small n)", () => {
   it("places a single spell at the top", () => {
     const r = layoutRing(1);
     expect(r).toHaveLength(1);
     expect(r[0].angleDeg).toBe(0);
     expect(r[0].x).toBeCloseTo(0, 5);
-    expect(r[0].y).toBeCloseTo(-RING.R, 5); // straight up = negative screen-y
-    expect(r[0].opacity).toBe(1);
+    expect(r[0].y).toBeCloseTo(-RING.R, 5);
   });
 
-  it("uses a lower arc for 2 and 3 spells (thumb zone)", () => {
-    expect(layoutRing(2).map((g) => g.angleDeg)).toEqual([120, 240]);
-    expect(layoutRing(3).map((g) => g.angleDeg)).toEqual([110, 180, 250]);
-  });
-
-  it("spaces 4–8 spells evenly around a full circle from 12 o'clock", () => {
-    expect(layoutRing(4).map((g) => g.angleDeg)).toEqual([0, 90, 180, 270]);
-    const six = layoutRing(6).map((g) => g.angleDeg);
-    expect(six).toEqual([0, 60, 120, 180, 240, 300]);
-  });
-
-  it("keeps every static glyph fully visible at full scale", () => {
-    for (const g of layoutRing(6)) {
+  it("keeps every glyph fully visible and uniquely placed", () => {
+    const r = layoutRing(6);
+    for (const g of r) {
       expect(g.opacity).toBe(1);
       expect(g.scale).toBe(1);
       expect(g.visible).toBe(true);
     }
+    const angles = new Set(r.map((g) => g.angleDeg));
+    expect(angles.size).toBe(6); // no two glyphs collide
+    expect(r[0].angleDeg).toBe(0); // index 0 rests at the top
+    expect(r[0].focus).toBe(true);
   });
 });
 
 describe("ringLayout — the void fade", () => {
-  it("is full at the top, zero inside the void wedge", () => {
+  it("is full at the top, zero inside the void, symmetric on both descents", () => {
     expect(voidOpacity(0)).toBe(1);
-    expect(voidOpacity(180)).toBe(0); // straight down, in the void
-    expect(voidOpacity(150)).toBe(0); // void edge is inside the wedge
-    expect(voidOpacity(210)).toBe(0);
-  });
-
-  it("ramps linearly over fadeRamp degrees, symmetric on both descents", () => {
-    expect(voidOpacity(120)).toBeCloseTo(1, 5); // 30° out = fully lit
+    expect(voidOpacity(180)).toBe(0);
+    expect(voidOpacity(150)).toBe(0);
+    expect(voidOpacity(120)).toBeCloseTo(1, 5);
     expect(voidOpacity(135)).toBeCloseTo(0.5, 5);
-    expect(voidOpacity(-120)).toBeCloseTo(1, 5); // left side mirrors the right
     expect(voidOpacity(-135)).toBeCloseTo(0.5, 5);
     expect(voidOpacity(-150)).toBe(0);
   });
 });
 
-describe("ringLayout — scroll rings", () => {
-  it("rests glyph 0 at the top at p=0 and focuses it", () => {
+describe("ringLayout — arc rings (large n)", () => {
+  it("rests glyph 0 at the top and focuses it", () => {
     const r = layoutRing(10, 0);
     expect(r[0].angleDeg).toBe(0);
     expect(r[0].opacity).toBe(1);
@@ -79,56 +68,55 @@ describe("ringLayout — scroll rings", () => {
     expect(r.filter((g) => g.focus)).toHaveLength(1);
   });
 
-  it("does not wrap the far end back onto the top (no overlap)", () => {
-    // the bug: with pitch 40° and 10 items, a mod-360 wheel put index 9 at 0° too.
+  it("never overlaps (folding keeps angles unique) and fans both sides from the top", () => {
     const r = layoutRing(10, 0);
-    expect(Math.abs(r[9].angleDeg)).toBeGreaterThanOrEqual(RING.voidEdge);
-    expect(r[9].visible).toBe(false);
-    // exactly one glyph sits at the very top
     expect(r.filter((g) => g.angleDeg === 0)).toHaveLength(1);
+    expect(r[1].angleDeg).toBeCloseTo(40, 5); // next spell down the right
+    expect(r[9].angleDeg).toBeCloseTo(-40, 5); // last spell down the left (looped, not at 360)
+    const angles = new Set(r.map((g) => Math.round(g.angleDeg)));
+    expect(angles.size).toBe(10);
   });
 
-  it("hides glyphs that rotate into the void", () => {
+  it("hides glyphs that drift into the void, counted on the correct side", () => {
     const r = layoutRing(10, 0);
-    // glyph 4 sits at 160° (in the void) → invisible
-    expect(r[4].angleDeg).toBe(160);
-    expect(r[4].visible).toBe(false);
+    const hidden = r.filter((g) => !g.visible);
+    expect(hidden.length).toBeGreaterThan(0);
+    const c = hiddenCounts(r);
+    expect(c.left).toBeGreaterThan(0);
+    expect(c.right).toBeGreaterThan(0);
+    expect(c.left + c.right).toBe(hidden.length);
   });
 
   it("shrinks glyphs as they fade toward the void edge", () => {
-    // at p=0.5 glyph 4 sits at 140° — inside the [120,150] ramp → partly faded
     const r = layoutRing(10, 0.5);
-    const g4 = r[4];
-    expect(g4.angleDeg).toBeCloseTo(140, 5);
-    expect(g4.opacity).toBeGreaterThan(0);
-    expect(g4.opacity).toBeLessThan(1);
-    expect(g4.scale).toBeGreaterThan(0.6);
-    expect(g4.scale).toBeLessThan(1);
-  });
-
-  it("advances the focus as p increases", () => {
-    expect(layoutRing(10, 2).find((g) => g.focus)!.index).toBe(2);
-    expect(layoutRing(10, 2.4).find((g) => g.focus)!.index).toBe(2);
-  });
-
-  it("clamps p to the finite range (no infinite scroll)", () => {
-    const over = layoutRing(10, 999);
-    expect(over[9].angleDeg).toBe(0); // last glyph pinned at the top
-    const under = layoutRing(10, -999);
-    expect(under[0].angleDeg).toBe(0); // first glyph pinned at the top
+    const fading = r.find((g) => g.opacity > 0 && g.opacity < 1);
+    expect(fading).toBeDefined();
+    expect(fading!.scale).toBeGreaterThan(0.6);
+    expect(fading!.scale).toBeLessThan(1);
   });
 });
 
-describe("ringLayout — helpers", () => {
-  it("angularGap takes the short way around", () => {
-    expect(angularGap(350, 10)).toBe(20);
-    expect(angularGap(0, 180)).toBe(180);
+describe("ringLayout — the dial is continuous (loops, never clamps)", () => {
+  it("wraps the focus round and round with no dead end", () => {
+    expect(focusIndex(10, 0)).toBe(0);
+    expect(focusIndex(10, 10)).toBe(0);
+    expect(focusIndex(10, 23)).toBe(3);
+    expect(focusIndex(10, -1)).toBe(9);
   });
 
-  it("maps drag px to slots and snaps within range", () => {
-    expect(dragToScroll(RING.dragPxPerSlot)).toBe(1);
-    expect(snapScroll(10, 2.4)).toBe(2);
-    expect(snapScroll(10, 99)).toBe(9);
-    expect(snapScroll(10, -5)).toBe(0);
+  it("produces a valid layout for an arbitrarily large p (no clamp, no NaN)", () => {
+    const r = layoutRing(10, 1000.4);
+    expect(r).toHaveLength(10);
+    for (const g of r) {
+      expect(Number.isFinite(g.x)).toBe(true);
+      expect(Number.isFinite(g.y)).toBe(true);
+    }
+    expect(r.find((g) => g.focus)!.index).toBe(0); // 1000 % 10 = 0
+  });
+
+  it("snaps to the nearest slot without clamping", () => {
+    expect(snapScroll(2.4)).toBe(2);
+    expect(snapScroll(-0.6)).toBe(-1);
+    expect(snapScroll(99.5)).toBe(100);
   });
 });

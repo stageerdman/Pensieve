@@ -1,26 +1,30 @@
-// SpellRing.tsx — the ring of spell glyphs at the center of the overlay.
+// SpellRing.tsx — the ring of spell glyphs, a spinnable magical dial.
 //
-// Positions come from the pure layoutRing(); React renders the RESTING layout (the snapped
-// scrollPos). A vertical drag rotates a scroll ring live by writing transforms straight to
-// the nodes (bypassing React, per the 60fps doctrine), then snaps on release. A tap on a
-// glyph activates it (detailed → descend, window → open, else → cast); a hold runs its
-// long-press action (Write = speak). The center slot carries the nav (back / form toggle).
+// React renders the RESTING layout (the snapped scrollPos). A drag spins the dial by the
+// finger's ANGULAR travel about the center (a glyph follows the thumb on either side — no
+// mirror), with guards so nearing the center or leaving the ring never makes it jump, and
+// real INERTIA on release (momentum → friction → snap to the nearest slot). The dial is
+// continuous and loops, so it always responds even when nothing is hidden. Live motion is
+// written straight to the nodes (bypassing React, per the 60fps doctrine).
 
 import { useEffect, useRef } from "react";
+import { RING, hiddenCounts, isScroll, layoutRing, ringSpacing, snapScroll, type GlyphPos } from "../../lib/spells/ringLayout";
 import type { Spell } from "../../lib/spells/types";
-import { RING, isScroll, layoutRing, maxScroll, snapScroll, type GlyphPos } from "../../lib/spells/ringLayout";
 import { haptic } from "../../util";
 import { SpellGlyph } from "./SpellGlyph";
 import type { CenterKind, MenuHue } from "../../hooks/useSpellMenu";
 
 const HOLD_MS = 420;
-const DRAG_THRESHOLD = 6; // px before a press becomes a scroll drag
+const DRAG_THRESHOLD = 6; // px before a press becomes a spin
+const MAX_STEP_DEG = 30; // clamp a single move's angular delta (kills the center-cross jump)
+const MIN_RADIUS = 26; // px: ignore the angle when the finger is this close to the center
+const FRICTION = 0.94; // momentum decay per 16ms
+const VEL_STOP = 0.0007; // slots/ms below which momentum ends and we settle
+const MAX_VEL = 0.03; // slots/ms cap on fling velocity
 
-/** Finger angle (deg, clockwise from 12 o'clock) about the ring center — matches layoutRing. */
 function angleAt(px: number, py: number, cx: number, cy: number): number {
   return (Math.atan2(px - cx, -(py - cy)) * 180) / Math.PI;
 }
-/** Shortest signed angular delta, folded into (−180, 180]. */
 function deltaAngle(from: number, to: number): number {
   let d = to - from;
   while (d > 180) d -= 360;
@@ -37,7 +41,6 @@ export interface SpellRingHandlers {
   toGeneral: () => void;
   toSuggested: () => void;
   setScroll: (p: number) => void;
-  /** tap on the blurred background (not a spell) → dismiss the whole overlay. */
   onBackdrop: () => void;
 }
 
@@ -57,32 +60,37 @@ function glyphTransform(pos: GlyphPos): string {
 export function SpellRing(props: SpellRingProps) {
   const { spells, hue, center, scrollPos, conditional, reduce } = props;
   const n = spells.length;
-  const scroll = isScroll(n);
+  const spinnable = n > 1;
+  const spacing = ringSpacing(n);
 
   const surfaceRef = useRef<HTMLDivElement>(null);
-  // gesture scratch — never triggers a render
+  const raf = useRef(0);
+  // gesture + inertia scratch — never triggers a render
   const g = useRef({
     down: false,
     dragging: false,
     longFired: false,
     justDragged: false,
-    startX: 0,
-    startY: 0,
-    startAngle: 0,
-    cx: 0,
-    cy: 0,
-    startP: 0,
-    liveP: 0,
     idx: -1,
     pid: -1,
+    cx: 0,
+    cy: 0,
+    lastAngle: 0,
+    lastTime: 0,
+    liveP: 0,
+    velA: 0, // smoothed angular velocity, deg/ms
   });
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // write the resting layout whenever it changes (also the target of the release snap)
+  // write the resting layout whenever it changes
   useEffect(() => {
+    g.current.liveP = scrollPos;
     applyLayout(scrollPos);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollPos, n]);
+
+  // stop any momentum on unmount
+  useEffect(() => () => cancelAnimationFrame(raf.current), []);
 
   function applyLayout(p: number) {
     const surface = surfaceRef.current;
@@ -106,27 +114,31 @@ export function SpellRing(props: SpellRingProps) {
     }
   }
 
+  function center2(): { cx: number; cy: number } {
+    const rect = surfaceRef.current?.getBoundingClientRect();
+    return {
+      cx: (rect?.left ?? 0) + (rect?.width ?? 0) * RING.centerXFrac,
+      cy: (rect?.top ?? 0) + (rect?.height ?? 0) * RING.centerYFrac,
+    };
+  }
+
   function onPointerDown(e: React.PointerEvent) {
+    cancelAnimationFrame(raf.current); // interrupt any momentum
     const node = (e.target as Element).closest<HTMLElement>(".spell-node");
     const idx = node ? Number(node.dataset.index) : -1;
-    const rect = surfaceRef.current?.getBoundingClientRect();
-    const cx = (rect?.left ?? 0) + (rect?.width ?? 0) * RING.centerXFrac;
-    const cy = (rect?.top ?? 0) + (rect?.height ?? 0) * RING.centerYFrac;
-    g.current = {
-      down: true,
-      dragging: false,
-      longFired: false,
-      justDragged: false,
-      startX: e.clientX,
-      startY: e.clientY,
-      startAngle: angleAt(e.clientX, e.clientY, cx, cy),
-      cx,
-      cy,
-      startP: scrollPos,
-      liveP: scrollPos,
-      idx,
-      pid: e.pointerId,
-    };
+    const { cx, cy } = center2();
+    const c = g.current;
+    c.down = true;
+    c.dragging = false;
+    c.longFired = false;
+    c.justDragged = false;
+    c.idx = idx;
+    c.pid = e.pointerId;
+    c.cx = cx;
+    c.cy = cy;
+    c.lastAngle = angleAt(e.clientX, e.clientY, cx, cy);
+    c.lastTime = e.timeStamp || performance.now();
+    c.velA = 0;
     clearHold();
     if (idx >= 0) {
       const spell = spells[idx];
@@ -142,13 +154,18 @@ export function SpellRing(props: SpellRingProps) {
   }
 
   function onPointerMove(e: React.PointerEvent) {
-    if (!g.current.down) return;
-    const moved = Math.hypot(e.clientX - g.current.startX, e.clientY - g.current.startY);
-    if (!g.current.dragging && moved > DRAG_THRESHOLD) {
-      if (!scroll) return; // static rings don't scroll
-      g.current.dragging = true;
+    const c = g.current;
+    if (!c.down) return;
+    const { cx, cy } = c;
+    const r = Math.hypot(e.clientX - cx, e.clientY - cy);
+    const now = e.timeStamp || performance.now();
+
+    if (!c.dragging) {
+      // promote to a spin once the finger has traveled enough
+      const movedAngle = Math.abs(deltaAngle(c.lastAngle, angleAt(e.clientX, e.clientY, cx, cy)));
+      if (!spinnable || (r * (movedAngle * Math.PI) / 180) < DRAG_THRESHOLD) return;
+      c.dragging = true;
       clearHold();
-      // capture only once a real drag begins, so taps still fire normal click events
       try {
         surfaceRef.current?.setPointerCapture(e.pointerId);
       } catch {
@@ -156,22 +173,31 @@ export function SpellRing(props: SpellRingProps) {
       }
       surfaceRef.current?.classList.add("dragging");
     }
-    if (g.current.dragging) {
-      // ANGULAR grab-spin: the wheel rotates by the finger's angular travel about the
-      // center, so a glyph follows the thumb wherever you grab it (no left/right mirror).
-      const now = angleAt(e.clientX, e.clientY, g.current.cx, g.current.cy);
-      const d = deltaAngle(g.current.startAngle, now);
-      const p = Math.max(0, Math.min(maxScroll(n), g.current.startP - d / RING.pitchDeg));
-      g.current.liveP = p;
-      applyLayout(p);
+
+    if (r < MIN_RADIUS) {
+      // too close to the center → angle is unstable; hold position this frame
+      c.lastTime = now;
+      return;
     }
+    const ang = angleAt(e.clientX, e.clientY, cx, cy);
+    let d = deltaAngle(c.lastAngle, ang);
+    if (d > MAX_STEP_DEG) d = MAX_STEP_DEG;
+    else if (d < -MAX_STEP_DEG) d = -MAX_STEP_DEG;
+    const dt = Math.max(1, now - c.lastTime);
+    // rotating the wheel by +dθ moves glyph angles up by dθ ⇒ p decreases by dθ/spacing
+    c.liveP -= d / spacing;
+    c.velA = c.velA * 0.7 + (d / dt) * 0.3; // smoothed deg/ms
+    c.lastAngle = ang;
+    c.lastTime = now;
+    applyLayout(c.liveP);
   }
 
   function onPointerUp() {
-    if (!g.current.down) return;
+    const c = g.current;
+    if (!c.down) return;
     clearHold();
-    const { dragging, longFired, idx, pid } = g.current;
-    g.current.down = false;
+    const { dragging, longFired, idx, pid } = c;
+    c.down = false;
 
     if (dragging) {
       try {
@@ -180,10 +206,12 @@ export function SpellRing(props: SpellRingProps) {
         /* no-op */
       }
       surfaceRef.current?.classList.remove("dragging");
-      const snapped = snapScroll(n, g.current.liveP);
-      applyLayout(snapped);
-      props.setScroll(snapped);
-      g.current.justDragged = true; // suppress the synthetic background click
+      c.justDragged = true; // suppress the synthetic background click
+      // fling velocity in slots/ms (sign: +dθ ⇒ −p)
+      let velP = -c.velA / spacing;
+      if (velP > MAX_VEL) velP = MAX_VEL;
+      else if (velP < -MAX_VEL) velP = -MAX_VEL;
+      startMomentum(velP);
       return;
     }
     if (longFired || idx < 0) return;
@@ -196,14 +224,39 @@ export function SpellRing(props: SpellRingProps) {
     else props.onCast(spell);
   }
 
-  // a click that lands on the surface itself (not a glyph or the center) dismisses
-  function onSurfaceClick(e: React.MouseEvent) {
-    if (e.target !== e.currentTarget) return;
-    if (g.current.justDragged) {
-      g.current.justDragged = false;
-      return;
-    }
-    props.onBackdrop();
+  function startMomentum(velP: number) {
+    const c = g.current;
+    let last = performance.now();
+    let vel = velP;
+    const spin = (now: number) => {
+      const dt = Math.min(48, now - last);
+      last = now;
+      c.liveP += vel * dt;
+      vel *= Math.pow(FRICTION, dt / 16);
+      applyLayout(c.liveP);
+      if (Math.abs(vel) > VEL_STOP) {
+        raf.current = requestAnimationFrame(spin);
+      } else {
+        settleTo(snapScroll(c.liveP));
+      }
+    };
+    raf.current = requestAnimationFrame(spin);
+  }
+
+  function settleTo(target: number) {
+    const c = g.current;
+    const step = (_now: number) => {
+      c.liveP += (target - c.liveP) * 0.22;
+      if (Math.abs(target - c.liveP) < 0.004) {
+        c.liveP = target;
+        applyLayout(target);
+        props.setScroll(target); // commit the resting position
+        return;
+      }
+      applyLayout(c.liveP);
+      raf.current = requestAnimationFrame(step);
+    };
+    raf.current = requestAnimationFrame(step);
   }
 
   function onCenter() {
@@ -213,13 +266,19 @@ export function SpellRing(props: SpellRingProps) {
     else if (center === "to-suggested") props.toSuggested();
   }
 
+  function onSurfaceClick(e: React.MouseEvent) {
+    if (e.target !== e.currentTarget) return;
+    if (g.current.justDragged) {
+      g.current.justDragged = false;
+      return;
+    }
+    props.onBackdrop();
+  }
+
   const resting = layoutRing(n, scrollPos);
   const hueClass = hue === "accent" ? "hue-accent" : "hue-gold";
-
-  // how many spells drift hidden beyond each end of a scroll ring
-  const vis = resting.filter((gp) => gp.visible).map((gp) => gp.index);
-  const hiddenBefore = vis.length ? Math.min(...vis) : 0;
-  const hiddenAfter = vis.length ? n - 1 - Math.max(...vis) : 0;
+  const scroll = isScroll(n);
+  const counts = scroll ? hiddenCounts(resting) : { left: 0, right: 0 };
 
   return (
     <div
@@ -245,10 +304,10 @@ export function SpellRing(props: SpellRingProps) {
             style={{
               transform: glyphTransform(pos),
               opacity: pos.opacity,
-              // stagger each glyph's bloom in from the hub (negative radial offset)
               ["--from-x" as string]: `${-pos.x}px`,
               ["--from-y" as string]: `${-pos.y}px`,
-              ["--bloom-delay" as string]: `${Math.min(i * 14, 140)}ms`,
+              // sweep the bloom by how far the glyph sits from the top (top-first)
+              ["--bloom-delay" as string]: `${Math.min(Math.abs(pos.angleDeg) * 0.6, 160)}ms`,
             }}
           >
             <div className="spell-bloom">
@@ -267,26 +326,20 @@ export function SpellRing(props: SpellRingProps) {
         );
       })}
 
-      {scroll && hiddenBefore > 0 ? (
-        <div className="spell-hidden top" aria-label={`${hiddenBefore} more above`}>
+      {scroll && counts.left > 0 ? (
+        <div className="spell-hidden left" aria-label={`${counts.left} more`}>
+          <span className="rh-num">{counts.left}</span>
           <span className="rh-motes" aria-hidden="true">
             <i /><i /><i />
           </span>
-          <svg className="rh-chev" viewBox="0 0 16 10" width="13" height="8" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M2 7 L8 2 L14 7" />
-          </svg>
-          <span className="rh-num">{hiddenBefore}</span>
         </div>
       ) : null}
-      {scroll && hiddenAfter > 0 ? (
-        <div className="spell-hidden bottom" aria-label={`${hiddenAfter} more below`}>
-          <span className="rh-num">{hiddenAfter}</span>
-          <svg className="rh-chev" viewBox="0 0 16 10" width="13" height="8" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M2 3 L8 8 L14 3" />
-          </svg>
+      {scroll && counts.right > 0 ? (
+        <div className="spell-hidden right" aria-label={`${counts.right} more`}>
           <span className="rh-motes" aria-hidden="true">
             <i /><i /><i />
           </span>
+          <span className="rh-num">{counts.right}</span>
         </div>
       ) : null}
 
@@ -298,10 +351,10 @@ export function SpellRing(props: SpellRingProps) {
           aria-label={center === "back" ? "Back" : center === "to-general" ? "See general spells" : "See local spells"}
         >
           {center === "back" ? (
-            // a wand-flick curved arrow, floating (no disc)
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M14.5 6.5a6 6 0 1 1-6 9.8" strokeWidth="1.8" />
-              <path d="M8 9.5 8.2 15.6 14 15" strokeWidth="1.8" />
+            // a counter-clockwise ¾-loop "undo", cubic Béziers only (flag-safe), arrowhead at top
+            <svg className="bk" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path className="bk-arc" pathLength={100} d="M5 13 C 5 16.87 8.13 20 12 20 C 15.87 20 19 16.87 19 13 C 19 9.13 15.87 6 12 6" />
+              <path className="bk-head" pathLength={100} d="M14.8 3.9 L12 6 L14.8 8.1" />
             </svg>
           ) : (
             <span className="spell-center-label">{center === "to-general" ? "see general" : "see local"}</span>

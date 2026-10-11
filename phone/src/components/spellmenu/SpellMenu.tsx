@@ -5,9 +5,10 @@
 // collapse motion replays. A windowed spell (e.g. Sync) renders a window above the ring
 // and blurs it behind; closing the window returns INTO the menu, not the page.
 
+import { useState } from "react";
 import type { SyncStatus } from "../../lib/wand/syncMachine";
 import type { Spell } from "../../lib/spells/types";
-import type { SpellMenuApi } from "../../hooks/useSpellMenu";
+import type { PoofKind, SpellMenuApi } from "../../hooks/useSpellMenu";
 import { SpellRing } from "./SpellRing";
 import { SpellWindow } from "./SpellWindow";
 
@@ -15,8 +16,8 @@ export interface SpellMenuProps {
   api: SpellMenuApi;
   onCast: (spell: Spell) => void;
   onLongCast: (spell: Spell) => void;
-  /** snapshot the ring + spawn evaporate sparkles before a change that removes the glyphs. */
-  onPoof: () => void;
+  /** snapshot the ring + play the Poof bridge before a change that removes the glyphs. */
+  onPoof: (kind: PoofKind) => void;
   syncState: SyncStatus;
   account: string;
   onSyncPrimary: () => void;
@@ -24,12 +25,20 @@ export interface SpellMenuProps {
 }
 
 export function SpellMenu({ api, onCast, onLongCast, onPoof, syncState, account, onSyncPrimary, reduce }: SpellMenuProps) {
+  // the last transition kind — stamped on the overlay so the incoming ring blooms to match
+  const [lastKind, setLastKind] = useState<PoofKind>("close");
   if (!api.open) return null;
   const conditional = api.form === "conditional";
   const windowed = api.windowSpellId !== null;
 
+  const go = (kind: PoofKind, fn: () => void) => {
+    onPoof(kind);
+    setLastKind(kind);
+    fn();
+  };
+
   return (
-    <div className={`spell-overlay${windowed ? " windowed" : ""}${reduce ? " reduce" : ""}`}>
+    <div className={`spell-overlay${windowed ? " windowed" : ""}${reduce ? " reduce" : ""}`} data-kind={lastKind}>
       <SpellRing
         key={`${api.form}:${api.detailDepth}`}
         spells={api.spells}
@@ -40,29 +49,14 @@ export function SpellMenu({ api, onCast, onLongCast, onPoof, syncState, account,
         reduce={reduce}
         onCast={onCast}
         onLongCast={onLongCast}
-        // these change the ring (switch/descend/dismiss) → evaporate the current glyphs first
-        enterDetailed={(s) => {
-          onPoof();
-          api.enterDetailed(s);
-        }}
+        // these change the ring (switch/descend/dismiss) → play the Poof bridge first
+        enterDetailed={(s) => go("descend", () => api.enterDetailed(s))}
         openWindow={api.openWindow}
-        back={() => {
-          onPoof();
-          api.back();
-        }}
-        toGeneral={() => {
-          onPoof();
-          api.toGeneral();
-        }}
-        toSuggested={() => {
-          onPoof();
-          api.toSuggested();
-        }}
+        back={() => go("ascend", api.back)}
+        toGeneral={() => go("toggle", api.toGeneral)}
+        toSuggested={() => go("toggle", api.toSuggested)}
         setScroll={api.setScroll}
-        onBackdrop={() => {
-          onPoof();
-          api.close();
-        }}
+        onBackdrop={() => go("close", api.close)}
       />
 
       {windowed ? (
