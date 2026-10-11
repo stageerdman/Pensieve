@@ -1,0 +1,295 @@
+/* spellmenu.css — the radial Spell Menu overlay (SPELL-MENU update).
+   A blurred/darkened scrim with a ring of spell glyphs blooming from the center. The ring
+   center is CSS-placed at 50% / 56% (keep in sync with RING.centerYFrac in ringLayout.ts);
+   layoutRing() supplies per-glyph px offsets written as inline transforms. */
+
+.spell-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: hsl(var(--spell-scrim) / 0.64);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  animation: spell-overlay-in 0.18s var(--ease);
+}
+/* bottom void vignette — glyphs scroll down into nothingness */
+.spell-overlay::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 70% at 50% 112%, hsl(var(--spell-scrim) / 0.92), transparent 58%);
+}
+@keyframes spell-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.spell-ring {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+
+/* ── a spell node (positioned by JS; the disc blooms from the hub) ────────── */
+.spell-node {
+  position: absolute;
+  left: 50%;
+  top: 56%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transition: transform 0.3s var(--spring), opacity 0.2s var(--ease);
+  will-change: transform, opacity;
+}
+.spell-ring.dragging .spell-node {
+  transition: none;
+}
+
+.spell-bloom {
+  animation: bloom-in 0.34s var(--spring) both;
+  animation-delay: var(--bloom-delay, 0ms);
+}
+@keyframes bloom-in {
+  from {
+    transform: scale(0.3) translate(var(--from-x, 0), var(--from-y, 0));
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.spell-btn {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid hsl(var(--gold) / 0.45);
+  background: radial-gradient(130% 130% at 30% 25%, hsl(var(--gold) / 0.26), hsl(var(--gold) / 0.08) 72%),
+    hsl(var(--surface-raised) / 0.55);
+  color: hsl(var(--gold));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.14s var(--spring-soft), box-shadow 0.14s var(--ease), border-width 0.14s var(--ease);
+}
+.spell-btn:active {
+  transform: scale(0.92);
+  filter: brightness(1.12);
+  box-shadow: 0 0 26px -6px hsl(var(--gold-glow) / 0.55);
+}
+
+/* form hue: Conditional = accent-blue (violet stays Accio-only) */
+.spell-ring.hue-accent .spell-btn {
+  border-color: hsl(var(--conditional) / 0.5);
+  color: hsl(var(--conditional));
+  background: radial-gradient(130% 130% at 30% 25%, hsl(var(--conditional) / 0.26), hsl(var(--conditional) / 0.08) 72%),
+    hsl(var(--surface-raised) / 0.55);
+}
+.spell-ring.hue-accent .spell-btn:active {
+  box-shadow: 0 0 26px -6px hsl(var(--conditional-glow) / 0.6);
+}
+
+/* spells that own their hue regardless of form */
+.spell-btn.spell-violet {
+  color: hsl(var(--accio));
+  border-color: hsl(var(--accio) / 0.5);
+  background: radial-gradient(130% 130% at 30% 25%, hsl(var(--accio) / 0.26), hsl(var(--accio) / 0.08) 72%),
+    hsl(var(--surface-raised) / 0.55);
+}
+.spell-btn.spell-syncgold {
+  color: hsl(var(--gold));
+  border-color: hsl(var(--gold) / 0.55);
+}
+
+/* focus = the glyph resting nearest the top of a scroll ring */
+.spell-node.focus .spell-btn {
+  transform: scale(1.04);
+  border-width: 1.5px;
+}
+
+.spell-has-more {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid hsl(var(--gold) / 0.5);
+  pointer-events: none;
+}
+.spell-ring.hue-accent .spell-has-more {
+  border-color: hsl(var(--conditional) / 0.5);
+}
+
+.spell-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: hsl(var(--text) / 0.8);
+  text-shadow: 0 1px 6px hsl(var(--surface) / 0.9);
+  max-width: 72px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── the center slot (nav / resting core) ────────────────────────────────── */
+.spell-center,
+.spell-core {
+  position: absolute;
+  left: 50%;
+  top: 56%;
+  transform: translate(-50%, -50%);
+}
+.spell-core {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid hsl(var(--gold) / 0.15);
+  pointer-events: none;
+}
+.spell-center {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: hsl(var(--surface-raised) / 0.7);
+  backdrop-filter: blur(var(--ctrl-blur));
+  -webkit-backdrop-filter: blur(var(--ctrl-blur));
+  border: 1px solid hsl(var(--gold) / 0.4);
+  color: hsl(var(--gold));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.spell-center.conditional {
+  border-color: hsl(var(--conditional) / 0.5);
+  color: hsl(var(--conditional));
+}
+.spell-center-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* ── a spell window (above the blurred ring) ─────────────────────────────── */
+.spell-overlay.windowed .spell-ring {
+  filter: blur(8px);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.spell-window-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 152;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px;
+}
+.spell-window {
+  width: 100%;
+  max-width: 360px;
+  background: hsl(var(--surface-raised) / 0.98);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  border: 1px solid hsl(var(--border));
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.8);
+  animation: spell-window-in 0.24s var(--spring);
+}
+@keyframes spell-window-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.sw-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+.sw-rune {
+  flex: none;
+  color: hsl(var(--gold));
+  display: flex;
+}
+.spell-window[data-state="failed"] .sw-rune,
+.spell-window[data-state="offline"] .sw-rune {
+  color: hsl(var(--danger));
+}
+.spell-window[data-state="reminder"] .sw-rune,
+.spell-window[data-state="syncing"] .sw-rune {
+  color: hsl(var(--warn));
+}
+.sw-copy {
+  min-width: 0;
+  flex: 1;
+}
+.sw-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: hsl(var(--text));
+}
+.sw-sub {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: hsl(var(--text-muted));
+}
+.sw-primary {
+  width: 100%;
+  height: 46px;
+  border-radius: 14px;
+  border: none;
+  background: hsl(var(--gold) / 0.18);
+  color: hsl(var(--gold));
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sw-primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.sw-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  font-size: 12px;
+  color: hsl(var(--text-muted));
+}
+.sw-close {
+  background: none;
+  border: none;
+  color: hsl(var(--accent));
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* reduced motion: no bloom/shimmer, instant open (global block already clamps durations) */
+@media (prefers-reduced-motion: reduce) {
+  .spell-bloom,
+  .spell-overlay,
+  .spell-window {
+    animation: none !important;
+  }
+}

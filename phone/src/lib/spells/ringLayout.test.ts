@@ -61,11 +61,12 @@ describe("ringLayout — the void fade", () => {
     expect(voidOpacity(210)).toBe(0);
   });
 
-  it("ramps linearly over fadeRamp degrees approaching each edge", () => {
+  it("ramps linearly over fadeRamp degrees, symmetric on both descents", () => {
     expect(voidOpacity(120)).toBeCloseTo(1, 5); // 30° out = fully lit
     expect(voidOpacity(135)).toBeCloseTo(0.5, 5);
-    expect(voidOpacity(240)).toBeCloseTo(1, 5);
-    expect(voidOpacity(225)).toBeCloseTo(0.5, 5);
+    expect(voidOpacity(-120)).toBeCloseTo(1, 5); // left side mirrors the right
+    expect(voidOpacity(-135)).toBeCloseTo(0.5, 5);
+    expect(voidOpacity(-150)).toBe(0);
   });
 });
 
@@ -76,6 +77,15 @@ describe("ringLayout — scroll rings", () => {
     expect(r[0].opacity).toBe(1);
     expect(r[0].focus).toBe(true);
     expect(r.filter((g) => g.focus)).toHaveLength(1);
+  });
+
+  it("does not wrap the far end back onto the top (no overlap)", () => {
+    // the bug: with pitch 40° and 10 items, a mod-360 wheel put index 9 at 0° too.
+    const r = layoutRing(10, 0);
+    expect(Math.abs(r[9].angleDeg)).toBeGreaterThanOrEqual(RING.voidEdge);
+    expect(r[9].visible).toBe(false);
+    // exactly one glyph sits at the very top
+    expect(r.filter((g) => g.angleDeg === 0)).toHaveLength(1);
   });
 
   it("hides glyphs that rotate into the void", () => {

@@ -1,0 +1,278 @@
+/* dock.css — the bottom control bar (SPELL-MENU update).
+   An invisible 4-cell grid: the gold menu button + collapsed spells, or one expanded
+   Accio spell spanning 3 cells. No background plate (design.md: no chrome for its own
+   sake). Hidden under the keyboard — Accio then rides --kb as the shared summon bar.
+   NOTE: the reel owns `--slot`/`.slot`; the dock uses `--dock-*` / `.dock*`. */
+
+.dock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  margin: 0 16px;
+  height: var(--dock-h);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--dock-gap);
+  align-items: center;
+  z-index: 134;
+  pointer-events: none;
+  transition: opacity 0.18s var(--ease), transform 0.18s var(--ease);
+}
+.dock > * {
+  pointer-events: auto;
+}
+.app-root.kb-open .dock,
+.app-root.searching .dock {
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+}
+
+.dock-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+.dock-exp {
+  justify-content: stretch;
+}
+
+/* ── the gold Spell-Menu button (the Orbit hero) ─────────────────────────── */
+.spell-fab {
+  position: relative;
+  width: var(--spell-hero);
+  height: var(--spell-hero);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  color: hsl(var(--surface)); /* dark pips cut out of the gold dome */
+  background: radial-gradient(
+    130% 130% at 30% 25%,
+    hsl(var(--gold)) 0%,
+    hsl(var(--gold-mid)) 55%,
+    hsl(var(--gold-deep)) 100%
+  );
+  box-shadow:
+    0 0 0 1px hsl(var(--gold-glow) / 0.5),
+    0 10px 26px -8px hsl(var(--gold-glow) / 0.55),
+    inset 0 2px 4px hsl(0 0% 100% / 0.4),
+    inset 0 -6px 12px hsl(var(--gold-deep) / 0.5);
+  animation: spell-shimmer 5.5s var(--ease) infinite;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s var(--ease);
+}
+.spell-fab::before {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+  z-index: -1;
+  background: radial-gradient(circle, hsl(var(--gold-glow) / 0.3), transparent 70%);
+  animation: breathe 4s var(--ease) infinite;
+}
+.spell-fab svg {
+  filter: drop-shadow(0 0 2px hsl(var(--gold-deep) / 0.5));
+}
+.spell-fab:active {
+  transform: scale(0.94);
+  filter: brightness(1.1);
+}
+@keyframes spell-shimmer {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.12);
+  }
+}
+
+/* attention-only sync dot (home has no free cell for a sync spell) */
+.spell-fab[data-alert]::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid hsl(var(--surface));
+}
+.spell-fab[data-alert="warn"]::after {
+  background: hsl(var(--warn));
+}
+.spell-fab[data-alert="danger"]::after {
+  background: hsl(var(--danger));
+  animation: syncAlert 1.4s var(--ease) infinite;
+}
+
+/* ── a collapsed spell (non-home views) ──────────────────────────────────── */
+.dock-spell {
+  position: relative;
+  width: var(--spell);
+  height: var(--spell);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: hsl(var(--surface-raised) / 0.82);
+  backdrop-filter: blur(var(--ctrl-blur)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--ctrl-blur)) saturate(1.3);
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--text-muted));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s var(--ease);
+}
+.dock-spell:active {
+  transform: scale(0.94);
+  filter: brightness(1.12);
+}
+
+/* ── the expanded Accio spell (resident, keyboard-down presentation) ──────── */
+.accio-bar {
+  width: 100%;
+  height: var(--accio-h);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px 0 16px;
+  border-radius: 999px;
+  background: hsl(var(--surface-raised) / 0.82);
+  backdrop-filter: blur(var(--ctrl-blur)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--ctrl-blur)) saturate(1.3);
+  border: 1px solid hsl(var(--accio) / 0.4);
+  box-shadow: 0 0 24px -10px hsl(var(--accio) / 0.4);
+  color: hsl(var(--text));
+  cursor: text;
+  min-width: 0;
+}
+.accio-sigil {
+  color: hsl(var(--accio));
+  flex: none;
+  display: flex;
+}
+.accio-ph,
+.accio-held {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.accio-ph {
+  color: hsl(var(--text-muted));
+}
+.accio-held {
+  color: hsl(var(--accio));
+  font-weight: 600;
+}
+.accio-count {
+  flex: none;
+  color: hsl(var(--text-muted));
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.accio-clear {
+  flex: none;
+  display: flex;
+  padding: 4px;
+  background: none;
+  border: none;
+  color: hsl(var(--text-muted));
+  cursor: pointer;
+}
+.accio-recent {
+  flex: none;
+  max-width: 42%;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: hsl(var(--accio) / 0.14);
+  border: none;
+  color: hsl(var(--accio));
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+/* ── secondary-settings row (recent-query chips while summoning) ──────────── */
+.dock-settings {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin: 0 16px;
+  bottom: calc(var(--kb) + env(safe-area-inset-bottom) + 76px);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  overflow-x: auto;
+  scrollbar-width: none;
+  z-index: 135;
+  pointer-events: auto;
+  animation: dock-settings-in 0.22s var(--spring);
+}
+.dock-settings::-webkit-scrollbar {
+  display: none;
+}
+.dock-chip {
+  flex: none;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: hsl(var(--surface-raised) / 0.7);
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--text-muted));
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+@keyframes dock-settings-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── a fake-spell cast confirmation (prototype) ──────────────────────────── */
+.spell-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 160;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: hsl(var(--surface-raised) / 0.96);
+  backdrop-filter: blur(var(--ctrl-blur));
+  -webkit-backdrop-filter: blur(var(--ctrl-blur));
+  border: 1px solid hsl(var(--gold) / 0.4);
+  color: hsl(var(--text));
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  animation: spell-toast-in 0.24s var(--spring-soft);
+}
+@keyframes spell-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}

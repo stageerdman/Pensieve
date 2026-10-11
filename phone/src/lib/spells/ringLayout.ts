@@ -21,9 +21,8 @@ export const RING = {
   cell: 72, // hit target (px)
   pitchDeg: 40, // scroll-mode angular spacing between adjacent glyphs
   capacity: 8, // ≤ this → static ring; above → scroll
-  voidStart: 150, // bottom wedge [voidStart, voidEnd] where glyphs are fully gone
-  voidEnd: 210,
-  fadeRamp: 30, // degrees over which opacity ramps to the void edges
+  voidEdge: 150, // |angle| ≥ this → fully gone (the bottom void, symmetric L/R)
+  fadeRamp: 30, // degrees over which opacity ramps to the void edge
   dragPxPerSlot: 64, // 64px of drag = one slot (pitchDeg) of rotation
 } as const;
 
@@ -56,14 +55,15 @@ function offset(angleDeg: number): { x: number; y: number } {
 }
 
 /**
- * Void-fade opacity for an angle. 1 across the lit top arc; ramps down over `fadeRamp`
- * degrees approaching each void edge; 0 inside the void wedge.
+ * Void-fade opacity for a SIGNED angle off the top (0 = top; ± toward the bottom void).
+ * 1 across the lit top arc; ramps down over `fadeRamp` degrees; 0 once |angle| ≥ voidEdge,
+ * symmetric on the left and right so glyphs dissolve into nothingness on both descents.
  */
 export function voidOpacity(angleDeg: number): number {
-  const a = norm360(angleDeg);
-  if (a >= RING.voidStart && a <= RING.voidEnd) return 0;
-  const dist = a < RING.voidStart ? RING.voidStart - a : a - RING.voidEnd;
-  return Math.max(0, Math.min(1, dist / RING.fadeRamp));
+  const a = Math.abs(angleDeg);
+  if (a >= RING.voidEdge) return 0;
+  if (a <= RING.voidEdge - RING.fadeRamp) return 1;
+  return (RING.voidEdge - a) / RING.fadeRamp;
 }
 
 /** Is this count going to scroll (vs a fixed static ring)? */
@@ -111,11 +111,12 @@ export function layoutRing(n: number, scrollPos = 0): GlyphPos[] {
     });
   }
 
-  // scroll ring
+  // scroll ring — a signed arc fanning up BOTH sides from the focus (index p at the top).
+  // Glyphs more than voidEdge° off the top are hidden; nothing wraps around the bottom.
   const p = Math.max(0, Math.min(maxScroll(n), scrollPos));
-  const focusIdx = Math.round(p) % n;
+  const focusIdx = Math.max(0, Math.min(n - 1, Math.round(p)));
   return Array.from({ length: n }, (_, index) => {
-    const angleDeg = norm360((index - p) * RING.pitchDeg);
+    const angleDeg = (index - p) * RING.pitchDeg; // signed, no wrap
     const opacity = voidOpacity(angleDeg);
     const scale = 0.6 + 0.4 * opacity;
     const { x, y } = offset(angleDeg);
