@@ -8,7 +8,7 @@
 // written straight to the nodes (bypassing React, per the 60fps doctrine).
 
 import { useEffect, useRef } from "react";
-import { RING, hiddenCounts, isScroll, layoutRing, ringSpacing, snapScroll, type GlyphPos } from "../../lib/spells/ringLayout";
+import { RING, clampScroll, hiddenCounts, isScroll, layoutRing, ringSpacing, snapScroll, type GlyphPos } from "../../lib/spells/ringLayout";
 import type { Spell } from "../../lib/spells/types";
 import { haptic } from "../../util";
 import { SpellGlyph } from "./SpellGlyph";
@@ -184,8 +184,9 @@ export function SpellRing(props: SpellRingProps) {
     if (d > MAX_STEP_DEG) d = MAX_STEP_DEG;
     else if (d < -MAX_STEP_DEG) d = -MAX_STEP_DEG;
     const dt = Math.max(1, now - c.lastTime);
-    // rotating the wheel by +dθ moves glyph angles up by dθ ⇒ p decreases by dθ/spacing
-    c.liveP -= d / spacing;
+    // rotating the wheel by +dθ moves glyph angles up by dθ ⇒ p decreases by dθ/spacing.
+    // Finite arcs clamp at the ends (spin side-to-side only); full circles loop.
+    c.liveP = clampScroll(n, c.liveP - d / spacing);
     c.velA = c.velA * 0.7 + (d / dt) * 0.3; // smoothed deg/ms
     c.lastAngle = ang;
     c.lastTime = now;
@@ -231,13 +232,22 @@ export function SpellRing(props: SpellRingProps) {
     const spin = (now: number) => {
       const dt = Math.min(48, now - last);
       last = now;
-      c.liveP += vel * dt;
+      const next = c.liveP + vel * dt;
+      const clamped = clampScroll(n, next);
+      if (clamped !== next) {
+        // hit a finite end → stop and settle (no infinite spin for arc rings)
+        c.liveP = clamped;
+        applyLayout(clamped);
+        settleTo(snapScroll(n, clamped));
+        return;
+      }
+      c.liveP = next;
       vel *= Math.pow(FRICTION, dt / 16);
-      applyLayout(c.liveP);
+      applyLayout(next);
       if (Math.abs(vel) > VEL_STOP) {
         raf.current = requestAnimationFrame(spin);
       } else {
-        settleTo(snapScroll(c.liveP));
+        settleTo(snapScroll(n, next));
       }
     };
     raf.current = requestAnimationFrame(spin);

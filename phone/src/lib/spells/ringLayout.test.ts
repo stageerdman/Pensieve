@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   RING,
+  clampScroll,
   focusIndex,
   hiddenCounts,
   isScroll,
   layoutRing,
+  loops,
   ringSpacing,
   snapScroll,
   voidOpacity,
@@ -59,8 +61,8 @@ describe("ringLayout — the void fade", () => {
   });
 });
 
-describe("ringLayout — arc rings (large n)", () => {
-  it("rests glyph 0 at the top and focuses it", () => {
+describe("ringLayout — arc rings (large n) are FINITE", () => {
+  it("rests glyph 0 at the top at the start and focuses it", () => {
     const r = layoutRing(10, 0);
     expect(r[0].angleDeg).toBe(0);
     expect(r[0].opacity).toBe(1);
@@ -68,17 +70,20 @@ describe("ringLayout — arc rings (large n)", () => {
     expect(r.filter((g) => g.focus)).toHaveLength(1);
   });
 
-  it("never overlaps (folding keeps angles unique) and fans both sides from the top", () => {
+  it("at the start, later spells fan down one side and the far end is hidden", () => {
     const r = layoutRing(10, 0);
-    expect(r.filter((g) => g.angleDeg === 0)).toHaveLength(1);
     expect(r[1].angleDeg).toBeCloseTo(40, 5); // next spell down the right
-    expect(r[9].angleDeg).toBeCloseTo(-40, 5); // last spell down the left (looped, not at 360)
-    const angles = new Set(r.map((g) => Math.round(g.angleDeg)));
-    expect(angles.size).toBe(10);
+    expect(r[9].visible).toBe(false); // the far end hasn't scrolled into view yet
   });
 
-  it("hides glyphs that drift into the void, counted on the correct side", () => {
-    const r = layoutRing(10, 0);
+  it("brings the last spell to the top only at the finite end (p = n-1)", () => {
+    const r = layoutRing(10, 9);
+    expect(r[9].angleDeg).toBeCloseTo(0, 5);
+    expect(r[9].focus).toBe(true);
+  });
+
+  it("hides glyphs that drift into the void, counted by side; total matches", () => {
+    const r = layoutRing(10, 4); // mid-scroll → hidden on BOTH sides
     const hidden = r.filter((g) => !g.visible);
     expect(hidden.length).toBeGreaterThan(0);
     const c = hiddenCounts(r);
@@ -96,27 +101,26 @@ describe("ringLayout — arc rings (large n)", () => {
   });
 });
 
-describe("ringLayout — the dial is continuous (loops, never clamps)", () => {
-  it("wraps the focus round and round with no dead end", () => {
-    expect(focusIndex(10, 0)).toBe(0);
-    expect(focusIndex(10, 10)).toBe(0);
-    expect(focusIndex(10, 23)).toBe(3);
-    expect(focusIndex(10, -1)).toBe(9);
+describe("ringLayout — finite vs infinite rotation", () => {
+  it("a full circle loops forever; an overflowing ring does not", () => {
+    expect(loops(6)).toBe(true);
+    expect(loops(10)).toBe(false);
   });
 
-  it("produces a valid layout for an arbitrarily large p (no clamp, no NaN)", () => {
-    const r = layoutRing(10, 1000.4);
-    expect(r).toHaveLength(10);
-    for (const g of r) {
-      expect(Number.isFinite(g.x)).toBe(true);
-      expect(Number.isFinite(g.y)).toBe(true);
-    }
-    expect(r.find((g) => g.focus)!.index).toBe(0); // 1000 % 10 = 0
+  it("full circles wrap the focus with no dead end", () => {
+    expect(focusIndex(6, 6)).toBe(0);
+    expect(focusIndex(6, -1)).toBe(5);
+    expect(snapScroll(6, 2.4)).toBe(2);
+    expect(snapScroll(6, 99)).toBe(99); // not clamped — it loops
   });
 
-  it("snaps to the nearest slot without clamping", () => {
-    expect(snapScroll(2.4)).toBe(2);
-    expect(snapScroll(-0.6)).toBe(-1);
-    expect(snapScroll(99.5)).toBe(100);
+  it("arc rings clamp end-to-end (no infinite rotation when spells are hidden)", () => {
+    expect(clampScroll(10, 50)).toBe(9);
+    expect(clampScroll(10, -3)).toBe(0);
+    expect(focusIndex(10, 23)).toBe(9);
+    expect(focusIndex(10, -5)).toBe(0);
+    expect(snapScroll(10, 99)).toBe(9);
+    expect(snapScroll(10, -2)).toBe(0);
+    expect(layoutRing(10, 1000).find((g) => g.focus)!.index).toBe(9); // pinned at the end
   });
 });

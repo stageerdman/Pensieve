@@ -101,7 +101,7 @@ export function useSpellMenu(context: PageContext): SpellMenuApi {
     setScrollPos(0);
   }, []);
 
-  const setScroll = useCallback((p: number) => setScrollPos(snapScroll(p)), []);
+  const setScroll = useCallback((p: number) => setScrollPos(snapScroll(spells.length, p)), [spells.length]);
 
   const openWindow = useCallback((spellId: string) => setWindowSpellId(spellId), []);
   const closeWindow = useCallback(() => setWindowSpellId(null), []);

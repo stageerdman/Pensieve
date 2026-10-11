@@ -73,10 +73,27 @@ export function isScroll(n: number): boolean {
   return n * RING.pitchDeg > 360;
 }
 
+/** Full circles LOOP forever; arc rings (some spells hidden) are FINITE — end to end only. */
+export function loops(n: number): boolean {
+  return !isScroll(n);
+}
+
+/** Furthest resting position: last glyph at the top for a finite arc; unbounded if looping. */
+export function maxScroll(n: number): number {
+  return isScroll(n) ? Math.max(0, n - 1) : Infinity;
+}
+
+/** Clamp a continuous position: pass through if looping, else hold within [0, n-1]. */
+export function clampScroll(n: number, p: number): number {
+  if (loops(n)) return p;
+  return Math.max(0, Math.min(maxScroll(n), p));
+}
+
 /** Normalize a continuous p to the resting index at the top. */
 export function focusIndex(n: number, p: number): number {
   if (n <= 0) return 0;
-  return ((Math.round(p) % n) + n) % n;
+  if (loops(n)) return ((Math.round(p) % n) + n) % n;
+  return Math.max(0, Math.min(n - 1, Math.round(p)));
 }
 
 /**
@@ -91,9 +108,13 @@ export function layoutRing(n: number, p = 0): GlyphPos[] {
   }
   const spacing = ringSpacing(n);
   const arc = isScroll(n);
-  const focus = focusIndex(n, p);
+  const loop = loops(n);
+  const pp = clampScroll(n, p); // finite arcs never run past their ends
+  const focus = focusIndex(n, pp);
   return Array.from({ length: n }, (_, index) => {
-    const angleDeg = foldOffset(index - p, n) * spacing;
+    // looping rings fold to the nearest arc (seamless spin); finite arcs use a signed
+    // offset so high-index spells stay off to one side until you scroll to them.
+    const angleDeg = (loop ? foldOffset(index - pp, n) : index - pp) * spacing;
     const opacity = arc ? voidOpacity(angleDeg) : 1;
     const scale = arc ? 0.6 + 0.4 * opacity : 1;
     const { x, y } = offset(angleDeg);
@@ -121,7 +142,7 @@ export function hiddenCounts(poss: GlyphPos[]): { left: number; right: number } 
   return { left, right };
 }
 
-/** Snap a continuous position to the nearest resting slot (no clamp — the dial loops). */
-export function snapScroll(p: number): number {
-  return Math.round(p);
+/** Snap a continuous position to the nearest resting slot (clamped for a finite arc). */
+export function snapScroll(n: number, p: number): number {
+  return clampScroll(n, Math.round(p));
 }
