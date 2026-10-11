@@ -25,12 +25,11 @@ async function boot() {
   return utils;
 }
 
-/** tap a spell node by its index (activation lives on pointerup, not click). */
+/** tap a spell node by its index (casting is on the button's onClick — keyboard/VO reachable). */
 function tapNode(container: HTMLElement, index: number) {
   const btn = container.querySelector<HTMLElement>(`.spell-node[data-index="${index}"] .spell-btn`);
   if (!btn) throw new Error(`no spell node ${index}`);
-  fireEvent.pointerDown(btn, { clientX: 100, clientY: 100, pointerType: "touch" });
-  fireEvent.pointerUp(btn, { clientX: 100, clientY: 100, pointerType: "touch" });
+  fireEvent.click(btn);
 }
 
 describe("PhoneApp — boot + the Dock", () => {

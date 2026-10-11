@@ -40,7 +40,7 @@
 .spell-node {
   position: absolute;
   left: 50%;
-  top: 56%;
+  top: var(--ring-cy);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -48,7 +48,9 @@
   transition: transform 0.3s var(--spring), opacity 0.2s var(--ease);
   will-change: transform, opacity;
 }
-.spell-ring.dragging .spell-node {
+/* the whole spin (drag + momentum + settle) writes transforms directly — never let the CSS
+   spring double-smooth them (that made the fling feel rubbery and the snap mushy). */
+.spell-ring.spinning .spell-node {
   transition: none;
 }
 
@@ -80,7 +82,7 @@
 }
 .spell-ring .spell-btn.spell-violet {
   --sh: var(--accio);
-  --sh-glow: var(--accio);
+  --sh-glow: var(--accio-glow);
 }
 .spell-ring .spell-btn.spell-syncgold {
   --sh: var(--gold);
@@ -100,12 +102,12 @@
   -webkit-tap-highlight-color: transparent;
   --glyph-stroke: 2; /* scoped: crisper rune than the global 1.75 */
   color: hsl(var(--sh)); /* rune inherits via currentColor */
-  background: hsl(var(--surface)); /* solid near-black disc — no gradient */
-  border: 1.5px solid hsl(var(--sh) / 0.85);
+  background: hsl(var(--spell-node)); /* dark well — darker than the scrim behind it */
+  border: 1.5px solid hsl(var(--sh-glow) / 0.9); /* bright ring drives the edge (parity across hues) */
   box-shadow:
-    0 0 10px -1px hsl(var(--sh-glow) / 0.5),
-    0 0 22px -8px hsl(var(--sh-glow) / 0.35),
-    inset 0 0 10px -4px hsl(var(--sh-glow) / 0.45);
+    0 0 8px -1px hsl(var(--sh-glow) / 0.5),
+    0 0 16px -10px hsl(var(--sh-glow) / 0.3),
+    inset 0 0 10px -4px hsl(var(--sh-glow) / 0.5);
   transition: transform 0.16s var(--spring), box-shadow 0.16s var(--ease), border-color 0.16s var(--ease);
 }
 .spell-btn > svg,
@@ -117,15 +119,23 @@
   filter: drop-shadow(0 0 4px hsl(var(--sh-glow) / 0.55)) drop-shadow(0 0 1px hsl(var(--sh-glow) / 0.8));
 }
 
-/* FOCUS = the "allocated" node: bigger, thicker full-bright ring, stronger glow */
+/* FOCUS = the "allocated" node: bigger, thicker full-bright ring, a halo, stronger glow */
 .spell-node.focus .spell-btn {
-  transform: scale(1.08);
+  transform: scale(1.12);
   border-width: 2.5px;
-  border-color: hsl(var(--sh));
+  border-color: hsl(var(--sh-glow));
   box-shadow:
     0 0 16px 0 hsl(var(--sh-glow) / 0.6),
     0 0 34px -6px hsl(var(--sh-glow) / 0.45),
     inset 0 0 12px -4px hsl(var(--sh-glow) / 0.6);
+}
+.spell-node.focus .spell-btn::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 1.5px solid hsl(var(--sh-glow) / 0.45);
+  pointer-events: none;
 }
 .spell-node.focus .spell-btn > svg {
   filter: drop-shadow(0 0 6px hsl(var(--sh-glow) / 0.8)) drop-shadow(0 0 2px hsl(var(--sh-glow) / 0.95));
@@ -138,18 +148,36 @@
   transform: scale(1.02);
 }
 
+/* "has options" (detailed) → a small glowing dot at the base; avoids a muddy double-ring */
 .spell-has-more {
   position: absolute;
-  inset: -4px;
+  bottom: -1px;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
   border-radius: 50%;
-  border: 2px solid hsl(var(--sh-glow) / 0.5);
+  background: hsl(var(--sh-glow) / 0.95);
+  box-shadow: 0 0 5px hsl(var(--sh-glow) / 0.8);
+  pointer-events: none;
+}
+/* "hold to speak" (Write) → a tiny twin-dot hint top-right */
+.spell-hold-hint {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: hsl(var(--sh) / 0.85);
+  box-shadow: 0 -5px 0 -1px hsl(var(--sh) / 0.6);
   pointer-events: none;
 }
 
 .spell-label {
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
   color: hsl(var(--text) / 0.8);
   text-shadow: 0 1px 6px hsl(var(--surface) / 0.9);
@@ -164,7 +192,7 @@
 .spell-core {
   position: absolute;
   left: 50%;
-  top: 56%;
+  top: var(--ring-cy);
   transform: translate(-50%, -50%);
 }
 .spell-core {
@@ -178,6 +206,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  min-width: 44px; /* ≥44pt tap target */
+  min-height: 44px;
   background: none;
   border: none;
   padding: 10px;
@@ -215,11 +245,11 @@
 /* ── hidden-count indicators (finite arc): counts of spells off each side ───── */
 .spell-hidden {
   position: absolute;
-  top: calc(56% + 92px);
+  top: calc(var(--ring-cy) + 86px);
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: hsl(var(--gold-glow) / 0.8);
@@ -283,7 +313,7 @@
 .spell-sparkle {
   position: fixed;
   left: 50%;
-  top: 56%;
+  top: var(--ring-cy);
   width: 5px;
   height: 5px;
   margin: -2.5px 0 0 -2.5px;
@@ -380,7 +410,7 @@
 }
 .sw-sub {
   margin-top: 4px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.4;
   color: hsl(var(--text-muted));
 }
@@ -391,7 +421,7 @@
   border: none;
   background: hsl(var(--gold) / 0.18);
   color: hsl(var(--gold));
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
 }

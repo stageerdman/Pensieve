@@ -17,11 +17,12 @@ const PATHS: Record<Exclude<IconName, "menu">, React.ReactNode> = {
     </>
   ),
   accio: (
-    <>
+    // nudged so the lens+handle centroid lands at the grid center (was up-left)
+    <g transform="translate(1,1)">
       <circle cx="10.5" cy="10.5" r="5.3" />
       <path d="M14.6 14.6 19.5 19.5" />
       <path d="M8.4 8.4v2.2M7.3 9.5h2.2" />
-    </>
+    </g>
   ),
   sync: (
     <path d="M12 12c-1.3-2.1-3-3.2-4.8-3.2a3.3 3.3 0 1 0 0 6.6c1.8 0 3.5-1.1 4.8-3.4c1.3 2.3 3 3.4 4.8 3.4a3.3 3.3 0 1 0 0-6.6C15 8.8 13.3 9.9 12 12Z" />
@@ -30,7 +31,6 @@ const PATHS: Record<Exclude<IconName, "menu">, React.ReactNode> = {
     <>
       <path d="M20 12a8 8 0 1 1-2.4-5.7" />
       <path d="M20 3.6v3.4h-3.4" />
-      <path d="M12 9.8v4.4M9.8 12h4.4" />
     </>
   ),
   pin: (
@@ -53,10 +53,10 @@ const PATHS: Record<Exclude<IconName, "menu">, React.ReactNode> = {
     </>
   ),
   highlight: (
+    // all-line (no mixed fill): two text rows + a thick "marker" underline
     <>
-      <path d="M5 7h14M5 11h9" />
-      <rect x="4" y="14.3" width="12" height="3.6" rx="1.8" fill="currentColor" stroke="none" />
-      <path d="M18.8 15v2.6M17.5 16.3h2.6" />
+      <path d="M5 7h14M5 11h10" />
+      <path d="M5 16h11" strokeWidth="3.4" opacity="0.9" />
     </>
   ),
   export: (

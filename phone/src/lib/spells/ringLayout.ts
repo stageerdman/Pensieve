@@ -18,9 +18,9 @@
 // Sprites stay upright — only POSITIONS move (keeps a rotary menu legible).
 
 export const RING = {
-  R: 128, // ring radius, center-to-glyph-center (px)
+  R: 118, // ring radius, center-to-glyph-center (px)
   centerXFrac: 0.5,
-  centerYFrac: 0.56, // biased 6% below geometric center for thumb reach
+  centerYFrac: 0.6, // lowered into the thumb zone (keep in sync with --ring-cy in CSS)
   glyph: 64, // visible disc (px)
   cell: 84, // hit target (px)
   pitchDeg: 40, // arc-mode angular spacing between adjacent glyphs

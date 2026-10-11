@@ -51,4 +51,10 @@
   --conditional-glow: 218 100% 72%; /* == --accent-glow; halos only */
 
   --glyph-stroke: 1.75; /* one stroke weight for the whole spell-glyph set */
+
+  /* Spell nodes (constellation reference): the disc is a DARK WELL — the darkest thing on
+     screen — so the glowing ring + rune carry the edge. */
+  --spell-node: 224 30% 6.5%;
+  --accio-glow: 266 90% 78%; /* violet glow (brighter than --accio), so violet nodes bloom too */
+  --ring-cy: 60%; /* the radial menu's center height (keep in sync with RING.centerYFrac) */
 }
