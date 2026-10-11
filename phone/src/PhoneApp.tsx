@@ -480,6 +480,13 @@ export function PhoneApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accio.searching, accio.filtering, kbOpen]);
 
+  // On launch, present the Spell Menu over the memory bank (owner's choice) — the spells are
+  // the first thing you see; tap one, or tap the background to drop into the reel.
+  useEffect(() => {
+    menu.openMenu();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // window resize → re-measure the reel (the wheel/keyboard own their own resize)
   useEffect(() => {
     const onResize = () => fisheye.relayout();
