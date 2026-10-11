@@ -94,8 +94,8 @@ describe("PhoneApp — the Spell Menu", () => {
     expect(ring).toBeTruthy();
     expect(ring?.classList.contains("hue-gold")).toBe(true);
     expect(container.querySelectorAll(".spell-node").length).toBe(GENERAL_SPELLS.length);
-    // home opens General but offers the page's suggestions
-    expect(container.querySelector(".spell-center-label")?.textContent).toBe("Suggested");
+    // home opens General but offers the page's suggestions ("see local")
+    expect(container.querySelector(".spell-center-label")?.textContent).toBe("see local");
   });
 
   it("casting a fake spell closes the menu and shows a toast", async () => {

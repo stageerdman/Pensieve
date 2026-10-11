@@ -68,8 +68,8 @@
 
 .spell-btn {
   position: relative;
-  width: 54px;
-  height: 54px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -141,7 +141,7 @@
   text-overflow: ellipsis;
 }
 
-/* ── the center slot (nav / resting core) ────────────────────────────────── */
+/* ── the center slot — just text / a floating wand-flick arrow (no disc) ───── */
 .spell-center,
 .spell-core {
   position: absolute;
@@ -150,36 +150,72 @@
   transform: translate(-50%, -50%);
 }
 .spell-core {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  border: 1px solid hsl(var(--gold) / 0.15);
+  border: 1px solid hsl(var(--gold) / 0.12);
   pointer-events: none;
 }
 .spell-center {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: hsl(var(--surface-raised) / 0.7);
-  backdrop-filter: blur(var(--ctrl-blur));
-  -webkit-backdrop-filter: blur(var(--ctrl-blur));
-  border: 1px solid hsl(var(--gold) / 0.4);
+  background: none;
+  border: none;
+  padding: 10px;
   color: hsl(var(--gold));
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 .spell-center.conditional {
-  border-color: hsl(var(--conditional) / 0.5);
   color: hsl(var(--conditional));
 }
+.spell-center.back {
+  color: hsl(var(--gold));
+  filter: drop-shadow(0 0 6px hsl(var(--gold-glow) / 0.7));
+}
+.spell-center.back:active {
+  transform: translate(-50%, -50%) scale(0.9) rotate(-12deg);
+}
 .spell-center-label {
-  font-size: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: hsl(var(--text) / 0.85);
+  text-shadow: 0 1px 6px hsl(var(--surface) / 0.9);
+}
+.spell-center.conditional .spell-center-label {
+  color: hsl(var(--text) / 0.85);
+}
+
+/* ── hidden-count indicators (scroll mode) ───────────────────────────────── */
+.spell-hidden {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.5px;
+  color: hsl(var(--gold) / 0.7);
+  text-shadow: 0 0 8px hsl(var(--gold-glow) / 0.5);
+  pointer-events: none;
+}
+.spell-ring.hue-accent .spell-hidden {
+  color: hsl(var(--conditional) / 0.75);
+  text-shadow: 0 0 8px hsl(var(--conditional-glow) / 0.5);
+}
+.spell-hidden.top {
+  top: calc(56% - 190px);
+}
+.spell-hidden.bottom {
+  top: calc(56% + 176px);
+}
+.spell-hidden-chev {
+  font-size: 13px;
+  opacity: 0.85;
 }
 
 /* ── a spell window (above the blurred ring) ─────────────────────────────── */

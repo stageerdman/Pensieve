@@ -8,13 +8,25 @@
 
 import { useEffect, useRef } from "react";
 import type { Spell } from "../../lib/spells/types";
-import { dragToScroll, isScroll, layoutRing, maxScroll, snapScroll, type GlyphPos } from "../../lib/spells/ringLayout";
+import { RING, isScroll, layoutRing, maxScroll, snapScroll, type GlyphPos } from "../../lib/spells/ringLayout";
 import { haptic } from "../../util";
 import { SpellGlyph } from "./SpellGlyph";
 import type { CenterKind, MenuHue } from "../../hooks/useSpellMenu";
 
 const HOLD_MS = 420;
 const DRAG_THRESHOLD = 6; // px before a press becomes a scroll drag
+
+/** Finger angle (deg, clockwise from 12 o'clock) about the ring center — matches layoutRing. */
+function angleAt(px: number, py: number, cx: number, cy: number): number {
+  return (Math.atan2(px - cx, -(py - cy)) * 180) / Math.PI;
+}
+/** Shortest signed angular delta, folded into (−180, 180]. */
+function deltaAngle(from: number, to: number): number {
+  let d = to - from;
+  while (d > 180) d -= 360;
+  while (d < -180) d += 360;
+  return d;
+}
 
 export interface SpellRingHandlers {
   onCast: (spell: Spell) => void;
@@ -49,7 +61,21 @@ export function SpellRing(props: SpellRingProps) {
 
   const surfaceRef = useRef<HTMLDivElement>(null);
   // gesture scratch — never triggers a render
-  const g = useRef({ down: false, dragging: false, longFired: false, justDragged: false, startY: 0, startP: 0, liveP: 0, idx: -1, pid: -1 });
+  const g = useRef({
+    down: false,
+    dragging: false,
+    longFired: false,
+    justDragged: false,
+    startX: 0,
+    startY: 0,
+    startAngle: 0,
+    cx: 0,
+    cy: 0,
+    startP: 0,
+    liveP: 0,
+    idx: -1,
+    pid: -1,
+  });
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // write the resting layout whenever it changes (also the target of the release snap)
@@ -83,7 +109,24 @@ export function SpellRing(props: SpellRingProps) {
   function onPointerDown(e: React.PointerEvent) {
     const node = (e.target as Element).closest<HTMLElement>(".spell-node");
     const idx = node ? Number(node.dataset.index) : -1;
-    g.current = { down: true, dragging: false, longFired: false, justDragged: false, startY: e.clientY, startP: scrollPos, liveP: scrollPos, idx, pid: e.pointerId };
+    const rect = surfaceRef.current?.getBoundingClientRect();
+    const cx = (rect?.left ?? 0) + (rect?.width ?? 0) * RING.centerXFrac;
+    const cy = (rect?.top ?? 0) + (rect?.height ?? 0) * RING.centerYFrac;
+    g.current = {
+      down: true,
+      dragging: false,
+      longFired: false,
+      justDragged: false,
+      startX: e.clientX,
+      startY: e.clientY,
+      startAngle: angleAt(e.clientX, e.clientY, cx, cy),
+      cx,
+      cy,
+      startP: scrollPos,
+      liveP: scrollPos,
+      idx,
+      pid: e.pointerId,
+    };
     clearHold();
     if (idx >= 0) {
       const spell = spells[idx];
@@ -100,8 +143,8 @@ export function SpellRing(props: SpellRingProps) {
 
   function onPointerMove(e: React.PointerEvent) {
     if (!g.current.down) return;
-    const dy = e.clientY - g.current.startY;
-    if (!g.current.dragging && Math.abs(dy) > DRAG_THRESHOLD) {
+    const moved = Math.hypot(e.clientX - g.current.startX, e.clientY - g.current.startY);
+    if (!g.current.dragging && moved > DRAG_THRESHOLD) {
       if (!scroll) return; // static rings don't scroll
       g.current.dragging = true;
       clearHold();
@@ -114,7 +157,11 @@ export function SpellRing(props: SpellRingProps) {
       surfaceRef.current?.classList.add("dragging");
     }
     if (g.current.dragging) {
-      const p = Math.max(0, Math.min(maxScroll(n), g.current.startP - dragToScroll(dy)));
+      // ANGULAR grab-spin: the wheel rotates by the finger's angular travel about the
+      // center, so a glyph follows the thumb wherever you grab it (no left/right mirror).
+      const now = angleAt(e.clientX, e.clientY, g.current.cx, g.current.cy);
+      const d = deltaAngle(g.current.startAngle, now);
+      const p = Math.max(0, Math.min(maxScroll(n), g.current.startP - d / RING.pitchDeg));
       g.current.liveP = p;
       applyLayout(p);
     }
@@ -169,6 +216,11 @@ export function SpellRing(props: SpellRingProps) {
   const resting = layoutRing(n, scrollPos);
   const hueClass = hue === "accent" ? "hue-accent" : "hue-gold";
 
+  // how many spells drift hidden beyond each end of a scroll ring
+  const vis = resting.filter((gp) => gp.visible).map((gp) => gp.index);
+  const hiddenBefore = vis.length ? Math.min(...vis) : 0;
+  const hiddenAfter = vis.length ? n - 1 - Math.max(...vis) : 0;
+
   return (
     <div
       className={`spell-ring ${hueClass}${scroll ? " scroll" : ""}${reduce ? " reduce" : ""}`}
@@ -199,28 +251,50 @@ export function SpellRing(props: SpellRingProps) {
               ["--bloom-delay" as string]: `${Math.min(i * 14, 140)}ms`,
             }}
           >
-            <button
-              type="button"
-              className={`spell-btn ${spellHue}`}
-              aria-label={spell.name}
-              aria-disabled={spell.disabled || undefined}
-            >
-              <SpellGlyph icon={spell.icon} size={26} />
-              {spell.children?.length ? <span className="spell-has-more" aria-hidden="true" /> : null}
-            </button>
+            <div className="spell-bloom">
+              <button
+                type="button"
+                className={`spell-btn ${spellHue}`}
+                aria-label={spell.name}
+                aria-disabled={spell.disabled || undefined}
+              >
+                <SpellGlyph icon={spell.icon} size={30} />
+                {spell.children?.length ? <span className="spell-has-more" aria-hidden="true" /> : null}
+              </button>
+            </div>
             <span className="spell-label">{spell.name}</span>
           </div>
         );
       })}
 
+      {scroll && hiddenBefore > 0 ? (
+        <div className="spell-hidden top" aria-hidden="true">
+          <span className="spell-hidden-chev">⌃</span>
+          {hiddenBefore}
+        </div>
+      ) : null}
+      {scroll && hiddenAfter > 0 ? (
+        <div className="spell-hidden bottom" aria-hidden="true">
+          {hiddenAfter}
+          <span className="spell-hidden-chev">⌄</span>
+        </div>
+      ) : null}
+
       {center !== "none" ? (
-        <button type="button" className={`spell-center ${conditional ? "conditional" : ""}`} onClick={onCenter}>
+        <button
+          type="button"
+          className={`spell-center ${center === "back" ? "back" : "text"} ${conditional ? "conditional" : ""}`}
+          onClick={onCenter}
+          aria-label={center === "back" ? "Back" : center === "to-general" ? "See general spells" : "See local spells"}
+        >
           {center === "back" ? (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M15 5l-7 7 7 7" />
+            // a wand-flick curved arrow, floating (no disc)
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M14.5 6.5a6 6 0 1 1-6 9.8" strokeWidth="1.8" />
+              <path d="M8 9.5 8.2 15.6 14 15" strokeWidth="1.8" />
             </svg>
           ) : (
-            <span className="spell-center-label">{center === "to-general" ? "General" : "Suggested"}</span>
+            <span className="spell-center-label">{center === "to-general" ? "see general" : "see local"}</span>
           )}
         </button>
       ) : (

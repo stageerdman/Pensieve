@@ -14,11 +14,11 @@
 // Sprites stay upright — only POSITIONS orbit (this is what keeps a rotary menu legible).
 
 export const RING = {
-  R: 112, // ring radius, center-to-glyph-center (px)
+  R: 128, // ring radius, center-to-glyph-center (px)
   centerXFrac: 0.5,
   centerYFrac: 0.56, // biased 6% below geometric center for thumb reach
-  glyph: 54, // visible disc (px)
-  cell: 72, // hit target (px)
+  glyph: 64, // visible disc (px) — larger, so spells feel substantial
+  cell: 84, // hit target (px)
   pitchDeg: 40, // scroll-mode angular spacing between adjacent glyphs
   capacity: 8, // ≤ this → static ring; above → scroll
   voidEdge: 150, // |angle| ≥ this → fully gone (the bottom void, symmetric L/R)

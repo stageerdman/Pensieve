@@ -39,7 +39,7 @@
   justify-content: stretch;
 }
 
-/* ── the gold Spell-Menu button (the Orbit hero) ─────────────────────────── */
+/* ── the Spell-Menu button: a transparent ring of glowing fire-gold orbs ───── */
 .spell-fab {
   position: relative;
   width: var(--spell-hero);
@@ -49,46 +49,37 @@
   align-items: center;
   justify-content: center;
   border: none;
-  color: hsl(var(--surface)); /* dark pips cut out of the gold dome */
-  background: radial-gradient(
-    130% 130% at 30% 25%,
-    hsl(var(--gold)) 0%,
-    hsl(var(--gold-mid)) 55%,
-    hsl(var(--gold-deep)) 100%
-  );
-  box-shadow:
-    0 0 0 1px hsl(var(--gold-glow) / 0.5),
-    0 10px 26px -8px hsl(var(--gold-glow) / 0.55),
-    inset 0 2px 4px hsl(0 0% 100% / 0.4),
-    inset 0 -6px 12px hsl(var(--gold-deep) / 0.5);
-  animation: spell-shimmer 5.5s var(--ease) infinite;
+  background: none; /* transparent — the orbs ARE the button */
+  color: hsl(var(--gold));
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.12s var(--ease);
 }
+/* the orbs glow like embers */
+.spell-fab svg {
+  filter: drop-shadow(0 0 4px hsl(var(--gold-glow) / 0.9)) drop-shadow(0 0 9px hsl(var(--gold) / 0.55));
+  animation: fab-flicker 3.8s var(--ease) infinite;
+}
+/* a soft fire-light pooled behind the ring */
 .spell-fab::before {
   content: "";
   position: absolute;
-  inset: -9px;
+  inset: -4px;
   border-radius: 50%;
   z-index: -1;
-  background: radial-gradient(circle, hsl(var(--gold-glow) / 0.3), transparent 70%);
+  background: radial-gradient(circle, hsl(var(--gold-glow) / 0.22), hsl(var(--gold) / 0.06) 55%, transparent 72%);
   animation: breathe 4s var(--ease) infinite;
 }
-.spell-fab svg {
-  filter: drop-shadow(0 0 2px hsl(var(--gold-deep) / 0.5));
-}
 .spell-fab:active {
-  transform: scale(0.94);
-  filter: brightness(1.1);
+  transform: scale(0.92);
 }
-@keyframes spell-shimmer {
+@keyframes fab-flicker {
   0%,
   100% {
-    filter: brightness(1);
+    filter: drop-shadow(0 0 4px hsl(var(--gold-glow) / 0.9)) drop-shadow(0 0 9px hsl(var(--gold) / 0.55));
   }
   50% {
-    filter: brightness(1.12);
+    filter: drop-shadow(0 0 6px hsl(var(--gold-glow) / 1)) drop-shadow(0 0 14px hsl(var(--gold) / 0.7));
   }
 }
 
@@ -143,11 +134,15 @@
   gap: 10px;
   padding: 0 10px 0 16px;
   border-radius: 999px;
-  background: hsl(var(--surface-raised) / 0.82);
+  /* clearly present against the Basin (was near-invisible at 0.82/0.4) */
+  background: hsl(var(--surface-raised) / 0.96);
   backdrop-filter: blur(var(--ctrl-blur)) saturate(1.3);
   -webkit-backdrop-filter: blur(var(--ctrl-blur)) saturate(1.3);
-  border: 1px solid hsl(var(--accio) / 0.4);
-  box-shadow: 0 0 24px -10px hsl(var(--accio) / 0.4);
+  border: 1px solid hsl(var(--accio) / 0.6);
+  box-shadow:
+    0 0 20px -6px hsl(var(--accio) / 0.5),
+    0 6px 20px -8px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 hsl(0 0% 100% / 0.06);
   color: hsl(var(--text));
   cursor: text;
   min-width: 0;

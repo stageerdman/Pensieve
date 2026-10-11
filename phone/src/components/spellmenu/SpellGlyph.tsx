@@ -76,15 +76,15 @@ const PATHS: Record<Exclude<IconName, "menu">, React.ReactNode> = {
   ),
 };
 
-/** The six orbiting pips (12 o'clock clockwise) shared by both menu-glyph variants. */
+/** Six fire-gold orbs on a ring (12 o'clock clockwise), 32-grid, radius 10.5 — no hub. */
 const ORBIT_PIPS = (
   <>
-    <circle cx="14" cy="5.5" r="1.6" />
-    <circle cx="21.4" cy="9.75" r="1.6" />
-    <circle cx="21.4" cy="18.25" r="1.6" />
-    <circle cx="14" cy="22.5" r="1.6" />
-    <circle cx="6.6" cy="18.25" r="1.6" />
-    <circle cx="6.6" cy="9.75" r="1.6" />
+    <circle cx="16" cy="5.5" r="2.7" />
+    <circle cx="25.1" cy="10.75" r="2.7" />
+    <circle cx="25.1" cy="21.25" r="2.7" />
+    <circle cx="16" cy="26.5" r="2.7" />
+    <circle cx="6.9" cy="21.25" r="2.7" />
+    <circle cx="6.9" cy="10.75" r="2.7" />
   </>
 );
 
@@ -98,21 +98,11 @@ export interface SpellGlyphProps {
 
 export function SpellGlyph({ icon, size = 22, className, conditional = false }: SpellGlyphProps) {
   if (icon === "menu") {
-    // 28-grid, filled pips (fill = currentColor). Hub = pip (General) or spark (Conditional).
+    // 32-grid: six larger fire-gold orbs arranged in a ring, NO hub — the glyph IS a
+    // spell-ring in miniature. Transparent button; the orbs glow via CSS (.spell-fab).
+    void conditional;
     return (
-      <svg
-        className={className}
-        viewBox="0 0 28 28"
-        width={size}
-        height={size}
-        fill="currentColor"
-        aria-hidden="true"
-      >
-        {conditional ? (
-          <path d="M14 9.6 L15 13 L18.4 14 L15 15 L14 18.4 L13 15 L9.6 14 L13 13 Z" />
-        ) : (
-          <circle cx="14" cy="14" r="2.1" />
-        )}
+      <svg className={className} viewBox="0 0 32 32" width={size} height={size} fill="currentColor" aria-hidden="true">
         {ORBIT_PIPS}
       </svg>
     );
