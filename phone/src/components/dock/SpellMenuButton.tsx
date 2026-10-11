@@ -12,7 +12,7 @@ export function SpellMenuButton({ onOpen, badge }: { onOpen: () => void; badge?:
     badge === "syncing" ? "warn" : badge === "failed" || badge === "offline" ? "danger" : undefined;
   return (
     <button type="button" className="spell-fab" aria-label="Open spell menu" onClick={onOpen} data-alert={alert}>
-      <SpellGlyph icon="menu" size={28} />
+      <SpellGlyph icon="menu" size={44} />
     </button>
   );
 }

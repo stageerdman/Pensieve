@@ -15,13 +15,15 @@ export interface SpellMenuProps {
   api: SpellMenuApi;
   onCast: (spell: Spell) => void;
   onLongCast: (spell: Spell) => void;
+  /** snapshot the ring + spawn evaporate sparkles before a change that removes the glyphs. */
+  onPoof: () => void;
   syncState: SyncStatus;
   account: string;
   onSyncPrimary: () => void;
   reduce: boolean;
 }
 
-export function SpellMenu({ api, onCast, onLongCast, syncState, account, onSyncPrimary, reduce }: SpellMenuProps) {
+export function SpellMenu({ api, onCast, onLongCast, onPoof, syncState, account, onSyncPrimary, reduce }: SpellMenuProps) {
   if (!api.open) return null;
   const conditional = api.form === "conditional";
   const windowed = api.windowSpellId !== null;
@@ -38,13 +40,29 @@ export function SpellMenu({ api, onCast, onLongCast, syncState, account, onSyncP
         reduce={reduce}
         onCast={onCast}
         onLongCast={onLongCast}
-        enterDetailed={api.enterDetailed}
+        // these change the ring (switch/descend/dismiss) → evaporate the current glyphs first
+        enterDetailed={(s) => {
+          onPoof();
+          api.enterDetailed(s);
+        }}
         openWindow={api.openWindow}
-        back={api.back}
-        toGeneral={api.toGeneral}
-        toSuggested={api.toSuggested}
+        back={() => {
+          onPoof();
+          api.back();
+        }}
+        toGeneral={() => {
+          onPoof();
+          api.toGeneral();
+        }}
+        toSuggested={() => {
+          onPoof();
+          api.toSuggested();
+        }}
         setScroll={api.setScroll}
-        onBackdrop={api.close}
+        onBackdrop={() => {
+          onPoof();
+          api.close();
+        }}
       />
 
       {windowed ? (

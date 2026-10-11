@@ -268,15 +268,25 @@ export function SpellRing(props: SpellRingProps) {
       })}
 
       {scroll && hiddenBefore > 0 ? (
-        <div className="spell-hidden top" aria-hidden="true">
-          <span className="spell-hidden-chev">⌃</span>
-          {hiddenBefore}
+        <div className="spell-hidden top" aria-label={`${hiddenBefore} more above`}>
+          <span className="rh-motes" aria-hidden="true">
+            <i /><i /><i />
+          </span>
+          <svg className="rh-chev" viewBox="0 0 16 10" width="13" height="8" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M2 7 L8 2 L14 7" />
+          </svg>
+          <span className="rh-num">{hiddenBefore}</span>
         </div>
       ) : null}
       {scroll && hiddenAfter > 0 ? (
-        <div className="spell-hidden bottom" aria-hidden="true">
-          {hiddenAfter}
-          <span className="spell-hidden-chev">⌄</span>
+        <div className="spell-hidden bottom" aria-label={`${hiddenAfter} more below`}>
+          <span className="rh-num">{hiddenAfter}</span>
+          <svg className="rh-chev" viewBox="0 0 16 10" width="13" height="8" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M2 3 L8 8 L14 3" />
+          </svg>
+          <span className="rh-motes" aria-hidden="true">
+            <i /><i /><i />
+          </span>
         </div>
       ) : null}
 

@@ -76,15 +76,15 @@ const PATHS: Record<Exclude<IconName, "menu">, React.ReactNode> = {
   ),
 };
 
-/** Six fire-gold orbs on a ring (12 o'clock clockwise), 32-grid, radius 10.5 — no hub. */
+/** Six fire-gold ember-orbs on a ring (12 o'clock clockwise), 32-grid, radius 11 — no hub. */
 const ORBIT_PIPS = (
   <>
-    <circle cx="16" cy="5.5" r="2.7" />
-    <circle cx="25.1" cy="10.75" r="2.7" />
-    <circle cx="25.1" cy="21.25" r="2.7" />
-    <circle cx="16" cy="26.5" r="2.7" />
-    <circle cx="6.9" cy="21.25" r="2.7" />
-    <circle cx="6.9" cy="10.75" r="2.7" />
+    <circle className="sm-orb" cx="16" cy="5" r="3.1" fill="url(#sm-ember)" />
+    <circle className="sm-orb" cx="25.53" cy="10.5" r="3.1" fill="url(#sm-ember)" />
+    <circle className="sm-orb" cx="25.53" cy="21.5" r="3.1" fill="url(#sm-ember)" />
+    <circle className="sm-orb" cx="16" cy="27" r="3.1" fill="url(#sm-ember)" />
+    <circle className="sm-orb" cx="6.47" cy="21.5" r="3.1" fill="url(#sm-ember)" />
+    <circle className="sm-orb" cx="6.47" cy="10.5" r="3.1" fill="url(#sm-ember)" />
   </>
 );
 
@@ -98,11 +98,20 @@ export interface SpellGlyphProps {
 
 export function SpellGlyph({ icon, size = 22, className, conditional = false }: SpellGlyphProps) {
   if (icon === "menu") {
-    // 32-grid: six larger fire-gold orbs arranged in a ring, NO hub — the glyph IS a
-    // spell-ring in miniature. Transparent button; the orbs glow via CSS (.spell-fab).
+    // 32-grid: six fire-gold ember-orbs on a ring, NO hub — the glyph IS a spell-ring in
+    // miniature. Transparent button; each orb is a hot white-gold core bleeding to gold.
+    // The glow + flicker live in CSS (.spell-fab). overflow:visible lets the glow bleed.
     void conditional;
     return (
-      <svg className={className} viewBox="0 0 32 32" width={size} height={size} fill="currentColor" aria-hidden="true">
+      <svg className={className} viewBox="0 0 32 32" width={size} height={size} aria-hidden="true">
+        <defs>
+          <radialGradient id="sm-ember" cx="40%" cy="34%" r="66%">
+            <stop offset="0%" stopColor="hsl(45 100% 95%)" />
+            <stop offset="34%" stopColor="hsl(var(--gold-glow))" />
+            <stop offset="72%" stopColor="hsl(var(--gold-mid))" />
+            <stop offset="100%" stopColor="hsl(var(--gold-deep))" />
+          </radialGradient>
+        </defs>
         {ORBIT_PIPS}
       </svg>
     );

@@ -51,18 +51,30 @@
   transition: none;
 }
 
+/* ENTRANCE — each disc is conjured: a mote at the hub flares into a spark, overshoots,
+   and settles into place. `backwards` parks it at the hub during its stagger delay and
+   releases cleanly (nothing pinned), so the button's :active/.focus transforms stay free. */
 .spell-bloom {
-  animation: bloom-in 0.34s var(--spring) both;
-  animation-delay: var(--bloom-delay, 0ms);
+  animation: spell-conjure 0.3s var(--spring-soft) var(--bloom-delay, 0ms) backwards;
 }
-@keyframes bloom-in {
-  from {
-    transform: scale(0.3) translate(var(--from-x, 0), var(--from-y, 0));
+@keyframes spell-conjure {
+  0% {
+    transform: translate(var(--from-x, 0), var(--from-y, 0)) scale(0.2);
     opacity: 0;
+    filter: brightness(2.4);
   }
-  to {
+  45% {
+    opacity: 1;
+    filter: brightness(1.9);
+  }
+  70% {
+    transform: translate(0, 0) scale(1.12);
+    filter: brightness(1.15);
+  }
+  100% {
     transform: none;
     opacity: 1;
+    filter: brightness(1);
   }
 }
 
@@ -109,6 +121,80 @@
 .spell-btn.spell-syncgold {
   color: hsl(var(--gold));
   border-color: hsl(var(--gold) / 0.55);
+}
+
+/* ── magical material: one hue + one glow per glyph, driven by --sh-glow ──── */
+.spell-btn {
+  --sh: var(--gold);
+  --sh-glow: var(--gold-glow);
+}
+.spell-ring.hue-accent .spell-btn {
+  --sh: var(--conditional);
+  --sh-glow: var(--conditional-glow);
+}
+.spell-ring .spell-btn.spell-violet {
+  --sh: var(--accio);
+  --sh-glow: var(--accio);
+}
+.spell-ring .spell-btn.spell-syncgold {
+  --sh: var(--gold);
+  --sh-glow: var(--gold-glow);
+}
+/* the glyph art rides above the radiance */
+.spell-btn > svg,
+.spell-has-more {
+  position: relative;
+  z-index: 1;
+}
+/* inner radiance + specular caustic — ON the disc, adds living light */
+.spell-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  background:
+    radial-gradient(58% 48% at 32% 24%, hsl(0 0% 100% / 0.55), transparent 60%),
+    radial-gradient(120% 120% at 50% 62%, hsl(var(--sh-glow) / 0.42), transparent 72%);
+  animation: glyph-core 4.6s var(--ease) infinite;
+  animation-delay: calc(var(--bloom-delay, 0ms) + 240ms);
+}
+/* soft outer aura in the glyph's hue — behind the disc, on the scrim */
+.spell-btn::after {
+  content: "";
+  position: absolute;
+  inset: -11px;
+  z-index: -1;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, hsl(var(--sh-glow) / 0.34), transparent 68%);
+  animation: glyph-aura 4.6s var(--ease) infinite;
+  animation-delay: calc(var(--bloom-delay, 0ms) + 240ms);
+  will-change: transform, opacity;
+}
+@keyframes glyph-core {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: translate(0, 0);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(1.2%, -1.2%);
+  }
+}
+@keyframes glyph-aura {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(1.05);
+  }
 }
 
 /* focus = the glyph resting nearest the top of a scroll ring */
@@ -188,34 +274,82 @@
   color: hsl(var(--text) / 0.85);
 }
 
-/* ── hidden-count indicators (scroll mode) ───────────────────────────────── */
+/* ── hidden-count indicators (scroll mode): "more spells drift in the dark" ── */
 .spell-hidden {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 3px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  color: hsl(var(--gold) / 0.7);
-  text-shadow: 0 0 8px hsl(var(--gold-glow) / 0.5);
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--gold-glow) / 0.72);
+  text-shadow: 0 1px 4px hsl(var(--spell-scrim));
   pointer-events: none;
+  z-index: 151;
 }
 .spell-ring.hue-accent .spell-hidden {
-  color: hsl(var(--conditional) / 0.75);
-  text-shadow: 0 0 8px hsl(var(--conditional-glow) / 0.5);
+  color: hsl(var(--conditional-glow) / 0.78);
 }
 .spell-hidden.top {
-  top: calc(56% - 190px);
+  top: calc(56% - 206px);
+  flex-direction: column-reverse;
 }
 .spell-hidden.bottom {
-  top: calc(56% + 176px);
+  top: calc(56% + 178px);
+  flex-direction: column;
 }
-.spell-hidden-chev {
-  font-size: 13px;
-  opacity: 0.85;
+.rh-chev {
+  filter: drop-shadow(0 0 4px hsl(var(--gold-mid) / 0.5));
+}
+.rh-num {
+  line-height: 1;
+}
+.rh-motes {
+  display: flex;
+  gap: 4px;
+}
+.rh-motes i {
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 50%;
+  background: hsl(var(--gold-glow));
+  box-shadow: 0 0 3px hsl(var(--gold-glow) / 0.8);
+  animation: mote-drift-up 2.8s var(--ease) infinite;
+  will-change: transform, opacity;
+}
+.rh-motes i:nth-child(2) {
+  animation-delay: -0.9s;
+}
+.rh-motes i:nth-child(3) {
+  animation-delay: -1.8s;
+}
+.spell-hidden.bottom .rh-motes i {
+  animation-name: mote-drift-down;
+}
+@keyframes mote-drift-up {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(2px);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(-3px);
+  }
+}
+@keyframes mote-drift-down {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(-2px);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(3px);
+  }
 }
 
 /* ── a spell window (above the blurred ring) ─────────────────────────────── */
@@ -321,11 +455,69 @@
   cursor: pointer;
 }
 
-/* reduced motion: no bloom/shimmer, instant open (global block already clamps durations) */
+/* ── evaporate: spells dissolve into rising glowing sparkles (non-blocking) ── */
+/* a throwaway layer painted over wherever the UI already went; self-removes ~660ms. */
+.spell-evap {
+  position: fixed;
+  inset: 0;
+  z-index: 155; /* above overlay(150)/window(152), below toast(160) */
+  pointer-events: none;
+}
+.evap-mote {
+  position: absolute; /* left/top set inline = a glyph point */
+  width: var(--ms, 5px);
+  height: var(--ms, 5px);
+  margin: calc(var(--ms, 5px) / -2) 0 0 calc(var(--ms, 5px) / -2);
+  border-radius: 50%;
+  background: radial-gradient(circle, hsl(var(--mh, 43 100% 64%) / 0.95), hsl(var(--mh, 43 100% 64%) / 0) 70%);
+  filter: drop-shadow(0 0 3px hsl(var(--mh, 43 100% 64%) / 0.8));
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: evaporate 540ms var(--ease) var(--md, 0ms) forwards;
+}
+@keyframes evaporate {
+  0% {
+    transform: translate(0, 0) scale(0.5);
+    opacity: 0;
+  }
+  18% {
+    transform: translate(calc(var(--mx) * 0.2), calc(var(--my) * 0.1)) scale(1.15);
+    opacity: 1;
+  }
+  60% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(var(--mx), var(--my)) scale(0.15);
+    opacity: 0;
+  }
+}
+
+/* reduced motion: no bloom/shimmer/material loops; keep a STATIC aura so a glyph still
+   reads as enchanted (evaporate is gated off in JS too). */
 @media (prefers-reduced-motion: reduce) {
   .spell-bloom,
   .spell-overlay,
-  .spell-window {
+  .spell-window,
+  .evap-mote {
     animation: none !important;
   }
+  .evap-mote {
+    opacity: 0 !important;
+  }
+}
+.spell-overlay.reduce .spell-btn,
+.spell-overlay.reduce .spell-btn::before,
+.spell-overlay.reduce .spell-btn::after,
+.spell-overlay.reduce .sm-orb,
+.spell-overlay.reduce .rh-motes i {
+  animation: none !important;
+}
+.spell-overlay.reduce .spell-btn::before {
+  opacity: 0.85;
+  transform: none;
+}
+.spell-overlay.reduce .spell-btn::after {
+  opacity: 0.5;
+  transform: scale(1);
 }

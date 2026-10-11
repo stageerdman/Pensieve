@@ -91,6 +91,9 @@ function loadRecents(): string[] {
   }
 }
 
+// a single evaporate sparkle (glyph dissolves into rising glowing motes on close/switch)
+type Mote = { x: number; y: number; dx: number; dy: number; size: number; delay: number; hue: string };
+
 export function PhoneApp() {
   const reduce = prefersReducedMotion();
 
@@ -129,6 +132,8 @@ export function PhoneApp() {
   const [spell, setSpell] = useState({ show: false, castId: 0, label: "", labelColor: "" });
   const [recents, setRecents] = useState<string[]>(loadRecents);
   const [toast, setToast] = useState("");
+  const [evap, setEvap] = useState<{ id: number; motes: Mote[] } | null>(null);
+  const evapId = useRef(0);
 
   // mirrors for use inside stable event callbacks
   const editingRef = useRef(editingNote);
@@ -412,8 +417,39 @@ export function PhoneApp() {
     accio.handleInput(q); // rerun the filter in place (resident, no keyboard)
   }
 
+  // Snapshot the live ring's glyph positions and spawn rising sparkle motes there, THEN
+  // let the caller change state. The motes play over wherever the UI went — never gating it.
+  function spawnEvaporate() {
+    if (reduce) return;
+    const btns = document.querySelectorAll<HTMLElement>(".spell-overlay .spell-node .spell-btn");
+    const motes: Mote[] = [];
+    btns.forEach((btn) => {
+      const r = btn.getBoundingClientRect();
+      if (!r.width) return;
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const hue = getComputedStyle(btn).getPropertyValue("--sh-glow").trim() || "43 100% 64%";
+      for (let k = 0; k < 5; k++) {
+        motes.push({
+          x: cx + (Math.random() * 2 - 1) * r.width * 0.3,
+          y: cy + (Math.random() * 2 - 1) * r.height * 0.3,
+          dx: (Math.random() * 2 - 1) * 22,
+          dy: -(36 + Math.random() * 54),
+          size: 3 + Math.random() * 3,
+          delay: Math.random() * 120,
+          hue,
+        });
+      }
+    });
+    if (!motes.length) return;
+    const id = ++evapId.current;
+    setEvap({ id, motes });
+    setTimeout(() => setEvap((e) => (e && e.id === id ? null : e)), 680);
+  }
+
   /** A leaf spell was cast from the ring (no children, no window). */
   function castSpellAction(s: Spell) {
+    spawnEvaporate();
     menu.close();
     if (s.id === "write") openNewNote(false);
     else if (s.id === "accio") accio.openAccio();
@@ -422,6 +458,7 @@ export function PhoneApp() {
   /** Held a spell (Write = speak). */
   function longCastSpell(s: Spell) {
     if (s.longPress === "speak") {
+      spawnEvaporate();
       menu.close();
       openNewNote(true);
     }
@@ -545,12 +582,34 @@ export function PhoneApp() {
         api={menu}
         onCast={castSpellAction}
         onLongCast={longCastSpell}
+        onPoof={spawnEvaporate}
         syncState={syncStatus}
         account={ACCOUNT}
         onSyncPrimary={syncWindowPrimary}
         reduce={reduce}
       />
       {toast ? <div className="spell-toast">{toast}</div> : null}
+
+      {/* evaporate sparkles — a top-level sibling so it survives the overlay unmount */}
+      {evap ? (
+        <div className="spell-evap" key={evap.id} aria-hidden="true">
+          {evap.motes.map((m, i) => (
+            <span
+              key={i}
+              className="evap-mote"
+              style={{
+                left: m.x,
+                top: m.y,
+                ["--mx" as string]: `${m.dx}px`,
+                ["--my" as string]: `${m.dy}px`,
+                ["--ms" as string]: `${m.size}px`,
+                ["--md" as string]: `${m.delay}ms`,
+                ["--mh" as string]: m.hue,
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
 
       {/* NOTE VIEW */}
       <NoteView
