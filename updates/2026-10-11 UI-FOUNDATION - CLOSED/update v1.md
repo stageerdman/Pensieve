@@ -107,5 +107,10 @@ The big UX update then lands on the actual shippable app, not throwaway vanilla 
   (`01-the-wand-v2.html`) stays as the design reference; this port supersedes it for the
   build. Demo `FAIL_RATE` kept in PhoneApp so the red sync state is feelable — strip when
   PHONE-UX Phase 3 wires real OneDrive.
-- **Status: desktop foundation + phone graduation complete and merged to main; phone
-  on-device feel-pass is the remaining confirmation before fully locking Phase 5.**
+- 2026-10-11: **Phase 5 LOCKED — owner did the on-device feel-pass (`npm run dev:phone`
+  → iPhone): "all works."** Loupe/inertia, wheel, capture/keyboard, Accio, and sync all
+  confirmed on device. The Wand port's UX direction is locked.
+- **Status: UPDATE COMPLETE.** Desktop foundation + standards + one token source +
+  The Wand graduated to a modular React PWA, all merged to main, native app rebuilt,
+  device-confirmed. Next (separate update): wire the phone to the OneDrive/PWA-CAPTURE
+  runtime, replacing seed data + the demo FAIL_RATE.
