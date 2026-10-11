@@ -1,15 +1,16 @@
-// PhoneApp.tsx — The Wand, assembled.
+// PhoneApp.tsx — the phone app, assembled.
 //
-// This is the port's coordinator — the React analogue of the prototype's one IIFE
-// closure (01-the-wand-v2.html ~549-1549). It owns the mutable vault (a seed copy),
-// the small set of React state that drives re-renders (reel view, search sheet, count,
-// the root state classes, sync panel/spell), and the cross-cutting actions (openNote,
-// openNewNote, commit, filter, cast). The heavy imperative work lives in hooks that
-// write to the DOM via refs and bypass React (wheel physics, loupe fisheye, scroll
-// settle, keyboard inset, caret-visible, word selection) — HARD constraints #1-#7.
+// The coordinator: it owns the mutable vault (a seed copy), the small set of React state
+// that drives re-renders (reel view, search sheet, count, root state classes, sync spell,
+// recents, toast), and the cross-cutting actions (openNote, openNewNote, commit, filter,
+// cast, spell dispatch). Heavy imperative work lives in hooks that write to the DOM via
+// refs and bypass React (loupe fisheye, scroll settle, keyboard inset, caret-visible,
+// word selection).
 //
-// Reel is home; the wheel is the persistent menu; tapping a card opens the full-screen
-// note; Accio summons the bar; Sync casts.
+// Reel is home. The controls are the bottom Dock (gold menu button + resident Accio) and
+// the radial Spell Menu it opens; tapping a card opens the full-screen note; Accio filters
+// the reel in place; Sync casts the gold backup spell. (The Wand thumb-wheel it replaced
+// is archived in updates/2026-10-11 SPELL-MENU - OPEN/_archive.)
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Note } from "./types";
@@ -22,22 +23,22 @@ import type { SyncStatus } from "./lib/wand/syncMachine";
 
 import { useKeyboardInset } from "./hooks/useKeyboardInset";
 import { useReelFisheye } from "./hooks/useReelFisheye";
-import { useWheelGesture, type WheelKey, initialWheelSide } from "./hooks/useWheelGesture";
 import { useAccioSearch } from "./hooks/useAccioSearch";
 import { useSyncState } from "./hooks/useSyncState";
 import { useCaretVisible } from "./hooks/useCaretVisible";
 import { useWordSelection } from "./hooks/useWordSelection";
 import { useAutosave } from "./hooks/useAutosave";
+import { useSpellMenu } from "./hooks/useSpellMenu";
+import type { Spell } from "./lib/spells/types";
+import { HOME_DOCK } from "./lib/spells/dockModel";
 
 import { Reel } from "./components/reel/Reel";
 import { Glass } from "./components/reel/Glass";
-import { Wheel } from "./components/wand/Wheel";
-import { AdjustGrip } from "./components/wand/AdjustGrip";
-import { DesignOverlay } from "./components/wand/DesignOverlay";
+import { Dock } from "./components/dock/Dock";
+import { DockSettings } from "./components/dock/DockSettings";
+import { SpellMenu } from "./components/spellmenu/SpellMenu";
 import { SummonBar } from "./components/accio/SummonBar";
-import { AccioPill } from "./components/accio/AccioPill";
 import { SearchSheet } from "./components/accio/SearchSheet";
-import { SyncPanel } from "./components/sync/SyncPanel";
 import { SyncSpell } from "./components/sync/SyncSpell";
 import { NoteView } from "./components/note/NoteView";
 import type { FmtKey } from "./components/note/NoteToolbar";
@@ -78,6 +79,19 @@ function fmtNow(): string {
   );
 }
 
+// Recent Accio queries — the "see what you searched before" chips. Private: localStorage
+// only, never synced (journaling queries are sensitive). Last 6 distinct, most-recent-first.
+const RECENTS_KEY = "pensieve.recentQueries";
+function loadRecents(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(RECENTS_KEY) || "[]");
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string").slice(0, 6) : [];
+  } catch {
+    return [];
+  }
+}
+
+
 export function PhoneApp() {
   const reduce = prefersReducedMotion();
 
@@ -93,16 +107,9 @@ export function PhoneApp() {
   const reelRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const glassRef = useRef<HTMLDivElement>(null);
-  const wheelRef = useRef<HTMLDivElement>(null);
-  const labelRef = useRef<HTMLDivElement>(null);
-  const gripRef = useRef<HTMLDivElement>(null);
-  const gripFillRef = useRef<SVGCircleElement>(null);
-  const designRef = useRef<SVGSVGElement>(null);
-  const designNumRef = useRef<HTMLDivElement>(null);
-  const dRingRef = useRef<SVGCircleElement>(null);
-  const dSpokeRef = useRef<SVGLineElement>(null);
-  const dDotRef = useRef<SVGCircleElement>(null);
   const accioInputRef = useRef<HTMLInputElement>(null);
+  // kept only to satisfy useAccioSearch's config (the old floating pill is gone — the
+  // resident ExpandedAccio owns clear now); never attached to the DOM.
   const accioPillRef = useRef<HTMLDivElement>(null);
   const noteRef = useRef<HTMLDivElement>(null);
   const noteSurfaceRef = useRef<HTMLDivElement>(null);
@@ -119,26 +126,25 @@ export function PhoneApp() {
   const [noteOpen, setNoteOpen] = useState(false);
   const [editingNote, setEditingNote] = useState(false);
   const [kbOpen, setKbOpen] = useState(false);
-  const [sideLeft, setSideLeft] = useState(() => initialWheelSide() === "left");
   const [micListening, setMicListening] = useState(false);
-  const [panelOpen, setPanelOpen] = useState(false);
   const [spell, setSpell] = useState({ show: false, castId: 0, label: "", labelColor: "" });
+  const [recents, setRecents] = useState<string[]>(loadRecents);
+  const [toast, setToast] = useState("");
+  const [sparkle, setSparkle] = useState(0); // a brief close/switch twinkle (0 = none)
+  const sparkleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // mirrors for use inside stable event callbacks
   const editingRef = useRef(editingNote);
   editingRef.current = editingNote;
-  const panelOpenRef = useRef(panelOpen);
-  panelOpenRef.current = panelOpen;
   const filterQueryRef = useRef("");
   const dictRef = useRef(false);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // a fns ref so hooks wired BEFORE the actions exist always call the latest closure
   const fns = useRef<{
-    onWheelAction: (k: WheelKey) => void;
-    onWheelLongPress: (k: WheelKey) => void;
     onKbUp: () => void;
     onKbDown: () => void;
-  }>({ onWheelAction: () => {}, onWheelLongPress: () => {}, onKbUp: () => {}, onKbDown: () => {} });
+  }>({ onKbUp: () => {}, onKbDown: () => {} });
 
   // reel scroll intent, applied in the view effect once the new cards have committed
   const reelIntent = useRef<{ mode: "jump0" | "restore" | "smooth0"; to: number } | null>(null);
@@ -148,26 +154,7 @@ export function PhoneApp() {
   const syncStatus: SyncStatus = sync.state.status;
 
   const fisheye = useReelFisheye(reelRef, trackRef, glassRef);
-
-  const wheel = useWheelGesture(
-    {
-      rootRef,
-      wheelRef,
-      labelRef,
-      gripRef,
-      gripFillRef,
-      designRef,
-      designNumRef,
-      dRingRef,
-      dSpokeRef,
-      dDotRef,
-    },
-    {
-      onAction: (k) => fns.current.onWheelAction(k),
-      onLongPress: (k) => fns.current.onWheelLongPress(k),
-      onSideChange: (s) => setSideLeft(s === "left"),
-    },
-  );
+  const menu = useSpellMenu("home");
 
   const kb = useKeyboardInset(rootRef, {
     onUp: () => fns.current.onKbUp(),
@@ -213,7 +200,7 @@ export function PhoneApp() {
       reelIntent.current = { mode: "restore", to: restoreTop };
     },
     relayout: () => fisheye.relayout(),
-    wheelRefresh: () => wheel.refresh(),
+    wheelRefresh: () => {}, // the wheel is gone; its label-opacity nudge is a no-op now
   });
   filterQueryRef.current = accio.filterQuery;
   const queryText = useMemo(() => parseQuery(accio.filterQuery).text, [accio.filterQuery]);
@@ -378,10 +365,6 @@ export function PhoneApp() {
   }
 
   // ---- sync actions ----
-  function openPanel() {
-    setPanelOpen(true);
-    haptic(8);
-  }
   function castSpell() {
     if (syncStatus === "syncing" || syncStatus === "offline") return;
     sync.cast();
@@ -408,24 +391,63 @@ export function PhoneApp() {
     }, 1900);
   }
   const demoForceFail = useRef(true);
-  function syncTap() {
-    if (syncStatus === "offline") {
-      openPanel();
-      return;
+
+  // ---- spells (what each spell DOES; the registry is just data) ----
+  function recordQuery(q: string) {
+    const t = q.trim();
+    if (!t) return;
+    setRecents((prev) => {
+      const next = [t, ...prev.filter((x) => x !== t)].slice(0, 6);
+      try {
+        localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
+      } catch {
+        /* no-op */
+      }
+      return next;
+    });
+  }
+  function showToast(msg: string) {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 1500);
+  }
+  function runRecent(q: string) {
+    accio.handleInput(q); // rerun the filter in place (resident, no keyboard)
+  }
+
+  // a brief twinkle at the ring center when the menu closes / switches view — a small bit of
+  // magic that never gates the UI (plays over whatever the UI became; self-clears).
+  function flashSparkle() {
+    if (reduce) return;
+    setSparkle((n) => n + 1);
+    if (sparkleTimer.current) clearTimeout(sparkleTimer.current);
+    sparkleTimer.current = setTimeout(() => setSparkle(0), 300);
+  }
+
+  /** A leaf spell was cast from the ring (no children, no window). */
+  function castSpellAction(s: Spell) {
+    flashSparkle();
+    menu.close();
+    if (s.id === "write") openNewNote(false);
+    else if (s.id === "accio") accio.openAccio();
+    else showToast(`✨ ${s.name} cast`);
+  }
+  /** Held a spell (Write = speak). */
+  function longCastSpell(s: Spell) {
+    if (s.longPress === "speak") {
+      flashSparkle();
+      menu.close();
+      openNewNote(true);
     }
+  }
+  /** The Sync window's primary action — cast the backup over the (closed) menu. */
+  function syncWindowPrimary() {
+    if (syncStatus === "offline" || syncStatus === "syncing") return;
+    menu.close();
     castSpell();
   }
 
   // ---- wire the fns ref (latest closures) ----
-  fns.current.onWheelAction = (k) => {
-    if (k === "wand") openNewNote(false);
-    else if (k === "accio") accio.openAccio();
-    else if (k === "sync") syncTap();
-  };
-  fns.current.onWheelLongPress = (k) => {
-    if (k === "wand") openNewNote(true);
-    else if (k === "sync") openPanel();
-  };
   fns.current.onKbUp = () => {
     accio.onKbUp();
     if (editingRef.current) keepCaretVisible();
@@ -433,6 +455,7 @@ export function PhoneApp() {
   };
   fns.current.onKbDown = () => {
     setKbOpen(false);
+    if (filterQueryRef.current.trim()) recordQuery(filterQueryRef.current);
     accio.handleKeyboardClosed();
   };
 
@@ -451,12 +474,18 @@ export function PhoneApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
 
-  // the pill row / scrim changes the reel height + the wheel label visibility
+  // the summon bar / scrim changes the reel height → re-measure the loupe
   useEffect(() => {
     fisheye.relayout();
-    wheel.refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accio.searching, accio.filtering, kbOpen]);
+
+  // On launch, present the Spell Menu over the memory bank (owner's choice) — the spells are
+  // the first thing you see; tap one, or tap the background to drop into the reel.
+  useEffect(() => {
+    menu.openMenu();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // window resize → re-measure the reel (the wheel/keyboard own their own resize)
   useEffect(() => {
@@ -477,28 +506,12 @@ export function PhoneApp() {
     return () => document.removeEventListener("touchmove", onTouchMove);
   }, []);
 
-  // close the sync panel on an outside press (source ~1485)
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    const onDown = (e: PointerEvent) => {
-      if (!panelOpenRef.current) return;
-      const panel = root.querySelector(".sync-panel");
-      const sw = root.querySelector('.wact[data-key="sync"]');
-      const target = e.target as Node;
-      if (panel && !panel.contains(target) && sw && !sw.contains(target)) setPanelOpen(false);
-    };
-    root.addEventListener("pointerdown", onDown, true);
-    return () => root.removeEventListener("pointerdown", onDown, true);
-  }, []);
-
   // ---- render ----
   const rootClass = ["screen", "app-root"];
   if (accio.searching) rootClass.push("searching");
   if (accio.filtering) rootClass.push("filtering");
   if (kbOpen) rootClass.push("kb-open");
   if (editingNote) rootClass.push("editing-note");
-  if (sideLeft) rootClass.push("side-left");
 
   const emptyMsg = accio.filterQuery.trim() ? "Nothing answered that call." : "Nothing here yet.";
   const scount = accio.filterQuery.trim() ? String(searchList.length) : "";
@@ -511,38 +524,34 @@ export function PhoneApp() {
           <h1>Pensieve</h1>
           <span className="count">{count}</span>
         </div>
-        <AccioPill pillRef={accioPillRef} query={accio.filterQuery.trim()} onClick={accio.handlePillClick} />
         <Reel view={view} queryText={queryText} onOpen={openNote} reelRef={reelRef} trackRef={trackRef} />
         <Glass empty={view.length === 0} message={emptyMsg} glassRef={glassRef} />
       </div>
 
-      {/* THUMB-WHEEL + its overlays */}
-      <Wheel wheelRef={wheelRef} labelRef={labelRef} syncState={syncStatus} />
-      <DesignOverlay
-        designRef={designRef}
-        designNumRef={designNumRef}
-        dRingRef={dRingRef}
-        dSpokeRef={dSpokeRef}
-        dDotRef={dDotRef}
-      />
-      <AdjustGrip gripRef={gripRef} gripFillRef={gripFillRef} />
-
-      {/* SYNC */}
-      <SyncPanel
-        status={syncStatus}
-        open={panelOpen}
-        account={ACCOUNT}
-        onPrimary={() => {
-          if (syncStatus === "offline" || syncStatus === "syncing") return;
-          setPanelOpen(false);
-          castSpell();
+      {/* THE DOCK — bottom control bar (gold menu button + resident Accio) */}
+      <Dock
+        layout={HOME_DOCK}
+        onOpenMenu={() => {
+          haptic(10);
+          menu.openMenu();
         }}
-        onSignout={() => setPanelOpen(false)}
+        menuBadge={syncStatus}
+        accio={{
+          query: accio.filterQuery,
+          count: scount,
+          latestRecent: recents[0],
+          onOpen: () => accio.openAccio(),
+          onClear: () => accio.clearSearch(),
+          onRunRecent: runRecent,
+        }}
       />
+
+      {/* SYNC cast animation (the gold spell) */}
       <SyncSpell show={spell.show} castId={spell.castId} label={spell.label} labelColor={spell.labelColor} />
 
-      {/* ACCIO searching sheet + the summon bar */}
+      {/* ACCIO searching sheet + the summon bar (promotes above the keyboard) */}
       <SearchSheet list={searchList} queryText={queryText} onOpen={openNote} />
+      {accio.searching && !accio.filterQuery.trim() ? <DockSettings recents={recents} onRun={runRecent} /> : null}
       <SummonBar
         inputRef={accioInputRef}
         value={accio.filterQuery}
@@ -551,6 +560,22 @@ export function PhoneApp() {
         onKeyDown={accio.handleKeydown}
         onBlur={accio.handleInputBlur}
       />
+
+      {/* THE SPELL MENU — radial overlay bloomed from the gold button */}
+      <SpellMenu
+        api={menu}
+        onCast={castSpellAction}
+        onLongCast={longCastSpell}
+        onSparkle={flashSparkle}
+        syncState={syncStatus}
+        account={ACCOUNT}
+        onSyncPrimary={syncWindowPrimary}
+        reduce={reduce}
+      />
+      {toast ? <div className="spell-toast">{toast}</div> : null}
+
+      {/* a brief close/switch twinkle — a top-level sibling so it survives the overlay unmount */}
+      {sparkle ? <span className="spell-sparkle" key={sparkle} aria-hidden="true" /> : null}
 
       {/* NOTE VIEW */}
       <NoteView

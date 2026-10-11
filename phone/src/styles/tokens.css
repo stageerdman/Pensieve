@@ -27,4 +27,34 @@
   --cat-orange: 24 85% 68%;
   --cat-yellow: 45 80% 66%;
   --cat-red: 0 70% 70%;
+
+  /* ── Spell Menu (SPELL-MENU update) ───────────────────────────────────────
+     The bottom Dock + the radial Spell Menu overlay. The Dock is an invisible
+     4-cell grid; the menu blooms from a golden button. NOTE: the reel owns
+     `--slot` (84px card height) and `.slot` — the dock uses `--dock-*`/`.dock-cell`. */
+  --dock-h: 64px; /* dock row height */
+  --dock-gap: 10px; /* cell gap */
+  --spell: 52px; /* collapsed spell diameter */
+  --spell-hero: 56px; /* menu-button diameter */
+  --accio-h: 56px; /* expanded Accio pill height */
+  --ctrl-blur: 18px; /* control backdrop blur (orbs jank at 22px on older iOS) */
+
+  /* gold shine (General) — halos/gradients only, never text. Sibling of --accent-glow. */
+  --gold-glow: 43 100% 64%;
+  --gold-mid: 43 92% 48%; /* gold dome gradient mid stop */
+  --gold-deep: 38 90% 42%; /* gold dome gradient end stop */
+
+  /* overlay scrim + Conditional mode. Conditional = accent-blue (violet stays Accio-only);
+     named for intent so the ring code reads a mode token, not a raw hue. */
+  --spell-scrim: 222 32% 5%;
+  --conditional: 215 85% 74%; /* == --accent */
+  --conditional-glow: 218 100% 72%; /* == --accent-glow; halos only */
+
+  --glyph-stroke: 1.75; /* one stroke weight for the whole spell-glyph set */
+
+  /* Spell nodes (constellation reference): the disc is a DARK WELL — the darkest thing on
+     screen — so the glowing ring + rune carry the edge. */
+  --spell-node: 224 30% 6.5%;
+  --accio-glow: 266 90% 78%; /* violet glow (brighter than --accio), so violet nodes bloom too */
+  --ring-cy: 60%; /* the radial menu's center height (keep in sync with RING.centerYFrac) */
 }
