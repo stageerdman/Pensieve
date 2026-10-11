@@ -121,6 +121,25 @@ is a one-line change if violet feels better).
 - **Reused, didn't rebuild:** Accio query/rank + SummonBar + SearchSheet, the sync machine +
   SyncSpell cast, panelCopy (the Sync window reuses it), the reel/loupe, the note editor — all kept.
 
+## UX-team review (2026-10-11, 4 parallel lenses) — synthesis
+Ran product-clarity (Jobs), motion/feel (Disney), visual-craft, and ergonomics reviewers.
+**Implemented (safe quality fixes):** 2 P0 bugs — VoiceOver/keyboard couldn't cast (moved cast
+to the glyph `<button>` onClick; pointer only spins) and a near-miss tap closed the overlay
+(backdrop now needs r>R+48). Motion: `.spinning` holds transition:none through the whole spin
+(was rubbery); detent haptic; VEL_STOP 0.0035; framerate-independent settle (TAU 90ms);
+finite-arc rubber-band + spring-back; fling cancelled on pause; open haptic. Visual: dark-well
+disc (`--spell-node`), ring from `--sh-glow` (gold≈blue brightness), tighter glow, allocated
+halo (1.12), `--accio-glow` for violet, on-scale type, Highlight rune de-mixed, Accio centered,
+affordance dots. Ergonomics: ring lowered (centerY 0.60 / R 118 / `--ring-cy`), DRAG_THRESHOLD 11,
+HOLD_MS 500, 44pt center.
+**Surfaced to owner (NOT changed — contradict explicit design):** the product reviewer argued
+(a) capture should be 1 tap not behind the menu, (b) cut the scroll/roster to capture-only
+(Type/Speak/Photo/Video), (c) collapse the 3 forms. (a) is the strong one → asked the owner.
+(b)/(c) conflict with the owner's stated design (spells-for-all-actions, 3 forms, scroll, fake
+roster for exploration) — kept as-is unless the owner says otherwise.
+**Deferred (not yet done):** first-run spin nudge; "tap center = cast focused spell" one-handed
+model; scrim fade-out on close; dynamic-type labels; the dead note-context menu path.
+
 ## Device feel-test checklist (owner, P6)
 - Ring reach: is R=112 / centerY=56% comfortable one-handed? (two tunable knobs in `ringLayout.ts`)
 - Scroll feel on the 10-spell General ring: fade, snap, the "fall into nothingness" at the bottom.
