@@ -15,15 +15,15 @@ import {
 import { AllSelection, TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { useEffect, useRef } from "react";
-import { blocksToExtendedMd, extendedMdToBlocks } from "../lib/md/extended";
+import { blocksToExtendedMd, extendedMdToBlocks } from "../../lib/md/extended";
 import { setNoteLinkOpen, setNoteLinkResolve } from "./noteLink";
 import { editorSchema } from "./editorSchema";
 import { BlockSelectionDecorations } from "./blockSelectionDecorations";
 import { GutterHandle } from "./GutterHandle";
 import { useBlockMarquee } from "./useBlockMarquee";
 import { useBlockDrag } from "./useBlockDrag";
-import { FlaskFor } from "./Flask";
-import type { NoteMeta } from "../lib/types";
+import { FlaskFor } from "../Flask";
+import type { NoteMeta } from "../../lib/types";
 
 // Two-level ⌘A: the first press selects the current block's text; the next selects
 // the whole document. We handle both levels explicitly (rather than defer to the

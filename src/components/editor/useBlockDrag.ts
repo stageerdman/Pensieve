@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import type { EditorView } from "@tiptap/pm/view";
-import { log } from "../lib/logger";
+import { log } from "../../lib/logger";
 import { computeDrop, NEST_INDENT, type DropBlock, type DropTarget } from "./blockDrag";
 
 // A block as BlockNote hands it back — we only touch id + children (recursively) here.

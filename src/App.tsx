@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Editor } from "./components/Editor";
+import { Editor } from "./components/editor/Editor";
 import { TimelinePanel } from "./components/TimelinePanel";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { OverflowMenu } from "./components/OverflowMenu";

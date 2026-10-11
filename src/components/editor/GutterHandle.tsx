@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import type { EditorView } from "@tiptap/pm/view";
-import { GripVertical } from "./icons";
+import { GripVertical } from "../icons";
 import { nearestRowId } from "./blockMarquee";
 
 interface HandleEditor {

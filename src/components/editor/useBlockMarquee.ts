@@ -1,7 +1,7 @@
 import { useEffect, type RefObject } from "react";
 import { NodeSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
-import { log } from "../lib/logger";
+import { log } from "../../lib/logger";
 import { blocksInBand, isBlankMarqueeTarget, nearestRowId, rectBetween, type BlockRect } from "./blockMarquee";
 
 // Minimal shape we need from the BlockNote editor — avoids leaking its full generic type.

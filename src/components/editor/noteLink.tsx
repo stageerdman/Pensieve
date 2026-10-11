@@ -1,6 +1,6 @@
 import { createReactInlineContentSpec } from "@blocknote/react";
-import type { NoteMeta } from "../lib/types";
-import { FlaskFor } from "./Flask";
+import type { NoteMeta } from "../../lib/types";
+import { FlaskFor } from "../Flask";
 
 // A note link — a custom inline atom inserted via the "@" menu. It references
 // another note by id and renders its flask + title; clicking it opens that note.

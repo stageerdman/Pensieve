@@ -1,10 +1,10 @@
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
-import "../../components/blocknote-skin.css";
+import "../../components/editor/blocknote-skin.css";
 import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote } from "@blocknote/react";
 import { useEffect, useState } from "react";
-import { editorSchema } from "../../components/editorSchema";
+import { editorSchema } from "../../components/editor/editorSchema";
 import { extendedMdToBlocks } from "../../lib/md/extended";
 
 // A read-only, fully formatted render of a note's Markdown — the same BlockNote engine
