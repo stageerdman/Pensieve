@@ -88,3 +88,18 @@ survives INIT.md's deletion and anchors the standards work below.
   `FAIL_RATE`/`demoForceFail` before real sync.
 - Carry over the jsdom verification technique (visualViewport/PointerEvent shims) into
   Vitest for the new hooks.
+
+## Phase 2 notes & non-bug findings (2026-10-11)
+- **Sync plumbing display-only sharp edges** (found while writing tests, NOT bugs):
+  (1) `oauth.ts` `postToken` strips `\n` but not `\r\n` from `error_description` — a CRLF
+  AAD payload leaves a trailing `\r` (display-only). (2) `graph.ts`'s 429/503 retry loop
+  gives up after `maxRetries` and returns the **stale** 429/503 response rather than
+  throwing — direct `.fetch()` callers must check `res.ok`/go through `.json()` (which
+  throws `TransientSyncError`). Intentional per comments; flagged for future direct callers.
+- **Radius lock is a small intentional visual shift** — `rounded-sm` 2→4px (1 use),
+  `rounded-xl` 12→14px (5 uses), portal 22→20px. `rounded-md` (the ~30× workhorse) is
+  unchanged. Watch on the owner's device pass; trivial to retune (all derive from `--radius`).
+- **Layering decision:** sync UI-state types (`SyncPhase`/`SyncErrorKind`/`SyncUi`) now live
+  in `lib/sync/types.ts` (their domain home) so the pure `deriveSyncView` imports only from
+  `lib/`; `useSync` re-exports them so existing call sites are untouched. `types.ts` type-only
+  imports `SyncConflict` from `engine.ts` (erased at build → no runtime cycle).

@@ -71,4 +71,19 @@ The big UX update then lands on the actual shippable app, not throwaway vanilla 
     table, and corrected the stale "no gradients/shadows" rule vs the intentional magical glow.
   - Added `text-2xs` to `tailwind.config.js` (purely additive). Radius-lock + className
     migration deferred to Phase 2 (done with per-usage review).
-- Next: Phase 2 — desktop cleanups to the bar (full set).
+- 2026-10-11: **Phase 2 DONE — desktop cleanups to the bar (full set).** 9 commits,
+  each tsc + build + tests green (411 tests, up from 304):
+  - #6 Grouped the 15-file editor subsystem into `components/editor/`.
+  - #2 Deduped drag auto-scroll → `components/editor/dragScroll.ts` (+test).
+  - #1 Consolidated 7 click-outside+Escape impls → `hooks/useDismiss.ts` (+test).
+  - #7 Tested the untested sync plumbing: `lib/sync/{oauth,vault,graph}` (+50 tests).
+  - #4 Extracted pure `lib/sync/deriveSyncView.ts` from the SyncStatus god component
+    (+10 tests); moved sync UI-state types to `lib/sync/types.ts`.
+  - #3 Snapped 43 arbitrary `text-[Npx]` onto the type scale; tokenized the gold literal.
+  - #8 Tested WorkingSetStrip drag + useSync wiring (+37 tests).
+  - #5 Decomposed `App.tsx` 421→320 lines → `hooks/useTabs.ts` + `useGlobalShortcuts.ts`.
+  - Locked the radius scale to `--radius` in Tailwind; killed the one `rounded-[22px]`.
+- **Next: Phases 3–4 — graduate the phone monolith to the real React PWA** (owner-
+  confirmed approach). A large sub-project: stand up the phone Vite+React+TS app, port
+  The Wand into pure physics modules + hooks + components preserving every locked
+  interaction. Pausing for an owner checkpoint on the phone-app structure first.
