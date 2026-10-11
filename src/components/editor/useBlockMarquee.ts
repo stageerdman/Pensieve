@@ -3,6 +3,7 @@ import { NodeSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { log } from "../../lib/logger";
 import { blocksInBand, isBlankMarqueeTarget, nearestRowId, rectBetween, type BlockRect } from "./blockMarquee";
+import { DRAG_THRESHOLD, autoScrollEdge, findScrollParent } from "./dragScroll";
 
 // Minimal shape we need from the BlockNote editor — avoids leaking its full generic type.
 interface MarqueeEditor {
@@ -11,24 +12,6 @@ interface MarqueeEditor {
 }
 
 type Row = BlockRect & { el: HTMLElement };
-
-// Pointer must travel this far before a press becomes a marquee (below it, it's a plain
-// click — placing a caret, grabbing the handle — left untouched).
-const DRAG_THRESHOLD = 5;
-// Auto-scroll kicks in within this many px of the scroll edge; speed scales with depth.
-const EDGE = 56;
-const MAX_SPEED = 18;
-
-// The nearest scrollable ancestor — the surface the editor actually scrolls inside.
-function findScrollParent(el: HTMLElement | null): HTMLElement | null {
-  let e = el?.parentElement ?? null;
-  while (e) {
-    const oy = getComputedStyle(e).overflowY;
-    if ((oy === "auto" || oy === "scroll" || oy === "overlay") && e.scrollHeight > e.clientHeight) return e;
-    e = e.parentElement;
-  }
-  return null;
-}
 
 // Notion-style marquee (rubber-band) block selection. Press in the blank editor margin
 // and drag: a band picks every row it reaches, and we set a multi-block selection across
@@ -128,14 +111,7 @@ export function useBlockMarquee(editor: MarqueeEditor, wrapRef: RefObject<HTMLEl
     const autoScroll = () => {
       raf = 0;
       if (!press?.active) return;
-      const top = scroller ? scroller.getBoundingClientRect().top : 0;
-      const bottom = scroller ? scroller.getBoundingClientRect().bottom : window.innerHeight;
-      let dy = 0;
-      if (lastY < top + EDGE) dy = -MAX_SPEED * Math.min(1, (top + EDGE - lastY) / EDGE);
-      else if (lastY > bottom - EDGE) dy = MAX_SPEED * Math.min(1, (lastY - (bottom - EDGE)) / EDGE);
-      if (dy !== 0) {
-        if (scroller) scroller.scrollBy(0, dy);
-        else window.scrollBy(0, dy);
+      if (autoScrollEdge(scroller, lastY)) {
         applySelection();
         raf = requestAnimationFrame(autoScroll);
       }
