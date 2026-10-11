@@ -39,6 +39,25 @@ function deltaAngle(from: number, to: number): number {
   return d;
 }
 
+/**
+ * Which glyphs show a label (to keep the ring uncluttered when there are many):
+ * the 3 nearest the TOP (label above), plus — only when nothing is hidden — the 3 nearest
+ * the BOTTOM (label below). Everything else is unlabelled.
+ */
+function labelGroups(poss: GlyphPos[]): { above: Set<number>; below: Set<number> } {
+  const hiddenAny = poss.some((x) => !x.visible);
+  const sorted = poss.map((x, i) => ({ i, a: Math.abs(x.angleDeg) })).sort((u, v) => u.a - v.a);
+  const above = new Set(sorted.slice(0, 3).map((o) => o.i));
+  const below = new Set<number>();
+  if (!hiddenAny) {
+    for (let k = sorted.length - 1; k >= 0 && below.size < 3; k--) {
+      const idx = sorted[k].i;
+      if (!above.has(idx)) below.add(idx);
+    }
+  }
+  return { above, below };
+}
+
 export interface SpellRingHandlers {
   onCast: (spell: Spell) => void;
   onLongCast: (spell: Spell) => void;
@@ -114,6 +133,7 @@ export function SpellRing(props: SpellRingProps) {
     const surface = surfaceRef.current;
     if (!surface) return;
     const poss = layoutRing(n, p);
+    const { above, below } = labelGroups(poss);
     const nodes = surface.querySelectorAll<HTMLElement>(".spell-node");
     poss.forEach((pos, i) => {
       const el = nodes[i];
@@ -122,7 +142,23 @@ export function SpellRing(props: SpellRingProps) {
       el.style.opacity = String(pos.opacity);
       el.style.pointerEvents = pos.visible ? "auto" : "none";
       el.classList.toggle("focus", pos.focus);
+      el.classList.toggle("label-above", above.has(i));
+      el.classList.toggle("label-below", below.has(i));
     });
+    // live hidden-counts (update as you scroll, not only at rest)
+    const hc = hiddenCounts(poss);
+    const le = surface.querySelector<HTMLElement>(".spell-hidden.left");
+    const re = surface.querySelector<HTMLElement>(".spell-hidden.right");
+    if (le) {
+      le.classList.toggle("is-zero", hc.left <= 0);
+      const t = le.querySelector(".rh-num");
+      if (t) t.textContent = String(hc.left);
+    }
+    if (re) {
+      re.classList.toggle("is-zero", hc.right <= 0);
+      const t = re.querySelector(".rh-num");
+      if (t) t.textContent = String(hc.right);
+    }
     // detent tick as the focused glyph changes during a spin (a real wheel "ticks")
     const f = focusIndex(n, p);
     if (f !== g.current.lastFocus) {
@@ -355,6 +391,7 @@ export function SpellRing(props: SpellRingProps) {
   const hueClass = hue === "accent" ? "hue-accent" : "hue-gold";
   const scroll = isScroll(n);
   const counts = scroll ? hiddenCounts(resting) : { left: 0, right: 0 };
+  const labels = labelGroups(resting); // initial label placement (applyLayout keeps it live)
 
   return (
     <div
@@ -375,7 +412,7 @@ export function SpellRing(props: SpellRingProps) {
         return (
           <div
             key={spell.id}
-            className="spell-node"
+            className={`spell-node${labels.above.has(i) ? " label-above" : ""}${labels.below.has(i) ? " label-below" : ""}`}
             data-index={i}
             style={{
               transform: glyphTransform(pos),
@@ -402,19 +439,15 @@ export function SpellRing(props: SpellRingProps) {
         );
       })}
 
-      {scroll && counts.left > 0 ? (
-        <div className="spell-hidden left" aria-label={`${counts.left} more`}>
+      {/* hidden-count: just the number, updated live in applyLayout; always mounted in scroll
+          mode so the live updater has a target (hidden via .is-zero when 0). */}
+      {scroll ? (
+        <div className={`spell-hidden left${counts.left > 0 ? "" : " is-zero"}`} aria-label="more spells to the left">
           <span className="rh-num">{counts.left}</span>
-          <span className="rh-motes" aria-hidden="true">
-            <i /><i /><i />
-          </span>
         </div>
       ) : null}
-      {scroll && counts.right > 0 ? (
-        <div className="spell-hidden right" aria-label={`${counts.right} more`}>
-          <span className="rh-motes" aria-hidden="true">
-            <i /><i /><i />
-          </span>
+      {scroll ? (
+        <div className={`spell-hidden right${counts.right > 0 ? "" : " is-zero"}`} aria-label="more spells to the right">
           <span className="rh-num">{counts.right}</span>
         </div>
       ) : null}

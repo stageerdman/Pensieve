@@ -174,17 +174,36 @@
   pointer-events: none;
 }
 
+/* labels are decluttered: shown only on the top 3 (above) + bottom 3 (below, when nothing
+   hidden) glyphs — toggled live by applyLayout. Absolutely placed so they sit above/below
+   the disc without pushing the ring layout. */
 .spell-label {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  color: hsl(var(--text) / 0.8);
-  text-shadow: 0 1px 6px hsl(var(--surface) / 0.9);
-  max-width: 72px;
+  color: hsl(var(--text) / 0.85);
+  text-shadow: 0 1px 6px hsl(var(--surface) / 0.95);
+  max-width: 84px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s var(--ease);
+}
+.spell-node.label-above .spell-label {
+  opacity: 1;
+  bottom: calc(100% + 5px);
+  top: auto;
+}
+.spell-node.label-below .spell-label {
+  opacity: 1;
+  top: calc(100% + 5px);
+  bottom: auto;
 }
 
 /* ── the center slot — just text / a floating wand-flick arrow (no disc) ───── */
@@ -242,14 +261,11 @@
   filter: drop-shadow(0 0 6px hsl(var(--conditional-glow) / 0.7));
 }
 
-/* ── hidden-count indicators (finite arc): counts of spells off each side ───── */
+/* ── hidden-count (finite arc): just the number, updated live as you scroll ───── */
 .spell-hidden {
   position: absolute;
-  top: calc(var(--ring-cy) + 86px);
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12px;
+  top: calc(var(--ring-cy) + 128px); /* clear of the fading side glyphs */
+  font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: hsl(var(--gold-glow) / 0.8);
@@ -261,41 +277,16 @@
   color: hsl(var(--conditional-glow) / 0.85);
 }
 .spell-hidden.left {
-  left: 11%;
+  left: 13%;
 }
 .spell-hidden.right {
-  right: 11%;
+  right: 13%;
+}
+.spell-hidden.is-zero {
+  display: none;
 }
 .rh-num {
   line-height: 1;
-}
-.rh-motes {
-  display: flex;
-  gap: 4px;
-}
-.rh-motes i {
-  width: 2.5px;
-  height: 2.5px;
-  border-radius: 50%;
-  background: hsl(var(--gold-glow));
-  box-shadow: 0 0 3px hsl(var(--gold-glow) / 0.8);
-  animation: mote-twinkle 2.8s var(--ease) infinite;
-  will-change: opacity;
-}
-.rh-motes i:nth-child(2) {
-  animation-delay: -0.9s;
-}
-.rh-motes i:nth-child(3) {
-  animation-delay: -1.8s;
-}
-@keyframes mote-twinkle {
-  0%,
-  100% {
-    opacity: 0.3;
-  }
-  50% {
-    opacity: 0.9;
-  }
 }
 
 /* ── view switch: outgoing ring fades out; incoming uses spell-ignite ───────── */

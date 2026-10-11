@@ -30,6 +30,9 @@
 }
 
 .dock-cell {
+  grid-row: 1; /* force every cell onto one row — the menu button (col 4) renders before the
+                  Accio span (cols 1-3), and grid's sparse auto-placement would otherwise bump
+                  the lower-column Accio bar down to row 2 (the "Accio way below" bug). */
   display: flex;
   align-items: center;
   justify-content: center;
