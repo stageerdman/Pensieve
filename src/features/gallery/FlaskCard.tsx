@@ -169,25 +169,25 @@ export function FlaskCard({
           preview; otherwise the normal excerpt. No `block`: line-clamp needs
           display:-webkit-box, which `block` would override. */}
       {matchSnippet ? (
-        <span className={`mt-1 text-[13px] leading-snug text-text-muted ${CLAMP[snippetLines]}`}>
+        <span className={`mt-1 text-sm leading-snug text-text-muted ${CLAMP[snippetLines]}`}>
           <Highlighted snippet={matchSnippet} />
         </span>
       ) : (
         showSnippet && (
-          <span className={`mt-1 text-[13px] leading-snug text-text-muted ${CLAMP[snippetLines]}`}>
+          <span className={`mt-1 text-sm leading-snug text-text-muted ${CLAMP[snippetLines]}`}>
             {note.excerpt}
           </span>
         )
       )}
 
       {reason && (
-        <span className="mt-1 select-none text-[10px] uppercase tracking-wider text-accent/80">
+        <span className="mt-1 select-none text-2xs uppercase tracking-wider text-accent/80">
           {reason}
         </span>
       )}
 
       {showMeta && (
-        <span className="mt-1.5 flex min-w-0 items-center gap-1.5 text-[11px] text-text-muted">
+        <span className="mt-1.5 flex min-w-0 items-center gap-1.5 text-2xs text-text-muted">
           {showTags &&
             tags.slice(0, 2).map((t) => (
               <span

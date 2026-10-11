@@ -19,9 +19,9 @@ const endOfDay = (ts: number) => startOfDay(ts) + DAY - 1;
 // Magical golden heatmap (Harry-Potter Pensieve). A translucent gold overlay so it reads
 // the same on light + dark; intensity scales with how many notes fall in the period.
 export const goldBg = (count: number, max: number): string | undefined =>
-  count > 0 ? `hsl(43 92% 55% / ${(0.14 + 0.52 * (count / max)).toFixed(3)})` : undefined;
+  count > 0 ? `hsl(var(--gold) / ${(0.14 + 0.52 * (count / max)).toFixed(3)})` : undefined;
 // Today's marker: a golden ring with a soft glow.
-const TODAY_RING = "0 0 0 1.5px hsl(43 90% 55%), 0 0 7px hsl(43 95% 60% / 0.55)";
+const TODAY_RING = "0 0 0 1.5px hsl(var(--gold)), 0 0 7px hsl(43 95% 60% / 0.55)";
 
 /** A concise label for a [start,end] range, e.g. "Jan 3", "Jan 3 – 18", "Dec 30 – Jan 5",
  *  adding a 2-digit year when the range isn't in the current year. */
@@ -98,7 +98,7 @@ export function DateRangeCalendar({ start, end, now, stamps, onPick }: Props) {
   }, []);
 
   const navBtn = "px-1 text-text-muted hover:text-text";
-  const headBtn = "rounded px-2 py-0.5 text-[12px] text-text hover:bg-surface";
+  const headBtn = "rounded px-2 py-0.5 text-xs text-text hover:bg-surface";
 
   const Header = ({ label, onLabel, onPrev, onNext }: { label: string; onLabel?: () => void; onPrev: () => void; onNext: () => void }) => (
     <div className="mb-1 flex items-center justify-between px-1">
@@ -110,7 +110,7 @@ export function DateRangeCalendar({ start, end, now, stamps, onPick }: Props) {
           {label}
         </button>
       ) : (
-        <span className="text-[12px] text-text">{label}</span>
+        <span className="text-xs text-text">{label}</span>
       )}
       <button type="button" onClick={onNext} className={navBtn} aria-label="Next">
         ›
@@ -146,7 +146,7 @@ export function DateRangeCalendar({ start, end, now, stamps, onPick }: Props) {
                   boxShadow: y === nowD.getFullYear() ? TODAY_RING : undefined,
                 }}
                 className={
-                  "rounded-md px-2 py-1.5 text-[12px] " +
+                  "rounded-md px-2 py-1.5 text-xs " +
                   (selected ? "bg-accent/20 text-text" : count ? "text-text" : "text-text-muted hover:bg-surface hover:text-text")
                 }
               >
@@ -187,7 +187,7 @@ export function DateRangeCalendar({ start, end, now, stamps, onPick }: Props) {
                   boxShadow: isToday ? TODAY_RING : undefined,
                 }}
                 className={
-                  "rounded-md px-2 py-1.5 text-[12px] " +
+                  "rounded-md px-2 py-1.5 text-xs " +
                   (selected ? "bg-accent/20 text-text" : count ? "text-text" : "text-text-muted hover:bg-surface hover:text-text")
                 }
               >
@@ -240,7 +240,7 @@ export function DateRangeCalendar({ start, end, now, stamps, onPick }: Props) {
       />
       <div className="grid grid-cols-7 gap-y-0.5 text-center">
         {WD.map((w, i) => (
-          <span key={i} className="text-[9px] uppercase text-text-muted/60">
+          <span key={i} className="text-2xs uppercase text-text-muted/60">
             {w}
           </span>
         ))}
@@ -262,7 +262,7 @@ export function DateRangeCalendar({ start, end, now, stamps, onPick }: Props) {
                 boxShadow: day === today ? TODAY_RING : undefined,
               }}
               className={
-                "mx-auto flex h-6 w-6 items-center justify-center rounded text-[12px] " +
+                "mx-auto flex h-6 w-6 items-center justify-center rounded text-xs " +
                 (isEnd
                   ? "bg-accent text-surface"
                   : inRange
@@ -277,7 +277,7 @@ export function DateRangeCalendar({ start, end, now, stamps, onPick }: Props) {
           );
         })}
       </div>
-      {anchor !== null && <p className="mt-1 px-1 text-[11px] text-text-muted">Pick the end day…</p>}
+      {anchor !== null && <p className="mt-1 px-1 text-2xs text-text-muted">Pick the end day…</p>}
     </div>
   );
 }

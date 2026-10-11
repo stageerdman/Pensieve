@@ -19,7 +19,7 @@ const HELP: HelpItem[] = [
 export function SummonHelp({ onPick }: { onPick: (example: string) => void }) {
   return (
     <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-xl border border-border bg-surface-raised shadow-xl">
-      <p className="border-b border-border px-3 py-2 text-[10px] uppercase tracking-wider text-text-muted/70">
+      <p className="border-b border-border px-3 py-2 text-2xs uppercase tracking-wider text-text-muted/70">
         Summon — what you can do
       </p>
       {HELP.map((h) => (
@@ -32,8 +32,8 @@ export function SummonHelp({ onPick }: { onPick: (example: string) => void }) {
           }}
           className="flex w-full items-baseline gap-3 px-3 py-2 text-left hover:bg-accent/10"
         >
-          <span className="shrink-0 font-mono text-[12px] text-text">{h.example}</span>
-          <span className="text-[12px] text-text-muted">{h.what}</span>
+          <span className="shrink-0 font-mono text-xs text-text">{h.example}</span>
+          <span className="text-xs text-text-muted">{h.what}</span>
         </button>
       ))}
     </div>

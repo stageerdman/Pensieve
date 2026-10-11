@@ -38,7 +38,7 @@ export function SuggestionList({ rows, highlight, liveText, whispering, onActiva
       role="listbox"
     >
       {whispering && rows.length === 0 && (
-        <div className="px-3 py-2 text-[13px] text-text-muted">No tags match — keep typing, or add a space for a literal “#”.</div>
+        <div className="px-3 py-2 text-sm text-text-muted">No tags match — keep typing, or add a space for a literal “#”.</div>
       )}
 
       {rows.map((row, i) => {
@@ -56,23 +56,23 @@ export function SuggestionList({ rows, highlight, liveText, whispering, onActiva
               onActivate(i);
             }}
             className={
-              "flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] " +
+              "flex w-full items-center gap-2 px-3 py-2 text-left text-sm " +
               (active ? "bg-accent/15 text-text" : "text-text-muted hover:text-text")
             }
           >
             {row.kind === "tag" ? (
               <>
                 <span className="text-text">{row.tag}</span>
-                <span className="ml-auto text-[10px] uppercase tracking-wider text-text-muted/70">tag</span>
+                <span className="ml-auto text-2xs uppercase tracking-wider text-text-muted/70">tag</span>
               </>
             ) : (
               <>
                 <span className="text-text">{row.s.label}</span>
                 <span className="ml-auto flex items-center gap-2">
                   {isCat && (
-                    <span className="rounded border border-border px-1 text-[10px] text-text-muted">Tab</span>
+                    <span className="rounded border border-border px-1 text-2xs text-text-muted">Tab</span>
                   )}
-                  <span className="text-[10px] uppercase tracking-wider text-text-muted/70">
+                  <span className="text-2xs uppercase tracking-wider text-text-muted/70">
                     {HINT_LABEL[row.s.hint] ?? row.s.hint}
                   </span>
                 </span>
@@ -83,7 +83,7 @@ export function SuggestionList({ rows, highlight, liveText, whispering, onActiva
       })}
 
       {liveText && (
-        <div className="border-t border-border px-3 py-2 text-[12px] text-text-muted">
+        <div className="border-t border-border px-3 py-2 text-xs text-text-muted">
           <span className="text-text-muted/70">Search text</span> · “{liveText}”
         </div>
       )}

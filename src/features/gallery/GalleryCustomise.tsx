@@ -95,7 +95,7 @@ export function GalleryCustomise({
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="px-2 pb-0.5 pt-1 text-[11px] font-medium uppercase tracking-wide text-text-muted/60">
+      <p className="px-2 pb-0.5 pt-1 text-2xs font-medium uppercase tracking-wide text-text-muted/60">
         {title}
       </p>
       {children}

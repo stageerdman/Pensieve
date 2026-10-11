@@ -32,8 +32,8 @@ describe("goldBg heatmap intensity", () => {
   it("is a golden hsl whose alpha grows with count", () => {
     const low = goldBg(1, 10)!;
     const high = goldBg(10, 10)!;
-    expect(low).toMatch(/^hsl\(43 92% 55% \/ /);
-    expect(high).toMatch(/^hsl\(43 92% 55% \/ /);
+    expect(low).toMatch(/^hsl\(var\(--gold\) \/ /);
+    expect(high).toMatch(/^hsl\(var\(--gold\) \/ /);
     const alpha = (s: string) => Number(s.match(/\/ ([\d.]+)\)/)![1]);
     expect(alpha(high)).toBeGreaterThan(alpha(low));
   });

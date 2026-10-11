@@ -177,7 +177,7 @@ export function Gallery({
                 <div className="relative pt-1">
                   <span
                     aria-hidden
-                    className="sticky top-4 block whitespace-nowrap pr-3 text-right text-[11px] font-medium tracking-wide text-text-muted"
+                    className="sticky top-4 block whitespace-nowrap pr-3 text-right text-2xs font-medium tracking-wide text-text-muted"
                   >
                     {s.label}
                   </span>
@@ -241,7 +241,7 @@ function Empty({ searchActive }: { searchActive?: boolean }) {
       <p className="text-sm text-text">
         {searchActive ? "No thoughts answer that summons" : "No memories yet"}
       </p>
-      <p className="text-[13px] text-text-muted">
+      <p className="text-sm text-text-muted">
         {searchActive ? "Try fewer filters, or press Esc to recall them all." : "Capture your first thought."}
       </p>
     </div>

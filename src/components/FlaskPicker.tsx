@@ -97,7 +97,7 @@ export function FlaskPicker({ icon, seed, onChange }: FlaskPickerProps) {
       </div>
 
       {/* Shape */}
-      <p className="px-0.5 pb-1 text-[11px] font-medium uppercase tracking-wide text-text-muted/70">
+      <p className="px-0.5 pb-1 text-2xs font-medium uppercase tracking-wide text-text-muted/70">
         Shape
       </p>
       <div role="radiogroup" aria-label="Shape" className="grid grid-cols-6 gap-1">
@@ -138,7 +138,7 @@ export function FlaskPicker({ icon, seed, onChange }: FlaskPickerProps) {
       </div>
 
       {/* Colour — a draggable spectrum (any hue), not a fixed set of swatches */}
-      <p className="px-0.5 pb-1.5 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-muted/70">
+      <p className="px-0.5 pb-1.5 pt-2 text-2xs font-medium uppercase tracking-wide text-text-muted/70">
         Colour
       </p>
       <div className="px-0.5">
@@ -146,7 +146,7 @@ export function FlaskPicker({ icon, seed, onChange }: FlaskPickerProps) {
       </div>
 
       {/* Vibrancy — five steps, each a swatch of the current colour at that richness */}
-      <p className="px-0.5 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-muted/70">
+      <p className="px-0.5 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide text-text-muted/70">
         Vibrancy
       </p>
       <div role="radiogroup" aria-label="Vibrancy" className="flex gap-1">
@@ -185,7 +185,7 @@ export function FlaskPicker({ icon, seed, onChange }: FlaskPickerProps) {
       </div>
 
       {/* Shine — five steps, each a gloss bar whose brightness previews the step */}
-      <p className="px-0.5 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-muted/70">
+      <p className="px-0.5 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide text-text-muted/70">
         Shine
       </p>
       <div role="radiogroup" aria-label="Shine" className="flex gap-1">

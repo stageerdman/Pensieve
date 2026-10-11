@@ -41,7 +41,7 @@ export function FilterGroupView({ group, h }: { group: FilterGroup; h: GroupHand
         onPointerDown={(e) => e.stopPropagation()}
         onClick={() => h.onRelate(group.id, group.relation === "and" ? "or" : "and")}
         title="Toggle AND / OR"
-        className="rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+        className="rounded-md px-1.5 py-0.5 text-2xs font-semibold uppercase tracking-wider"
         style={{ color: fg, border: `1px solid ${fg}` }}
       >
         {group.relation}
