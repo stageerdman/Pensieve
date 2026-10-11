@@ -4,7 +4,7 @@ import { TimelinePanel } from "./components/TimelinePanel";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { OverflowMenu } from "./components/OverflowMenu";
 import { FlaskButton } from "./components/FlaskButton";
-import { TabBar, HOME, type ActiveTab } from "./components/TabBar";
+import { TabBar } from "./components/TabBar";
 import { IconButton } from "./components/IconButton";
 import { Clock, PanelRight, Plus, Trash } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
@@ -15,6 +15,8 @@ import { Summon } from "./features/summon/Summon";
 import { useSummon } from "./hooks/useSummon";
 import { contentCharCount } from "./lib/text";
 import { useNotes } from "./hooks/useNotes";
+import { useTabs } from "./hooks/useTabs";
+import { useGlobalShortcuts } from "./hooks/useGlobalShortcuts";
 import { useGallery } from "./hooks/useGallery";
 import { useTheme } from "./hooks/useTheme";
 import { useFullscreen } from "./hooks/useFullscreen";
@@ -73,85 +75,13 @@ export default function App() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const confirmTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  // Tabs. Home is the gallery of all memories; the editor shows `current` whenever a
-  // note tab is active. Clicking a flask opens it as a tab and switches to it;
-  // ⌘/Ctrl-clicking opens a background tab and stays on Home.
-  const [tabIds, setTabIds] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<ActiveTab>(HOME);
-  const onHome = activeTab === HOME;
-
-  // Drop tabs whose note no longer exists (e.g. deleted); fall back to Home if the
-  // active tab was the one removed. Keep the working set healed to live notes too.
-  useEffect(() => {
-    const live = new Set(notes.map((n) => n.id));
-    setTabIds((ids) => {
-      const kept = ids.filter((id) => live.has(id));
-      return kept.length === ids.length ? ids : kept;
-    });
-    setActiveTab((a) => (a !== HOME && !live.has(a) ? HOME : a));
-    // Only heal the working set once notes have actually loaded. On first mount `notes`
-    // is still [] (the store lists asynchronously); pruning against an empty set then
-    // would wipe — and persist as empty — a working set restored from a prior session.
-    // A genuinely empty vault has no valid ids anyway, and dead ids are render-filtered
-    // and cleaned on the next non-empty prune.
-    if (notes.length > 0) gallery.pruneWorkingSet(live);
-  }, [notes, gallery.pruneWorkingSet]);
-
-  const tabs = tabIds
-    .map((id) => notes.find((n) => n.id === id))
-    .filter(Boolean) as typeof notes;
-
-  // Open a flask from the gallery/working set. Background → a quiet tab, stay on Home;
-  // otherwise open the tab and switch to it (the note loads into the editor).
-  const openNote = useCallback(
-    (id: string, background: boolean) => {
-      setTabIds((ids) => (ids.includes(id) ? ids : [...ids, id]));
-      if (!background) {
-        setActiveTab(id);
-        void open(id);
-      }
-    },
-    [open],
-  );
-
-  const goHome = useCallback(() => setActiveTab(HOME), []);
-
-  // A new note opens straight into the editor as its own tab, ready to write.
-  const newNote = useCallback(async () => {
-    const note = await create();
-    if (!note) return;
-    setTabIds((ids) => (ids.includes(note.id) ? ids : [...ids, note.id]));
-    setActiveTab(note.id);
-  }, [create]);
-
-  const selectTab = useCallback(
-    (id: string) => {
-      setActiveTab(id);
-      void open(id);
-    },
-    [open],
-  );
-
-  const closeTab = useCallback(
-    (id: string) => {
-      setTabIds((ids) => {
-        const idx = ids.indexOf(id);
-        const next = ids.filter((t) => t !== id);
-        // If the closed tab was active, fall to a neighbour, else Home (the gallery).
-        setActiveTab((cur) => {
-          if (cur !== id) return cur;
-          const neighbour = next[idx] ?? next[idx - 1];
-          if (neighbour) {
-            void open(neighbour);
-            return neighbour;
-          }
-          return HOME;
-        });
-        return next;
-      });
-    },
-    [open],
-  );
+  // Tabs (Home + per-note), their self-healing lifecycle, and open/create/close.
+  const { tabs, activeTab, onHome, openNote, goHome, newNote, selectTab, closeTab } = useTabs({
+    notes,
+    open,
+    create,
+    pruneWorkingSet: gallery.pruneWorkingSet,
+  });
 
   // Live set of tags in use across notes — the source for tag whispering.
   const tagSuggestions = useMemo(
@@ -185,80 +115,49 @@ export default function App() {
     confirmTimer.current = setTimeout(() => setConfirmDelete(false), 3000);
   }, [onHome, current, confirmDelete, remove]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey)) {
-        if (e.key === "Escape") {
-          setTimelineOpen(false);
-          setDetailsOpen(false);
-          setFocusMode(false);
+  // Summon: jump Home, focus the search bar, and scroll the gallery fully to the top
+  // (so the bar is in full view, not mid-screen).
+  const summonSearch = useCallback(() => {
+    goHome();
+    requestAnimationFrame(() => {
+      const el = summonInputRef.current;
+      el?.focus({ preventScroll: true });
+      let p = el?.parentElement ?? null;
+      while (p) {
+        if (p.scrollHeight > p.clientHeight && getComputedStyle(p).overflowY !== "visible") {
+          p.scrollTo({ top: 0, behavior: "smooth" });
+          break;
         }
-        return;
+        p = p.parentElement;
       }
-      const k = e.key.toLowerCase();
-      if (k === "n") {
-        e.preventDefault();
-        void newNote();
-      } else if (k === "w") {
-        // ⌘W closes the active tab (no-op on Home).
-        e.preventDefault();
-        if (!onHome) closeTab(activeTab);
-      } else if (k === "p") {
-        // ⌘P pins/unpins the open note (overrides the browser print dialog).
-        e.preventDefault();
-        if (!onHome && current) void togglePin(current.id);
-      } else if (k === "s") {
-        // ⌘S syncs now (overrides the browser "save page"). No-op when not connected.
-        e.preventDefault();
-        const s = syncRef.current;
-        if (s.ui.phase !== "disconnected" && s.ui.phase !== "unavailable") void s.syncNow();
-      } else if (e.code === "Backslash" && e.shiftKey) {
-        // ⌘⇧\ toggles the right Details panel.
-        e.preventDefault();
-        toggleDetails();
-      } else if (k === "t") {
-        e.preventDefault();
-        toggleTimeline();
-      } else if (k === ".") {
-        e.preventDefault();
-        setFocusMode((v) => !v);
-      } else if (k === "l" && e.shiftKey) {
-        // Dev/keyboard theme toggle; the native macOS menu owns this in the app.
-        e.preventDefault();
-        toggle();
-      } else if (e.key === "Backspace") {
-        e.preventDefault();
-        askDelete();
-      } else if (k === "a") {
-        // ⌘A summons. While writing text (input / textarea / editor), plain ⌘A must stay
-        // "select all", so there we require ⌘⇧A; anywhere else plain ⌘A summons.
-        const t = e.target as HTMLElement | null;
-        const editing =
-          !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
-        if (editing && !e.shiftKey) return;
-        // Summon: jump Home, scroll the gallery all the way to the top (so the bar is
-        // fully in view, not mid-screen), and focus it.
-        e.preventDefault();
-        setActiveTab(HOME);
-        requestAnimationFrame(() => {
-          const el = summonInputRef.current;
-          el?.focus({ preventScroll: true });
-          // Walk up to the nearest scrollable ancestor (the gallery scroll region) and
-          // scroll it fully to the top.
-          let p = el?.parentElement ?? null;
-          while (p) {
-            if (p.scrollHeight > p.clientHeight && getComputedStyle(p).overflowY !== "visible") {
-              p.scrollTo({ top: 0, behavior: "smooth" });
-              break;
-            }
-            p = p.parentElement;
-          }
-        });
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [newNote, current, toggle, askDelete, toggleTimeline, toggleDetails, togglePin, onHome, activeTab, closeTab]);
+    });
+  }, [goHome]);
+
+  useGlobalShortcuts({
+    newNote: () => void newNote(),
+    closeActiveTab: () => {
+      if (!onHome) closeTab(activeTab);
+    },
+    togglePinCurrent: () => {
+      if (!onHome && current) void togglePin(current.id);
+    },
+    syncNow: () => {
+      // No-op when not connected.
+      const s = syncRef.current;
+      if (s.ui.phase !== "disconnected" && s.ui.phase !== "unavailable") void s.syncNow();
+    },
+    toggleDetails,
+    toggleTimeline,
+    toggleFocusMode: () => setFocusMode((v) => !v),
+    toggleTheme: toggle,
+    deleteCurrent: askDelete,
+    summon: summonSearch,
+    closePanels: () => {
+      setTimelineOpen(false);
+      setDetailsOpen(false);
+      setFocusMode(false);
+    },
+  });
 
   const showChrome = !focusMode;
 
