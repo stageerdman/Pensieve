@@ -60,7 +60,7 @@ export function PreviewPortal({ id, title, theme, interactive }: PreviewPortalPr
         <div
           role="region"
           aria-label={`Preview: ${title || "Untitled"}`}
-          className="portal-enter relative flex max-h-[82vh] w-[min(720px,86vw)] flex-col overflow-hidden rounded-[22px] border border-[hsl(var(--border)/0.7)] bg-[hsl(var(--surface)/0.92)] shadow-[0_40px_120px_-24px_rgba(0,0,0,0.55)] backdrop-blur-[3px] backdrop-saturate-[120%] dark:bg-[hsl(var(--surface)/0.9)]"
+          className="portal-enter relative flex max-h-[82vh] w-[min(720px,86vw)] flex-col overflow-hidden rounded-2xl border border-[hsl(var(--border)/0.7)] bg-[hsl(var(--surface)/0.92)] shadow-[0_40px_120px_-24px_rgba(0,0,0,0.55)] backdrop-blur-[3px] backdrop-saturate-[120%] dark:bg-[hsl(var(--surface)/0.9)]"
         >
           {/* Outer glow — magic lives outside the memory, never a wash over the text. */}
           <span className="portal-halo" aria-hidden />

@@ -29,9 +29,16 @@ export default {
         // deliberate type scale (see design.md). Ends the 9/10/11px soup.
         "2xs": ["0.6875rem", { lineHeight: "1rem" }], // 11px
       },
+      // One radius scale, all tied to --radius (design.md) so changing the base
+      // rescales the whole family. md is kept equal to the base (6px) because it's
+      // the workhorse (used ~30×) — no visual shift there.
       borderRadius: {
-        DEFAULT: "var(--radius)",
-        lg: "calc(var(--radius) + 4px)",
+        sm: "calc(var(--radius) - 2px)", // 4px
+        DEFAULT: "var(--radius)", // 6px
+        md: "var(--radius)", // 6px
+        lg: "calc(var(--radius) + 4px)", // 10px
+        xl: "calc(var(--radius) + 8px)", // 14px
+        "2xl": "calc(var(--radius) + 14px)", // 20px
       },
     },
   },

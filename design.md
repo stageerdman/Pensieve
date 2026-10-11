@@ -36,8 +36,9 @@ chips/dates/counts) · `text-xs` (12px, meta) · `text-sm` (14px, secondary/cont
 nearest scale step; if a genuinely new size is needed, add it to the scale here first.
 
 ### Radius — one scale
-Base `--radius` = 6px. Use `rounded-sm` (4) · `rounded` (6) · `rounded-lg` (10) ·
-`rounded-xl` (14) · `rounded-full`. No one-off `rounded-[22px]`.
+Base `--radius` = 6px; every step derives from it (change the base, rescale all). Use
+`rounded-sm` (4) · `rounded`/`rounded-md` (6) · `rounded-lg` (10) · `rounded-xl` (14) ·
+`rounded-2xl` (20) · `rounded-full`. No one-off `rounded-[Npx]`.
 
 ### Spacing
 Tailwind's spacing scale (4px base). Generous whitespace; content-first. No magic-number
