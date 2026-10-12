@@ -31,8 +31,8 @@ describe("wand constants — locked tunables, cross-checked against source CFG",
 
   it("loupe/reel tunables", () => {
     expect(C.SLOT_H).toBe(84);
-    expect(C.FOCAL_FRAC).toBe(0.42);
-    expect(C.GLASS_H).toBe(150);
+    expect(C.FOCAL_FRAC).toBe(0.2); // owner tuning 2026-10-12: loupe rides near the top
+    expect(C.GLASS_H).toBe(165); // owner tuning 2026-10-12: a little taller
     expect(C.LOUPE_R).toBe(2.0);
     expect(C.LOUPE_MAX).toBe(1.75);
     expect(C.REVEAL_IN).toBe(0.55);

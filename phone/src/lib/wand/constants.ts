@@ -66,11 +66,14 @@ export const COL_REST_X = 0.004;
 /** Height (px) of one reel slot — read from the `--slot` CSS var in the original,
  *  hard-coded here as its fallback/actual value. */
 export const SLOT_H = 84;
-/** Fraction down the reel where the focal line sits (room above for the parted
- *  upper neighbour + the glass rim). */
-export const FOCAL_FRAC = 0.42;
-/** Height (px) of the magnifying glass overlay — roughly one magnified row tall. */
-export const GLASS_H = 150;
+/** Fraction down the reel where the focal line sits. Owner tuning 2026-10-12: pulled
+ *  UP from the source's 0.42 so the loupe rides near the TOP of the reel (the parted
+ *  upper neighbour now lifts off into the top mask — intended). */
+export const FOCAL_FRAC = 0.2;
+/** Height (px) of the magnifying glass overlay — roughly one magnified row tall.
+ *  Owner tuning 2026-10-12: nudged 150 → 165 (a little taller) so a focal card's
+ *  title + meta + 3-line snippet sit fully inside the glass. */
+export const GLASS_H = 165;
 /** Loupe influence radius, in slots (±R react). */
 export const LOUPE_R = 2.0;
 /** Focal magnification at the centre of the loupe (full-motion). */
