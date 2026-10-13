@@ -384,18 +384,21 @@ export function PhoneApp() {
   }
 
   // ---- sync actions ----
-  function castSpell() {
+  // One cast drives both directions in the prototype — back up (weave UP) and restore
+  // (pull DOWN) share the spell visual and the success/fail machine, differing only in
+  // copy. (The real pull lives in the desktop engine; the phone is capture-only here.)
+  function castSpell(opts?: { weaving?: string; done?: string }) {
     if (syncStatus === "syncing" || syncStatus === "offline") return;
     sync.cast();
     haptic(14);
     const castId = spell.castId + 1;
-    setSpell({ show: true, castId, label: "Weaving to the cloud…", labelColor: "" });
+    setSpell({ show: true, castId, label: opts?.weaving ?? "Weaving to the cloud…", labelColor: "" });
     const willFail = demoForceFail.current || Math.random() < FAIL_RATE;
     demoForceFail.current = false;
     setTimeout(() => {
       setSpell((s) => ({
         ...s,
-        label: willFail ? "Couldn't reach the cloud" : "All memories safe · just now",
+        label: willFail ? "Couldn't reach the cloud" : (opts?.done ?? "All memories safe · just now"),
         labelColor: willFail ? "hsl(var(--danger))" : "hsl(var(--success))",
       }));
     }, 1300);
@@ -464,6 +467,13 @@ export function PhoneApp() {
     if (syncStatus === "offline" || syncStatus === "syncing") return;
     menu.close();
     castSpell();
+  }
+  /** The Sync window's restore — pull the whole vault down from the cloud (confirmed
+   *  inline in the window). Prototype: the same cast, pull-flavoured. */
+  function syncWindowRestore() {
+    if (syncStatus === "offline" || syncStatus === "syncing") return;
+    menu.close();
+    castSpell({ weaving: "Pulling your memories from the cloud…", done: "Restored from the cloud · just now" });
   }
 
   // ---- wire the fns ref (latest closures) ----
@@ -595,6 +605,7 @@ export function PhoneApp() {
         syncState={syncStatus}
         account={ACCOUNT}
         onSyncPrimary={syncWindowPrimary}
+        onSyncRestore={syncWindowRestore}
         reduce={reduce}
       />
       {toast ? <div className="spell-toast">{toast}</div> : null}

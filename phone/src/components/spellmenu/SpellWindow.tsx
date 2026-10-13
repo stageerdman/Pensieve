@@ -6,6 +6,7 @@
 
 import type { SyncStatus } from "../../lib/wand/syncMachine";
 import { panelCopy } from "../sync/SyncPanel";
+import { RestoreFromCloud } from "../sync/RestoreFromCloud";
 import { spellById } from "../../lib/spells/registry";
 
 export interface SpellWindowProps {
@@ -15,9 +16,11 @@ export interface SpellWindowProps {
   onClose: () => void;
   /** run the spell's primary action (Sync: cast the backup). */
   onPrimary: () => void;
+  /** Sync: restore the whole vault from the cloud (destructive — confirmed inline). */
+  onRestore: () => void;
 }
 
-export function SpellWindow({ spellId, syncState, account, onClose, onPrimary }: SpellWindowProps) {
+export function SpellWindow({ spellId, syncState, account, onClose, onPrimary, onRestore }: SpellWindowProps) {
   const spell = spellById(spellId);
 
   if (spellId === "sync") {
@@ -39,6 +42,11 @@ export function SpellWindow({ spellId, syncState, account, onClose, onPrimary }:
           <button className="sw-primary" disabled={copy.primaryDisabled} onClick={onPrimary}>
             {copy.primary}
           </button>
+          {syncState !== "syncing" && syncState !== "offline" && (
+            <div className="sw-restore-row">
+              <RestoreFromCloud onConfirm={onRestore} />
+            </div>
+          )}
           <div className="sw-foot">
             <span className="sw-acct">{account}</span>
             <button className="sw-close" onClick={onClose}>

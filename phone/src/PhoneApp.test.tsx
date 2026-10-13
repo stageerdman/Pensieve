@@ -136,6 +136,31 @@ describe("PhoneApp — the Spell Menu", () => {
     expect(container.querySelector(".spell-overlay")).toBeNull();
   });
 
+  it("restores from the cloud via the Sync window's quiet confirm", async () => {
+    const { container } = await boot();
+    await act(async () => {
+      fireEvent.click(container.querySelector<HTMLElement>(".spell-fab")!);
+    });
+    await flush();
+    await act(async () => {
+      tapNode(container as HTMLElement, 2); // Sync
+    });
+    // The restore line is quiet text, not the primary button; tapping it only ARMS
+    // the confirm — nothing destructive yet.
+    const restore = container.querySelector<HTMLElement>(".sw-restore")!;
+    expect(restore).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(restore);
+    });
+    expect(container.querySelector(".sw-restore-confirm")).toBeTruthy();
+    // Confirming pulls down: the cast overlay shows and the menu closes behind it.
+    await act(async () => {
+      fireEvent.click(container.querySelector<HTMLElement>(".sw-restore-go")!);
+    });
+    expect(container.querySelector(".spell.show")).toBeTruthy();
+    expect(container.querySelector(".spell-overlay")).toBeNull();
+  });
+
   it("descends into a detailed sub-ring and the center becomes Back", async () => {
     const { container } = await boot();
     await act(async () => {
