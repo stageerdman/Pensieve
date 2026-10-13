@@ -50,12 +50,38 @@ Restore writes the snapshot back and truncates the forward history.
 - [x] P5  verify / docs — `tsc` clean, 548 tests green (5× stable), web `npm run build`
           OK; docs + `issues.txt` updated. Merge + native build below.
 
-### How to test (owner)
-Open a note, write, pause ≥2 min (or switch notes) to close a session — that records a
-version. Repeat. Open the Timeline (clock icon). Click an older moment → it expands to
-show the note as it was; click **Restore this version** then the red **Restore — deletes N
-newer** to confirm. The note reverts and the newer moments vanish. The newest moment is
-**Current** (no Restore). History keeps the 7 most recent edit-days.
+## v2 rework (owner feedback, same day) — "time travel" instead of in-panel preview
+The owner redefined the interaction after v1 shipped:
+- A historic version must **open in the MAIN page** (read-only, as if the note went back
+  in time), NOT preview inside the Timeline panel. Nothing is auto-saved.
+- The Timeline **highlights the record currently shown** (leading `›`) and drops the
+  "Current" label.
+- On the highlighted **historic** record a **Restore** button appears → click once to arm
+  ("Hold me", red) → **press and hold 2s** (a red wash + bottom bar fill as the time
+  confirmation) to commit → releasing early or waiting out ~2s disarms back to "Restore".
+
+Built:
+- `RestoreControl.tsx` — the click-to-arm → hold-2s-to-confirm control (+ 4 timer tests).
+- `TimelinePanel.tsx` — now a pure list: row click → `onPreview(entry|null)`; highlight +
+  `›`; `RestoreControl` only on the viewed historic record. Rewrote its tests.
+- `App.tsx` — `previewEntry` state drives the main area: a read-only `NotePreview` +
+  "Past version · … · read-only / Back to now" banner when set, else the live `Editor`.
+  Preview resets on note-switch and when the Timeline closes. `onRestore` drops preview
+  then calls `restoreVersion`.
+- Reused from v1 unchanged: snapshots, `pruneToRecentDays` (7 edit-days), `truncateAfter`,
+  `restoreVersion` + `loadEpoch` remount. v2 is purely the view/affordance layer.
+
+Status: 552 tests green, `tsc` clean, web build OK. Merge + native build next.
+
+### How to test (owner) — v2 flow
+Write in a note, pause ≥2 min (or switch notes) to close a session = one version; repeat.
+Open the Timeline (clock icon, ⌘T). **Click an older moment** → the main page shows that
+version read-only (banner: "Past version · … · read-only", "Back to now" to exit); the
+record is highlighted with a leading `›`. On that highlighted historic record, click
+**Restore** → it reddens to **Hold me** → **press and hold ~2s** (watch it fill red) to
+commit. The note reverts and every newer version is deleted. Click the newest record (or
+"Back to now") to return to the live, editable note. History keeps the 7 most recent
+edit-days.
 
 ### Decisions
 - Restore = **destructive truncation** (drop newer). Owner-chosen, 2-step confirm.

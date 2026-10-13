@@ -1,10 +1,12 @@
 Pensieve — known issues & TODOs
 (one line per item; move resolved items out or mark done)
 
-NOTE-VERSIONING — shipped to main (2026-10-13), owner to confirm on native app:
-- [x] Timeline moments now carry a body snapshot = restorable versions.
-- [x] Expand a moment → read-only preview; older versions offer a 2-step destructive
-      Restore (reverts body + deletes newer). Newest = "Current" (no restore).
+NOTE-VERSIONING — shipped to main (2026-10-13, v2 reworked same day), owner to confirm:
+- [x] Timeline moments carry a body snapshot = restorable versions.
+- [x] v2: clicking a moment opens it in the MAIN page read-only ("time travel", not
+      auto-saved); the viewed record is highlighted with `›`. Restore on the highlighted
+      historic record = click to arm ("Hold me") → press-and-hold 2s to commit (reverts
+      body + deletes every newer version).
 - [x] Retention: the 7 most recent edit-DAYS (pruned on append). Local-only (timeline
       sidecar; never touched by OneDrive sync).
 - [ ] Possible follow-ups (non-blocking): a visual diff between versions; versioning
