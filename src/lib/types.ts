@@ -52,11 +52,16 @@ export interface NoteFields {
 
 export const EMPTY_FIELDS: NoteFields = { categories: [], tags: [], links: [] };
 
-/** One "addition" — a writing session's worth of change (see timeline.ts). */
+/** One "addition" — a writing session's worth of change (see timeline.ts). Each
+ *  entry is also a restorable **version**: `markdown` is the note body as it stood
+ *  at the end of that session. Snapshots are body-only; metadata is not versioned.
+ *  `markdown` is optional for back-compat — entries recorded before versioning have
+ *  none and simply can't be restored (they still show as history moments). */
 export interface TimelineEntry {
   ts: number; // session start
   wordDelta: number; // net words added (may be negative)
   created?: boolean; // true for the very first session of a note
+  markdown?: string; // snapshot of the body at session close — the restorable version
 }
 
 /** Storage backend. Implemented by the browser adapter (dev) and Tauri (native). */
