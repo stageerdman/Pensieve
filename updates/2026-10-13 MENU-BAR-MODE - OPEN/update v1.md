@@ -39,7 +39,11 @@ Turn Pensieve into a lightweight macOS menu-bar app:
   owner device-test, merge to main, close folder.
 
 ## Status
-- [ ] P1  - [ ] P2  - [ ] P3  - [ ] P4
+- [x] P1  - [x] P2  - [x] P3  - [x] P4 (built + installed to /Applications)
+- Smoke-verified: app launches bar-only, no window, process stays alive (setup — tray,
+  shortcuts, accessory policy — doesn't panic).
+- **Pending owner device test** (interactive, can't be driven headless): tray menu items,
+  ⌘⇧N / ⌘⇧A, hide-on-close. Merge to `main` once confirmed.
 
 ## Notes / next
 - Tray uses the default app icon for v1; a monochrome template icon is a nice follow-up
