@@ -1,14 +1,17 @@
-// NoteView.tsx — the full-screen read/write surface (Apple-Notes-smooth, autosave).
+// MemoryPage.tsx — THE MEMORY PAGE: the full-screen read/write surface for one memory
+// (Apple-Notes-smooth, autosave).
 //
-// Source markup ~520-542. Always mounted; it slides up via the .open class (React
-// state) and its transform transition. The date + "Saved" indicator are set
-// imperatively on their refs (openNote / useAutosave). The top chrome fades out on
-// .editing-note (CSS).
+// Source markup ~520-542. It is its OWN page — mounted only while open/closing (never
+// parked in the home/Memory-Bank DOM) — and slides up via the .open class (React state)
+// + transform transition. The date + "Saved" indicator are set imperatively on their
+// refs (openNote / useAutosave). The top chrome fades out on .editing-note (CSS).
+// (Internal class names + refs still use the legacy `note*` prefix — a cosmetic rename
+// deferred to keep this change surgical.)
 
 import { NoteBody } from "./NoteBody";
 import { NoteToolbar, type FmtKey } from "./NoteToolbar";
 
-export function NoteView({
+export function MemoryPage({
   open,
   noteRef,
   surfaceRef,

@@ -14,11 +14,15 @@ export function ReelCard({ note, queryText, onOpen }: { note: Note; queryText: s
     <div className="slot" data-id={note.id}>
       <div className="card" onClick={() => onOpen(note)}>
         <Flask shape={note.shape} cat={note.cat} fill={note.fill} />
+        {/* title + meta + snippet are ONE column, vertically centred in the row (the card
+            is align-items:center) so the focal card's text stays centred in the glass no
+            matter how many snippet lines wrap. The snippet collapses to 0 height off-focus
+            (max-height driven by the loupe's reveal) so resting rows stay compact. */}
         <div className="body">
           <div className="title">{highlight(note.t || "New thought", queryText)}</div>
           <div className="meta">{note.created || note.d}</div>
+          <div className="snippet">{highlight(note.c || "…", queryText)}</div>
         </div>
-        <div className="snippet">{highlight(note.c || "…", queryText)}</div>
       </div>
     </div>
   );

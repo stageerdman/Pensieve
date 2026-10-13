@@ -13,6 +13,18 @@ body,
   overflow: hidden;
   overscroll-behavior: none;
 }
+/* iOS keyboard-scroll lock. With only overflow:hidden the DOCUMENT still scrolls up to
+   chase a focused input (the Accio bar), shoving the whole app up and exposing whatever
+   sits below the viewport (e.g. the parked note sheet). Pinning html + body as fixed
+   makes the document physically unscrollable; our bars already ride above the keyboard
+   via the --kb var, so nothing ever needs to scroll. */
+html,
+body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
 
 /* The app surface (the prototype's ".screen"). isolation:isolate makes it the
    stacking root that contains the reel's per-card z-indices. */
@@ -119,9 +131,14 @@ body,
   height: calc(48px * var(--m, 1));
   flex: none;
 }
+/* The body is a column of title + meta + snippet. Because the card is align-items:center
+   the whole column is vertically centred on the focal line, so the focal card's text
+   reads centred in the glass regardless of how many snippet lines wrap. */
 .card .body {
   min-width: 0;
   flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 .card .title {
   font-size: calc(14.5px * var(--m, 1));
@@ -137,20 +154,22 @@ body,
   color: hsl(var(--text-muted));
   margin-top: calc(1px * var(--m, 1));
 }
+/* In normal flow under title+meta, but collapsed to 0 height off-focus (the loupe sets
+   max-height = reveal · naturalHeight, so it grows IN as the card reaches the glass and
+   takes no space on resting rows — keeping them compact). padding-top is the gap below
+   meta; it's clipped away while collapsed. */
 .card .snippet {
-  position: absolute;
   pointer-events: none;
   opacity: 0;
-  left: calc(13px + 36px * var(--m, 1) + 13px);
-  right: 14px;
-  top: calc(50% + 14px);
+  max-height: 0;
+  overflow: hidden;
+  padding-top: 3px;
   font-size: 13.5px;
   line-height: 1.42;
   color: hsl(var(--text-muted));
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 .card:active {
   filter: brightness(1.12);
@@ -958,20 +977,10 @@ body,
   border-color: hsl(var(--accio) / 0.55);
   box-shadow: 0 0 28px -10px hsl(var(--accio) / 0.55);
 }
-.search-sheet[data-n="1"] .sr {
-  padding: 15px 16px;
-}
-.search-sheet[data-n="1"] .sr .flask {
-  width: 46px;
-  height: 60px;
-}
-.search-sheet[data-n="1"] .sr .snip {
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  line-height: 1.4;
-}
+/* Result rows stay a UNIFORM size at every count. The old data-n="1" "hero single
+   result" (bigger flask + padding + 2-line snip) made rows resize and jump as the
+   match count crossed 1 while typing — "flasks jumping, spacing breaking". The best
+   match is still lit via .sr:last-child; it just no longer changes dimensions. */
 .sr-empty {
   text-align: center;
   color: hsl(var(--text-muted));
@@ -1020,10 +1029,16 @@ body,
   flex-direction: column;
   padding-top: calc(14px + env(safe-area-inset-top));
   transform: translateY(100%);
-  transition: transform 0.5s var(--spring);
+  /* Hidden when closed so there is NEVER a note sheet parked below the page that a
+     stray viewport shift could reveal. Shown instantly on open; hidden only after the
+     slide-down finishes (visibility delayed by the transform duration). */
+  visibility: hidden;
+  transition: transform 0.5s var(--spring), visibility 0s linear 0.5s;
 }
 .note.open {
   transform: none;
+  visibility: visible;
+  transition: transform 0.5s var(--spring), visibility 0s linear 0s;
 }
 .note-top {
   display: flex;

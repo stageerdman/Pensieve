@@ -47,13 +47,16 @@ describe("PhoneApp — boot + the Dock", () => {
     expect(container.querySelector(".accio-ph")?.textContent).toBe("Accio a memory…");
   });
 
-  it("opens the full-screen note when a card is tapped", async () => {
+  it("opens the Memory page when a card is tapped", async () => {
     const { container } = await boot();
     const card = container.querySelector<HTMLElement>(".reel .card");
     expect(card).toBeTruthy();
+    // the Memory page is mounted on tap, then slides open a frame later (it is NOT
+    // parked in the home DOM), so flush the rAF before asserting .open
     await act(async () => {
       fireEvent.click(card!);
     });
+    await flush();
     const note = container.querySelector(".note");
     expect(note?.classList.contains("open")).toBe(true);
     expect(container.querySelector(".note-body h1")?.textContent).toBeTruthy();
