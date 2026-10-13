@@ -3,6 +3,7 @@ import { useDismiss } from "../hooks/useDismiss";
 import { SyncRune } from "./icons";
 import { SyncFlask } from "./SyncFlask";
 import { SpaceMeter } from "./SpaceMeter";
+import { RestoreFromCloud } from "./RestoreFromCloud";
 import { formatBytes } from "../lib/format";
 import { deriveSyncView } from "../lib/sync/deriveSyncView";
 import type { useSync } from "../hooks/useSync";
@@ -28,7 +29,7 @@ export function SyncStatus({
   titleFor: (noteId: string) => string;
   pending?: boolean; // unsynced local changes — shows the quiet "ready to back up" nudge
 }) {
-  const { ui, connect, disconnect, syncNow, summon, keepLocal, refreshInfo } = sync;
+  const { ui, connect, disconnect, syncNow, summon, keepLocal, refreshInfo, restoreFromCloud } = sync;
   const [open, setOpen] = useState(false);
   const [justSynced, setJustSynced] = useState(false);
   const ref = useDismiss<HTMLDivElement>(() => setOpen(false), { enabled: open });
@@ -178,6 +179,19 @@ export function SyncStatus({
               {p.label}
               {p.hint && <span className="text-xs text-text-muted">{p.hint}</span>}
             </button>
+          )}
+
+          {/* Restore everything from cloud — the quiet, destructive escape hatch.
+              Only while connected and not mid-transfer (it drives the same runner). */}
+          {connected && !syncing && (
+            <div className="mt-3 border-t border-border pt-2.5">
+              <RestoreFromCloud
+                onConfirm={() => {
+                  setOpen(false);
+                  void restoreFromCloud();
+                }}
+              />
+            </div>
           )}
 
           {/* Footer: which account this backs up to + a quiet way out */}
