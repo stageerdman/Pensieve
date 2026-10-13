@@ -9,6 +9,8 @@ import { IconButton } from "./components/IconButton";
 import { Clock, PanelRight, Plus, Trash } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
 import { SyncStatus } from "./components/SyncStatus";
+import { NotePreview } from "./features/gallery/NotePreview";
+import type { TimelineEntry } from "./lib/types";
 import { Gallery } from "./features/gallery/Gallery";
 import { GalleryCustomise } from "./features/gallery/GalleryCustomise";
 import { Summon } from "./features/summon/Summon";
@@ -71,6 +73,10 @@ export default function App() {
 
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // Time travel: a past version the main page is showing read-only (null = the live,
+  // editable note). Selected from the Timeline; never auto-saved. Reset when the note
+  // changes or the Timeline closes so you can't get stranded in a read-only view.
+  const [previewEntry, setPreviewEntry] = useState<TimelineEntry | null>(null);
   const [focusMode, setFocusMode] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const confirmTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -102,6 +108,23 @@ export default function App() {
     setDetailsOpen((v) => !v);
     setTimelineOpen(false);
   }, [onHome, current]);
+
+  // Leave time travel when switching notes, or when the Timeline is closed (otherwise
+  // you'd be stuck looking at a read-only past version with no way back).
+  useEffect(() => setPreviewEntry(null), [currentId]);
+  useEffect(() => {
+    if (!timelineOpen) setPreviewEntry(null);
+  }, [timelineOpen]);
+
+  // Commit a restore: drop time travel first (back to the live editor), then revert —
+  // restoreVersion bumps the editor remount key so the restored body loads in.
+  const onRestore = useCallback(
+    (ts: number) => {
+      setPreviewEntry(null);
+      void restoreVersion(ts);
+    },
+    [restoreVersion],
+  );
 
   const askDelete = useCallback(() => {
     if (onHome || !current) return;
@@ -269,16 +292,35 @@ export default function App() {
                         />
                       </div>
                     )}
-                    <Editor
-                      key={`${current.id}:${loadEpoch}`}
-                      markdown={current.markdown}
-                      onChange={change}
-                      focusMode={focusMode}
-                      theme={theme}
-                      selfId={current.id}
-                      notes={notes}
-                      onOpenNote={(id) => void open(id)}
-                    />
+                    {previewEntry ? (
+                      <div className="mx-auto max-w-[72ch]">
+                        <div className="mb-3 flex items-center justify-between rounded border border-border bg-surface-sunken px-3 py-1.5 text-xs text-text-muted">
+                          <span>
+                            Past version · {new Date(previewEntry.ts).toLocaleString()} ·
+                            read-only
+                          </span>
+                          <button
+                            type="button"
+                            className="text-accent hover:underline"
+                            onClick={() => setPreviewEntry(null)}
+                          >
+                            Back to now
+                          </button>
+                        </div>
+                        <NotePreview markdown={previewEntry.markdown ?? ""} theme={theme} />
+                      </div>
+                    ) : (
+                      <Editor
+                        key={`${current.id}:${loadEpoch}`}
+                        markdown={current.markdown}
+                        onChange={change}
+                        focusMode={focusMode}
+                        theme={theme}
+                        selfId={current.id}
+                        notes={notes}
+                        onOpenNote={(id) => void open(id)}
+                      />
+                    )}
                   </div>
                 ) : (
                   <div className="flex h-full items-center justify-center">
@@ -293,9 +335,10 @@ export default function App() {
                 <TimelinePanel
                   noteId={current.id}
                   noteTitle={current.title}
-                  theme={theme}
                   reloadKey={loadEpoch}
-                  onRestore={(ts) => void restoreVersion(ts)}
+                  previewTs={previewEntry?.ts ?? null}
+                  onPreview={setPreviewEntry}
+                  onRestore={onRestore}
                   onClose={() => setTimelineOpen(false)}
                 />
               )}

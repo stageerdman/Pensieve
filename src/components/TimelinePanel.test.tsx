@@ -3,80 +3,99 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { TimelinePanel } from "./TimelinePanel";
 import type { TimelineEntry } from "../lib/types";
 
-// NotePreview renders through BlockNote (needs DOM APIs jsdom lacks), so mock it to a
-// marker — same approach App.test uses for the Editor. We're testing the panel's
-// version/restore behaviour, not the markdown renderer (covered elsewhere).
-vi.mock("../features/gallery/NotePreview", () => ({
-  NotePreview: ({ markdown }: { markdown: string }) => (
-    <div data-testid="preview">{markdown}</div>
-  ),
-}));
-
 const NOTE = "n1";
 function seedTimeline(entries: TimelineEntry[]) {
   localStorage.setItem("pensieve:timeline:" + NOTE, JSON.stringify(entries));
 }
 
-const base = { noteTitle: "T", theme: "light" as const, reloadKey: 0, onClose: () => {} };
+const base = { noteTitle: "T", reloadKey: 0, onClose: () => {} };
 
-describe("TimelinePanel — versioning", () => {
+const entries: TimelineEntry[] = [
+  { ts: 100, wordDelta: 5, created: true, markdown: "v1 body" },
+  { ts: 200, wordDelta: 3, markdown: "v2 body" },
+  { ts: 300, wordDelta: 2, markdown: "v3 body" }, // newest
+];
+
+describe("TimelinePanel — version navigation", () => {
   beforeEach(() => localStorage.clear());
 
-  const entries: TimelineEntry[] = [
-    { ts: 100, wordDelta: 5, created: true, markdown: "v1 body" },
-    { ts: 200, wordDelta: 3, markdown: "v2 body" },
-    { ts: 300, wordDelta: 2, markdown: "v3 body" }, // newest → Current
-  ];
-
-  it("expands an older moment to its snapshot and offers Restore", async () => {
+  it("clicking a historic moment asks the parent to show that version (not the panel)", async () => {
     seedTimeline(entries);
-    render(<TimelinePanel noteId={NOTE} onRestore={() => {}} {...base} />);
+    const onPreview = vi.fn();
+    render(
+      <TimelinePanel
+        noteId={NOTE}
+        previewTs={null}
+        onPreview={onPreview}
+        onRestore={() => {}}
+        {...base}
+      />,
+    );
 
-    const row = await screen.findByText("+5 words");
-    fireEvent.click(row.closest("button")!);
-
-    expect(screen.getByTestId("preview")).toHaveTextContent("v1 body");
-    expect(screen.getByText("Restore this version")).toBeInTheDocument();
-    expect(screen.getByText("Newer versions will be deleted")).toBeInTheDocument();
+    fireEvent.click((await screen.findByText("+5 words")).closest("button")!);
+    expect(onPreview).toHaveBeenCalledWith(entries[0]);
+    // Nothing renders inline in the panel — the main page shows it.
+    expect(screen.queryByText("v1 body")).not.toBeInTheDocument();
   });
 
-  it("marks the newest moment Current and gives it no Restore", async () => {
+  it("clicking the newest moment returns to the live note (preview → null)", async () => {
     seedTimeline(entries);
-    render(<TimelinePanel noteId={NOTE} onRestore={() => {}} {...base} />);
-
-    expect(await screen.findByText("Current")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("+2 words").closest("button")!);
-
-    // Current expands to show content for reference, but offers no restore.
-    expect(screen.getByTestId("preview")).toHaveTextContent("v3 body");
-    expect(screen.queryByText("Restore this version")).not.toBeInTheDocument();
+    const onPreview = vi.fn();
+    render(
+      <TimelinePanel
+        noteId={NOTE}
+        previewTs={200}
+        onPreview={onPreview}
+        onRestore={() => {}}
+        {...base}
+      />,
+    );
+    fireEvent.click((await screen.findByText("+2 words")).closest("button")!);
+    expect(onPreview).toHaveBeenCalledWith(null);
   });
 
-  it("requires a second click to confirm, naming how many newer versions drop", async () => {
+  it("offers Restore only on the highlighted historic record, never on the newest", async () => {
     seedTimeline(entries);
-    const onRestore = vi.fn();
-    render(<TimelinePanel noteId={NOTE} onRestore={onRestore} {...base} />);
+    // Viewing v1 (historic) → Restore shows.
+    const { rerender } = render(
+      <TimelinePanel
+        noteId={NOTE}
+        previewTs={100}
+        onPreview={() => {}}
+        onRestore={() => {}}
+        {...base}
+      />,
+    );
+    expect(await screen.findByText("Restore")).toBeInTheDocument();
 
-    fireEvent.click((await screen.findByText("+5 words")).closest("button")!); // expand v1
-    fireEvent.click(screen.getByText("Restore this version")); // arm
-
-    // v1 has two newer versions (v2, v3).
-    const confirm = screen.getByText("Restore — deletes 2 newer");
-    expect(confirm).toBeInTheDocument();
-    expect(onRestore).not.toHaveBeenCalled(); // arming alone does not restore
-
-    fireEvent.click(confirm); // commit
-    expect(onRestore).toHaveBeenCalledWith(100);
-  });
-
-  it("does not expand legacy entries that have no snapshot", async () => {
-    seedTimeline([{ ts: 100, wordDelta: 5 }]); // no markdown
-    render(<TimelinePanel noteId={NOTE} onRestore={() => {}} {...base} />);
-
-    const row = await screen.findByText("+5 words");
-    fireEvent.click(row.closest("button")!);
+    // Viewing live (newest highlighted) → no Restore anywhere.
+    rerender(
+      <TimelinePanel
+        noteId={NOTE}
+        previewTs={null}
+        onPreview={() => {}}
+        onRestore={() => {}}
+        {...base}
+      />,
+    );
     await waitFor(() => {
-      expect(screen.queryByTestId("preview")).not.toBeInTheDocument();
+      expect(screen.queryByText("Restore")).not.toBeInTheDocument();
     });
+  });
+
+  it("legacy entries without a snapshot are not selectable", async () => {
+    seedTimeline([{ ts: 100, wordDelta: 5 }]); // no markdown
+    const onPreview = vi.fn();
+    render(
+      <TimelinePanel
+        noteId={NOTE}
+        previewTs={null}
+        onPreview={onPreview}
+        onRestore={() => {}}
+        {...base}
+      />,
+    );
+    const btn = (await screen.findByText("+5 words")).closest("button")!;
+    expect(btn).toBeDisabled();
   });
 });
