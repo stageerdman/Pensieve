@@ -10,7 +10,7 @@ import type { GraphClient } from "./graph";
 import { makeGraphClient } from "./graph";
 import type { LocalVault } from "./vault";
 import { tauriVault } from "./vault";
-import { ConflictError, type NoteSyncRecord, type SyncProgress, type SyncState } from "./types";
+import { ConflictError, EMPTY_SYNC_STATE, type NoteSyncRecord, type SyncProgress, type SyncState } from "./types";
 import type { RemoteItem } from "./types";
 import {
   createRoot,
@@ -19,6 +19,7 @@ import {
   downloadNote,
   getAccount,
   getQuota,
+  listNotes,
   noteIdFromName,
   remoteRootExists,
   uploadNote,
@@ -260,9 +261,81 @@ export async function resolveKeepLocal(graph: GraphClient, vault: LocalVault, no
   log.info("sync", "conflict.keepLocal", { noteId });
 }
 
+/** Destructive full restore FROM the cloud: make this device an exact mirror of the
+ *  remote Pensieve folder, throwing away ALL local changes. Every remote note is
+ *  downloaded over local; any local note absent from the cloud is deleted. The sync
+ *  bookkeeping is rebuilt as a fresh baseline (`deltaLink = null`) so the next ordinary
+ *  sync starts clean and doesn't try to re-push the just-overwritten notes.
+ *
+ *  This is the owner's explicit "something got messed up here — take the cloud copy"
+ *  escape hatch; it is NEVER called automatically (a normal sync would push local up).
+ *  Reuses the SyncResult shape (as pure downloads + local deletes) so the sync UI's
+ *  progress/success handling drives it unchanged. */
+export async function restoreFromCloud(
+  graph: GraphClient,
+  vault: LocalVault,
+  onProgress?: (p: SyncProgress) => void,
+): Promise<SyncResult> {
+  // Same gate as sync(): never touch local if the cloud side isn't actually set up.
+  if (!(await remoteRootExists(graph))) throw new RemoteRootMissingError();
+  const result = emptyResult();
+
+  const remote = await listNotes(graph);
+  const remoteIds = new Set<string>();
+  for (const item of remote) {
+    const id = noteIdFromName(item.name);
+    if (id) remoteIds.add(id);
+  }
+
+  // Fresh state, rebuilt as we download. deltaLink stays null → next sync re-baselines.
+  const state: SyncState = { ...EMPTY_SYNC_STATE, notes: {} };
+
+  const totalItems = remote.length;
+  let doneItems = 0;
+
+  // Download every remote note, overwriting local byte-for-byte.
+  for (const item of remote) {
+    const id = noteIdFromName(item.name);
+    if (!id) continue;
+    onProgress?.({ direction: "down", name: id, doneItems, totalItems, bytes: item.size });
+    const dl = await downloadNote(graph, item.name);
+    doneItems++;
+    if (!dl) continue;
+    const remoteTime = item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : nowMs();
+    await vault.writeNote(id, dl.content, { updatedAt: remoteTime });
+    state.notes[id] = {
+      id,
+      remoteId: item.id,
+      cTag: dl.item.cTag ?? item.cTag ?? "",
+      localUpdatedAt: remoteTime,
+      syncedAt: nowMs(),
+    };
+    result.pulled.push(id);
+  }
+
+  // Drop every local note the cloud doesn't have — this is a mirror, not a merge.
+  for (const info of await vault.listNotes()) {
+    if (remoteIds.has(info.id)) continue;
+    await vault.deleteNote(info.id);
+    result.pulledDeletes.push(info.id);
+  }
+
+  state.lastSyncedAt = nowMs();
+  result.lastSyncedAt = state.lastSyncedAt;
+  await vault.writeState(state);
+
+  log.info("sync", "restore.done", {
+    pulled: result.pulled.length,
+    deletedLocal: result.pulledDeletes.length,
+  });
+  return result;
+}
+
 /** A sync engine wired to the real keychain token provider + on-disk vault. */
 export function createEngine(): {
   run(onProgress?: (p: SyncProgress) => void): Promise<SyncResult>;
+  /** Overwrite this device wholesale with the cloud copy (see restoreFromCloud). */
+  restore(onProgress?: (p: SyncProgress) => void): Promise<SyncResult>;
   /** Create the remote Pensieve folder, then run the first sync. The explicit
    *  "Summon Pensieve" action for a drive that wasn't set up yet. */
   summon(onProgress?: (p: SyncProgress) => void): Promise<SyncResult>;
@@ -274,6 +347,7 @@ export function createEngine(): {
   const vault = tauriVault();
   return {
     run: (onProgress) => sync(graph, vault, onProgress),
+    restore: (onProgress) => restoreFromCloud(graph, vault, onProgress),
     summon: async (onProgress) => {
       await createRoot(graph);
       return sync(graph, vault, onProgress);

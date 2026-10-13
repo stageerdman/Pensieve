@@ -437,6 +437,51 @@
   cursor: pointer;
 }
 
+/* ── restore-from-cloud: the quiet, destructive escape hatch (not a button) ──── */
+.sw-restore-row {
+  margin-top: 12px;
+  text-align: center;
+}
+.sw-restore {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  color: hsl(var(--text-muted));
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.sw-restore-confirm {
+  margin-top: 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: hsl(var(--text-muted));
+}
+.sw-restore-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+}
+.sw-restore-go {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--danger));
+  cursor: pointer;
+}
+.sw-restore-cancel {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  color: hsl(var(--text-muted));
+  cursor: pointer;
+}
+
 /* ── reduced motion: static crisp nodes, fully visible, no loops ─────────────── */
 @media (prefers-reduced-motion: reduce) {
   .spell-bloom,

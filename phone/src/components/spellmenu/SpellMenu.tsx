@@ -20,10 +20,11 @@ export interface SpellMenuProps {
   syncState: SyncStatus;
   account: string;
   onSyncPrimary: () => void;
+  onSyncRestore: () => void;
   reduce: boolean;
 }
 
-export function SpellMenu({ api, onCast, onLongCast, onSparkle, syncState, account, onSyncPrimary, reduce }: SpellMenuProps) {
+export function SpellMenu({ api, onCast, onLongCast, onSparkle, syncState, account, onSyncPrimary, onSyncRestore, reduce }: SpellMenuProps) {
   if (!api.open) return null;
   const conditional = api.form === "conditional";
   const windowed = api.windowSpellId !== null;
@@ -65,6 +66,7 @@ export function SpellMenu({ api, onCast, onLongCast, onSparkle, syncState, accou
           account={account}
           onClose={api.closeWindow}
           onPrimary={onSyncPrimary}
+          onRestore={onSyncRestore}
         />
       ) : null}
     </div>
