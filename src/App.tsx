@@ -19,6 +19,7 @@ import { contentCharCount } from "./lib/text";
 import { useNotes } from "./hooks/useNotes";
 import { useTabs } from "./hooks/useTabs";
 import { useGlobalShortcuts } from "./hooks/useGlobalShortcuts";
+import { useNativeCommands } from "./hooks/useNativeCommands";
 import { useGallery } from "./hooks/useGallery";
 import { useTheme } from "./hooks/useTheme";
 import { useFullscreen } from "./hooks/useFullscreen";
@@ -180,6 +181,12 @@ export default function App() {
       setDetailsOpen(false);
       setFocusMode(false);
     },
+  });
+
+  // Menu-bar icon + global ⌘⇧N / ⌘⇧A (native shell) → the same new-note / Accio actions.
+  useNativeCommands({
+    newNote: () => void newNote(),
+    summon: summonSearch,
   });
 
   const showChrome = !focusMode;
