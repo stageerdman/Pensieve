@@ -145,17 +145,17 @@ describe("PhoneApp — the Spell Menu", () => {
     await act(async () => {
       tapNode(container as HTMLElement, 2); // Sync
     });
-    // The restore line is quiet text, not the primary button; tapping it only ARMS
-    // the confirm — nothing destructive yet.
+    // The restore line is quiet text, not the primary button; the first tap only ARMS
+    // it in place ("Are you sure?") — nothing destructive yet.
     const restore = container.querySelector<HTMLElement>(".sw-restore")!;
     expect(restore).toBeTruthy();
     await act(async () => {
       fireEvent.click(restore);
     });
-    expect(container.querySelector(".sw-restore-confirm")).toBeTruthy();
-    // Confirming pulls down: the cast overlay shows and the menu closes behind it.
+    expect(container.querySelector<HTMLElement>(".sw-restore")!.textContent).toContain("Are you sure?");
+    // A second tap pulls down: the cast overlay shows and the menu closes behind it.
     await act(async () => {
-      fireEvent.click(container.querySelector<HTMLElement>(".sw-restore-go")!);
+      fireEvent.click(container.querySelector<HTMLElement>(".sw-restore")!);
     });
     expect(container.querySelector(".spell.show")).toBeTruthy();
     expect(container.querySelector(".spell-overlay")).toBeNull();

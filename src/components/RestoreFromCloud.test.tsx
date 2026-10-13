@@ -2,46 +2,40 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { RestoreFromCloud } from "./RestoreFromCloud";
 
-// The destructive escape hatch is a two-tap affair: the text only ARMS a confirm;
-// nothing is wiped until the explicit "Restore from cloud" is pressed. Timers drive
-// the auto-disarm, so fake them for determinism.
-describe("RestoreFromCloud — click to arm, confirm to restore", () => {
+// Accident-proof by design: the SAME line takes two clicks. The first only arms it
+// ("Are you sure?"); only a second click restores. If left alone it reverts after 5s.
+// Fake timers so the revert is deterministic.
+describe("RestoreFromCloud — two clicks on one line, 5s auto-revert", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("the first click only reveals the confirm, never restores", () => {
+  it("the first click only arms it (turns into 'Are you sure?'), never restores", () => {
     const onConfirm = vi.fn();
     render(<RestoreFromCloud onConfirm={onConfirm} />);
     fireEvent.click(screen.getByText("Restore everything from cloud"));
-    expect(screen.getByText("Restore from cloud")).toBeInTheDocument();
-    expect(screen.getByText("Cancel")).toBeInTheDocument();
+    expect(screen.getByText("Are you sure?")).toBeInTheDocument();
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
-  it("confirming fires onConfirm exactly once", () => {
+  it("a second click on 'Are you sure?' restores exactly once", () => {
     const onConfirm = vi.fn();
     render(<RestoreFromCloud onConfirm={onConfirm} />);
     fireEvent.click(screen.getByText("Restore everything from cloud"));
-    fireEvent.click(screen.getByText("Restore from cloud"));
+    fireEvent.click(screen.getByText("Are you sure?"));
     expect(onConfirm).toHaveBeenCalledTimes(1);
+    // settles back to the resting label
+    expect(screen.getByText("Restore everything from cloud")).toBeInTheDocument();
   });
 
-  it("Cancel backs out with no restore", () => {
+  it("reverts to the resting label after 5s if the second click never comes", () => {
     const onConfirm = vi.fn();
     render(<RestoreFromCloud onConfirm={onConfirm} />);
     fireEvent.click(screen.getByText("Restore everything from cloud"));
-    fireEvent.click(screen.getByText("Cancel"));
+    act(() => void vi.advanceTimersByTime(4999));
+    expect(screen.getByText("Are you sure?")).toBeInTheDocument(); // not yet
+    act(() => void vi.advanceTimersByTime(1));
     expect(screen.getByText("Restore everything from cloud")).toBeInTheDocument();
-    expect(onConfirm).not.toHaveBeenCalled();
-  });
-
-  it("auto-disarms if the confirm is left untouched", () => {
-    const onConfirm = vi.fn();
-    render(<RestoreFromCloud onConfirm={onConfirm} />);
-    fireEvent.click(screen.getByText("Restore everything from cloud"));
-    act(() => void vi.advanceTimersByTime(4000));
-    expect(screen.getByText("Restore everything from cloud")).toBeInTheDocument();
-    expect(screen.queryByText("Restore from cloud")).not.toBeInTheDocument();
+    expect(screen.queryByText("Are you sure?")).not.toBeInTheDocument();
     expect(onConfirm).not.toHaveBeenCalled();
   });
 });

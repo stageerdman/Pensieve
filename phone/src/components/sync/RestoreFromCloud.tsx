@@ -1,13 +1,14 @@
-// RestoreFromCloud.tsx — the quiet escape hatch at the foot of the Sync window.
+// RestoreFromCloud.tsx — the quiet, destructive escape hatch at the foot of the Sync window.
 //
-// Deliberately NOT a button: a single line of muted, dotted-underlined text. Tapping it
-// doesn't act — it reveals an inline confirm, because restore REPLACES everything on this
-// phone with the cloud copy (local changes are lost). Auto-disarms if left untouched, so
-// a stray tap never stays armed. Mirrors the desktop component of the same name.
+// Deliberately NOT a one-click action: restore REPLACES everything on this phone with the
+// cloud copy (local changes are lost). A single line of muted, dotted-underlined text. The
+// first tap only arms it — the SAME line turns into a red "Are you sure?" — and only a
+// second tap (within 5s) actually restores. Left alone, it reverts on its own. Mirrors the
+// desktop component of the same name.
 
 import { useEffect, useRef, useState } from "react";
 
-const DISARM_MS = 4000;
+const REVERT_MS = 5000;
 
 export function RestoreFromCloud({ onConfirm }: { onConfirm: () => void }) {
   const [armed, setArmed] = useState(false);
@@ -16,46 +17,23 @@ export function RestoreFromCloud({ onConfirm }: { onConfirm: () => void }) {
   const clear = () => {
     if (timer.current) clearTimeout(timer.current);
   };
-  const disarm = () => {
-    clear();
-    setArmed(false);
-  };
   useEffect(() => clear, []);
 
-  if (!armed) {
-    return (
-      <button
-        type="button"
-        className="sw-restore"
-        onClick={() => {
-          setArmed(true);
-          clear();
-          timer.current = setTimeout(() => setArmed(false), DISARM_MS);
-        }}
-      >
-        Restore everything from cloud
-      </button>
-    );
-  }
+  const onClick = () => {
+    if (!armed) {
+      setArmed(true);
+      clear();
+      timer.current = setTimeout(() => setArmed(false), REVERT_MS);
+      return;
+    }
+    clear();
+    setArmed(false);
+    onConfirm();
+  };
 
   return (
-    <div className="sw-restore-confirm">
-      <p>This replaces everything on this phone with the cloud copy. Local changes are lost.</p>
-      <div className="sw-restore-actions">
-        <button
-          type="button"
-          className="sw-restore-go"
-          onClick={() => {
-            disarm();
-            onConfirm();
-          }}
-        >
-          Restore from cloud
-        </button>
-        <button type="button" className="sw-restore-cancel" onClick={disarm}>
-          Cancel
-        </button>
-      </div>
-    </div>
+    <button type="button" className="sw-restore" data-armed={armed} onClick={onClick}>
+      {armed ? "Are you sure?" : "Restore everything from cloud"}
+    </button>
   );
 }

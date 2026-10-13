@@ -437,7 +437,9 @@
   cursor: pointer;
 }
 
-/* ── restore-from-cloud: the quiet, destructive escape hatch (not a button) ──── */
+/* ── restore-from-cloud: the quiet, destructive escape hatch (not a button) ──────
+   One line of muted dotted-underlined text; the first tap arms it into a red
+   "Are you sure?", a second tap within 5s restores. */
 .sw-restore-row {
   margin-top: 12px;
   text-align: center;
@@ -451,35 +453,11 @@
   text-decoration: underline dotted;
   text-underline-offset: 2px;
   cursor: pointer;
+  transition: color 0.15s ease;
 }
-.sw-restore-confirm {
-  margin-top: 12px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: hsl(var(--text-muted));
-}
-.sw-restore-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-top: 8px;
-}
-.sw-restore-go {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 12px;
-  font-weight: 600;
+.sw-restore[data-armed="true"] {
   color: hsl(var(--danger));
-  cursor: pointer;
-}
-.sw-restore-cancel {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 12px;
-  color: hsl(var(--text-muted));
-  cursor: pointer;
+  font-weight: 600;
 }
 
 /* ── reduced motion: static crisp nodes, fully visible, no loops ─────────────── */
