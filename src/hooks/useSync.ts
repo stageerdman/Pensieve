@@ -122,6 +122,11 @@ export function useSync(onChanged?: () => void) {
   // "Summon Pensieve": create the remote folder on this drive, then first-sync.
   const summon = useCallback(() => runSync((op) => createEngine().summon(op)), [runSync]);
 
+  // Destructive "restore everything from cloud": overwrite this device with the cloud
+  // copy, discarding local changes. Same runner as a sync (progress/success/error),
+  // but the engine mirrors down instead of merging. The caller confirms first.
+  const restoreFromCloud = useCallback(() => runSync((op) => createEngine().restore(op)), [runSync]);
+
   const connect = useCallback(async () => {
     if (!isTauri() || busy.current) return;
     busy.current = true;
@@ -172,5 +177,5 @@ export function useSync(onChanged?: () => void) {
     [syncNow],
   );
 
-  return { ui, connect, disconnect, syncNow, summon, keepLocal, refreshInfo };
+  return { ui, connect, disconnect, syncNow, summon, keepLocal, refreshInfo, restoreFromCloud };
 }

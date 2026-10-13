@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import type { GraphClient, GraphFetchOptions } from "./graph";
 import type { LocalVault, LocalNoteInfo, WriteTimes } from "./vault";
 import { EMPTY_SYNC_STATE, RemoteRootMissingError, type SyncState } from "./types";
-import { sync, resolveKeepLocal } from "./engine";
+import { sync, resolveKeepLocal, restoreFromCloud } from "./engine";
 import { createRoot } from "./adapter";
 
 // ---- in-memory LocalVault ----
@@ -104,6 +104,17 @@ class FakeDrive {
       if (path === "/me/drive/root/children" && method === "POST") {
         self.rootExists = true;
         return resp(201, { id: "root" });
+      }
+
+      // children listing (listNotes) — the whole-folder read restoreFromCloud uses
+      if (path.includes(":/children")) {
+        const value = [...self.files].map(([name, f]) => ({
+          id: f.id,
+          name,
+          cTag: f.cTag,
+          lastModifiedDateTime: f.time,
+        }));
+        return resp(200, { value });
       }
 
       // delta
@@ -319,6 +330,45 @@ describe("sync engine", () => {
     expect(r.pushed).toContain("x");
     expect(r.conflicts).toEqual([]);
     expect(drive.files.get("x.md")?.content).toBe("# local wins\n");
+  });
+
+  it("restoreFromCloud overwrites local, deletes local-only notes, and re-baselines", async () => {
+    // Remote has a + b; local has a (stale/divergent edit), b (matching-ish), and a
+    // local-only note c that the cloud never saw. A restore should make local == cloud.
+    drive.put("a.md", "# A cloud\n");
+    drive.put("b.md", "# B cloud\n");
+    vault.edit("a", "# A local garbage\n", 999_999_999_999); // diverged local edit
+    vault.edit("b", "# B local\n", 5);
+    vault.edit("c", "# C local only\n", 10); // not in the cloud
+
+    const r = await restoreFromCloud(graph, vault);
+
+    expect(r.pulled.sort()).toEqual(["a", "b"]);
+    expect(r.pulledDeletes).toEqual(["c"]); // local-only note dropped
+    expect(await vault.readNote("a")).toBe("# A cloud\n"); // local edit discarded
+    expect(await vault.readNote("b")).toBe("# B cloud\n");
+    expect(vault.notes.has("c")).toBe(false);
+    // State is a fresh baseline: a + b recorded with the cloud cTags, deltaLink reset.
+    expect(Object.keys(vault.state.notes).sort()).toEqual(["a", "b"]);
+    expect(vault.state.notes.a.cTag).toBe(drive.files.get("a.md")?.cTag);
+    expect(vault.state.deltaLink).toBeNull();
+    expect(vault.state.lastSyncedAt).toBeGreaterThan(0);
+  });
+
+  it("restoreFromCloud refuses (and never touches local) when the remote root is missing", async () => {
+    drive.rootExists = false;
+    vault.edit("x", "# keep me\n", 5);
+    await expect(restoreFromCloud(graph, vault)).rejects.toBeInstanceOf(RemoteRootMissingError);
+    expect(await vault.readNote("x")).toBe("# keep me\n"); // untouched
+  });
+
+  it("restoreFromCloud into an empty cloud clears the local vault", async () => {
+    vault.edit("x", "# X\n", 5);
+    vault.edit("y", "# Y\n", 6);
+    const r = await restoreFromCloud(graph, vault);
+    expect(r.pulled).toEqual([]);
+    expect(r.pulledDeletes.sort()).toEqual(["x", "y"]);
+    expect(await vault.listNotes()).toEqual([]);
   });
 
   it("propagates a local deletion to the remote", async () => {
