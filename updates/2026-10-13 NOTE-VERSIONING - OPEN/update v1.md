@@ -39,12 +39,23 @@ Restore writes the snapshot back and truncates the forward history.
 5. **Verify + ship** — tsc, tests, web build; docs (`wiki.md`, `issues.txt`); merge to
    `main`; `npm run tauri:build`; confirm the installed `.app`.
 
-## Status
-- [ ] P1  data model + pure logic
-- [ ] P2  store layer
-- [ ] P3  useNotes restore
-- [ ] P4  timeline panel UI
-- [ ] P5  verify / docs / merge / native build
+## Status — BUILT, merged to main (web-verified; owner to confirm on the native app)
+- [x] P1  data model + pure logic — `TimelineEntry.markdown`, `makeEntry` snapshot,
+          `pruneToRecentDays`, `truncateAfter`; 14 timeline unit tests.
+- [x] P2  store layer — `saveTimeline` + prune-on-append in both adapters; store tests.
+- [x] P3  useNotes restore — snapshot on close, `restoreVersion` (destructive), `loadEpoch`
+          remount; integration test.
+- [x] P4  timeline panel UI — accordion + lazy `NotePreview` + Current marker + 2-step
+          Restore; 4 render tests. App wiring (`id:loadEpoch` editor key).
+- [x] P5  verify / docs — `tsc` clean, 548 tests green (5× stable), web `npm run build`
+          OK; docs + `issues.txt` updated. Merge + native build below.
+
+### How to test (owner)
+Open a note, write, pause ≥2 min (or switch notes) to close a session — that records a
+version. Repeat. Open the Timeline (clock icon). Click an older moment → it expands to
+show the note as it was; click **Restore this version** then the red **Restore — deletes N
+newer** to confirm. The note reverts and the newer moments vanish. The newest moment is
+**Current** (no Restore). History keeps the 7 most recent edit-days.
 
 ### Decisions
 - Restore = **destructive truncation** (drop newer). Owner-chosen, 2-step confirm.
