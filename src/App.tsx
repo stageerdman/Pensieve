@@ -160,7 +160,14 @@ export default function App() {
   useGlobalShortcuts({
     newNote: () => void newNote(),
     closeActiveTab: () => {
+      // ⌘W closes the current tab; on Home (nothing left to close) it puts Pensieve away
+      // into the menu bar — the same hide-to-bar the red button triggers (Rust intercepts
+      // CloseRequested and hides instead of quitting).
       if (!onHome) closeTab(activeTab);
+      else if (IS_TAURI)
+        void import("@tauri-apps/api/window").then(({ getCurrentWindow }) =>
+          getCurrentWindow().close(),
+        );
     },
     togglePinCurrent: () => {
       if (!onHome && current) void togglePin(current.id);
