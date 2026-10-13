@@ -93,7 +93,6 @@ export function useAccioSearch(cfg: AccioConfig): AccioApi {
     cfgRef.current.wheelRefresh();
     cfgRef.current.onSheet(queryRef.current);
     haptic(8);
-    console.log("[accio] open");
     const input = cfgRef.current.accioInputRef.current;
     if (input) {
       // preventScroll: focusing the (briefly off-screen) bar must NEVER scroll the
@@ -125,7 +124,6 @@ export function useAccioSearch(cfg: AccioConfig): AccioApi {
   }
 
   function settleSearch() {
-    console.log("[accio] close", queryRef.current.trim() ? "keep query → pill" : "clear");
     if (queryRef.current.trim()) hideBar();
     else clearSearch();
   }

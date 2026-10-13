@@ -56,7 +56,6 @@ export function useKeyboardInset(
       const up = kb > 80;
       if (up !== upRef.current) {
         upRef.current = up;
-        console.log("[kb]", up ? "up" : "down", "kb=" + Math.round(kb), "offsetTop=" + Math.round(vv.offsetTop));
         if (up) cbRef.current.onUp?.();
         else cbRef.current.onDown?.();
       }
