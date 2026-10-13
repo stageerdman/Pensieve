@@ -13,6 +13,7 @@
 // is archived in updates/2026-10-11 SPELL-MENU - OPEN/_archive.)
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type { Note } from "./types";
 import { createSeed } from "./seed";
 import { esc, haptic, prefersReducedMotion } from "./util";
@@ -40,7 +41,7 @@ import { SpellMenu } from "./components/spellmenu/SpellMenu";
 import { SummonBar } from "./components/accio/SummonBar";
 import { SearchSheet } from "./components/accio/SearchSheet";
 import { SyncSpell } from "./components/sync/SyncSpell";
-import { NoteView } from "./components/note/NoteView";
+import { MemoryPage } from "./components/note/MemoryPage";
 import type { FmtKey } from "./components/note/NoteToolbar";
 import { ConjureThread, conjure } from "./components/ConjureThread";
 import { currentBlock, focusTitle, placeCaret, syncPlaceholders } from "./components/note/noteEditing";
@@ -123,7 +124,8 @@ export function PhoneApp() {
   const [view, setView] = useState<Note[]>(() => computeView(dataRef.current!, "", []));
   const [searchList, setSearchList] = useState<Note[]>(() => rankNotes(dataRef.current!, "", []));
   const [count, setCount] = useState<string>(() => computeCount("", dataRef.current!.length, dataRef.current!.length));
-  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteMounted, setNoteMounted] = useState(false); // the Memory page is in the DOM only while open/closing
+  const [noteOpen, setNoteOpen] = useState(false); // drives the .open slide (set a frame after mount)
   const [editingNote, setEditingNote] = useState(false);
   const [kbOpen, setKbOpen] = useState(false);
   const [micListening, setMicListening] = useState(false);
@@ -139,6 +141,7 @@ export function PhoneApp() {
   const filterQueryRef = useRef("");
   const dictRef = useRef(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noteUnmountTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // a fns ref so hooks wired BEFORE the actions exist always call the latest closure
   const fns = useRef<{
@@ -216,6 +219,15 @@ export function PhoneApp() {
     currentRef.current = d;
     noteOpened(d.id);
     accio.hideBar(); // drop the summon bar if up; the filter/pill persists
+    // cancel a pending unmount from a just-closed page so a quick reopen isn't yanked away
+    if (noteUnmountTimer.current) {
+      clearTimeout(noteUnmountTimer.current);
+      noteUnmountTimer.current = null;
+    }
+    // Mount the Memory page SYNCHRONOUSLY so its refs are live before we write the body;
+    // then flip .open a frame later so it slides up from the bottom (it's not parked in
+    // the home DOM anymore — it exists only while open/closing).
+    flushSync(() => setNoteMounted(true));
     const noteBody = noteBodyRef.current;
     if (noteDateRef.current) noteDateRef.current.textContent = d.when || "Written " + (d.created || d.d);
     if (noteBody) {
@@ -232,7 +244,8 @@ export function PhoneApp() {
       }
       syncPlaceholders(noteBody);
     }
-    setNoteOpen(true);
+    if (reduce) setNoteOpen(true);
+    else requestAnimationFrame(() => setNoteOpen(true));
   }
 
   function openNewNote(dictate: boolean) {
@@ -263,9 +276,15 @@ export function PhoneApp() {
 
   function exitNote() {
     if (currentRef.current) autosave.commit();
-    setNoteOpen(false);
+    setNoteOpen(false); // slides down
     setEditingNote(false);
     currentRef.current = null;
+    // unmount after the slide-down finishes so the Memory page leaves the DOM entirely
+    if (noteUnmountTimer.current) clearTimeout(noteUnmountTimer.current);
+    noteUnmountTimer.current = setTimeout(() => {
+      noteUnmountTimer.current = null;
+      setNoteMounted(false);
+    }, reduce ? 0 : 520);
   }
 
   // ---- note body events ----
@@ -549,17 +568,23 @@ export function PhoneApp() {
       {/* SYNC cast animation (the gold spell) */}
       <SyncSpell show={spell.show} castId={spell.castId} label={spell.label} labelColor={spell.labelColor} />
 
-      {/* ACCIO searching sheet + the summon bar (promotes above the keyboard) */}
-      <SearchSheet list={searchList} queryText={queryText} onOpen={openNote} />
-      {accio.searching && !accio.filterQuery.trim() ? <DockSettings recents={recents} onRun={runRecent} /> : null}
-      <SummonBar
-        inputRef={accioInputRef}
-        value={accio.filterQuery}
-        count={scount}
-        onInput={accio.handleInput}
-        onKeyDown={accio.handleKeydown}
-        onBlur={accio.handleInputBlur}
-      />
+      {/* ACCIO searching sheet + the summon bar — mounted ONLY while searching (openAccio
+          flushSyncs `searching` true so the input exists for its in-gesture focus), so
+          none of it sits in the home DOM at rest. */}
+      {accio.searching ? (
+        <>
+          <SearchSheet list={searchList} queryText={queryText} onOpen={openNote} />
+          {!accio.filterQuery.trim() ? <DockSettings recents={recents} onRun={runRecent} /> : null}
+          <SummonBar
+            inputRef={accioInputRef}
+            value={accio.filterQuery}
+            count={scount}
+            onInput={accio.handleInput}
+            onKeyDown={accio.handleKeydown}
+            onBlur={accio.handleInputBlur}
+          />
+        </>
+      ) : null}
 
       {/* THE SPELL MENU — radial overlay bloomed from the gold button */}
       <SpellMenu
@@ -577,31 +602,28 @@ export function PhoneApp() {
       {/* a brief close/switch twinkle — a top-level sibling so it survives the overlay unmount */}
       {sparkle ? <span className="spell-sparkle" key={sparkle} aria-hidden="true" /> : null}
 
-      {/* NOTE VIEW */}
-      <NoteView
-        open={noteOpen}
-        noteRef={noteRef}
-        surfaceRef={noteSurfaceRef}
-        bodyRef={noteBodyRef}
-        dateRef={noteDateRef}
-        savedRef={noteSavedRef}
-        voiceRef={voiceRef}
-        micListening={micListening}
-        onBack={() => {
-          autosave.commit();
-          setNoteOpen(false);
-          setEditingNote(false);
-          currentRef.current = null;
-        }}
-        onDateClick={() => noteBodyRef.current?.blur()}
-        onBodyInput={onBodyInput}
-        onBodyKeyDown={onBodyKeyDown}
-        onBodyFocus={() => setEditingNote(true)}
-        onBodyBlur={() => setEditingNote(false)}
-        onFormat={applyFmt}
-        onVoice={toggleDictation}
-        onDone={() => noteBodyRef.current?.blur()}
-      />
+      {/* THE MEMORY PAGE — its own full-screen surface, mounted only while open/closing */}
+      {noteMounted ? (
+        <MemoryPage
+          open={noteOpen}
+          noteRef={noteRef}
+          surfaceRef={noteSurfaceRef}
+          bodyRef={noteBodyRef}
+          dateRef={noteDateRef}
+          savedRef={noteSavedRef}
+          voiceRef={voiceRef}
+          micListening={micListening}
+          onBack={() => exitNote()}
+          onDateClick={() => noteBodyRef.current?.blur()}
+          onBodyInput={onBodyInput}
+          onBodyKeyDown={onBodyKeyDown}
+          onBodyFocus={() => setEditingNote(true)}
+          onBodyBlur={() => setEditingNote(false)}
+          onFormat={applyFmt}
+          onVoice={toggleDictation}
+          onDone={() => noteBodyRef.current?.blur()}
+        />
+      ) : null}
 
       <ConjureThread threadRef={threadRef} />
       <div className="home-indicator" />

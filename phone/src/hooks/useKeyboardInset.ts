@@ -41,23 +41,22 @@ export function useKeyboardInset(
       const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
       kbRef.current = kb;
       root.style.setProperty("--kb", kb + "px");
-      // Counteract iOS's visual-viewport PAN. When an input inside a position:fixed
-      // shell (the Accio bar) is focused, iOS pans the visual viewport up to reveal it,
-      // dragging all our fixed/absolute chrome up with it — "everything lifts up", and
-      // position:fixed can't resist it. `offsetTop` is exactly how far it panned, so
-      // translate the whole app back down by the same amount to pin it in place. Resets
-      // to none when the viewport returns home.
-      root.style.transform = vv.offsetTop ? `translateY(${vv.offsetTop}px)` : "";
-      // Belt + suspenders: never leave the document itself scrolled (the layout rides
-      // the --kb var, never document scroll, so snapping to 0 is always safe).
+      // The app shell NEVER moves. We used to translateY(vv.offsetTop) to "compensate"
+      // for iOS's visual-viewport pan, but that transform could get stuck and shove the
+      // whole screen up with no way back — and on desktop a focus-driven scrollIntoView
+      // of the overflow:hidden shell did the same (the "shifts up and never returns"
+      // bug). Our bars ride above the keyboard via the --kb var, so nothing needs to
+      // move; we keep the document pinned at 0 and clear any stale transform.
       const se = document.scrollingElement as HTMLElement | null;
       if (window.scrollY || (se && se.scrollTop)) {
         window.scrollTo(0, 0);
         if (se) se.scrollTop = 0;
       }
+      if (root.style.transform) root.style.transform = "";
       const up = kb > 80;
       if (up !== upRef.current) {
         upRef.current = up;
+        console.log("[kb]", up ? "up" : "down", "kb=" + Math.round(kb), "offsetTop=" + Math.round(vv.offsetTop));
         if (up) cbRef.current.onUp?.();
         else cbRef.current.onDown?.();
       }
@@ -72,6 +71,8 @@ export function useKeyboardInset(
         vv.removeEventListener("resize", updateKB);
         vv.removeEventListener("scroll", updateKB);
       }
+      root?.style.removeProperty("--kb");
+      if (root) root.style.transform = "";
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -14,6 +14,7 @@
 // (searchOpenedAt jitter window).
 
 import { useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { haptic, prefersReducedMotion } from "../util";
 
 export interface AccioConfig {
@@ -85,13 +86,20 @@ export function useAccioSearch(cfg: AccioConfig): AccioApi {
     cfgRef.current.onExitNote(); // always summon from home, never over a note
     searchArmed.current = false;
     searchOpenedAt.current = Date.now();
-    setSearch(true);
+    // Mount the summon bar SYNCHRONOUSLY so its input exists for the focus() below —
+    // iOS only raises the keyboard when focus lands inside the tap gesture, and the bar
+    // is conditionally rendered on `searching`, so it isn't in the DOM until now.
+    flushSync(() => setSearch(true));
     cfgRef.current.wheelRefresh();
     cfgRef.current.onSheet(queryRef.current);
     haptic(8);
+    console.log("[accio] open");
     const input = cfgRef.current.accioInputRef.current;
     if (input) {
-      input.focus(); // synchronous, in the tap gesture → iOS raises the keyboard once
+      // preventScroll: focusing the (briefly off-screen) bar must NEVER scroll the
+      // overflow:hidden shell — that scroll was the "whole screen shifts up and never
+      // returns" bug (it reproduced on desktop, where there's no keyboard at all).
+      input.focus({ preventScroll: true }); // in the tap gesture → iOS raises the keyboard once
       try {
         const L = input.value.length;
         input.setSelectionRange(L, L);
@@ -117,6 +125,7 @@ export function useAccioSearch(cfg: AccioConfig): AccioApi {
   }
 
   function settleSearch() {
+    console.log("[accio] close", queryRef.current.trim() ? "keep query → pill" : "clear");
     if (queryRef.current.trim()) hideBar();
     else clearSearch();
   }

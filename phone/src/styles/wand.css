@@ -977,20 +977,10 @@ body {
   border-color: hsl(var(--accio) / 0.55);
   box-shadow: 0 0 28px -10px hsl(var(--accio) / 0.55);
 }
-.search-sheet[data-n="1"] .sr {
-  padding: 15px 16px;
-}
-.search-sheet[data-n="1"] .sr .flask {
-  width: 46px;
-  height: 60px;
-}
-.search-sheet[data-n="1"] .sr .snip {
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  line-height: 1.4;
-}
+/* Result rows stay a UNIFORM size at every count. The old data-n="1" "hero single
+   result" (bigger flask + padding + 2-line snip) made rows resize and jump as the
+   match count crossed 1 while typing — "flasks jumping, spacing breaking". The best
+   match is still lit via .sr:last-child; it just no longer changes dimensions. */
 .sr-empty {
   text-align: center;
   color: hsl(var(--text-muted));
