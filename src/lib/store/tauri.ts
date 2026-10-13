@@ -9,6 +9,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Category, Note, NoteBody, NoteMeta, Store, TimelineEntry } from "../types";
 import { titleFromMarkdown, excerptFromMarkdown, contentCharCount, plainTextFromMarkdown } from "../text";
 import { parseFrontmatter, composeFrontmatter } from "../md/frontmatter";
+import { pruneToRecentDays } from "../timeline";
 import { log } from "../logger";
 
 const readText = (rel: string) => invoke<string | null>("read_text", { rel });
@@ -174,9 +175,13 @@ export class TauriStore implements Store {
   }
 
   async appendTimeline(id: string, entry: TimelineEntry): Promise<void> {
-    const list = await this.loadTimeline(id);
-    list.push(entry);
+    const list = pruneToRecentDays([...(await this.loadTimeline(id)), entry]);
     await writeText(timelinePath(id), JSON.stringify(list));
-    log.debug("store", "timeline.append", { id, delta: entry.wordDelta });
+    log.debug("store", "timeline.append", { id, delta: entry.wordDelta, kept: list.length });
+  }
+
+  async saveTimeline(id: string, entries: TimelineEntry[]): Promise<void> {
+    await writeText(timelinePath(id), JSON.stringify(entries));
+    log.debug("store", "timeline.save", { id, count: entries.length });
   }
 }

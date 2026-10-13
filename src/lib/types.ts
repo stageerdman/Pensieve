@@ -84,5 +84,9 @@ export interface Store {
   // it must not reorder a list sorted by update time.
   setPinned(id: string, pinned: boolean): Promise<void>;
   loadTimeline(id: string): Promise<TimelineEntry[]>;
+  // Append one session's entry. The adapter prunes the stored history to the most
+  // recent edit-days (see timeline.pruneToRecentDays) so it can never grow unbounded.
   appendTimeline(id: string, entry: TimelineEntry): Promise<void>;
+  // Replace a note's whole timeline (used by Restore to truncate forward history).
+  saveTimeline(id: string, entries: TimelineEntry[]): Promise<void>;
 }

@@ -5,6 +5,7 @@
 
 import type { Note, NoteBody, NoteMeta, Store, TimelineEntry } from "../types";
 import { titleFromMarkdown, excerptFromMarkdown, contentCharCount, plainTextFromMarkdown } from "../text";
+import { pruneToRecentDays } from "../timeline";
 import { log } from "../logger";
 
 const NOTE_PREFIX = "pensieve:note:";
@@ -122,9 +123,13 @@ export class BrowserStore implements Store {
   }
 
   async appendTimeline(id: string, entry: TimelineEntry): Promise<void> {
-    const list = await this.loadTimeline(id);
-    list.push(entry);
+    const list = pruneToRecentDays([...(await this.loadTimeline(id)), entry]);
     localStorage.setItem(TIMELINE_PREFIX + id, JSON.stringify(list));
-    log.debug("store", "timeline.append", { id, delta: entry.wordDelta });
+    log.debug("store", "timeline.append", { id, delta: entry.wordDelta, kept: list.length });
+  }
+
+  async saveTimeline(id: string, entries: TimelineEntry[]): Promise<void> {
+    localStorage.setItem(TIMELINE_PREFIX + id, JSON.stringify(entries));
+    log.debug("store", "timeline.save", { id, count: entries.length });
   }
 }
