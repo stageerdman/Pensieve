@@ -59,7 +59,10 @@ export function useReelFisheye(
       (slot as HTMLElement).style.zIndex = "";
       c.classList.remove("live");
       const sn = c.querySelector(".snippet") as HTMLElement | null;
-      if (sn) sn.style.opacity = "0";
+      if (sn) {
+        sn.style.opacity = "0";
+        sn.style.maxHeight = "0px";
+      }
     }
 
     function updateLens() {
@@ -94,7 +97,23 @@ export function useReelFisheye(
         slot.style.zIndex = String(Math.round(scale * 1000));
         c.classList.add("live");
         const sn = c.querySelector(".snippet") as HTMLElement | null;
-        if (sn) sn.style.opacity = reveal.toFixed(3);
+        if (sn) {
+          sn.style.opacity = reveal.toFixed(3);
+          // Grow the snippet IN with reveal so the focal text block self-centres at any
+          // line count. Measure its natural (3-line-clamped) height once, lazily, and
+          // cache it on the node; relayout() clears the cache when wrapping can change.
+          if (reveal > 0) {
+            let fh = Number(sn.dataset.fh || 0);
+            if (!fh) {
+              sn.style.maxHeight = "none";
+              fh = sn.scrollHeight;
+              if (fh) sn.dataset.fh = String(fh);
+            }
+            sn.style.maxHeight = (reveal * fh).toFixed(1) + "px";
+          } else {
+            sn.style.maxHeight = "0px";
+          }
+        }
         liveSlotsRef.current.add(i);
       }
       focusIdxRef.current = Math.max(0, Math.min(n - 1, Math.round(f)));
@@ -114,6 +133,9 @@ export function useReelFisheye(
       // new DOM → forget the old window, then re-measure + repaint
       liveSlotsRef.current.clear();
       focusIdxRef.current = -1;
+      // wrapping (and so a snippet's natural height) can change with the reel width —
+      // drop the cached measurements so updateLens re-measures.
+      track!.querySelectorAll<HTMLElement>(".snippet").forEach((el) => delete el.dataset.fh);
       layoutReel();
       updateLens();
     }
@@ -141,8 +163,11 @@ export function useReelFisheye(
           rafing = false;
         });
       }
-      if (settle.settlingRef.current) return; // ignore our own settle scrolls
-      settle.arm();
+      // Owner tuning 2026-10-13: the reel scrolls FREELY — no settle-to-slot snap.
+      // The old JS tween fought native momentum and stuttered when two flasks shared
+      // the glass. The loupe simply magnifies whatever rides the focal line, between
+      // slots included. (useScrollSettle stays wired for its settlingRef guard, never
+      // armed.)
     }
     reel.addEventListener("scroll", onScroll, { passive: true });
 
