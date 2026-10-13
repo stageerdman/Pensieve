@@ -48,6 +48,32 @@ function selectBlockThenAll(view: EditorView): void {
   view.dispatch(state.tr.setSelection(selection));
 }
 
+// The minimal slice of the BlockNote editor the content loader needs. Kept as a
+// named interface so loadBlocksWithoutHistory can be unit-tested against a real
+// editor without dragging in the full generic BlockNote type.
+interface LoadableEditor {
+  document: unknown;
+  transact: (cb: (tr: { setMeta: (k: string, v: unknown) => void }) => void) => void;
+  replaceBlocks: (toRemove: unknown, toInsert: unknown) => void;
+}
+
+// Load the note's blocks as a NON-undoable change. Without the addToHistory=false
+// meta, the mount-time replaceBlocks is a normal undo step on top of the empty
+// baseline, so a single ⌘Z reverts the whole load → the editor goes blank →
+// onChange auto-saves that empty markdown over the .md file, wiping the note with
+// no recovery (the exact bug this guards against). Marking the load transaction
+// addToHistory=false keeps it out of the undo stack: ⌘Z still undoes the user's
+// OWN edits, it just can't go back past the loaded content. BlockNote's transact
+// is re-entrant, so replaceBlocks' own transaction reuses this one and inherits
+// the meta.
+export function loadBlocksWithoutHistory(editor: LoadableEditor, blocks: unknown[]): void {
+  if (!blocks.length) return;
+  editor.transact((tr) => {
+    tr.setMeta("addToHistory", false);
+    editor.replaceBlocks(editor.document, blocks);
+  });
+}
+
 // The writing surface — a Notion-like BLOCK editor (BlockNote). Blocks are
 // draggable, "/" opens the slash menu, and a selection bubble covers inline
 // styling, all out of the box. Content is Markdown in, Markdown out through our
@@ -118,7 +144,7 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
     void (async () => {
       const blocks = await extendedMdToBlocks(editor, markdown);
       if (cancelled) return;
-      if (blocks.length) editor.replaceBlocks(editor.document, blocks as never);
+      loadBlocksWithoutHistory(editor as unknown as LoadableEditor, blocks);
       loading.current = false;
       try {
         editor.focus();
