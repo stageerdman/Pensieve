@@ -35,7 +35,10 @@ export function useReelFisheye(
   glassRef: React.RefObject<HTMLElement>,
 ): ReelFisheye {
   const focusIdxRef = useRef(-1);
-  const liveSlotsRef = useRef<Set<number>>(new Set());
+  // the contiguous [lo,hi] slot range we last touched with a parting transform, so we can
+  // reset exactly the slots that scrolled out of the visible band (no per-slot Set needed).
+  const partLoRef = useRef(-1);
+  const partHiRef = useRef(-1);
   const api = useRef<ReelFisheye>({ relayout: () => {} });
 
   // updateLens needs to exist before the settle hook (its onFrame). Hold it in a ref.
@@ -70,51 +73,79 @@ export function useReelFisheye(
       const n = slots.length;
       if (!n) {
         focusIdxRef.current = -1;
-        liveSlotsRef.current.clear();
+        partLoRef.current = partHiRef.current = -1;
         return;
       }
       const f = fractionalFocus(reel!.scrollTop);
-      const lo = Math.max(0, Math.floor(f - LOUPE_R - 1));
-      const hi = Math.min(n - 1, Math.ceil(f + LOUPE_R + 1));
-      for (const i of Array.from(liveSlotsRef.current)) {
-        if (i < lo || i > hi) {
-          resetSlot(slots[i]);
-          liveSlotsRef.current.delete(i);
-        }
+      // PARTING is applied to every card in the VISIBLE band (+ a margin), not just the
+      // magnified few. The parting integral saturates to a constant ±offset beyond the
+      // loupe radius, so if we only parted the small focal window the last parted card
+      // sat ~0.75·slot closer to the first un-parted one — a seam that crawled through the
+      // lower cards as you free-scrolled ("flasks near the end jump closer"). Parting the
+      // whole band keeps spacing continuous on-screen; the band edge (where the seam still
+      // lives) is pushed safely off-screen. Only the cheap transform runs this wide — the
+      // magnification/opacity/snippet work stays in the tight [magLo,magHi] window.
+      const H = reel!.clientHeight || 500;
+      const upSlots = Math.ceil((H * FOCAL_FRAC) / SLOT_H) + 2;
+      const downSlots = Math.ceil((H * (1 - FOCAL_FRAC)) / SLOT_H) + 2;
+      const lo = Math.max(0, Math.floor(f) - upSlots);
+      const hi = Math.min(n - 1, Math.ceil(f) + downSlots);
+      const magLo = Math.max(0, Math.floor(f - LOUPE_R - 1));
+      const magHi = Math.min(n - 1, Math.ceil(f + LOUPE_R + 1));
+
+      // reset only the slots that scrolled out of the band since last frame (two tails of
+      // a contiguous range → no Set bookkeeping).
+      if (partLoRef.current !== -1) {
+        for (let i = partLoRef.current; i < lo; i++) resetSlot(slots[i]);
+        for (let i = hi + 1; i <= partHiRef.current; i++) resetSlot(slots[i]);
       }
+      partLoRef.current = lo;
+      partHiRef.current = hi;
+
       for (let i = lo; i <= hi; i++) {
         const slot = slots[i] as HTMLElement;
         const c = slot.firstElementChild as HTMLElement | null;
         if (!c) continue;
         const x = i - f;
-        const w = hannWeight(x);
-        const scale = magnificationAt(x, loupeMax);
         const ty = partingOffset(x, SLOT_H, loupeMax);
-        const reveal = revealAt(w, REVEAL_IN);
-        c.style.setProperty("--m", scale.toFixed(4));
-        c.style.transform = `translateY(${ty.toFixed(2)}px)`;
-        c.style.opacity = opacityAt(w).toFixed(3);
-        slot.style.zIndex = String(Math.round(scale * 1000));
-        c.classList.add("live");
+        c.style.transform = ty ? `translateY(${ty.toFixed(2)}px)` : "";
         const sn = c.querySelector(".snippet") as HTMLElement | null;
-        if (sn) {
-          sn.style.opacity = reveal.toFixed(3);
-          // Grow the snippet IN with reveal so the focal text block self-centres at any
-          // line count. Measure its natural (3-line-clamped) height once, lazily, and
-          // cache it on the node; relayout() clears the cache when wrapping can change.
-          if (reveal > 0) {
-            let fh = Number(sn.dataset.fh || 0);
-            if (!fh) {
-              sn.style.maxHeight = "none";
-              fh = sn.scrollHeight;
-              if (fh) sn.dataset.fh = String(fh);
+        if (i >= magLo && i <= magHi) {
+          const w = hannWeight(x);
+          const scale = magnificationAt(x, loupeMax);
+          const reveal = revealAt(w, REVEAL_IN);
+          c.style.setProperty("--m", scale.toFixed(4));
+          c.style.opacity = opacityAt(w).toFixed(3);
+          slot.style.zIndex = String(Math.round(scale * 1000));
+          c.classList.add("live");
+          if (sn) {
+            sn.style.opacity = reveal.toFixed(3);
+            // Grow the snippet IN with reveal so the focal text block self-centres at any
+            // line count. Measure its natural (3-line-clamped) height once, lazily, and
+            // cache it on the node; relayout() clears the cache when wrapping can change.
+            if (reveal > 0) {
+              let fh = Number(sn.dataset.fh || 0);
+              if (!fh) {
+                sn.style.maxHeight = "none";
+                fh = sn.scrollHeight;
+                if (fh) sn.dataset.fh = String(fh);
+              }
+              sn.style.maxHeight = (reveal * fh).toFixed(1) + "px";
+            } else {
+              sn.style.maxHeight = "0px";
             }
-            sn.style.maxHeight = (reveal * fh).toFixed(1) + "px";
-          } else {
+          }
+        } else {
+          // parted but outside the loupe → resting size/opacity (keep the transform).
+          c.style.removeProperty("--m");
+          c.style.opacity = "";
+          slot.style.zIndex = "";
+          c.classList.remove("live");
+          if (sn) {
+            sn.style.opacity = "0";
             sn.style.maxHeight = "0px";
           }
         }
-        liveSlotsRef.current.add(i);
       }
       focusIdxRef.current = Math.max(0, Math.min(n - 1, Math.round(f)));
     }
@@ -131,10 +162,14 @@ export function useReelFisheye(
 
     function relayout() {
       // new DOM → forget the old window, then re-measure + repaint
-      liveSlotsRef.current.clear();
+      partLoRef.current = partHiRef.current = -1;
       focusIdxRef.current = -1;
-      // wrapping (and so a snippet's natural height) can change with the reel width —
-      // drop the cached measurements so updateLens re-measures.
+      // clear any stale inline styles on reused nodes (React keeps DOM by key, so a card
+      // that was parted can linger with an old transform after a filter).
+      for (let i = 0; i < track!.children.length; i++) resetSlot(track!.children[i]);
+      // drop cached snippet heights (wrapping can change with the reel width) so
+      // updateLens re-measures. (Kept out of resetSlot: that runs on every scroll frame
+      // and re-measuring per scroll would thrash layout.)
       track!.querySelectorAll<HTMLElement>(".snippet").forEach((el) => delete el.dataset.fh);
       layoutReel();
       updateLens();
