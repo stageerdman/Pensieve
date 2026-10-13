@@ -35,4 +35,8 @@ this one is a single deliberate escape hatch, so an explicit confirm reads clear
   main + `npm run tauri:build` so the owner can test the native app.
 
 ## Status
-- Phase 1: in progress.
+- Phase 1 (desktop engine + tests): done.
+- Phase 2 (desktop UI + test): done.
+- Phase 3 (phone UI + test): done.
+- Phase 4 (verify + merge + native build): in progress — all tests green (556),
+  web + phone builds clean; merging to main and running `npm run tauri:build`.
