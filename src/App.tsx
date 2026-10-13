@@ -29,7 +29,7 @@ import { useSync } from "./hooks/useSync";
 const IS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 export default function App() {
-  const { notes, current, status, open, create, remove, change, updateMeta, togglePin, setCreatedAt, refresh } =
+  const { notes, current, status, loadEpoch, open, create, remove, change, updateMeta, togglePin, setCreatedAt, restoreVersion, refresh } =
     useNotes();
   // A sync that pulled remote changes refreshes the list; if the open note was one
   // of them, reload it into the editor so on-screen content matches disk.
@@ -270,7 +270,7 @@ export default function App() {
                       </div>
                     )}
                     <Editor
-                      key={current.id}
+                      key={`${current.id}:${loadEpoch}`}
                       markdown={current.markdown}
                       onChange={change}
                       focusMode={focusMode}
@@ -293,6 +293,9 @@ export default function App() {
                 <TimelinePanel
                   noteId={current.id}
                   noteTitle={current.title}
+                  theme={theme}
+                  reloadKey={loadEpoch}
+                  onRestore={(ts) => void restoreVersion(ts)}
                   onClose={() => setTimelineOpen(false)}
                 />
               )}

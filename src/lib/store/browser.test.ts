@@ -75,4 +75,25 @@ describe("BrowserStore", () => {
     const t = await store.loadTimeline(n.id);
     expect(t.map((e) => e.wordDelta)).toEqual([5, 10]);
   });
+
+  it("prunes appended history to the 7 most recent edit-days", async () => {
+    const n = await store.create();
+    const day = (i: number) => new Date(2026, 0, i, 12).getTime();
+    for (let i = 1; i <= 8; i++) {
+      await store.appendTimeline(n.id, { ts: day(i), wordDelta: i, markdown: `v${i}` });
+    }
+    const t = await store.loadTimeline(n.id);
+    expect(t).toHaveLength(7); // day 1 dropped
+    expect(t.some((e) => e.markdown === "v1")).toBe(false);
+    expect(t.some((e) => e.markdown === "v8")).toBe(true);
+  });
+
+  it("saveTimeline replaces the whole history (restore's truncate)", async () => {
+    const n = await store.create();
+    await store.appendTimeline(n.id, { ts: 1, wordDelta: 5, markdown: "a" });
+    await store.appendTimeline(n.id, { ts: 2, wordDelta: 5, markdown: "b" });
+    await store.saveTimeline(n.id, [{ ts: 1, wordDelta: 5, markdown: "a" }]);
+    const t = await store.loadTimeline(n.id);
+    expect(t.map((e) => e.markdown)).toEqual(["a"]);
+  });
 });

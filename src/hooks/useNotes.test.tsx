@@ -45,4 +45,58 @@ describe("useNotes (integration)", () => {
     // Both notes now show in the list.
     expect(result.current.notes).toHaveLength(2);
   });
+
+  it("restores a past version and drops newer ones (destructive, body + history)", async () => {
+    const store = getStore();
+    const { result } = renderHook(() => useNotes());
+
+    await act(async () => {
+      await result.current.create();
+    });
+    const id = result.current.current!.id;
+
+    // Session 1: write v1, switch away (closes + snapshots session 1), reopen.
+    await act(async () => {
+      result.current.change("version one body");
+    });
+    await act(async () => {
+      await result.current.create(); // switch away → closes + snapshots session 1
+    });
+    await act(async () => {
+      await result.current.open(id); // reopen the note → new session baselined on v1
+    });
+
+    // Session 2: write v2 and close it too.
+    await act(async () => {
+      result.current.change("version two body is longer now");
+    });
+    await act(async () => {
+      await result.current.create();
+    });
+    await act(async () => {
+      await result.current.open(id);
+    });
+
+    const before = await store.loadTimeline(id);
+    expect(before.length).toBe(2);
+    const v1 = before[0];
+    expect(v1.markdown).toBe("version one body");
+
+    const epochBefore = result.current.loadEpoch;
+
+    // Restore v1 → body reverts, v2 is deleted, editor remount epoch bumps.
+    await act(async () => {
+      await result.current.restoreVersion(v1.ts);
+    });
+
+    expect(result.current.current!.markdown).toBe("version one body");
+    expect(result.current.loadEpoch).toBe(epochBefore + 1);
+
+    const after = await store.loadTimeline(id);
+    expect(after).toHaveLength(1); // v2 dropped
+    expect(after[0].markdown).toBe("version one body");
+
+    const saved = await store.load(id);
+    expect(saved?.markdown).toBe("version one body");
+  });
 });

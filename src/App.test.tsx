@@ -38,9 +38,14 @@ describe("App", () => {
 
     fireEvent.keyDown(window, { key: "n", metaKey: true });
 
-    await waitFor(() => {
-      expect(screen.getByTestId("editor")).toBeInTheDocument();
-    });
+    // Generous timeout: the Editor is mocked (cheap), but the ⌘N → create() async
+    // settle can exceed the 1s default under full-suite parallel CPU contention.
+    await waitFor(
+      () => {
+        expect(screen.getByTestId("editor")).toBeInTheDocument();
+      },
+      { timeout: 4000 },
+    );
   });
 
   it("⌘-clicks a gallery flask into a background tab and closes it with X", async () => {

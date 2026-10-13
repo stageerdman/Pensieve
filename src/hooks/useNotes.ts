@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Note, NoteFields, NoteMeta } from "../lib/types";
 import { getStore } from "../lib/store";
 import { wordCount } from "../lib/text";
-import { makeEntry, IDLE_MS } from "../lib/timeline";
+import { makeEntry, truncateAfter, IDLE_MS } from "../lib/timeline";
 import { log } from "../lib/logger";
 
 export type SaveStatus = "idle" | "saving" | "saved";
@@ -21,6 +21,11 @@ export function useNotes() {
   const [notes, setNotes] = useState<NoteMeta[]>([]);
   const [current, setCurrent] = useState<Note | null>(null);
   const [status, setStatus] = useState<SaveStatus>("idle");
+  // Bumped only when a note's body is replaced out-of-band (a version Restore). The
+  // Editor is keyed by `${id}:${loadEpoch}`, so a bump remounts it and loads the
+  // restored body — editing the `markdown` prop in place would be ignored, since the
+  // Editor deliberately loads content once on mount (see Editor.tsx).
+  const [loadEpoch, setLoadEpoch] = useState(0);
 
   const currentRef = useRef<Note | null>(null);
   currentRef.current = current;
@@ -52,6 +57,7 @@ export function useNotes() {
       wordCount(note.markdown),
       s.startTs,
       s.firstEver,
+      note.markdown, // snapshot the body at close — this entry is the restorable version
     );
     if (entry) {
       await store.appendTimeline(note.id, entry);
@@ -173,6 +179,36 @@ export function useNotes() {
     [persist],
   );
 
+  // Restore the open note to a past version (a timeline entry's body snapshot).
+  // DESTRUCTIVE by design (owner's choice): every version newer than `ts` is dropped,
+  // and the note body becomes the snapshot. We cancel the in-flight session and any
+  // queued save first, so neither records a bogus entry nor clobbers the restored
+  // body; then bump loadEpoch to remount the Editor onto the restored content, and
+  // baseline a fresh session so subsequent edits are measured from the restored text.
+  const restoreVersion = useCallback(
+    async (ts: number) => {
+      const note = currentRef.current;
+      if (!note) return;
+      const entries = await store.loadTimeline(note.id);
+      const target = entries.find((e) => e.ts === ts);
+      if (!target || target.markdown === undefined) return; // no snapshot → nothing to restore
+
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (idleTimer.current) clearTimeout(idleTimer.current);
+      session.current = null; // abandon the current session unrecorded
+
+      await store.saveTimeline(note.id, truncateAfter(entries, ts));
+      const next = { ...note, markdown: target.markdown };
+      setCurrent(next);
+      currentRef.current = next;
+      setLoadEpoch((n) => n + 1);
+      await persist(next);
+      await startSession(next);
+      log.info("timeline", "restore", { id: note.id, ts, words: wordCount(next.markdown) });
+    },
+    [store, persist, startSession],
+  );
+
   // Pin/unpin any note (not only the open one). Goes through the dedicated store
   // path so updatedAt is untouched, then refreshes the list so the Pinned band
   // updates. The open note's own pinned flag is kept in sync if it's the target.
@@ -213,5 +249,5 @@ export function useNotes() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [flushSave, closeSession]);
 
-  return { notes, current, status, open, create, remove, change, updateMeta, togglePin, setCreatedAt, refresh };
+  return { notes, current, status, loadEpoch, open, create, remove, change, updateMeta, togglePin, setCreatedAt, restoreVersion, refresh };
 }

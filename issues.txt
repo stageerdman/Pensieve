@@ -1,6 +1,15 @@
 Pensieve — known issues & TODOs
 (one line per item; move resolved items out or mark done)
 
+NOTE-VERSIONING — shipped to main (2026-10-13), owner to confirm on native app:
+- [x] Timeline moments now carry a body snapshot = restorable versions.
+- [x] Expand a moment → read-only preview; older versions offer a 2-step destructive
+      Restore (reverts body + deletes newer). Newest = "Current" (no restore).
+- [x] Retention: the 7 most recent edit-DAYS (pruned on append). Local-only (timeline
+      sidecar; never touched by OneDrive sync).
+- [ ] Possible follow-ups (non-blocking): a visual diff between versions; versioning
+      metadata (category/tags) too; a per-note toggle for longer retention.
+
 NEXT STEPS (SIDEBAR-UX close-out):
 - [ ] Verify the NATIVE app (`npm run tauri dev`): the "..." Customise popover
       (sort / group / field toggles apply live), hover-to-pin + ⌘P, the Pinned
