@@ -16,6 +16,7 @@
 
 import { refForUrl, resolveMediaUrl } from "../media/url";
 import { isMediaPath, parseMediaPath } from "../media/ref";
+import { isImageGroupBlock, resolveGalleryBlock } from "./gallery";
 
 /** The default display width — 75% of the text column (wiki "Desktop single image"). */
 export const DEFAULT_IMAGE_WIDTH = 0.75;
@@ -87,6 +88,8 @@ export async function resolveImageUrls(blocks: Block[]): Promise<Block[]> {
     if (isImageBlock(b) && isMediaPath(b.props?.url ?? "")) {
       const resolved = await resolveMediaUrl(b.props!.url!);
       nb = { ...b, props: { ...b.props, url: resolved ?? b.props!.url } };
+    } else if (isImageGroupBlock(b)) {
+      nb = (await resolveGalleryBlock(b)) as Block;
     }
     if (Array.isArray(nb.children) && nb.children.length) {
       nb = { ...nb, children: await resolveImageUrls(nb.children) };

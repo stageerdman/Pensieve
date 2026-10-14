@@ -128,6 +128,7 @@ export function mapBlocks(blocks: Block[], fn: (items: Inline[]) => Inline[]): B
 // collide with the outer fence; rare, and noted in issues.
 
 import { encodeImageBlock, isImageBlock, reconstructImageFence, resolveImageUrls } from "./image";
+import { encodeImageGroupBlock, isImageGroupBlock, reconstructGalleryFence } from "./gallery";
 
 const LIST_TYPES = new Set(["bulletListItem", "numberedListItem", "checkListItem"]);
 
@@ -181,6 +182,9 @@ async function encodeStructure(editor: MdEditor, blocks: Block[]): Promise<Block
       // url → ref; default width serializes natively as `![caption](ref)`, a non-default
       // width rides a pensieve:image fence (see lib/md/image).
       out.push(encodeImageBlock(b));
+    } else if (isImageGroupBlock(b)) {
+      // The ordered group → a pensieve:gallery fence (see lib/md/gallery).
+      out.push(encodeImageGroupBlock(b));
     } else if (b.type === "toggleListItem") {
       const summary = await inlineToMd(editor, b.content);
       const body = children.length ? (await blocksToExtendedMd(editor, children)).replace(/\n+$/, "") : "";
@@ -207,6 +211,11 @@ async function reconstructStructure(editor: MdEditor, blocks: Block[]): Promise<
     const image = reconstructImageFence(b);
     if (image) {
       out.push(image);
+      continue;
+    }
+    const gallery = reconstructGalleryFence(b);
+    if (gallery) {
+      out.push(gallery);
       continue;
     }
     const lang = langOf(b);
