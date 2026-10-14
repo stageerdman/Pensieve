@@ -267,6 +267,41 @@
   100% { background-position: 140% 0; }
 }
 
+/* Backup sync rune — a small GOLD dot bottom-right of a frame (wiki States matrix). It
+   says "held locally" (hollow), "backing up" (filled + pulse), or "failed" (warn-tinted);
+   once backed up the component renders nothing at all (absence = healthy). Tokens only. */
+.pensieve-media-rune {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  z-index: 2;
+  pointer-events: none;
+}
+.pensieve-media-rune.is-local {
+  border: 1.5px solid hsl(var(--gold));
+  background: hsl(var(--gold) / 0.18);
+  box-shadow: 0 0 0 1px hsl(0 0% 0% / 0.18);
+}
+.pensieve-media-rune.is-uploading {
+  background: hsl(var(--gold));
+  box-shadow: 0 0 6px 1px hsl(var(--gold) / 0.7);
+  animation: pensieve-media-rune-pulse 1.1s ease-in-out infinite;
+}
+@keyframes pensieve-media-rune-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+.pensieve-media-rune.is-failed {
+  background: hsl(var(--warn));
+  box-shadow: 0 0 0 1px hsl(var(--warn) / 0.45);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pensieve-media-rune.is-uploading { animation: none; opacity: 0.9; }
+}
+
 /* Broken / missing: keep the rect, muted glyph + line + filename + Locate — never collapse. */
 .pensieve-media-broken {
   display: flex;

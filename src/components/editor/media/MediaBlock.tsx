@@ -1,4 +1,6 @@
 import { forwardRef, type ReactNode } from "react";
+import { MediaRune } from "./MediaRune";
+import type { MediaBackupState } from "../../../lib/media";
 
 // The shared visual base for ALL inline media (design.md names it "MediaBlock").
 // A single image is one MediaBlock; a gallery (Phase 3) is MediaBlocks sharing one
@@ -37,6 +39,8 @@ export interface MediaBlockProps {
   overlay?: ReactNode;
   /** The caption slot BELOW the frame — editable input (selected) or static text. */
   caption?: ReactNode;
+  /** OneDrive backup state → the gold rune bottom-right. Absent / "backed-up" → no rune. */
+  backup?: MediaBackupState;
 }
 
 // A muted "image" glyph for the broken/missing state (stroke, currentColor — matches icons.tsx).
@@ -52,7 +56,7 @@ function BrokenGlyph() {
 }
 
 export const MediaBlock = forwardRef<HTMLDivElement, MediaBlockProps>(function MediaBlock(
-  { url, alt, width, state, filename, selected, focused, onImgLoad, onImgError, onLocate, onActivate, overlay, caption },
+  { url, alt, width, state, filename, selected, focused, onImgLoad, onImgError, onLocate, onActivate, overlay, caption, backup },
   ref,
 ) {
   const broken = state === "broken";
@@ -95,6 +99,7 @@ export const MediaBlock = forwardRef<HTMLDivElement, MediaBlockProps>(function M
           </div>
         )}
         {overlay}
+        {backup && !broken && <MediaRune state={backup} />}
       </div>
       {caption}
     </div>

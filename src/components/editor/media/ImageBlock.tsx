@@ -4,6 +4,8 @@ import { MediaBlock, type MediaState } from "./MediaBlock";
 import { DEFAULT_IMAGE_WIDTH, imageFilename } from "../../../lib/md/image";
 import { getMediaNoteId, expandImage } from "./mediaContext";
 import { persistIntoBlock, type InsertEditor } from "./insertImage";
+import { useMediaBackup } from "./useMediaBackup";
+import { refForUrl } from "../../../lib/media";
 import { log } from "../../../lib/logger";
 
 // The custom `image` block — it REPLACES BlockNote's built-in image chrome so images
@@ -38,6 +40,8 @@ function ImageRender({ block, editor }: RenderProps) {
 
   const [focused, setFocused] = useState(false);
   const [imgError, setImgError] = useState(false);
+  // The gold backup rune tracks this image's vault ref (external/unresolved urls → none).
+  const backup = useMediaBackup(url ? refForUrl(url) : null);
   const frameRef = useRef<HTMLDivElement>(null);
   const captionRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -145,6 +149,7 @@ function ImageRender({ block, editor }: RenderProps) {
         filename={imageFilename(url) || filename}
         selected={selected}
         focused={focused}
+        backup={backup}
         onImgError={() => setImgError(true)}
         onActivate={() => state === "loaded" && expand()}
         onLocate={editable ? replace : undefined}

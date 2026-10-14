@@ -13,9 +13,19 @@ import {
 import { DEFAULT_IMAGE_WIDTH, imageFilename } from "../../../lib/md/image";
 import { getMediaNoteId } from "./mediaContext";
 import { mergeFilesIntoBlock, type GroupEditor } from "./insertGroup";
+import { useMediaBackup } from "./useMediaBackup";
+import { MediaRune } from "./MediaRune";
+import { refForUrl } from "../../../lib/media";
 import { lightbox } from "../../media/lightboxController";
 import { X, GripVertical, Plus } from "../../icons";
 import { log } from "../../../lib/logger";
+
+// Per-tile gold backup rune. A tiny child so the hook is called at a component top level
+// (not inside the tiles .map, which would break the rules of hooks).
+function TileRune({ url }: { url: string }) {
+  const state = useMediaBackup(url ? refForUrl(url) : null);
+  return <MediaRune state={state} />;
+}
 
 // The inline gallery — several images grouped into ONE block (wiki "inline gallery block").
 // It REUSES the MediaBlock CSS language (frame/radius/border, saving/broken states) rather
@@ -189,6 +199,7 @@ function GroupRender({ block, editor }: RenderProps) {
               )}
 
               {img.saving && <div className="pensieve-media-progress" aria-hidden />}
+              {!img.saving && img.url && !broken.has(i) && <TileRune url={img.url} />}
 
               {isCover && (
                 <button

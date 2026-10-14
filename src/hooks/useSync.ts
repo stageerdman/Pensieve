@@ -6,6 +6,7 @@ import { isConnected } from "../lib/sync/tokens";
 import { tauriVault } from "../lib/sync/vault";
 import { ReconnectNeededError, RemoteRootMissingError, TransientSyncError } from "../lib/sync/types";
 import type { SyncProgress } from "../lib/sync/types";
+import { setMediaBackupEnabled, primeMediaBackupStates } from "../lib/media";
 import { log } from "../lib/logger";
 
 // The sync UI-state types now live in the sync domain (lib/sync/types) so pure
@@ -50,16 +51,21 @@ export function useSync(onChanged?: () => void) {
       const connected = await isConnected();
       if (!alive) return;
       if (!connected) {
+        setMediaBackupEnabled(false);
         setUi((u) => ({ ...u, phase: "disconnected" }));
         return;
       }
       let lastSyncedAt: number | null = null;
       try {
-        lastSyncedAt = (await tauriVault().readState()).lastSyncedAt;
+        const state = await tauriVault().readState();
+        lastSyncedAt = state.lastSyncedAt;
+        // Reflect already-backed-up media in the rune store before any sync runs.
+        primeMediaBackupStates(state.media);
       } catch {
         /* no state yet */
       }
       if (!alive) return;
+      setMediaBackupEnabled(true); // connected → images show their backup rune
       setUi((u) => ({ ...u, phase: "idle", lastSyncedAt }));
       void refreshInfo(); // fill account + quota in the background
     })();
@@ -133,6 +139,7 @@ export function useSync(onChanged?: () => void) {
     setUi((u) => ({ ...u, phase: "syncing", error: null, errorKind: null }));
     try {
       await connectOneDrive();
+      setMediaBackupEnabled(true); // connected → images show their backup rune
       busy.current = false;
       await syncNow(); // first sync right after connecting
     } catch (e) {
@@ -150,6 +157,7 @@ export function useSync(onChanged?: () => void) {
   const disconnect = useCallback(async () => {
     if (!isTauri()) return;
     await disconnectOneDrive();
+    setMediaBackupEnabled(false); // no backup target → no runes
     setUi({
       phase: "disconnected",
       lastSyncedAt: null,

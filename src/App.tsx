@@ -8,6 +8,7 @@ import { TabBar } from "./components/TabBar";
 import { IconButton } from "./components/IconButton";
 import { Clock, PanelRight, Plus, Trash } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
+import { MediaBackupWhisper } from "./components/MediaBackupWhisper";
 import { ImageLightbox } from "./components/media/ImageLightbox";
 import { SyncStatus } from "./components/SyncStatus";
 import { NotePreview } from "./features/gallery/NotePreview";
@@ -362,6 +363,7 @@ export default function App() {
       </main>
 
       <StatusWhisper status={status} />
+      <MediaBackupWhisper />
       <ImageLightbox />
     </div>
   );
