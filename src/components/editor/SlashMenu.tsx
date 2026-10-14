@@ -57,9 +57,12 @@ export function makeSlashMenu(editor: SlashEditor): FC<MenuProps> {
     indexRef.current = index;
     const listRef = useRef<HTMLDivElement>(null);
 
-    // Activate an item: prefer BlockNote's wrapper (runs the item + closes the menu); fall
-    // back to the item's own handler, whose insert clears the "/…" trigger text → also closes.
-    const activate = (it: SlashItem) => (onItemClick ? onItemClick(it) : it.onItemClick?.());
+    // Activate an item by calling ITS OWN handler directly. We deliberately do NOT route
+    // through BlockNote's `onItemClick` prop: under our custom component it did not actually
+    // run the item (so /image and /gallery inserted nothing). Each item's handler is self-
+    // sufficient — insertOrUpdateBlockForSlashMenu both inserts the block AND clears the
+    // "/…" trigger text, which makes the suggestion plugin close the menu.
+    const activate = (it: SlashItem) => it.onItemClick?.();
 
     // A fresh items array = the query changed → reset the highlight to the top.
     useEffect(() => setIndex(0), [items]);
@@ -74,7 +77,7 @@ export function makeSlashMenu(editor: SlashEditor): FC<MenuProps> {
         if (res.type === "move") setIndex(res.index);
         else if (res.type === "activate") {
           const it = items[res.index];
-          if (it) (onItemClick ? onItemClick(it) : it.onItemClick?.());
+          if (it) activate(it);
         } else if (res.type === "close") cancelSlashQuery(editor);
       };
       // Capture phase so we're authoritative over both the editor caret and BlockNote.
