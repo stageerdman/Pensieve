@@ -7,11 +7,13 @@ import {
   FormattingToolbar,
   FormattingToolbarController,
   SuggestionMenuController,
+  getDefaultReactSlashMenuItems,
   BlockTypeSelect,
   BasicTextStyleButton,
   ColorStyleButton,
   CreateLinkButton,
 } from "@blocknote/react";
+import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core";
 import { AllSelection, TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { useEffect, useRef } from "react";
@@ -19,6 +21,11 @@ import { blocksToExtendedMd, extendedMdToBlocks } from "../../lib/md/extended";
 import { setNoteLinkOpen, setNoteLinkResolve } from "./noteLink";
 import { editorSchema } from "./editorSchema";
 import { BlockSelectionDecorations } from "./blockSelectionDecorations";
+import { ImagePasteDrop, setImageDropHandlers } from "./media/imagePasteDrop";
+import { setMediaNoteId } from "./media/mediaContext";
+import { makeUploadFile, insertImageFromFile } from "./media/insertImage";
+import { mediaToast } from "./media/mediaToast";
+import { Image as ImageIcon } from "../icons";
 import { GutterHandle } from "./GutterHandle";
 import { useBlockMarquee } from "./useBlockMarquee";
 import { useBlockDrag } from "./useBlockDrag";
@@ -97,7 +104,10 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
   // extensions — here, the multi-row block-selection highlight (blockSelectionDecorations).
   const editor = useCreateBlockNote({
     schema: editorSchema,
-    _tiptapOptions: { extensions: [BlockSelectionDecorations] },
+    // Every image insert path (uploadFile, /image, paste, drop) funnels through the
+    // Phase-0 save flow; uploadFile is BlockNote's own funnel for file selection.
+    uploadFile: makeUploadFile(() => selfId),
+    _tiptapOptions: { extensions: [BlockSelectionDecorations, ImagePasteDrop] },
   });
   const loading = useRef(true);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -112,6 +122,31 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
   // Cast: the hook needs only a small slice of the editor; BlockNote's full generic type
   // over-constrains insertBlocks' argument, so we adapt to the hook's minimal interface.
   const startBlockDrag = useBlockDrag(editor as unknown as Parameters<typeof useBlockDrag>[0], wrapRef);
+
+  // The image block + paste/drop plugin live outside React; give them the current note
+  // id (for the media path) and the save+insert flow. Multiple files each become their
+  // own image block (a gallery is Phase 3); a non-image drop is rejected with one whisper.
+  useEffect(() => setMediaNoteId(selfId), [selfId]);
+  useEffect(() => {
+    setImageDropHandlers(
+      (files, atBlockId) => {
+        void (async () => {
+          let ref: string | undefined = atBlockId ?? undefined;
+          for (const file of files) {
+            ref = await insertImageFromFile(
+              editor as unknown as Parameters<typeof insertImageFromFile>[0],
+              selfId,
+              file,
+              ref,
+              "after",
+            );
+          }
+        })();
+      },
+      (reason) => mediaToast(reason),
+    );
+    return () => setImageDropHandlers(null, null);
+  }, [editor, selfId]);
 
   // Wire note-link clicks to open the note (the inline spec's render is module-level).
   useEffect(() => setNoteLinkOpen(onOpenNote), [onOpenNote]);
@@ -191,6 +226,32 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
               <CreateLinkButton key="link" />
             </FormattingToolbar>
           )}
+        />
+        {/* "/" — the default block menu PLUS our "Image" item (aliases img/photo). It
+            inserts an empty image placeholder with one inline input (URL+Enter embeds;
+            Enter-on-empty opens the OS file picker) — no tabbed Upload|Embed|Search. */}
+        <SuggestionMenuController
+          triggerCharacter="/"
+          getItems={async (query) =>
+            filterSuggestionItems(
+              [
+                ...getDefaultReactSlashMenuItems(editor),
+                {
+                  title: "Image",
+                  aliases: ["img", "photo", "picture"],
+                  group: "Media",
+                  icon: <ImageIcon size={18} />,
+                  subtext: "Embed a URL or choose a file",
+                  onItemClick: () =>
+                    insertOrUpdateBlockForSlashMenu(editor, {
+                      type: "image",
+                      props: { status: "prompt" },
+                    } as never),
+                },
+              ],
+              query,
+            )
+          }
         />
         {/* "@" opens a menu to link an existing note (recent-first; filters by title). */}
         <SuggestionMenuController
