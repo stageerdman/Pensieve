@@ -214,3 +214,54 @@ auto-gallery (swipe carousel + page dots). Collapse to single when a gallery dro
   (`cargo test` 2/2).
 - **Media files are never auto-GC'd on removal** (`removeMedia` doc-comment in `types.ts`): version/
   timeline snapshots may still reference a removed image. Removal is for explicit cases only.
+
+### Phase 1 — desktop single image (2026-10-14)
+- **BlockNote's built-in `image` block is unusable for our `.md`** (verified by spike):
+  `blocksToMarkdownLossy` on an image block emits a `<figure><img><figcaption>` HTML blob,
+  NOT `![]()`; and `tryParseMarkdownToBlocks` maps the alt text into `props.name`, leaving
+  `props.caption` empty (asymmetric). So we **replace** it with our own `createReactBlockSpec`
+  `image` block and own the markdown in `lib/md/image.ts`.
+- **`createReactBlockSpec(config, impl)` returns a CREATOR**, not a spec — register it as
+  `image: ImageBlock()` (called). `createReactInlineContentSpec` (noteLink) returns the spec
+  directly (uncalled) — the two custom-spec factories differ, which is a trap. Mis-registering
+  throws `Cannot read properties of undefined (reading 'node')` at schema build.
+- **A custom image block round-trips plainly:** give the impl `parse: (el)=> el.tagName==="IMG"
+  ? {url: src, caption: alt} : undefined` and `toExternalHTML: ({block})=> <img src alt>`. Then
+  `tryParseMarkdownToBlocks("![cap](ref)")` → our block with `caption` set, and
+  `blocksToMarkdownLossy(ourBlock)` → `![cap](ref)` (no figure). Verified incl. a caption with
+  markdown-special chars (`a *starry* night`) — remark escapes/unescapes alt symmetrically, so
+  it's idempotent. `parse`/`toExternalHTML` are part of `CustomBlockImplementation` and allowed
+  on the React impl (the type Omits only `render`/`toExternalHTML` to re-add React FC forms).
+- **A text node containing `![...](...)` also serialises verbatim** (no escaping) — handy, but
+  we don't rely on it; the native toExternalHTML path is cleaner.
+- **Width round-trip:** plain `![]()` can't carry width, so only the **default (0.75)** rides
+  native markdown; any other snap (0.25/0.5/1) is bridged to a `pensieve:image` fence
+  (`ref\nwidth\ncaption`) in `encodeStructure`/`reconstructStructure`, mirroring the toggle
+  bridge. `langOf`/`fence()` helpers reused.
+- **Load-time url resolution lives inside `extendedMdToBlocks`** (a final awaited
+  `resolveImageUrls` pass), so blocks arrive display-ready BEFORE `loadBlocksWithoutHistory`
+  mounts them — no post-mount mutation, no false dirty, no undo step to wipe. The undoLoad
+  regression stays green. If the store can't resolve a ref (missing file / no IndexedDB in
+  jsdom), the **ref is kept** as the url — the block still round-trips on save and the UI shows
+  the broken state; `resolveMediaUrl` swallows the error and returns null.
+- **Save-time rewrite is `refForUrl(url) ?? url`** — a registered loadable url → its ref; an
+  external pasted `https://…` url (or an unresolved ref) is kept as-is (external image, not
+  saved). Because load registered every media url, the lookup is lossless.
+- **Slash menu:** add `/image` by giving a `SuggestionMenuController triggerCharacter="/"` whose
+  `getItems` is `filterSuggestionItems([...getDefaultReactSlashMenuItems(editor), imageItem], q)`
+  — providing a `/` controller replaces the default menu, so you must re-add the defaults.
+  `insertOrUpdateBlockForSlashMenu(editor, block)` (from `@blocknote/core`) inserts/replaces the
+  current block; the suggestion plugin clears the typed `/query` itself.
+- **jsdom test harness gotcha:** mounting a real BlockNote editor and awaiting a `done`-promise
+  INSIDE `act()` **deadlocks** — React won't flush the mount effect while `act` blocks on a bare
+  promise that only the effect can resolve. Fix: render, then **poll** `for(…) await act(()=>
+  new Promise(r=>setTimeout(r,10)))` until a `finished` flag flips. (A one-shot `setTimeout`
+  tick isn't reliable; the poll is.)
+- **Replace/Remove** have no existing block menu to live in (GutterHandle is drag-only), so they
+  render as a small overlay control row on the selected/focused image. **Removal does NOT delete
+  the file** (version/timeline snapshots may reference it) — it just swaps the block to an empty
+  paragraph.
+- **Not verifiable here:** the live asset-load render (does a saved PNG show via its
+  `convertFileSrc` url in the WKWebView?), real OS paste/drag/file-picker, and the drop ring +
+  caret visuals — all need the owner's native-app run (browser automation can't reach the dev
+  server; `tauri build` is out of scope for the phase).

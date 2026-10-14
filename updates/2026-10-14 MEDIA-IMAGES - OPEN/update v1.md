@@ -47,7 +47,7 @@ on a real decision/blocker. Each phase is independently verifiable.
 - Tests: save→resolve round-trip; path-traversal guard; ref↔URL rewrite is lossless.
 - **Verify:** unit tests green; a scripted save+load of a real PNG in the native app.
 
-### Phase 1 — Desktop single image (the core moment)  ⏳
+### Phase 1 — Desktop single image (the core moment)  ✅ (built 2026-10-14, pending owner native-app run)
 - Surface BlockNote's image block as a `MediaBlock`-styled render; wire `uploadFile` → `saveMedia`.
 - `/image` (`/img`,`/photo`) slash item (mirror the `@` `SuggestionMenuController`): inline one-input
   block — URL+Enter embeds, Enter-on-empty opens OS picker. **No Upload|Embed|Search tabs; delete web search.**
@@ -124,8 +124,27 @@ on a real decision/blocker. Each phase is independently verifiable.
   PNG actually loads via its asset URL (browser automation can't reach the dev server — repo memory).
   **Next: Phase 1 (desktop single image) — do NOT start without go-ahead.**
 
+- **2026-10-14** — **Phase 1 built.** Desktop single image shipped behind the Phase-0 flow.
+  A custom `image` block (createReactBlockSpec) **replaces** BlockNote's built-in image so it
+  renders in the MediaBlock language; `parse(<img>)`+`toExternalHTML(<img>)` make a default-
+  width image round-trip natively as plain `![caption](media/…)`, a non-default width rides a
+  `pensieve:image` fence (`lib/md/image.ts`). One save funnel (uploadFile · `/image` · paste ·
+  drop) → saveMedia+resolveMediaUrl, instant object-URL then swap. Width resize (25/50/75/100,
+  `Cmd+[`/`]`), caption=alt, Replace/Remove, `Space`→`onExpand` stub. States: loading shimmer,
+  saving accent hairline, broken-keeps-rect+filename+Locate. `tsc` clean; full Vitest **602**
+  green (577 prior + 25 new: bridge 11, round-trip 5, MediaBlock 4, insert 5); undoLoad still
+  green. **Pending owner native-app run** (paste a screenshot, `/image` a URL, drag a file,
+  reload → image loads via its asset URL). **Next: Phase 2 (lightbox) — do NOT start without go-ahead.**
+
 ## Decisions
 - Inline gallery **block** (not a library). Backup **in scope**. Full **phone** UX now. (owner, 2026-10-14)
+- **Images own their markdown in `lib/md/image.ts`** (not BlockNote's built-in): the built-in
+  serialises to a `<figure>` HTML blob and maps alt→`name` (asymmetric) — unusable. A custom
+  block + our bridge gives plain `![]()` + full render control.
+- **Width round-trip:** default (0.75) = plain `![caption](ref)` (native); any other snap =
+  a `pensieve:image` fence carrying `ref\nwidth\ncaption`. Keeps the common case portable md.
+- **Replace/Remove live on the image's own selected-state overlay**, not the GutterHandle —
+  there is no existing block context menu to hang them off (GutterHandle is drag-only).
 - Stable `mediaId` in the path + typed reference w/ unused `kind`/`timecode` = the future seam.
 - Lightbox **reuses** `PreviewPortal`; gallery block coded as `ImageGroupBlock` (name clash avoidance).
 - v1 lightbox: arrows/swipe/Home-End + "n/N" counter, **no filmstrip**; tile gutter `gap-1`.
