@@ -201,6 +201,14 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
         onChange={handleChange}
         formattingToolbar={false}
         sideMenu={false}
+        // Disable BlockNote's BUILT-IN slash menu — our own "/" SuggestionMenuController
+        // (below) fully replaces it. Leaving the default on rendered TWO slash popups at
+        // once (ours + BlockNote's), so Enter inserted twice (our Image prompt AND the
+        // default image block → an empty "Image Missing" block) and focus fought over Tab.
+        slashMenu={false}
+        // We own the image block + its prompt, so BlockNote's default file-upload panel
+        // must not pop up either.
+        filePanel={false}
       >
         {/* BlockNote's own side menu is disabled (sideMenu={false}); its handle uses HTML5
             drag, which can't drop in the WKWebView shell. GutterHandle (below) is our own
