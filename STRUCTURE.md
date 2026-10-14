@@ -31,17 +31,24 @@ src/
   styles/
     tokens.css               THE design-token source of truth (see design.md)
   components/                reusable, standardized UI (parents children compose from)
-    editor/                  the TipTap editor cluster (component + schema + block ops + skin)
+    editor/                  the BlockNote editor cluster (component + schema + block ops + skin)
+      media/                 the image/gallery blocks (ImageBlock, ImageGroupBlock, MediaBlock
+                             base, paste/drop, insert orchestration, backup rune)
+    media/                   the shared image lightbox (ImageLightbox + its module controller)
   features/                  self-contained product surfaces — NO cross-feature imports
     capture/ editor/ audio/ video/ journal-import/ timeline/ coach/
     gallery/ summon/         (current surfaces)
   hooks/                     app-level React hooks (useNotes, useSync, useTheme, …)
   lib/                       pure logic, DOM-free, heavily tested
     store/                   persistence adapter (getStore() is the ONLY entry point)
-    sync/ search/ md/ categories/ flasks/ gallery/
+    media/                   media ref model, id mint, base64, ref↔url registry, backup state
+    md/                      .md bridges incl. image.ts / gallery.ts (the media serializers)
+    sync/ search/ categories/ flasks/ gallery/
   test/                      shared test setup
-src-tauri/                   Rust shell (filesystem, SQLite index, media, whisper.cpp)
+src-tauri/                   Rust shell (filesystem, SQLite index, media bytes, whisper.cpp)
 phone/                       the phone PWA (own Vite app; see below) — created in UI-FOUNDATION
+  src/lib/media/             phone's own media bridge + IndexedDB byte store (decoupled re-
+                             statement of the SAME .md format — see wiki, guarded by a test)
 ```
 
 ## Boundaries (enforced conventions)

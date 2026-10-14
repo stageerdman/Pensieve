@@ -112,7 +112,7 @@ on a real decision/blocker. Each phase is independently verifiable.
   `backupStatus` store drives the gold rune on every image + the aggregate whisper/toast. `tsc`
   clean; Vitest **677** (653 prior + 24 new); `cargo test` 3/3.
 
-### Phase 6 — Polish, docs, close-out  ⏳
+### Phase 6 — Polish, docs, close-out  ✅ (built 2026-10-14, done-pending-owner-verification)
 - Full states-matrix + a11y pass (focus rings, keyboard contract, alt=caption, reduced-motion, both themes).
 - **Do NOT add media garbage-collection** (timeline/version snapshots may reference removed images) —
   note it as a deliberate deferral.
@@ -120,6 +120,17 @@ on a real decision/blocker. Each phase is independently verifiable.
   media module(s) to `STRUCTURE.md`. Record lessons in `wiki.md`.
 - Merge to `main` + `npm run tauri:build` so the owner can test the native app (per standing rule).
   Rename folder `- OPEN` → `- CLOSED`; prune the branch.
+- BUILT: **Shared-format guard** — `src/components/editor/media/sharedFormat.guard.test.tsx` locks the
+  desktop (real editor + our schema) and phone (pure string) implementations to byte-identical
+  serialize + identical parse over a canonical fixture set; the two **agreed with zero fixes**.
+  **A11y pass** found keyboard + reduced-motion already complete; the one gap was `alt=""` on
+  uncaptioned images → added `mediaAlt()` (caption, else a non-blob "Image") on all 5 surfaces, with
+  tests. **Docs**: CLAUDE.md "TipTap"→BlockNote 0.55; ROADMAP `IMAGES` ticked; issues.txt
+  MEDIA-IMAGES section (shipped + the deferrals); STRUCTURE.md media modules; wiki.md Phase-6 +
+  durable cross-phase lessons. **Merge / `tauri:build` / folder rename are the orchestrator's** (not
+  done here). `tsc` + phone `tsc` clean; Vitest **689** green (677 prior + 12 new: guard 7, MediaBlock
+  a11y 1, alt helper 2, phone mediaDom a11y 2); `cargo check` clean. Owner verification consolidated
+  below.
 
 ---
 
@@ -238,6 +249,23 @@ on a real decision/blocker. Each phase is independently verifiable.
   `cargo test` 3/3. **Pending owner native-app run** (see the Phase 5 checklist below).
   **Next: Phase 6 (polish/close-out) — do NOT start without go-ahead.**
 
+- **2026-10-14** — **Phase 6 built** (done-pending-owner-verification). The keystone is the
+  **shared-format guard** (`src/components/editor/media/sharedFormat.guard.test.tsx`): a canonical
+  fixture set that the desktop (real BlockNote editor + our schema) and phone (pure string helpers)
+  must both serialize to the byte-identical `.md` and parse back to the identical ordered
+  {ref, caption} — the regression guard against the two independent implementations drifting. The
+  two **agreed on every fixture with zero code fixes**. The a11y/states code pass found the keyboard
+  contract and `prefers-reduced-motion` already complete across all surfaces; the one real gap was
+  `alt=""` on uncaptioned images (marks a content image decorative) → a `mediaAlt()` fallback
+  ("Image", never a blob url) on all five image surfaces, desktop + phone, with tests. Docs:
+  CLAUDE.md "TipTap"→BlockNote 0.55; ROADMAP `IMAGES` ticked; issues.txt MEDIA-IMAGES section (what
+  shipped + the known deferrals); STRUCTURE.md media modules; wiki.md Phase-6 + a durable cross-phase
+  lessons distillation. The consolidated **owner verification** checklist (desktop / gallery / phone /
+  OneDrive, top-to-bottom) is at the end of this file. `tsc` + phone `tsc` clean; Vitest **689** green
+  (677 + 12 new); `cargo check` clean. **Merge to main, `npm run tauri:build`, and the folder rename
+  are the orchestrator's calls — NOT done here.** The owner walks the checklist on the native app +
+  device + OneDrive before close-out.
+
 ## Decisions
 - Inline gallery **block** (not a library). Backup **in scope**. Full **phone** UX now. (owner, 2026-10-14)
 - **Binary over the Graph bridge = base64 both ways; the string path stays string.** The desktop
@@ -351,3 +379,71 @@ with OneDrive connected (Pensieve summoned):
 6. **Failure is quiet** — (if you can force it, e.g. go offline mid-sync) a failed image turns the
    rune **warn-coloured** and you get **one** toast; it auto-retries on the next sync (never asks you
    to act).
+
+## Owner verification (native app + device + OneDrive) — walk top to bottom
+Nothing media-visual is verifiable in CI (browser automation can't reach the dev server; jsdom has
+no layout; real OneDrive needs the authenticated account + native shell). This one ordered list
+gathers every per-phase "needs owner run" item. Do the desktop block in `npm run tauri dev` (or the
+built `.app`), the phone block on the iPhone via `npm run dev:phone`, the OneDrive block with the
+drive connected. Check each in light AND dark where a look is involved.
+
+### (a) Desktop — single image + lightbox (Phases 0–2)
+1. **Asset-protocol load + reload** — paste / `/image` / drag an image into a note; it renders via
+   its `convertFileSrc` asset URL. Reload the app → it still loads (not the broken state). This is
+   the Phase-0 live check (asset scope + `protocol-asset` feature) that CI can't do.
+2. **Paste a screenshot** — ⌘⇧4 to clipboard, ⌘V in a note → instant inline block, caret drops below.
+3. **`/image` — URL then picker** — type `/image`, paste a URL + Enter embeds it; `/image` then Enter
+   on the empty input opens the OS file picker.
+4. **Drag-drop** — drag a file from Finder → one calm full-editor accent drop ring + insertion caret;
+   it lands where the caret showed.
+5. **Width snaps + caption** — select the image: ⌘] / ⌘[ step 25/50/75/100%; drag the handle snaps;
+   Enter jumps into the caption, Esc leaves it. Caption reads back as the image's alt/label.
+6. **Broken-file state** — remove the file on disk (or point at a missing ref) → the frame stays, with
+   the glyph + "Image missing" + filename + Locate (never collapses).
+7. **Lightbox** — Space / click expands; the thumbnail travels to centre over the blur+water backdrop;
+   Esc / backdrop / close returns focus to the image. Confirm the travel feel + legibility in light
+   AND dark. Toggle "reduce motion" in macOS → the travel becomes a cross-fade/cut.
+
+### (b) Desktop — inline gallery (Phase 3)
+8. **Each count layout** — drop 1, 2, 3, 4, then 5–8, then 9+ images (separately) → confirm 1 plain ·
+   2 two-col · 3 three-col · 4 2×2 · 5–8 justified 3/row · 9+ capped at 6 tiles with a "+N more" cover.
+9. **Drag-reorder** — drag a tile by its grip → a 2px accent insertion line shows; drop reorders, and
+   the order persists through a reload (it's the line order in the `.md`).
+10. **"+N more" → lightbox** — click the cover on a 9+ gallery → the lightbox opens at the covered
+    image; ←/→, Home/End, the "n / N" counter all work; arrow past the 6-tile cap to the hidden ones.
+11. **Drop-onto join** — drag a file ONTO an existing image/gallery → it merges into one gallery.
+    (Known: the join reuses the ordinary insert caret — there's no distinct join rail yet; confirm the
+    behaviour is right even though the visual isn't called out.)
+12. **Remove → collapse** — × tiles down to 1 → the block collapses back to a single image (plain
+    `![]()`); the removed file stays on disk; ⌘Z restores.
+
+### (c) Phone — capture (Phase 4, `npm run dev:phone` on the iPhone over LAN)
+13. **Add from library** — open a memory, tap the photo key (left of the mic) → native sheet → Photo
+    Library → pick one → it appears instantly inline; type below it.
+14. **Take a photo** — same sheet → Take Photo → shows instantly after capture.
+15. **Picture spell** — tap the gold spell button in the note top bar → the ring opens with **Picture**
+    leading → cast it → same picker. (Confirm the gold opener doesn't read as clutter — it's provisional.)
+16. **Multi-select → carousel** — pick 2–3 at once → one gallery carousel; swipe left/right; the page
+    dots track; a vertical swipe scrolls the note.
+17. **Tap → lightbox** — tap a frame → full-screen; swipe between members; swipe-down or tap the
+    backdrop to dismiss; pinch-zoom (OS) inside.
+18. **Long-press → edit** — long-press a gallery → per-tile Remove (×) + drag to reorder; remove down
+    to 1 → collapses to a single image.
+19. **Reload persists** — reload Safari → reopen the memory → the photo(s) are still there (bytes from
+    IndexedDB, refs from the persisted note).
+20. **Desktop-made gallery renders** — open the seeded "Three frames from the coast" memory → the
+    `pensieve:gallery` fence shows as a carousel, not raw text.
+
+### (d) OneDrive — binary backup (Phase 5, desktop with the drive connected, Pensieve summoned)
+21. **Rune on a fresh image** — add an image → a small gold dot appears bottom-right ("held locally").
+22. **Backs up → fades** — sync runs (on connect, or hit Sync); the dot pulses while uploading then
+    disappears once backed up (absence = healthy); a quiet "Backing up N images…" line shows while
+    uploads are in flight.
+23. **Binary in OneDrive** — in the OneDrive web UI, confirm the file at
+    `Pensieve/media/<noteId>/<mediaId>.<ext>` opens as the real image.
+24. **Reload holds** — restart the app → backed-up images show no rune (state persisted in
+    `sync/state.json`).
+25. **Second machine / restore** — on another machine (or after a destructive "restore from cloud")
+    the note pulls down AND its image rehydrates from OneDrive (the photo shows, not the broken state).
+26. **Failure is quiet** — force a failure (e.g. go offline mid-sync) → the rune turns warn-coloured
+    and you get exactly one toast; it auto-retries next sync (never asks you to act).

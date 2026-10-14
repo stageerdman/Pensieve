@@ -441,6 +441,67 @@ auto-gallery (swipe carousel + page dots). Collapse to single when a gallery dro
   The pure bridge (parse/serialize/collapse/reorder) + the DOM render↔serialize + insert
   single/gallery/merge are unit-tested (16 new tests).
 
+### Phase 6 — polish, docs, close-out (2026-10-14)
+- **The a11y gap was alt text, nothing else.** A code pass of all image surfaces found the
+  keyboard contract already complete (single: ⌘[ / ⌘] resize · Enter→caption · Space→expand ·
+  Esc out of caption; gallery tile: Space/Enter→expand; lightbox: ←/→ · Home/End · Esc · a Tab
+  focus-trap + focus restore to the origin element) and `prefers-reduced-motion` already honoured
+  everywhere (lightbox FLIP is JS-guarded; shimmer / saving hairline / rune pulse are stilled in
+  `blocknote-skin.css`; the phone has a global `* { animation-duration: 0.001s }` reduced-motion
+  rule). The ONE real gap: every `<img>` emitted `alt=""` when a caption was absent, which marks
+  a *content* image decorative to a screen reader. Fix: a tiny `mediaAlt(caption)` helper — caption
+  when present, else a plain `"Image"` (never an opaque blob/asset URL) — applied on all five
+  surfaces (desktop single / gallery tile / lightbox, phone single / gallery / lightbox). The
+  desktop and phone each have their OWN copy (`src/lib/media/alt.ts`, phone `noteMedia.ts`), same
+  decoupling rule as the format itself.
+- **The shared-format guard is the keystone of the duplication decision.** Desktop and phone
+  implement the `.md` media format independently (the two apps share only tokens), so the risk is
+  silent drift. `src/components/editor/media/sharedFormat.guard.test.tsx` locks them: a canonical
+  fixture set (single images + galleries, mixed captions) that BOTH stacks must serialize to the
+  byte-identical string AND parse back to the identical ordered {ref, caption}. The desktop side
+  runs the REAL editor + our schema (the only faithful source of `![]()` — server-util would use
+  BlockNote's built-in `<figure>` image block); the phone side runs its pure string functions.
+  When first written the two agreed on every fixture with **zero fixes needed** — the independent
+  re-statement had stayed honest. The one known asymmetry (markdown-special characters in a caption
+  escape on desktop but not on phone) is deliberately excluded from the fixtures and documented in
+  issues.txt; plain captions round-trip identically.
+
+### Durable lessons (cross-phase distillation)
+The lessons worth carrying into AUDIO / VIDEO / PWA-CAPTURE and any future media work:
+1. **Own the markdown; don't trust a library's built-in media block.** BlockNote's built-in image
+   block serializes to a `<figure>` HTML blob and maps alt→`name` asymmetrically — unusable as a
+   `.md` source of truth. A custom `createReactBlockSpec` block + our own `lib/md/{image,gallery}.ts`
+   bridge gives plain, portable `![]()` and a `pensieve:*` fence for what plain markdown can't carry
+   (width, ordered groups). Do the same for any new modality.
+2. **Collapse/promote is a block type-swap; degradation is then automatic.** 2→1 is
+   `updateBlock({type:"image"})` and the single-image block already serializes to `![]()` — no
+   fence→plain special case. 1→2 is `updateBlock({type:"imageGroup"})`. The markdown falls out of
+   the block type for free.
+3. **ref↔url is a registry, not string surgery.** A blob/asset url is opaque; neither reverses to
+   the vault ref by parsing. `lib/media/url.ts` records every url it hands out against its ref, so
+   save-time rewrite is a lossless lookup. Load resolves + registers; save looks up.
+4. **Binary IPC = base64 both ways, and the string path stays byte-identical.** `write_bytes`/
+   `read_bytes` and the `http_request` binary path all carry bytes as base64 strings (a JS number
+   array over the bridge is too slow for images); `serde(rename_all="camelCase")` keeps the
+   single-word note/JSON/token fields untouched. The asset protocol needs BOTH the Cargo
+   `protocol-asset` feature AND the `assetProtocol` scope in `tauri.conf.json` — config alone fails
+   the build.
+5. **A module-level pub/sub controller is the seam for "callable from outside React."** The
+   lightbox opener and the gold-rune backup store are both module-level subscribe/notify singletons,
+   because they must be driven from a BlockNote block render, a ProseMirror plugin, or the sync
+   engine — all outside the React tree where a context hook is unreachable. Reuse this shape.
+6. **The phone had no persistence and no block model.** It ran on in-memory seed and serialized
+   from `textContent`; images forced a real localStorage vault + IndexedDB byte store + imperative
+   `contentEditable` media blocks carrying their payload in `data-media`. Any phone feature that
+   must survive a reload inherits this.
+7. **Cross-app format duplication is acceptable IF guarded.** The phone re-states the small, stable
+   `.md` format rather than importing the desktop helpers (which drag the Tauri chain). The cost is
+   two implementations that can drift; the mitigation is the lockstep guard test. Never duplicate a
+   format across the boundary without the guard.
+8. **Media is never garbage-collected on removal.** Version/timeline snapshots may still reference a
+   removed image, so removal only drops the block, never the file on disk. Safe GC needs a
+   reference-count across all snapshots — a deliberate later concern.
+
 ### Phase 5 — OneDrive binary backup (2026-10-14)
 - **`http_request` was string-only, both ways — that was the real blocker.** `HttpReq.body` was an
   `Option<String>` sent via `send_string`; the response came back via `resp.into_string()`. Neither

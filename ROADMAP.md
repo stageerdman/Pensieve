@@ -29,7 +29,7 @@ Legend: [ ] not started · [~] in progress · [x] done
   edits; cut/extract clips.
 - [ ] **VIDEO** — import video; same transcript workflow as audio; embedded
   playback with time-point notes.
-- [ ] **IMAGES** — embed images freely; multiple media per note; light captions/labels.
+- [x] **IMAGES** — embed images freely; multiple media per note; light captions/labels.
 
 ## Then (organization & intelligence — desktop AI)
 - [x] **SEARCH** — the "Summon" super-search atop Home: a local NL grammar turns typed
