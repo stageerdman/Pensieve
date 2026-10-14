@@ -73,7 +73,7 @@ on a real decision/blocker. Each phase is independently verifiable.
   API `open({ items, index, originRect?, originElement? })` is one-OR-many from day one (arrows +
   "n / N" counter hide at length 1), so Phase 3 passes a gallery with zero rework. 7 new tests.
 
-### Phase 3 — Desktop inline gallery (`ImageGroupBlock`)  ⏳
+### Phase 3 — Desktop inline gallery (`ImageGroupBlock`)  ✅ (built 2026-10-14, pending owner native-app run)
 - `createReactBlockSpec` `ImageGroupBlock` (template: `noteLink.tsx`); register in `editorSchema.ts`.
 - Emergent gallery: multi-paste/drop/pick → one group; adjacency-merge at creation; drop-onto joins;
   1↔2 collapse/promote (fence ↔ plain `![]()`).
@@ -159,8 +159,48 @@ on a real decision/blocker. Each phase is independently verifiable.
   water-light in light/dark, Space-to-expand from a real image). **Next: Phase 3 (gallery) — do
   NOT start without go-ahead.**
 
+- **2026-10-14** — **Phase 3 built.** The desktop inline gallery — `ImageGroupBlock`
+  (createReactBlockSpec, registered `imageGroup` in editorSchema). A count-driven grid of
+  tiles that **reuse the MediaBlock CSS language** (not the component — tiles are
+  object-fit:cover with no per-tile width/caption-below, so this mirrors the lightbox's
+  "reuse CSS, not component" call): 2→2col, 3→3col, 4→2×2, 5–8→3/row, 9+→capped at 6 with a
+  "+N more" cover opening the lightbox at the covered image. `gap-1` / inner `rounded` /
+  outer `rounded-lg`, ≤2 rows (~340px), no shadows. Inline edit: pointer drag-reorder
+  (accent insertion line; reorder = line reorder), × remove (⌘Z-undoable, **file kept on
+  disk**, 2→1 **collapses** to a single ImageBlock), persistent "+" add tile, lazy per-tile
+  caption, "Lift out". Every tile click/Space → the Phase-2 lightbox with the WHOLE gallery
+  + that index. **Emergent creation** (`insertGroup.ts`, above insertImage's save funnel):
+  2+ images in one gesture → a group; drop-onto / adjacency → merge (promoting a single
+  image to a group); 1 → the single-image path — Editor routes paste/drop here,
+  imagePasteDrop untouched. `pensieve:gallery` fence (one `ref | caption` line per image,
+  order = line order) in `lib/md/gallery.ts`, load-time ref resolution folded into the
+  existing bridge walk. `tsc` clean; full Vitest **637** green (609 prior + 28 new: bridge
+  8, model 11, real-editor round-trip 3, orchestration 6).
+  **Pending owner native-app run** (the layouts at each count, drag-reorder feel,
+  "+N more"→lightbox, drop-onto join rail — none are browser-verifiable). **Next: Phase 4
+  (phone) — do NOT start without go-ahead.**
+
 ## Decisions
 - Inline gallery **block** (not a library). Backup **in scope**. Full **phone** UX now. (owner, 2026-10-14)
+- **imageGroup stores its ordered images as a JSON-string prop** (`images`) — BlockNote
+  propSchema values must be primitives, so an array of `{url,caption?,saving?}` can't be a
+  prop directly. SAVE never hands the block to BlockNote's converter (encodeStructure maps
+  it to the `pensieve:gallery` fence first), so the JSON stays an in-editor detail.
+- **Collapse/promote is a block type-swap, degradation is automatic.** 2→1 remove →
+  `updateBlock({type:"image"})` and the single-image block already serializes to plain
+  `![]()` — no special fence→plain code. 1→2 (paste/drop/"+") → `updateBlock({type:
+  "imageGroup"})` with the existing image first. Width is dropped on promote (galleries are
+  count-driven, no per-tile width).
+- **Adjacency-merge only at creation, never a silent reorg.** `planImageInsert` merges only
+  when the anchor IS an image/group, or an image/group sits directly adjacent with nothing
+  (or only a blank paragraph) between — a non-blank paragraph the user put between images
+  blocks the merge.
+- **Tiles reuse MediaBlock's CSS, not the component** (same pattern as ImageLightbox↔
+  PreviewPortal) — object-fit:cover + count-driven sizing + no caption-below don't fit
+  MediaBlock's single-image frame.
+- The "+N more" cover opens the lightbox at the **covered image** (coverIndex 5, the 6th
+  image, 1-based "index 6" in the spec), folding it + everything behind it into the count
+  (Facebook/Photos convention) — the roadmap's loose "opens at 7" was reconciled to this.
 - **Images own their markdown in `lib/md/image.ts`** (not BlockNote's built-in): the built-in
   serialises to a `<figure>` HTML blob and maps alt→`name` (asymmetric) — unusable. A custom
   block + our bridge gives plain `![]()` + full render control.

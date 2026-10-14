@@ -315,3 +315,70 @@ auto-gallery (swipe carousel + page dots). Collapse to single when a gallery dro
   backdrop blur + water-light legibility in light vs dark, and Space-to-expand from a real
   WKWebView-rendered image — browser automation can't reach the dev server; `tauri build` is out
   of scope for the phase.
+
+### Phase 3 — desktop inline gallery (2026-10-14)
+- **The `pensieve:gallery` fence (lib/md/gallery.ts).** One `ref | caption` line per image,
+  caption optional/trimmed, **display order = line order** — so a drag-reorder in the editor
+  is literally a line reorder in the `.md`. Separator is ` | ` (split on the first occurrence;
+  media refs never contain it). Mirrors `pensieve:image` exactly: SAVE rewrites each url→ref
+  (`refForUrl`, external urls kept verbatim), LOAD resolves each ref→url (`resolveMediaUrl`,
+  registering the pair). Encode is wired into `encodeStructure` and reconstruct into
+  `reconstructStructure` in extended.ts (before the image-fence branch); gallery ref
+  resolution is folded into image.ts's `resolveImageUrls` tree-walk so the undoLoad contract
+  (blocks arrive display-ready, no post-mount mutation) still holds.
+- **BlockNote props must be primitives → the image list is a JSON-string prop.** `imageGroup`
+  has a single `images: {default:"[]"}` prop holding `JSON.stringify([{url,caption?,saving?}])`.
+  An array-of-objects prop is NOT allowed by propSchema. `parseGalleryImages`/`stringifyGalleryImages`
+  are the (defensive, never-throwing) bridge; the block never reaches BlockNote's own Markdown
+  converter because encodeStructure maps it to the fence first (same as the image block).
+- **Collapse/promote is a block TYPE-SWAP, and markdown degradation is then automatic.**
+  Removing a tile down to 1 → `editor.updateBlock(id, {type:"image", props:{url,caption,width}})`;
+  the single-image block already serialises to plain `![]()` — there is NO fence→plain special
+  case to write. Promote (1→2 via paste/drop/"+") → `updateBlock(id, {type:"imageGroup"})` with
+  the existing image placed first. `updateBlock` changing a block's `type` works cleanly (same
+  mechanism ImageBlock's Remove uses to swap to a paragraph) and is ⌘Z-undoable. **Width is
+  dropped on promote** — galleries are count-driven, no per-tile width.
+- **Emergent creation planned as a pure function** (`planImageInsert` in galleryModel.ts), so
+  the merge/group/single decision is unit-tested without an editor. Rules: anchor IS an
+  image/group → merge (drop-onto); else the block right after the anchor is an image/group →
+  merge (adjacency, new image lands directly before it); else a blank paragraph anchor with an
+  image/group right before → merge; else 2+ files → group, 1 → single. **Only blank/nothing
+  counts as "adjacent"** — a non-blank paragraph the user typed between two images blocks the
+  merge (never silently reorganise a deliberate separation). The orchestration (`insertGroup.ts`)
+  sits ABOVE insertImage's `saveImageFile` funnel — every byte still saves the same way; the
+  Editor's paste/drop handler just routes through `insertImagesSmart` now (imagePasteDrop.ts is
+  untouched, as the plan required).
+- **Per-tile partial-upload state via a transient `saving` flag in the JSON.** A new group/merge
+  inserts tiles with `{url: <local object url>, saving:true}` instantly, then each file's
+  background `saveImageFile` swaps that index's url and clears `saving` (writes serialize because
+  all completions mutate one shared closure array before re-stringifying — no lost updates under
+  parallel saves). `saving` is never serialised (encode ignores it).
+- **Tiles reuse MediaBlock's CSS language, NOT the component** — the same call the lightbox made
+  with PreviewPortal. A grid tile is `object-fit:cover`, square (`aspect-ratio:1`), count-sized,
+  with no per-tile width and a lazy hover caption — none of which fit MediaBlock's single-image
+  frame (contain + max-h 60vh + width-% + caption-below). So tiles are their own small markup
+  sharing the `--radius`/`--border`/`--accent` tokens and the `.pensieve-media-progress` saving
+  hairline. The count cap (≤6 tiles) is what keeps a gallery ≤2 rows; overflow spills to the
+  lightbox (no in-block scroll/carousel on desktop).
+- **The "+N more" cover opens the lightbox at the COVERED image.** 6 tiles max; the 6th
+  (coverIndex 5) dims image #6 and shows `+N` where N folds image #6 + everything behind it
+  (count − 5, the Facebook/Photos convention) and clicking opens the lightbox at index 5. This
+  reconciles the plan's two phrasings ("index 6" detailed vs "opens at 7" roadmap) to one
+  consistent behaviour. **Caveat:** images beyond the 6th have no in-block ×/caption controls
+  (you reach them via the lightbox, which is view-only) — acceptable for v1, flagged here.
+- **Drag-reorder is pointer-based (HTML5 drag can't drop in the WKWebView shell** — same reason
+  GutterHandle is pointer-driven). The reorder math (`reorderImages`, `insertionIndexAt`) is
+  pure/tested; the pointer wiring + the 2px accent insertion line are **owner-native-run
+  verification** (DOM drag isn't unit-testable, per the plan).
+- **Drop-onto-join reuses the existing drop caret, no dedicated join-rail.** The plan asked for
+  a distinct "2px accent drop-rail with accent-glow on the target edge" when dropping ONTO an
+  image/gallery. imagePasteDrop was left untouched (the plan also said "extend, don't fork" it),
+  so its existing accent caret (`.pensieve-media-caret`, a 3px accent line with an accent halo at
+  the hovered block edge) + the full-editor `accent-glow` ring already mark the drop target; the
+  JOIN behaviour is correct (planImageInsert merges), but there is no visual that distinguishes a
+  join from an insert yet. **Deliberate minor deviation** — noted for a possible polish pass
+  (Phase 6) if the owner wants the join visually called out.
+- **Not verifiable here (owner's native run):** every count's layout, the drag-reorder feel +
+  insertion line, the "+N more"→lightbox jump, and the drop-onto-join drop target — all need the
+  real WKWebView; browser automation can't reach the dev server and `tauri build` is out of scope
+  for the phase.
