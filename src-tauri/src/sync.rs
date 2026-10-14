@@ -26,6 +26,8 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
@@ -88,21 +90,50 @@ pub fn secret_delete(app: AppHandle, key: String) -> Result<(), String> {
     write_store(&app, &map)
 }
 
+// `rename_all = "camelCase"` keeps the existing single-word fields (method/url/headers/body)
+// byte-identical while the new multi-word fields map to JS camelCase (bodyBase64,
+// responseBase64) — so the note/.md/token string path is untouched.
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HttpReq {
     method: String,
     url: String,
     #[serde(default)]
     headers: HashMap<String, String>,
+    /// A UTF-8 string body (note .md, JSON, the OAuth token form). Unchanged path.
     #[serde(default)]
     body: Option<String>,
+    /// A base64-encoded BINARY body (image bytes). Takes precedence over `body` when
+    /// present — a JS string can't carry arbitrary bytes, so media rides as base64 and
+    /// is decoded here before the request is sent.
+    #[serde(default)]
+    body_base64: Option<String>,
+    /// When true, the RESPONSE body is read as raw bytes and returned base64-encoded in
+    /// `body_base64` (binary downloads — image content). Otherwise it's a UTF-8 string.
+    #[serde(default)]
+    response_base64: bool,
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HttpRes {
     status: u16,
     body: String,
+    /// Set only when `response_base64` was requested — the raw response bytes, base64'd.
+    body_base64: Option<String>,
     headers: HashMap<String, String>,
+}
+
+/// Which bytes to send as the request body: a base64 (binary) body wins over the string
+/// body; neither → no body. Pulled out as a pure fn so the precedence is unit-testable.
+fn request_body(body: &Option<String>, body_base64: &Option<String>) -> Result<Option<Vec<u8>>, String> {
+    if let Some(b64) = body_base64 {
+        return Ok(Some(STANDARD.decode(b64.as_bytes()).map_err(|e| e.to_string())?));
+    }
+    if let Some(s) = body {
+        return Ok(Some(s.clone().into_bytes()));
+    }
+    Ok(None)
 }
 
 /// Make an HTTP request from the NATIVE side (no webview Origin header). This is how
@@ -124,8 +155,9 @@ fn http_blocking(req: HttpReq) -> Result<HttpRes, String> {
     for (k, v) in &req.headers {
         r = r.set(k, v);
     }
-    let result = match req.body {
-        Some(b) => r.send_string(&b),
+    let body = request_body(&req.body, &req.body_base64)?;
+    let result = match body {
+        Some(bytes) => r.send_bytes(&bytes),
         None => r.call(),
     };
     let resp = match result {
@@ -142,8 +174,29 @@ fn http_blocking(req: HttpReq) -> Result<HttpRes, String> {
             headers.insert(name.to_lowercase(), val.to_string());
         }
     }
-    let body = resp.into_string().map_err(|e| e.to_string())?;
-    Ok(HttpRes { status, body, headers })
+    if req.response_base64 {
+        // Binary download: read the raw bytes and hand them back base64-encoded so
+        // arbitrary image content survives the IPC boundary (into_string would reject /
+        // corrupt non-UTF-8 bytes).
+        let mut buf: Vec<u8> = Vec::new();
+        resp.into_reader()
+            .read_to_end(&mut buf)
+            .map_err(|e| e.to_string())?;
+        Ok(HttpRes {
+            status,
+            body: String::new(),
+            body_base64: Some(STANDARD.encode(&buf)),
+            headers,
+        })
+    } else {
+        let body = resp.into_string().map_err(|e| e.to_string())?;
+        Ok(HttpRes {
+            status,
+            body,
+            body_base64: None,
+            headers,
+        })
+    }
 }
 
 /// True if we can bind the loopback port the OAuth redirect needs. Checked before
@@ -319,3 +372,28 @@ h1{font-size:1.1rem;font-weight:600;margin:0 0 .4rem}p{margin:0;opacity:.6;font-
 </style></head><body><div><h1>Pensieve is connected ✓</h1>\
 <p>You can close this tab and return to the app.</p></div>\
 <script>window.setTimeout(function(){window.close()},800)</script></body></html>";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn request_body_prefers_base64_then_string_then_none() {
+        // A base64 (binary) body wins and decodes to the exact original bytes — including
+        // non-UTF-8 bytes a string body could never carry.
+        let b64 = STANDARD.encode([0u8, 1, 2, 255, b'x']);
+        assert_eq!(
+            request_body(&Some("ignored".into()), &Some(b64)).unwrap().unwrap(),
+            vec![0u8, 1, 2, 255, b'x']
+        );
+        // A string body is used when there's no base64 body.
+        assert_eq!(
+            request_body(&Some("hello".into()), &None).unwrap().unwrap(),
+            b"hello".to_vec()
+        );
+        // Neither → no body (a GET).
+        assert!(request_body(&None, &None).unwrap().is_none());
+        // Invalid base64 is a clean error, not a panic.
+        assert!(request_body(&None, &Some("not valid base64 @@@".into())).is_err());
+    }
+}
