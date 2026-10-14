@@ -20,7 +20,8 @@ export type IconName =
   | "link"
   | "highlight"
   | "export"
-  | "thread";
+  | "thread"
+  | "image";
 
 /** Sync's live status, mirrored from lib/wand/syncMachine so the dock/menu can badge it. */
 export type SyncBadge = "synced" | "reminder" | "syncing" | "failed" | "offline";

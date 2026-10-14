@@ -40,8 +40,9 @@ describe("registry — conditional (page-recommended) rosters", () => {
     expect(hasConditional("home")).toBe(true);
   });
 
-  it("a note suggests spells that act on the open memory", () => {
+  it("a note suggests spells that act on the open memory, led by Picture", () => {
     const note = conditionalSpells("note").map((s) => s.id);
+    expect(note[0]).toBe("image"); // Picture leads the note ring
     expect(note).toContain("label");
     expect(note).toContain("highlight");
     expect(hasConditional("note")).toBe(true);

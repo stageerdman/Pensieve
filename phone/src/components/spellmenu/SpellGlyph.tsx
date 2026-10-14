@@ -74,6 +74,14 @@ const PATHS: Record<Exclude<IconName, "menu">, React.ReactNode> = {
       <path d="M6 8v8M8 6h6a2 2 0 0 1 2 2v2M8 18h6a2 2 0 0 0 2-2v-2" />
     </>
   ),
+  // a single-stroke photo frame: a bordered rect, a sun, and a rising-horizon line
+  image: (
+    <>
+      <rect x="3.2" y="5.2" width="17.6" height="13.6" rx="2.4" />
+      <circle cx="8.4" cy="9.8" r="1.5" />
+      <path d="M4 16.5l4.6-4.3a1.6 1.6 0 0 1 2.2 0L16 17M14 14.2l1.8-1.7a1.6 1.6 0 0 1 2.2 0l2 1.9" />
+    </>
+  ),
 };
 
 /** Six fire-gold ember-orbs on a ring (12 o'clock clockwise), 32-grid, radius 11 — no hub. */
