@@ -61,6 +61,31 @@ export const Image = (p: IconProps) =>
     p,
   );
 
+// Stacked frames — the gallery (multi-image) block / insert affordance. Distinct at a
+// glance from the single Image glyph.
+export const Images = (p: IconProps) =>
+  svg(
+    <>
+      <rect x="7" y="3" width="14" height="14" rx="2" />
+      <circle cx="11.5" cy="7.5" r="1.2" />
+      <path d="M21 13l-4-4-6 6" />
+      <path d="M3 7v12a2 2 0 0 0 2 2h12" />
+    </>,
+    p,
+  );
+
+// Magnifier — the deliberate "expand to lightbox" control.
+export const Expand = (p: IconProps) =>
+  svg(
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      <line x1="11" y1="8" x2="11" y2="14" />
+      <line x1="8" y1="11" x2="14" y2="11" />
+    </>,
+    p,
+  );
+
 export const PanelRight = (p: IconProps) =>
   svg(
     <>

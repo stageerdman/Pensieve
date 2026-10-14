@@ -26,7 +26,7 @@ import { setMediaNoteId } from "./media/mediaContext";
 import { makeUploadFile } from "./media/insertImage";
 import { insertImagesSmart, type GroupEditor } from "./media/insertGroup";
 import { mediaToast } from "./media/mediaToast";
-import { Image as ImageIcon } from "../icons";
+import { Image as ImageIcon, Images as ImagesIcon } from "../icons";
 import { GutterHandle } from "./GutterHandle";
 import { useBlockMarquee } from "./useBlockMarquee";
 import { useBlockDrag } from "./useBlockDrag";
@@ -218,31 +218,58 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
             </FormattingToolbar>
           )}
         />
-        {/* "/" — the default block menu PLUS our "Image" item (aliases img/photo). It
-            inserts an empty image placeholder with one inline input (URL+Enter embeds;
-            Enter-on-empty opens the OS file picker) — no tabbed Upload|Embed|Search. */}
+        {/* "/" — the default block menu with BlockNote's built-in media items REMOVED
+            (they'd otherwise show as duplicate Image/Video/Audio/File entries), PLUS our
+            own two, deliberately distinct, Media commands:
+              • Image   — one picture (single-file picker / URL embed)
+              • Gallery — several pictures in one block (multi-file picker)
+            Both insert our `image` block in its one-input "prompt" state via BlockNote's
+            insertOrUpdateBlockForSlashMenu (which reliably clears the typed "/…" text);
+            Gallery sets the transient `multiple` flag so the picker allows multi-select and
+            2+ chosen files become a gallery (ImageBlock handles the split). */}
         <SuggestionMenuController
           triggerCharacter="/"
-          getItems={async (query) =>
-            filterSuggestionItems(
+          getItems={async (query) => {
+            const MEDIA_KEYS = new Set(["image", "video", "audio", "file"]);
+            const MEDIA_TITLES = new Set(["Image", "Video", "Audio", "File", "Embed"]);
+            const defaults = getDefaultReactSlashMenuItems(editor).filter((it) => {
+              // `key` is dropped from the React item's TS type but survives at runtime;
+              // fall back to the (localized) title so we never leave a stray media item.
+              const key = (it as { key?: string }).key;
+              if (key && MEDIA_KEYS.has(key)) return false;
+              return !MEDIA_TITLES.has(it.title);
+            });
+            return filterSuggestionItems(
               [
-                ...getDefaultReactSlashMenuItems(editor),
+                ...defaults,
                 {
                   title: "Image",
                   aliases: ["img", "photo", "picture"],
                   group: "Media",
                   icon: <ImageIcon size={18} />,
-                  subtext: "Embed a URL or choose a file",
+                  subtext: "Add a single image",
                   onItemClick: () =>
                     insertOrUpdateBlockForSlashMenu(editor, {
                       type: "image",
                       props: { status: "prompt" },
                     } as never),
                 },
+                {
+                  title: "Gallery",
+                  aliases: ["images", "album", "photos", "grid"],
+                  group: "Media",
+                  icon: <ImagesIcon size={18} />,
+                  subtext: "Add several images",
+                  onItemClick: () =>
+                    insertOrUpdateBlockForSlashMenu(editor, {
+                      type: "image",
+                      props: { status: "prompt", multiple: true },
+                    } as never),
+                },
               ],
               query,
-            )
-          }
+            );
+          }}
         />
         {/* "@" opens a menu to link an existing note (recent-first; filters by title). */}
         <SuggestionMenuController

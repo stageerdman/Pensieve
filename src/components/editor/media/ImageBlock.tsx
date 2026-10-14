@@ -4,8 +4,10 @@ import { MediaBlock, type MediaState } from "./MediaBlock";
 import { DEFAULT_IMAGE_WIDTH, imageFilename } from "../../../lib/md/image";
 import { getMediaNoteId, expandImage } from "./mediaContext";
 import { persistIntoBlock, type InsertEditor } from "./insertImage";
+import { insertImagesSmart, type GroupEditor } from "./insertGroup";
 import { useMediaBackup } from "./useMediaBackup";
 import { refForUrl } from "../../../lib/media";
+import { Expand as ExpandIcon } from "../../icons";
 import { log } from "../../../lib/logger";
 
 // The custom `image` block — it REPLACES BlockNote's built-in image chrome so images
@@ -28,12 +30,12 @@ function stepWidth(current: number, dir: -1 | 1): number {
 }
 
 interface RenderProps {
-  block: { id: string; props: { url: string; caption: string; width: number; status: string; filename: string } };
+  block: { id: string; props: { url: string; caption: string; width: number; status: string; filename: string; multiple: boolean } };
   editor: InsertEditor & { isEditable: boolean };
 }
 
 function ImageRender({ block, editor }: RenderProps) {
-  const { url, caption, width, status, filename } = block.props;
+  const { url, caption, width, status, filename, multiple } = block.props;
   const editable = editor.isEditable;
   const selectedBlocks = useSelectedBlocks(editor as never);
   const selected = editable && selectedBlocks.length === 1 && selectedBlocks[0].id === block.id;
@@ -56,10 +58,25 @@ function ImageRender({ block, editor }: RenderProps) {
     (frameRef.current?.querySelector(".pensieve-media-frame") as HTMLElement | null) ?? frameRef.current;
   const expand = () => url && expandImage(url, caption, frameRef.current, rectEl());
 
+  // Handle the prompt's file pick: 1 file → fill this block (single image); 2+ → turn
+  // this block into a gallery (insertImagesSmart groups them). This is how "/gallery"
+  // (which opens the picker in `multiple` mode) yields a gallery.
+  const onPromptFiles = (files: File[]) => {
+    if (files.length === 0) return;
+    const noteId = getMediaNoteId();
+    if (files.length === 1) {
+      void persistIntoBlock(editor, noteId, files[0], block.id);
+    } else {
+      void insertImagesSmart(editor as unknown as GroupEditor, noteId, files, block.id);
+      editor.updateBlock(block.id, { type: "paragraph", props: {} } as never);
+    }
+  };
+
   // ── the `/image` prompt sub-state: one inline input, no tabbed panel ──────────────
   if (status === "prompt" && !url) {
     return (
       <ImagePrompt
+        multiple={!!multiple}
         onEmbed={(u) => update({ url: u, status: "" })}
         onPick={() => fileRef.current?.click()}
         onCancel={() => editor.updateBlock(block.id, { type: "paragraph", props: {} } as never)}
@@ -68,10 +85,11 @@ function ImageRender({ block, editor }: RenderProps) {
             ref={fileRef}
             type="file"
             accept="image/*"
+            multiple={!!multiple}
             hidden
             onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void persistIntoBlock(editor, getMediaNoteId(), f, block.id);
+              onPromptFiles(Array.from(e.target.files ?? []));
+              e.target.value = "";
             }}
           />
         }
@@ -85,18 +103,12 @@ function ImageRender({ block, editor }: RenderProps) {
       ? "saving"
       : "loaded";
 
+  // Keyboard on the selected image: width only (⌘[/⌘]). We deliberately do NOT bind
+  // Space or Enter — Space hijacked caption typing and both made the image expand by
+  // surprise. Expanding is a deliberate act now: the magnify button or a double-click.
   const onKeyDown = (e: KeyboardEvent) => {
     if (!editable) return;
-    if (e.key === " " || e.key === "Enter") {
-      // Enter on the image jumps into the caption; Space expands (Phase 2 lightbox hook).
-      if (e.key === "Enter") {
-        e.preventDefault();
-        captionRef.current?.focus();
-      } else {
-        e.preventDefault();
-        expand();
-      }
-    } else if ((e.metaKey || e.ctrlKey) && (e.key === "[" || e.key === "]")) {
+    if ((e.metaKey || e.ctrlKey) && (e.key === "[" || e.key === "]")) {
       e.preventDefault();
       update({ width: stepWidth(width, e.key === "]" ? 1 : -1) });
     }
@@ -158,6 +170,10 @@ function ImageRender({ block, editor }: RenderProps) {
             <>
               <div className="pensieve-media-resize" onPointerDown={startResize} aria-label="Resize image" />
               <div className="pensieve-media-tools" contentEditable={false}>
+                <button type="button" className="pensieve-media-tool-icon" title="Expand" aria-label="Expand image" onClick={expand}>
+                  <ExpandIcon size={15} />
+                </button>
+                <button type="button" onClick={() => captionRef.current?.focus()}>Caption</button>
                 <button type="button" onClick={replace}>Replace</button>
                 <button type="button" onClick={remove}>Remove</button>
               </div>
@@ -203,11 +219,13 @@ function ImageRender({ block, editor }: RenderProps) {
 // The `/image` placeholder: ONE input. Paste a url + Enter embeds it (external, not saved);
 // Enter on empty opens the OS file picker; Esc / Backspace-on-empty removes the block.
 function ImagePrompt({
+  multiple,
   onEmbed,
   onPick,
   onCancel,
   fileInput,
 }: {
+  multiple?: boolean;
   onEmbed: (url: string) => void;
   onPick: () => void;
   onCancel: () => void;
@@ -221,7 +239,11 @@ function ImagePrompt({
       <input
         ref={inputRef}
         className="pensieve-media-prompt-input"
-        placeholder="Paste an image URL, or press Enter to choose a file…"
+        placeholder={
+          multiple
+            ? "Press Enter to choose images…"
+            : "Paste an image URL, or press Enter to choose a file…"
+        }
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
@@ -252,6 +274,7 @@ export const ImageBlock = createReactBlockSpec(
       // Transient (never serialized — lib/md/image reads only url/caption/width):
       status: { default: "" }, // "" | "prompt" | "saving"
       filename: { default: "" },
+      multiple: { default: false, type: "boolean" }, // prompt picker allows multi-select → gallery
     },
   },
   {
