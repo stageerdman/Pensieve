@@ -43,6 +43,11 @@ export function ImageLightbox() {
   const [data, setData] = useState<LightboxOpenOptions | null>(null);
   const [index, setIndex] = useState(0);
   const [closing, setClosing] = useState(false);
+  // Zoom + pan (the owner wants to inspect closer — desktop wheel/trackpad + drag).
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const panRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+  const [panning, setPanning] = useState(false);
 
   const frameRef = useRef<HTMLDivElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
@@ -63,6 +68,54 @@ export function ImageLightbox() {
       return d;
     });
   }, []);
+
+  const resetZoom = useCallback(() => {
+    setZoom(1);
+    setOffset({ x: 0, y: 0 });
+  }, []);
+
+  // Reset zoom/pan whenever the shown image changes (step) or a new open sets the index.
+  useEffect(() => {
+    resetZoom();
+  }, [index, data, resetZoom]);
+
+  // Wheel / trackpad-pinch to zoom (native non-passive listener so we can preventDefault
+  // the page scroll). Returning to 1× recenters.
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!el || !data) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      setZoom((z) => {
+        const next = Math.min(4, Math.max(1, z * (1 - e.deltaY * 0.0015)));
+        if (next === 1) setOffset({ x: 0, y: 0 });
+        return next;
+      });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [data]);
+
+  // Drag to pan when zoomed in.
+  const onImgPointerDown = (e: React.PointerEvent) => {
+    if (zoom <= 1) return;
+    e.preventDefault();
+    e.stopPropagation();
+    panRef.current = { x: e.clientX, y: e.clientY, ox: offset.x, oy: offset.y };
+    setPanning(true);
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+  };
+  const onImgPointerMove = (e: React.PointerEvent) => {
+    const p = panRef.current;
+    if (!p) return;
+    setOffset({ x: p.ox + (e.clientX - p.x), y: p.oy + (e.clientY - p.y) });
+  };
+  const onImgPointerUp = () => {
+    panRef.current = null;
+    setPanning(false);
+  };
+  // Double-click toggles fit ↔ 2×.
+  const toggleZoom = () => setZoom((z) => (z > 1 ? 1 : 2));
 
   // ── the rect→centre travel in (FLIP). Runs once the image frame has a layout box. ──
   const playEnter = useCallback(() => {
@@ -218,12 +271,15 @@ export function ImageLightbox() {
       ? `Image ${index + 1} of ${items.length}`
       : "Image viewer";
 
+  const zoomed = zoom !== 1 || offset.x !== 0 || offset.y !== 0;
+
   const overlay = (
     <>
-      {/* Layer 1 — the app recedes: blur + darken. Reused verbatim from PreviewPortal. */}
-      <div className="focus-backdrop" aria-hidden>
-        <div className="focus-backdrop-fx" />
-      </div>
+      {/* Layer 1 — a real full-viewport dim + blur so the image pops. (We do NOT reuse the
+          gallery's `focus-backdrop`: its radial mask makes the CENTRE transparent — exactly
+          where the lightbox image sits — so it never darkened here. A dark scrim reads in
+          both themes, as a photo viewer should.) */}
+      <div className="lightbox-backdrop" aria-hidden />
 
       {/* Layer 2 — the subject + chrome. Clicking the empty backdrop dismisses. */}
       <div
@@ -240,6 +296,7 @@ export function ImageLightbox() {
           ref={frameRef}
           className={"lightbox-frame" + (data.originRect ? "" : " portal-enter")}
           onClick={(e) => e.stopPropagation()}
+          onDoubleClick={toggleZoom}
         >
           <span className="portal-halo" aria-hidden />
           <img
@@ -248,6 +305,15 @@ export function ImageLightbox() {
             alt={mediaAlt(current.caption)}
             draggable={false}
             onLoad={playEnter}
+            onPointerDown={onImgPointerDown}
+            onPointerMove={onImgPointerMove}
+            onPointerUp={onImgPointerUp}
+            onPointerCancel={onImgPointerUp}
+            style={{
+              transform: zoomed ? `translate(${offset.x}px, ${offset.y}px) scale(${zoom})` : undefined,
+              transition: panRef.current ? "none" : "transform 140ms ease",
+              cursor: zoom > 1 ? (panning ? "grabbing" : "grab") : "zoom-in",
+            }}
           />
           <span className="portal-water" aria-hidden />
         </div>

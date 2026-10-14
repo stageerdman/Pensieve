@@ -282,6 +282,19 @@ body {
    .portal-water) verbatim — this block adds ONLY the image framing, the FLIP travel
    target, and the chrome layout. z-30 ("preview/overlay", design.md) so a z-50 toast
    still surfaces over it. */
+/* The lightbox's own darkening layer — a dark scrim + blur across the whole viewport
+   (reads in both themes; a photo viewer should go dark). pointer-events:none so the layer
+   above catches the backdrop-click-to-dismiss. */
+.lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  background: hsl(222 44% 6% / 0.82);
+  -webkit-backdrop-filter: blur(16px) saturate(108%);
+  backdrop-filter: blur(16px) saturate(108%);
+  animation: focus-backdrop-in 300ms ease both;
+}
 .lightbox-layer {
   position: fixed;
   inset: 0;
