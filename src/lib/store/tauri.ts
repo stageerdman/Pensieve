@@ -5,18 +5,34 @@
 //   notes/<id>.meta.json  { title, createdAt, updatedAt } — system fields, fast list
 //   timelines/<id>.json   TimelineEntry[]
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { appDataDir } from "@tauri-apps/api/path";
 import type { Category, Note, NoteBody, NoteMeta, Store, TimelineEntry } from "../types";
 import { titleFromMarkdown, excerptFromMarkdown, contentCharCount, plainTextFromMarkdown } from "../text";
 import { parseFrontmatter, composeFrontmatter } from "../md/frontmatter";
 import { pruneToRecentDays } from "../timeline";
 import { log } from "../logger";
+import { newMediaId, mediaRef, bytesToBase64 } from "../media";
 
 const readText = (rel: string) => invoke<string | null>("read_text", { rel });
 const writeText = (rel: string, contents: string) =>
   invoke<void>("write_text", { rel, contents });
+const writeBytes = (rel: string, data: string) =>
+  invoke<void>("write_bytes", { rel, data });
 const listDir = (rel: string) => invoke<string[]>("list_dir", { rel });
 const removePath = (rel: string) => invoke<void>("remove_path", { rel });
+
+// The vault root is <appData>/vault/ (mirrors vault_root() in src-tauri/src/lib.rs). A
+// media ref is vault-relative; the asset protocol needs an absolute path. Resolved once
+// and cached — the app data dir never changes within a run.
+let vaultAbsRoot: string | null = null;
+async function vaultRoot(): Promise<string> {
+  if (vaultAbsRoot === null) {
+    const base = await appDataDir();
+    vaultAbsRoot = base.endsWith("/") ? base + "vault" : base + "/vault";
+  }
+  return vaultAbsRoot;
+}
 
 const notePath = (id: string) => `notes/${id}.md`;
 const metaPath = (id: string) => `notes/${id}.meta.json`;
@@ -183,5 +199,32 @@ export class TauriStore implements Store {
   async saveTimeline(id: string, entries: TimelineEntry[]): Promise<void> {
     await writeText(timelinePath(id), JSON.stringify(entries));
     log.debug("store", "timeline.save", { id, count: entries.length });
+  }
+
+  async saveMedia(noteId: string, bytes: Uint8Array | ArrayBuffer, ext: string): Promise<string> {
+    const ref = mediaRef(noteId, newMediaId(), ext);
+    try {
+      // base64 over invoke (not a JS number array) — the IPC bridge is slow for raw byte
+      // arrays; Rust decodes it in write_bytes.
+      await writeBytes(ref, bytesToBase64(bytes));
+      log.info("media", "save", { noteId, ref, bytes: bytes.byteLength });
+      return ref;
+    } catch (e) {
+      log.error("media", "save.error", { noteId, ref, error: String(e) });
+      throw e;
+    }
+  }
+
+  async loadMediaUrl(ref: string): Promise<string | null> {
+    // Build the absolute vault path and hand it to the asset protocol. We don't probe
+    // the file first (that'd be a second IPC round-trip per image) — a missing file shows
+    // as a broken image, handled by the UI's broken/missing state later.
+    const abs = `${await vaultRoot()}/${ref}`;
+    return convertFileSrc(abs);
+  }
+
+  async removeMedia(ref: string): Promise<void> {
+    await removePath(ref);
+    log.info("media", "remove", { ref });
   }
 }

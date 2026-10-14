@@ -89,4 +89,19 @@ export interface Store {
   appendTimeline(id: string, entry: TimelineEntry): Promise<void>;
   // Replace a note's whole timeline (used by Restore to truncate forward history).
   saveTimeline(id: string, entries: TimelineEntry[]): Promise<void>;
+
+  // --- Media (images now; audio/video later) ---------------------------------------
+  // Byte persistence for inline media. Bytes are stored at the vault-relative path
+  // `media/<noteId>/<mediaId>.<ext>` (Tauri: on disk; browser: IndexedDB). The .md keeps
+  // that ref; it's rewritten to a loadable URL at load (see lib/media/url).
+
+  // Mint a mediaId, write the bytes, and return the vault-relative ref string.
+  saveMedia(noteId: string, bytes: Uint8Array | ArrayBuffer, ext: string): Promise<string>;
+  // Resolve a ref to a URL the webview can load (Tauri asset URL / browser blob URL), or
+  // null if the file is missing.
+  loadMediaUrl(ref: string): Promise<string | null>;
+  // Remove a media file. NOTE: callers must NOT auto-GC media on block removal this
+  // update — version/timeline snapshots may still reference it. Use only for explicit
+  // deletions (e.g. deleting a whole note, or a deliberate replace).
+  removeMedia(ref: string): Promise<void>;
 }
