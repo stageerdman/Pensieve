@@ -277,6 +277,86 @@ body {
   .water-bg { filter: none; } /* no liquid warp when motion is reduced */
 }
 
+/* ---- Image lightbox (the ONE magical moment, shared across surfaces) ----
+   Reuses the portal visual language above (.focus-backdrop / .portal-halo /
+   .portal-water) verbatim — this block adds ONLY the image framing, the FLIP travel
+   target, and the chrome layout. z-30 ("preview/overlay", design.md) so a z-50 toast
+   still surfaces over it. */
+.lightbox-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 2.5rem;
+}
+/* The travelling subject: the image floats crisp + letterboxed, never cropped. The
+   shadow value matches PreviewPortal's pane (shared magical language, no new look). */
+.lightbox-frame {
+  position: relative;
+  display: inline-flex;
+  max-width: 92vw;
+  max-height: 86vh;
+  border-radius: 0.75rem;
+  will-change: transform;
+}
+.lightbox-img {
+  display: block;
+  max-width: 92vw;
+  max-height: 86vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 0.75rem;
+  box-shadow: 0 40px 120px -24px rgba(0, 0, 0, 0.55);
+}
+.lightbox-caption {
+  max-width: 92vw;
+  text-align: center;
+  text-wrap: balance;
+}
+/* Chrome — fixed to the viewport, quiet surface-raised pills so controls read over any
+   image yet stay recessive. Real IconButtons carry the AA focus ring. */
+.lightbox-close {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  border-radius: 0.5rem;
+  background: hsl(var(--surface-raised) / 0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.lightbox-nav {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 0.5rem;
+  background: hsl(var(--surface-raised) / 0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.lightbox-prev {
+  left: 1rem;
+}
+.lightbox-next {
+  right: 1rem;
+}
+.lightbox-counter {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.125rem 0.625rem;
+  border-radius: 999px;
+  background: hsl(var(--surface-raised) / 0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---- Sync (OneDrive) ---- */
 /* The sync rune (SyncRune) is a figure-8 lemniscate with pathLength=1, revealed
    partially so it reads as an S at rest; when active the stroke FLOWS around the

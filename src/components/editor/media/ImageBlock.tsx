@@ -47,6 +47,11 @@ function ImageRender({ block, editor }: RenderProps) {
 
   const update = (props: Record<string, unknown>) => editor.updateBlock(block.id, { props });
 
+  // The picture frame (not the full-width host) is where the lightbox travel starts from.
+  const rectEl = (): HTMLElement | null =>
+    (frameRef.current?.querySelector(".pensieve-media-frame") as HTMLElement | null) ?? frameRef.current;
+  const expand = () => url && expandImage(url, caption, frameRef.current, rectEl());
+
   // ── the `/image` prompt sub-state: one inline input, no tabbed panel ──────────────
   if (status === "prompt" && !url) {
     return (
@@ -85,7 +90,7 @@ function ImageRender({ block, editor }: RenderProps) {
         captionRef.current?.focus();
       } else {
         e.preventDefault();
-        if (url) expandImage(url, caption);
+        expand();
       }
     } else if ((e.metaKey || e.ctrlKey) && (e.key === "[" || e.key === "]")) {
       e.preventDefault();
@@ -141,7 +146,7 @@ function ImageRender({ block, editor }: RenderProps) {
         selected={selected}
         focused={focused}
         onImgError={() => setImgError(true)}
-        onActivate={() => url && state === "loaded" && expandImage(url, caption)}
+        onActivate={() => state === "loaded" && expand()}
         onLocate={editable ? replace : undefined}
         overlay={
           editable && (selected || focused) && state !== "broken" ? (
