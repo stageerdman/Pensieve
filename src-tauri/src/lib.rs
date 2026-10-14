@@ -159,8 +159,12 @@ pub fn run() {
                     .separator()
                     .item(&quit_item)
                     .build()?;
+                // The menu-bar glyph is the inner sigil only (no tile) as a monochrome
+                // *template* image — macOS tints it white on the dark bar / black on light,
+                // so it sits with the other system icons. Source: icons/tray.png.
                 let _tray = TrayIconBuilder::with_id("pensieve-tray")
-                    .icon(app.default_window_icon().unwrap().clone())
+                    .icon(tauri::include_image!("icons/tray.png"))
+                    .icon_as_template(true)
                     .tooltip("Pensieve")
                     .menu(&tray_menu)
                     .show_menu_on_left_click(true)
