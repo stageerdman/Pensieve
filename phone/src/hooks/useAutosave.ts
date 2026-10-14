@@ -7,6 +7,7 @@
 
 import { useEffect, useRef } from "react";
 import type { Note } from "../types";
+import { serializeNoteBody } from "../components/note/mediaDom";
 
 export interface AutosaveCallbacks {
   /** A brand-new note crossed into "has content" → add it to the vault (unshift),
@@ -40,15 +41,11 @@ export function useAutosave(
       const current = currentRef.current;
       const noteBody = noteBodyRef.current;
       if (!current || !noteBody) return;
-      const h = noteBody.firstElementChild;
-      current.t = (h ? h.textContent! : "").trim(); // first line = title
-      const rest: string[] = [];
-      let n = h ? h.nextElementSibling : null;
-      while (n) {
-        rest.push(n.textContent || "");
-        n = n.nextElementSibling;
-      }
-      current.c = rest.join("\n").trim();
+      // Serialize the body DOM to the shared markdown model: title (first H1), then each
+      // block as text OR, for a media block, its `![](ref)` / `pensieve:gallery` markdown.
+      const { title, content } = serializeNoteBody(noteBody);
+      current.t = title;
+      current.c = content;
       current.fill = Math.min(1, Math.max(0.18, current.c.length / 220));
       current.d = "Just now";
       if (current.isNew && (current.t || current.c)) {
