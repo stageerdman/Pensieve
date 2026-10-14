@@ -382,3 +382,61 @@ auto-gallery (swipe carousel + page dots). Collapse to single when a gallery dro
   insertion line, the "+N more"→lightbox jump, and the drop-onto-join drop target — all need the
   real WKWebView; browser automation can't reach the dev server and `tauri build` is out of scope
   for the phase.
+
+### Phase 4 — phone image capture (2026-10-14)
+- **Phone persistence reality (the recon conclusion):** the phone had **no persistence** —
+  `dataRef = createSeed()` is an in-memory copy reset every reload, and the body was serialized
+  from each contentEditable child's `textContent` joined by `\n`. That model **cannot carry an
+  image** (a non-editable media element has no meaningful textContent → it would be silently
+  dropped on save). So two things changed: body serialization now walks blocks and emits the
+  shared markdown for media (`serializeNoteBody`), and the vault now **persists to localStorage**
+  (notes array) with **bytes in IndexedDB** keyed by ref — the only way a photo ROUND-TRIPS a
+  reload (the owner's check). An absent/invalid store falls back to the seed.
+- **Cross-app imports were rejected — phone stays decoupled.** `phone/` is its own Vite app
+  (`root: phone/`, tsconfig `include:["src"]` = phone/src) that shares ONLY `src/styles/tokens.css`
+  (via a CSS `@import`). The desktop `lib/md/{gallery,image}.ts` + `lib/media/url.ts` drag the
+  Tauri store / `convertFileSrc` chain; `store/idb.ts` is dependency-free but lives under the
+  desktop tree. Rather than import across the boundary (coupling + pulling native deps into the
+  phone bundle), the small **stable format** (`pensieve:gallery`, ` | `, `![](ref)`, line order)
+  and a tiny IndexedDB store are **re-stated** in `phone/src/lib/media/` with a comment pointing
+  at the desktop source of truth. A future shared `lib/` boundary could unify them.
+- **Media = non-editable DOM blocks, mutated imperatively (NoteBody's hard constraint).** The
+  phone editor is an uncontrolled contentEditable React never re-renders. Media blocks are plain
+  `contentEditable=false` elements built in `components/note/mediaDom.ts`, carrying their payload
+  in a **`data-media` JSON attribute** (the serialization source of truth); the visual DOM
+  (img/carousel/dots) is DERIVED and rebuilt on any mutation, which then calls `ctx.onChange()`
+  → autosave. The `MediaCtx` lives on a stable ref object (DOM blocks capture it once) whose
+  `.onChange` is refreshed each render so it always calls the latest autosave.
+- **Type-guard trap:** a `node is HTMLElement` predicate used in a `!isMediaEl(x)` position
+  narrows the operand to `never` (TS removes HTMLElement in the false branch), breaking every
+  later `.textContent`/`.after`. Fix: `isMediaEl` returns a **plain boolean**, not a predicate.
+- **The note-conditional ring had no opener.** `.note` (z140) sits above the dock (z134), so the
+  spell menu — only openable from the dock — was un-summonable from inside a memory (the wiki's
+  known gap). Making `useSpellMenu` note-aware is necessary but not sufficient; added a quiet
+  gold spell-opener to the **note-top** (fades with the top chrome on `.editing-note`). It opens
+  the ring in Conditional form (Picture leading) because `menu = useSpellMenu(noteMounted ?
+  "note" : "home")` and `openMenu()` re-derives from the live context.
+- **Insert = one hidden `<input type=file accept=image/* multiple>` with NO `capture` attr** (a
+  `capture` attr would force camera-only; its absence gives the full iOS sheet: Photo Library /
+  Take Photo / Choose File). Both reach-points `.click()` it. `onPickFiles` mints a ref per file
+  (`mintMediaRef` → `media/<noteId>/<id>.<ext>`), `registerLocalMedia` (object-URL instant +
+  background IndexedDB write), then `insertImages` decides single vs gallery and merges into an
+  adjacent media block (emergent gallery), 2→1 collapses back to a single image.
+- **Lightbox + carousel are CSS scroll-snap** (left/right = native snap; dots update on scroll),
+  **not** a reimport of the desktop `ImageLightbox` (it's desktop-CSS-bound). The phone lightbox
+  is its own React component + a module-level `lightboxController` (pub/sub) the imperative media
+  blocks call from outside React — same seam as the desktop. Swipe-DOWN to dismiss is a pointer
+  drag that only engages when the gesture is decided-vertical (horizontal is left to snap).
+- **Desktop-made galleries render for free:** `parseNoteContent` is the same fence/image grammar,
+  so a `pensieve:gallery` authored on desktop becomes a carousel on load. Seeded as a demo note
+  with offline **SVG data-URI** refs (resolve as direct urls, no byte store) — a real `media/…`
+  ref would show the broken state until PWA-CAPTURE/sync brings the bytes across.
+- **Forward-compatible vs awaiting PWA-CAPTURE:** the `.md` the phone produces is byte-identical
+  to the desktop model (same refs, same fences), so when PWA-CAPTURE / real sync lands these notes
+  + the IndexedDB bytes flow into the vault/OneDrive with no rewrite. NOT built here: the real
+  vault write, OneDrive sync, in-app camera, captions/alt prompt, paste-URL on phone.
+- **Not verifiable here (owner device run):** the native OS photo sheet, the carousel/lightbox
+  swipe + pinch feel, long-press drag-reorder, and real reload persistence — all need the iPhone
+  via `npm run dev:phone` (browser automation can't reach the dev server; jsdom has no layout).
+  The pure bridge (parse/serialize/collapse/reorder) + the DOM render↔serialize + insert
+  single/gallery/merge are unit-tested (16 new tests).

@@ -86,7 +86,7 @@ on a real decision/blocker. Each phase is independently verifiable.
 - Tests: gallery md round-trip; merge/collapse/promote; reorder → line reorder; partial-upload state.
 - **Verify:** native app — drop 3 images, reorder, add, remove to 1 (collapses), expand + arrow through.
 
-### Phase 4 — Phone image capture  ⏳
+### Phase 4 — Phone image capture  ✅ (built 2026-10-14, pending owner device run)
 - Make the spell context note-aware (replace hardcoded `useSpellMenu("home")` at `PhoneApp.tsx:160`).
 - `image` IconName + glyph; **"Picture"** spell leading `conditionalSpells("note")` + dispatch.
 - NoteToolbar image button left of the mic + `onInsertImage` (pointerdown+preventDefault; NOT a `FmtKey`).
@@ -180,6 +180,31 @@ on a real decision/blocker. Each phase is independently verifiable.
   "+N more"→lightbox, drop-onto join rail — none are browser-verifiable). **Next: Phase 4
   (phone) — do NOT start without go-ahead.**
 
+- **2026-10-14** — **Phase 4 built.** Phone image capture, in the phone's own idiom
+  (uncontrolled contentEditable, no BlockNote). Two reach-points, one picker, the SAME
+  markdown model as desktop. **(A)** a "Picture" spell leading `conditionalSpells("note")`
+  (new `image` IconName + single-stroke photo glyph); the hardcoded `useSpellMenu("home")`
+  is now note-aware, and a quiet gold spell-opener was added to the note-top so the
+  note-conditional ring is reachable from an open memory (it wasn't before — `.note` z140
+  covers the dock z134). **(B)** a photo button in NoteToolbar left of the mic (a dedicated
+  `onInsertImage`, pointerdown+preventDefault, NOT a FmtKey). Both click one hidden
+  `<input type=file accept=image/* multiple>` (no `capture` → native iOS sheet). Media are
+  **non-editable DOM blocks** mutated imperatively on the body ref (never via React), carrying
+  their payload in `data-media` so the body serializes back to `![](ref)` / `pensieve:gallery`.
+  Single image = figure; 2+ or adjacency-merge = a scroll-snap **carousel + page dots**; tap →
+  a full-screen **PhoneLightbox** (swipe between members, swipe-down/backdrop dismiss, OS
+  pinch); long-press a gallery → edit mode (quiet Remove + drag-reorder); 2→1 collapses to a
+  single image. Bytes go to a phone-local **IndexedDB** store (object-URL instant, write in the
+  background); the vault now persists to **localStorage** so a photo survives a reload. A
+  desktop-authored `pensieve:gallery` renders as a carousel (seeded demo note, offline SVG
+  data URIs). New phone-local `lib/media/` (noteMedia bridge, mediaStore, lightboxController)
+  — kept phone-local because the desktop `lib/md`/`lib/media` drag the Tauri store chain and
+  the two apps are decoupled (shared tokens only). `tsc -p phone` + root `tsc` clean; phone
+  `vite build` clean; full Vitest **653** green (637 prior + 16 new: noteMedia 12, mediaDom 4;
+  registry/PhoneApp assertions updated for the new spell + the 13th seed note).
+  **Pending owner device run** (`npm run dev:phone` on the iPhone — see the checklist below).
+  **Next: Phase 5 (OneDrive binary backup) — do NOT start without go-ahead.**
+
 ## Decisions
 - Inline gallery **block** (not a library). Backup **in scope**. Full **phone** UX now. (owner, 2026-10-14)
 - **imageGroup stores its ordered images as a JSON-string prop** (`images`) — BlockNote
@@ -216,6 +241,23 @@ on a real decision/blocker. Each phase is independently verifiable.
   Gallery block coded as `ImageGroupBlock` (name clash avoidance).
 - v1 lightbox: arrows/swipe/Home-End + "n/N" counter, **no filmstrip**; tile gutter `gap-1`.
 - Media files are **never** auto-deleted on removal this update (version snapshots may reference them).
+- **Phone stays decoupled from desktop `src/`.** The phone re-states the small, stable
+  markdown format + a tiny IndexedDB store in `phone/src/lib/media/` rather than importing
+  `src/lib/md`/`lib/media`/`store/idb.ts` — those drag the Tauri store/convertFileSrc chain,
+  and the two apps deliberately share ONLY design tokens. A future shared `lib/` could unify.
+- **Phone media rides in `Note.c` as markdown; the vault now persists to localStorage.** The
+  phone prototype ran on in-memory seed (reset every reload) and serialized the body from
+  `textContent`. To make a photo actually ROUND-TRIP a reload (owner check), the body now
+  serializes media blocks to the shared markdown (`serializeNoteBody`) and the whole notes
+  array persists to localStorage; bytes persist in IndexedDB keyed by ref. An absent/invalid
+  store falls back to the seed. (This was a scoped addition — the prototype had no persistence.)
+- **The note-conditional ring needed an opener.** `.note` (z140) covers the dock (z134), so
+  the spell menu was previously un-summonable from an open memory. Added a quiet gold
+  spell-opener in the note-top (fades with the top chrome while editing) so the "Picture"
+  reach-point is actually reachable. Flagged for the owner — adjust if it reads as clutter.
+- **Long-press reorder = drag within an edit mode.** Long-press a gallery → `.editing`
+  (snap off, per-tile Remove, haptic); drag reorders via `elementFromPoint` crossings using
+  the pure `reorderImages`. Device-verified (jsdom has no layout).
 
 ## Risks / watchlist
 - Tauri asset-protocol scope must include the vault media dir or `convertFileSrc` URLs won't load (P0).
@@ -223,3 +265,22 @@ on a real decision/blocker. Each phase is independently verifiable.
   not be tripped by async image insertion (P1).
 - Phone contentEditable has no block model — the fenced-gallery renderer is a real cost (P4), not a detail.
 - `extended.ts` fence-inside-fence limitation (issues.txt) if a gallery ever nests in a toggle — rare; watch.
+
+## Phase 4 — owner device checklist (`npm run dev:phone`, open on the iPhone over LAN)
+The feel + the OS sheet + touch gestures are NOT browser-verifiable (repo memory: automation
+can't reach the dev server; jsdom has no layout). On the phone:
+1. **Add from library** — open a memory, tap the photo key (left of the mic) → native sheet →
+   Photo Library → pick one → it appears instantly inline; type below it.
+2. **Take a photo** — same sheet → Take Photo → shows instantly after capture.
+3. **Picture spell** — in a memory, tap the gold spell button in the top bar → the ring opens
+   with **Picture** leading → cast it → same picker.
+4. **Multi-select → carousel** — pick 2–3 at once → one gallery carousel; swipe left/right,
+   watch the page dots; vertical swipe scrolls the note.
+5. **Tap → lightbox** — tap a frame → full-screen; swipe between members; swipe-down or tap
+   the backdrop to dismiss; pinch-zoom (OS) inside.
+6. **Long-press → edit** — long-press a gallery → Remove (×) per tile + drag to reorder;
+   remove down to 1 → collapses to a single image.
+7. **Reload persists** — reload Safari → reopen the memory → the photo(s) are still there
+   (bytes from IndexedDB, refs from the persisted note).
+8. **Desktop-made gallery renders** — open the seeded **"Three frames from the coast"** memory
+   → a `pensieve:gallery` fence shows as a carousel, not raw text.
