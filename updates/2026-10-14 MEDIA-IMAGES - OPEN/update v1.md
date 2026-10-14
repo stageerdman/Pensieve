@@ -34,7 +34,7 @@ sync rune marks not-yet-backed-up and fades once safe.
 Build mode: auto-build end to end, phase by phase; commit + push + verify each phase; check in only
 on a real decision/blocker. Each phase is independently verifiable.
 
-### Phase 0 — Foundations: bytes on disk + the reference model  ⏳
+### Phase 0 — Foundations: bytes on disk + the reference model  ✅ (built 2026-10-14, pending owner native-app run)
 - Rust: `write_bytes(rel, data)` + `read_bytes(rel) -> Option<Vec<u8>>` in `lib.rs` (model on
   `write_text`, reuse `resolve`, register in `invoke_handler!`). Decide base64-over-invoke vs raw.
 - Tauri `convertFileSrc` asset protocol: add the vault dir to the asset scope in `tauri.conf.json`;
@@ -114,7 +114,15 @@ on a real decision/blocker. Each phase is independently verifiable.
 ## Live status
 - **2026-10-14** — Update opened. Recon done (editor=BlockNote 0.55, storage, phone, sync all mapped).
   Three decisions locked with the owner (inline gallery block · backup in scope · full phone UX now).
-  4-agent Steve-Jobs UX team run + synthesized into `wiki.md`. Plan written. **Next: Phase 0.**
+  4-agent Steve-Jobs UX team run + synthesized into `wiki.md`. Plan written.
+- **2026-10-14** — **Phase 0 built.** Rust `write_bytes`/`read_bytes` (base64 over invoke) +
+  `protocol-asset` feature + asset-protocol scope `$APPDATA/vault/media/**`; `src/lib/media/`
+  (id mint · ref model `{mediaId,kind,caption?,width?,timecode?}` · path builder · base64 · ref↔URL
+  registry); `Store` gains `saveMedia`/`loadMediaUrl`/`removeMedia` in both adapters (Tauri→disk via
+  base64 + `convertFileSrc`; Browser→IndexedDB blob store, injectable for tests). `tsc` clean,
+  `cargo test` 2/2 green, full Vitest 577/577 green. **Pending owner native-app run** to confirm a saved
+  PNG actually loads via its asset URL (browser automation can't reach the dev server — repo memory).
+  **Next: Phase 1 (desktop single image) — do NOT start without go-ahead.**
 
 ## Decisions
 - Inline gallery **block** (not a library). Backup **in scope**. Full **phone** UX now. (owner, 2026-10-14)

@@ -170,4 +170,47 @@ auto-gallery (swipe carousel + page dots). Collapse to single when a gallery dro
   `convertFileSrc` URLs to load — a real config step, verify it.
 
 ## Lessons (fill as we build)
-- (TBD)
+
+### Phase 0 — storage plumbing (2026-10-14)
+- **Binary IPC = base64 strings, not `Vec<u8>` params.** `write_bytes(rel, data: String)` /
+  `read_bytes(rel) -> Option<String>` take/return base64; the JS side encodes
+  (`src/lib/media/base64.ts`, chunked `btoa` to survive `fromCharCode`'s arg limit on big images),
+  Rust decodes with the `base64` crate (`STANDARD` engine, added `base64 = "0.22"`). A JS number
+  array over the invoke bridge is slow for image-sized payloads — this is the deliberate reason.
+- **Asset protocol needs BOTH a Cargo feature AND config** — this is the gotcha:
+  - `src-tauri/Cargo.toml`: `tauri = { … features = ["protocol-asset"] }`. Without it the build
+    fails at the build-script with *"dependency features … does not match the allowlist … add the
+    `protocol-asset` feature."* (config-only is not enough.)
+  - `src-tauri/tauri.conf.json` → `app.security.assetProtocol`:
+    ```json
+    "assetProtocol": { "enable": true, "scope": ["$APPDATA/vault/media/**"] }
+    ```
+    `$APPDATA` is the Tauri v2 scope variable that maps to `app_data_dir()` — the exact dir
+    `vault_root()` builds from — so it resolves to `~/Library/Application Support/xyz.erdman.pensieve`
+    on macOS, matching the vault. `/**` is a recursive glob covering `media/<noteId>/<file>`. Scoped
+    to `media/` only (not the whole vault) so notes/sidecars/secrets are never asset-reachable.
+  - **CSP:** `app.security.csp` is `null` today, so Tauri injects no CSP and asset URLs load freely —
+    nothing to add this phase. **When a CSP is introduced later**, it MUST allow the asset origin in
+    `img-src` (`asset:` + on macOS `asset://localhost`, on Windows `http://asset.localhost`) or vault
+    images silently fail to load.
+  - **Not verifiable here:** the live asset-load check (does a saved PNG render via its
+    `convertFileSrc` URL?) is the owner's native-app run — browser automation can't reach the dev
+    server (repo memory), and a full `tauri build` is too slow for this phase.
+- **`convertFileSrc` wants an absolute path.** The Tauri adapter caches `appDataDir()` once per run
+  and builds `<appData>/vault/<ref>`; it does NOT probe the file first (a second IPC round-trip per
+  image) — a missing file surfaces as a broken image, handled by the UI later.
+- **Ref↔URL inverse is a registry, not string surgery.** A blob URL is opaque and an asset URL encodes
+  an absolute path, so neither reverses cleanly to the vault-relative ref. `src/lib/media/url.ts`
+  keeps a bidirectional `ref↔url` map: `resolveMediaUrl` records the pairing, `refForUrl`/`urlForRef`
+  look it up — lossless by construction, backend-agnostic. (Markdown save-time rewrite in Phase 1
+  will use `refForUrl`.)
+- **Browser/phone media = IndexedDB, injectable.** `src/lib/store/idb.ts` is a tiny
+  `MediaBlobStore {put,get,delete}` (keyed by ref, opened lazily so constructing it never touches
+  IndexedDB — jsdom has none). `BrowserStore` takes it via constructor with an IndexedDB default, so
+  tests inject an in-memory `Map` fake — **no `fake-indexeddb` dependency added.** jsdom's `Blob` has
+  no `arrayBuffer()`, so the round-trip test asserts `blob.size`; `URL.createObjectURL` is stubbed.
+- **Traversal guard extracted to a pure `is_safe_rel(rel)`** so it's unit-testable without an
+  `AppHandle`; `resolve()` calls it. Rust `#[test]`s cover the guard + base64 round-trip
+  (`cargo test` 2/2).
+- **Media files are never auto-GC'd on removal** (`removeMedia` doc-comment in `types.ts`): version/
+  timeline snapshots may still reference a removed image. Removal is for explicit cases only.
