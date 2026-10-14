@@ -8,6 +8,7 @@ import { createRoot } from "./adapter";
 // ---- in-memory LocalVault ----
 class MemVault implements LocalVault {
   notes = new Map<string, { content: string; updatedAt: number }>();
+  media = new Map<string, Uint8Array>();
   state: SyncState = { ...EMPTY_SYNC_STATE, notes: {} };
 
   async listNotes(): Promise<LocalNoteInfo[]> {
@@ -28,10 +29,23 @@ class MemVault implements LocalVault {
   async writeState(s: SyncState) {
     this.state = JSON.parse(JSON.stringify(s)) as SyncState;
   }
+  async listMedia() {
+    return [...this.media.keys()];
+  }
+  async readMediaBytes(ref: string) {
+    return this.media.get(ref) ?? null;
+  }
+  async writeMediaBytes(ref: string, bytes: Uint8Array) {
+    this.media.set(ref, bytes);
+  }
 
   // test helper: a local edit at a given time
   edit(id: string, content: string, updatedAt: number) {
     this.notes.set(id, { content, updatedAt });
+  }
+  // test helper: a local media file on disk
+  putMedia(ref: string, bytes: Uint8Array) {
+    this.media.set(ref, bytes);
   }
 }
 

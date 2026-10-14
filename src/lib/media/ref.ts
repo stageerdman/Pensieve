@@ -49,3 +49,18 @@ export function parseMediaPath(path: string): ParsedMediaPath | null {
   if (!noteId || dot <= 0 || dot === file.length - 1) return null;
   return { noteId, mediaId: file.slice(0, dot), ext: file.slice(dot + 1) };
 }
+
+// A media ref inside markdown: `media/<noteId>/<mediaId>.<ext>`. Matches both the plain
+// `![cap](media/…)` form and a `pensieve:gallery` fence line (`media/… | caption`). The
+// character classes mirror the ids the minter/path-builder produce (base36 + punctuation).
+const MEDIA_REF_RE = /media\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+\.[A-Za-z0-9]+/g;
+
+/** Every vault media ref mentioned in a note's markdown (deduped, well-formed only).
+ *  Used by the sync engine to pull the binaries a pulled note references. */
+export function extractMediaRefs(text: string): string[] {
+  const out = new Set<string>();
+  for (const m of text.matchAll(MEDIA_REF_RE)) {
+    if (parseMediaPath(m[0])) out.add(m[0]);
+  }
+  return [...out];
+}

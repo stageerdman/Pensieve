@@ -10,6 +10,7 @@ export {
   mediaRef,
   isMediaPath,
   parseMediaPath,
+  extractMediaRefs,
 } from "./ref";
 export { bytesToBase64, base64ToBytes } from "./base64";
 export {
@@ -19,3 +20,16 @@ export {
   registerMediaUrl,
   _resetMediaUrlRegistry,
 } from "./url";
+export {
+  type MediaBackupState,
+  type MediaBackupSummary,
+  getMediaBackupState,
+  setMediaBackupState,
+  setMediaBackupEnabled,
+  isMediaBackupEnabled,
+  primeMediaBackupStates,
+  subscribeMediaBackup,
+  subscribeMediaBackupAll,
+  mediaBackupSummary,
+  _resetMediaBackup,
+} from "./backupStatus";

@@ -90,12 +90,29 @@ export interface SyncProgress {
   bytes?: number;
 }
 
+/** Per-media backup bookkeeping. Media is content-addressed by its stable ref (immutable
+ *  bytes), so there's no cTag: a recorded `backedUp` ref is done. `failedAt` marks the last
+ *  failed attempt (auto-retried on the next sync). */
+export interface MediaSyncRecord {
+  /** Vault-relative ref: `media/<noteId>/<mediaId>.<ext>`. */
+  ref: string;
+  /** Graph item id of the remote binary, once uploaded. */
+  remoteId?: string;
+  /** True once the binary is confirmed on the remote. */
+  backedUp: boolean;
+  /** Epoch ms of the last failed upload, if any (for display/retry). */
+  failedAt?: number;
+}
+
 /** The whole sync state, persisted beside the vault (not a note). */
 export interface SyncState {
   /** The /delta cursor (@odata.deltaLink) — resume incremental pulls from here. */
   deltaLink: string | null;
   /** Per-note records keyed by local id. */
   notes: Record<string, NoteSyncRecord>;
+  /** Per-media backup records keyed by ref. Optional for back-compat with pre-media
+   *  state files; the engine initialises it to {} when absent. */
+  media?: Record<string, MediaSyncRecord>;
   /** Last full sync (epoch ms). */
   lastSyncedAt: number | null;
 }
@@ -103,6 +120,7 @@ export interface SyncState {
 export const EMPTY_SYNC_STATE: SyncState = {
   deltaLink: null,
   notes: {},
+  media: {},
   lastSyncedAt: null,
 };
 

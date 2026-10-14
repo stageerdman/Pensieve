@@ -4,6 +4,7 @@ import {
   mediaRef,
   parseMediaPath,
   isMediaPath,
+  extractMediaRefs,
   MEDIA_DIR,
   bytesToBase64,
   base64ToBytes,
@@ -12,6 +13,30 @@ import {
   urlForRef,
   _resetMediaUrlRegistry,
 } from "./index";
+
+describe("extractMediaRefs", () => {
+  it("finds refs in a plain image, a gallery fence, and dedupes", () => {
+    const md = [
+      "# Trip",
+      "![a cliff](media/note1/aaa.png)",
+      "```pensieve:gallery",
+      "media/note1/bbb.jpg | sunset",
+      "media/note1/aaa.png | repeat (same file)",
+      "```",
+      "and inline media/note2/ccc.webp somewhere",
+    ].join("\n");
+    expect(extractMediaRefs(md).sort()).toEqual([
+      "media/note1/aaa.png",
+      "media/note1/bbb.jpg",
+      "media/note2/ccc.webp",
+    ]);
+  });
+
+  it("ignores external urls and malformed refs", () => {
+    expect(extractMediaRefs("![x](https://example.com/a.png)")).toEqual([]);
+    expect(extractMediaRefs("media/only-two-parts.png")).toEqual([]);
+  });
+});
 
 describe("newMediaId", () => {
   it("produces unique ids across many mints", () => {
