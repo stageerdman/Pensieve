@@ -1,119 +1,127 @@
 import { createReactBlockSpec, useSelectedBlocks } from "@blocknote/react";
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { MediaBlock, type MediaState } from "./MediaBlock";
-import { DEFAULT_IMAGE_WIDTH, imageFilename } from "../../../lib/md/image";
+import {
+  DEFAULT_WIDTH,
+  snapWidth,
+  stepWidth,
+  presetWidth,
+  widthPreset,
+  cornerResize,
+  restoreShape,
+  type SizePreset,
+} from "./mediaShape";
+import { imageFilename } from "../../../lib/md/image";
 import { getMediaNoteId, expandImage } from "./mediaContext";
 import { persistIntoBlock, type InsertEditor } from "./insertImage";
 import { insertImagesSmart, type GroupEditor } from "./insertGroup";
 import { useMediaBackup } from "./useMediaBackup";
 import { refForUrl } from "../../../lib/media";
-import { Expand as ExpandIcon } from "../../icons";
+import { Image as ImageIcon, Expand as ExpandIcon, MoreHorizontal } from "../../icons";
 import { log } from "../../../lib/logger";
 
-// The custom `image` block — it REPLACES BlockNote's built-in image chrome so images
-// render in the Pensieve MediaBlock language (not BlockNote's default upload card).
-//   • config/propSchema: url (a loadable url in-editor), caption (= alt), width (a
-//     fraction of the text column), plus transient status/filename that never serialize
-//     (lib/md/image only reads url/caption/width).
-//   • parse: `<img>` → our props, so `![caption](ref)` round-trips in via BlockNote.
-//   • toExternalHTML: `<img src alt>`, so a default-width image round-trips OUT as plain
-//     `![caption](ref)` natively (verified) — width is bridged by lib/md/image's fence.
+// The custom `image` block — renders in the Pensieve MediaBlock language (not BlockNote's
+// default upload card). Empty = a placeholder you CLICK to add an image (upload / embed /
+// drop); the ⋯ menu edits the box size + shape even when empty; "Restore to original"
+// returns to the uploaded image's natural dimensions (or the default empty box).
+//   • props: url (loadable in-editor), caption (= alt), width (fraction of the column),
+//     aspect (box w/h; 0 = natural), + transient status/filename (never serialized).
+//   • parse/toExternalHTML: `<img src alt>` ↔ `![caption](ref)` for the default-shape case;
+//     a resized/reshaped image rides the `pensieve:image` fence (lib/md/image).
 
-export const WIDTH_SNAPS = [0.25, 0.5, 0.75, 1] as const;
-
-function snapWidth(fraction: number): number {
-  return WIDTH_SNAPS.reduce((best, s) => (Math.abs(s - fraction) < Math.abs(best - fraction) ? s : best), WIDTH_SNAPS[0]);
+interface Props {
+  url: string;
+  caption: string;
+  width: number;
+  aspect: number;
+  status: string;
+  filename: string;
 }
-function stepWidth(current: number, dir: -1 | 1): number {
-  const i = WIDTH_SNAPS.indexOf(snapWidth(current) as (typeof WIDTH_SNAPS)[number]);
-  return WIDTH_SNAPS[Math.min(WIDTH_SNAPS.length - 1, Math.max(0, i + dir))];
-}
-
 interface RenderProps {
-  block: { id: string; props: { url: string; caption: string; width: number; status: string; filename: string; multiple: boolean } };
-  editor: InsertEditor & { isEditable: boolean };
+  block: { id: string; props: Props };
+  editor: InsertEditor & { isEditable: boolean; removeBlocks?: (ids: string[]) => void };
 }
 
 function ImageRender({ block, editor }: RenderProps) {
-  const { url, caption, width, status, filename, multiple } = block.props;
+  const { url, caption, width, aspect, status } = block.props;
   const editable = editor.isEditable;
   const selectedBlocks = useSelectedBlocks(editor as never);
   const selected = editable && selectedBlocks.length === 1 && selectedBlocks[0].id === block.id;
 
   const [focused, setFocused] = useState(false);
   const [imgError, setImgError] = useState(false);
-  // The gold backup rune tracks this image's vault ref (external/unresolved urls → none).
+  const [popover, setPopover] = useState<null | "menu" | "add">(null);
+  const [embedding, setEmbedding] = useState(false);
+  const [embedUrl, setEmbedUrl] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+
   const backup = useMediaBackup(url ? refForUrl(url) : null);
   const frameRef = useRef<HTMLDivElement>(null);
   const captionRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // A new url (swap after save, or a re-point) clears a stale broken flag.
   useEffect(() => setImgError(false), [url]);
+  // Close popovers when the block is deselected.
+  useEffect(() => {
+    if (!selected) {
+      setPopover(null);
+      setEmbedding(false);
+    }
+  }, [selected]);
 
-  const update = (props: Record<string, unknown>) => editor.updateBlock(block.id, { props });
+  const update = (props: Partial<Props>) => editor.updateBlock(block.id, { props });
+  const removeSelf = () => {
+    editor.updateBlock(block.id, { type: "paragraph", props: {} } as never);
+    log.info("media", "block.remove", { id: block.id });
+  };
 
-  // The picture frame (not the full-width host) is where the lightbox travel starts from.
+  const state: MediaState = imgError
+    ? "broken"
+    : status === "saving"
+      ? "saving"
+      : url
+        ? "loaded"
+        : "empty";
+
   const rectEl = (): HTMLElement | null =>
     (frameRef.current?.querySelector(".pensieve-media-frame") as HTMLElement | null) ?? frameRef.current;
   const expand = () => url && expandImage(url, caption, frameRef.current, rectEl());
 
-  // Handle the prompt's file pick: 1 file → fill this block (single image); 2+ → turn
-  // this block into a gallery (insertImagesSmart groups them). This is how "/gallery"
-  // (which opens the picker in `multiple` mode) yields a gallery.
-  const onPromptFiles = (files: File[]) => {
-    if (files.length === 0) return;
+  // Fill this (empty) block from chosen/dropped files: 1 → single image here; 2+ → gallery.
+  const fillFromFiles = (files: File[]) => {
+    if (!files.length) return;
     const noteId = getMediaNoteId();
     if (files.length === 1) {
       void persistIntoBlock(editor, noteId, files[0], block.id);
     } else {
       void insertImagesSmart(editor as unknown as GroupEditor, noteId, files, block.id);
-      editor.updateBlock(block.id, { type: "paragraph", props: {} } as never);
+      removeSelf();
     }
+    setPopover(null);
   };
 
-  // ── the `/image` prompt sub-state: one inline input, no tabbed panel ──────────────
-  if (status === "prompt" && !url) {
-    return (
-      <ImagePrompt
-        multiple={!!multiple}
-        onEmbed={(u) => update({ url: u, status: "" })}
-        onPick={() => fileRef.current?.click()}
-        onCancel={() => editor.updateBlock(block.id, { type: "paragraph", props: {} } as never)}
-        fileInput={
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            multiple={!!multiple}
-            hidden
-            onChange={(e) => {
-              onPromptFiles(Array.from(e.target.files ?? []));
-              e.target.value = "";
-            }}
-          />
-        }
-      />
-    );
-  }
+  const embed = () => {
+    const v = embedUrl.trim();
+    if (!v) return;
+    update({ url: v, status: "" });
+    setEmbedUrl("");
+    setEmbedding(false);
+    setPopover(null);
+  };
 
-  const state: MediaState = imgError || (!url && status !== "saving")
-    ? "broken"
-    : status === "saving"
-      ? "saving"
-      : "loaded";
-
-  // Keyboard on the selected image: width only (⌘[/⌘]). We deliberately do NOT bind
-  // Space or Enter — Space hijacked caption typing and both made the image expand by
-  // surprise. Expanding is a deliberate act now: the magnify button or a double-click.
+  // ── keyboard on the selected block: width (⌘[/⌘]); delete removes an empty placeholder ──
   const onKeyDown = (e: KeyboardEvent) => {
     if (!editable) return;
     if ((e.metaKey || e.ctrlKey) && (e.key === "[" || e.key === "]")) {
       e.preventDefault();
-      update({ width: stepWidth(width, e.key === "]" ? 1 : -1) });
+      update({ width: stepWidth(width || DEFAULT_WIDTH, e.key === "]" ? 1 : -1) });
+    } else if ((e.key === "Backspace" || e.key === "Delete") && state === "empty") {
+      e.preventDefault();
+      removeSelf();
     }
   };
 
+  // Right-edge handle — width only, snapped.
   const startResize = (e: PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -122,10 +130,7 @@ function ImageRender({ block, editor }: RenderProps) {
     if (!media || !column) return;
     const left = media.getBoundingClientRect().left;
     const colWidth = column.clientWidth || 1;
-    const onMove = (ev: globalThis.PointerEvent) => {
-      const frac = (ev.clientX - left) / colWidth;
-      update({ width: snapWidth(Math.min(1, Math.max(0.15, frac))) });
-    };
+    const onMove = (ev: globalThis.PointerEvent) => update({ width: snapWidth(Math.min(1, Math.max(0.15, (ev.clientX - left) / colWidth))) });
     const done = () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", done);
@@ -134,17 +139,43 @@ function ImageRender({ block, editor }: RenderProps) {
     window.addEventListener("pointerup", done);
   };
 
-  const replace = () => fileRef.current?.click();
-  const remove = () => {
-    // The file is intentionally NOT deleted (version/timeline snapshots may reference it).
-    editor.updateBlock(block.id, { type: "paragraph", props: {} } as never);
-    log.info("media", "block.remove", { id: block.id });
+  // Bottom-right corner — free reshape (width + aspect together), works on the placeholder too.
+  const startCorner = (e: PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const frame = rectEl();
+    const media = frameRef.current?.closest(".pensieve-media") as HTMLElement | null;
+    const column = media?.parentElement;
+    if (!frame || !column) return;
+    const r = frame.getBoundingClientRect();
+    const colWidth = column.clientWidth || 1;
+    const sx = e.clientX;
+    const sy = e.clientY;
+    const onMove = (ev: globalThis.PointerEvent) => update(cornerResize(r.width, r.height, ev.clientX - sx, ev.clientY - sy, colWidth));
+    const done = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", done);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", done);
   };
+
+  const setPreset = (p: SizePreset) => {
+    update({ width: presetWidth(p) });
+    setPopover(null);
+  };
+  const restore = () => {
+    update(restoreShape());
+    setPopover(null);
+  };
+
+  const showControls = editable && (selected || focused) && state !== "broken";
+  const activePreset = widthPreset(width || DEFAULT_WIDTH);
 
   return (
     <div
       ref={frameRef}
-      className="pensieve-media-host"
+      className={"pensieve-media-host" + (dragOver ? " is-dragover" : "")}
       contentEditable={false}
       tabIndex={editable ? 0 : -1}
       onKeyDown={onKeyDown}
@@ -152,36 +183,117 @@ function ImageRender({ block, editor }: RenderProps) {
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node)) setFocused(false);
       }}
+      // stopPropagation so the editor-wide paste/drop plugin doesn't ALSO handle this drop
+      // (it would double-insert); this block owns a drop that lands on it.
+      onDragOver={editable ? (e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); } : undefined}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={
+        editable
+          ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDragOver(false);
+              const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
+              if (files.length) fillFromFiles(files);
+            }
+          : undefined
+      }
     >
       <MediaBlock
         url={url}
         alt={caption}
-        width={width || DEFAULT_IMAGE_WIDTH}
+        width={width || DEFAULT_WIDTH}
+        aspect={aspect}
         state={state}
-        filename={imageFilename(url) || filename}
+        filename={imageFilename(url)}
         selected={selected}
         focused={focused}
         backup={backup}
         onImgError={() => setImgError(true)}
         onActivate={() => state === "loaded" && expand()}
-        onLocate={editable ? replace : undefined}
+        onLocate={editable ? () => fileRef.current?.click() : undefined}
+        placeholder={
+          <button
+            type="button"
+            className="pensieve-media-add"
+            onClick={() => setPopover((p) => (p === "add" ? null : "add"))}
+          >
+            <ImageIcon size={22} />
+            <span>Add an image</span>
+          </button>
+        }
         overlay={
-          editable && (selected || focused) && state !== "broken" ? (
+          showControls ? (
             <>
-              <div className="pensieve-media-resize" onPointerDown={startResize} aria-label="Resize image" />
+              {state !== "empty" && <div className="pensieve-media-resize" onPointerDown={startResize} aria-label="Resize width" />}
+              <div className="pensieve-media-corner" onPointerDown={startCorner} aria-label="Reshape box" />
               <div className="pensieve-media-tools" contentEditable={false}>
-                <button type="button" className="pensieve-media-tool-icon" title="Expand" aria-label="Expand image" onClick={expand}>
-                  <ExpandIcon size={15} />
+                {state === "loaded" && (
+                  <button type="button" className="pensieve-media-tool-icon" title="Expand" aria-label="Expand image" onClick={expand}>
+                    <ExpandIcon size={15} />
+                  </button>
+                )}
+                {state === "loaded" && <button type="button" onClick={() => captionRef.current?.focus()}>Caption</button>}
+                {state !== "empty" && <button type="button" onClick={() => fileRef.current?.click()}>Replace</button>}
+                <button
+                  type="button"
+                  className="pensieve-media-tool-icon"
+                  title="Size & shape"
+                  aria-label="Size and shape"
+                  onClick={() => setPopover((p) => (p === "menu" ? null : "menu"))}
+                >
+                  <MoreHorizontal size={15} />
                 </button>
-                <button type="button" onClick={() => captionRef.current?.focus()}>Caption</button>
-                <button type="button" onClick={replace}>Replace</button>
-                <button type="button" onClick={remove}>Remove</button>
+                <button type="button" onClick={removeSelf}>Remove</button>
               </div>
+
+              {popover === "menu" && (
+                <>
+                  <div className="pensieve-media-popover-backdrop" onPointerDown={() => setPopover(null)} />
+                  <div className="pensieve-media-menu" role="menu">
+                    <div className="pensieve-media-menu-label">Size</div>
+                    {(["small", "medium", "large", "full"] as SizePreset[]).map((p) => (
+                      <button key={p} type="button" role="menuitem" className={activePreset === p ? "is-active" : ""} onClick={() => setPreset(p)}>
+                        {p[0].toUpperCase() + p.slice(1)}
+                      </button>
+                    ))}
+                    <div className="pensieve-media-menu-sep" />
+                    <button type="button" role="menuitem" onClick={restore}>Restore to original</button>
+                  </div>
+                </>
+              )}
+
+              {popover === "add" && state === "empty" && (
+                <>
+                  <div className="pensieve-media-popover-backdrop" onPointerDown={() => { setPopover(null); setEmbedding(false); }} />
+                  <div className="pensieve-media-menu" role="menu">
+                    {!embedding ? (
+                      <>
+                        <button type="button" role="menuitem" onClick={() => fileRef.current?.click()}>Upload from computer</button>
+                        <button type="button" role="menuitem" onClick={() => setEmbedding(true)}>Embed link</button>
+                        <div className="pensieve-media-menu-hint">or drag &amp; drop an image here</div>
+                      </>
+                    ) : (
+                      <input
+                        className="pensieve-media-embed-input"
+                        autoFocus
+                        placeholder="Paste an image URL, then Enter"
+                        value={embedUrl}
+                        onChange={(e) => setEmbedUrl(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") { e.preventDefault(); embed(); }
+                          else if (e.key === "Escape") { e.preventDefault(); setEmbedding(false); }
+                        }}
+                      />
+                    )}
+                  </div>
+                </>
+              )}
             </>
           ) : null
         }
         caption={
-          editable && selected ? (
+          editable && selected && state === "loaded" ? (
             <input
               ref={captionRef}
               className="pensieve-media-caption-input"
@@ -196,7 +308,7 @@ function ImageRender({ block, editor }: RenderProps) {
                 }
               }}
             />
-          ) : caption ? (
+          ) : caption && state === "loaded" ? (
             <div className="pensieve-media-caption">{caption}</div>
           ) : null
         }
@@ -210,55 +322,9 @@ function ImageRender({ block, editor }: RenderProps) {
           const f = e.target.files?.[0];
           if (f) void persistIntoBlock(editor, getMediaNoteId(), f, block.id);
           e.target.value = "";
+          setPopover(null);
         }}
       />
-    </div>
-  );
-}
-
-// The `/image` placeholder: ONE input. Paste a url + Enter embeds it (external, not saved);
-// Enter on empty opens the OS file picker; Esc / Backspace-on-empty removes the block.
-function ImagePrompt({
-  multiple,
-  onEmbed,
-  onPick,
-  onCancel,
-  fileInput,
-}: {
-  multiple?: boolean;
-  onEmbed: (url: string) => void;
-  onPick: () => void;
-  onCancel: () => void;
-  fileInput: React.ReactNode;
-}) {
-  const [value, setValue] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => inputRef.current?.focus(), []);
-  return (
-    <div className="pensieve-media-prompt" contentEditable={false}>
-      <input
-        ref={inputRef}
-        className="pensieve-media-prompt-input"
-        placeholder={
-          multiple
-            ? "Press Enter to choose images…"
-            : "Paste an image URL, or press Enter to choose a file…"
-        }
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            const v = value.trim();
-            if (v) onEmbed(v);
-            else onPick();
-          } else if (e.key === "Escape" || (e.key === "Backspace" && value === "")) {
-            e.preventDefault();
-            onCancel();
-          }
-        }}
-      />
-      {fileInput}
     </div>
   );
 }
@@ -270,11 +336,11 @@ export const ImageBlock = createReactBlockSpec(
     propSchema: {
       url: { default: "" },
       caption: { default: "" },
-      width: { default: DEFAULT_IMAGE_WIDTH, type: "number" },
-      // Transient (never serialized — lib/md/image reads only url/caption/width):
-      status: { default: "" }, // "" | "prompt" | "saving"
+      width: { default: DEFAULT_WIDTH, type: "number" },
+      aspect: { default: 0, type: "number" }, // box w/h; 0 = natural
+      // Transient (never serialized — lib/md/image reads only url/caption/width/aspect):
+      status: { default: "" }, // "" | "saving"
       filename: { default: "" },
-      multiple: { default: false, type: "boolean" }, // prompt picker allows multi-select → gallery
     },
   },
   {

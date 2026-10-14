@@ -1,5 +1,5 @@
 import { createReactBlockSpec } from "@blocknote/react";
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useRef, useState, type KeyboardEvent, type PointerEvent, type DragEvent as ReactDragEvent } from "react";
 import {
   parseGalleryImages,
   stringifyGalleryImages,
@@ -17,7 +17,7 @@ import { useMediaBackup } from "./useMediaBackup";
 import { MediaRune } from "./MediaRune";
 import { mediaAlt, refForUrl } from "../../../lib/media";
 import { lightbox } from "../../media/lightboxController";
-import { X, GripVertical, Plus } from "../../icons";
+import { X, GripVertical, Plus, Images as ImagesIcon } from "../../icons";
 import { log } from "../../../lib/logger";
 
 // Per-tile gold backup rune. A tiny child so the hook is called at a component top level
@@ -159,6 +159,45 @@ function GroupRender({ block, editor }: RenderProps) {
       expand(i, e.currentTarget);
     }
   };
+
+  const onDropFiles = (e: ReactDragEvent) => {
+    if (!editable) return;
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
+    if (files.length) addFiles(files);
+  };
+
+  // Empty gallery (just inserted via /gallery) → a MediaBlock-style placeholder: click to
+  // pick images (multiple), or drop them here. Removing the last image collapses elsewhere.
+  if (images.length === 0) {
+    return (
+      <div className="pensieve-gallery" contentEditable={false} onDragOver={(e) => e.preventDefault()} onDrop={onDropFiles}>
+        <div className="pensieve-media is-shaped" style={{ width: "75%", maxWidth: "100%" }}>
+          <div className="pensieve-media-frame is-shaped" style={{ aspectRatio: "3 / 2" }}>
+            <div className="pensieve-media-placeholder">
+              {editable ? (
+                <button type="button" className="pensieve-media-add" onClick={() => fileRef.current?.click()}>
+                  <ImagesIcon size={22} />
+                  <span>Add images</span>
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            addFiles(Array.from(e.target.files ?? []));
+            e.target.value = "";
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="pensieve-gallery" contentEditable={false}>

@@ -31,7 +31,7 @@ describe("image markdown bridge", () => {
       props: { url: "asset://localhost/abc-123.png", caption: "a cat", width: DEFAULT_IMAGE_WIDTH },
     });
     expect(out.type).toBe("image");
-    expect(out.props).toEqual({ url: REF, caption: "a cat", width: DEFAULT_IMAGE_WIDTH });
+    expect(out.props).toEqual({ url: REF, caption: "a cat", width: DEFAULT_IMAGE_WIDTH, aspect: 0 });
   });
 
   it("SAVE: keeps an external (unregistered) url as-is", () => {
@@ -42,7 +42,7 @@ describe("image markdown bridge", () => {
     expect(out.props!.url).toBe("https://example.com/x.png");
   });
 
-  it("SAVE: a non-default width rides a pensieve:image fence (ref, width, caption)", () => {
+  it("SAVE: a non-default width rides a pensieve:image fence (ref, params line, caption)", () => {
     registerMediaUrl(REF, "blob:xyz");
     const out = encodeImageBlock({
       type: "image",
@@ -51,26 +51,37 @@ describe("image markdown bridge", () => {
     expect(out.type).toBe("codeBlock");
     expect((out.props as { language: string }).language).toBe(IMAGE_FENCE);
     const text = (out.content as Array<{ text: string }>)[0].text;
-    expect(text).toBe(`${REF}\n0.5\nwide one`);
+    expect(text).toBe(`${REF}\nwidth=0.5 aspect=0\nwide one`);
   });
 
-  it("LOAD: a pensieve:image fence → an image block with width + caption preserved", () => {
+  it("SAVE: an explicit aspect (reshaped box) also rides the fence even at default width", () => {
+    registerMediaUrl(REF, "blob:xyz");
+    const out = encodeImageBlock({
+      type: "image",
+      props: { url: "blob:xyz", caption: "", width: DEFAULT_IMAGE_WIDTH, aspect: 1.5 },
+    });
+    expect(out.type).toBe("codeBlock");
+    const text = (out.content as Array<{ text: string }>)[0].text;
+    expect(text).toBe(`${REF}\nwidth=${DEFAULT_IMAGE_WIDTH} aspect=1.5`);
+  });
+
+  it("LOAD: a pensieve:image fence (params line) → width + aspect + caption preserved", () => {
     const block = reconstructImageFence({
       type: "codeBlock",
       props: { language: IMAGE_FENCE },
-      content: [{ type: "text", text: `${REF}\n0.25\nhello world` }],
+      content: [{ type: "text", text: `${REF}\nwidth=0.25 aspect=1.5\nhello world` }],
     });
     expect(block).not.toBeNull();
-    expect(block!.props).toEqual({ url: REF, caption: "hello world", width: 0.25 });
+    expect(block!.props).toEqual({ url: REF, caption: "hello world", width: 0.25, aspect: 1.5 });
   });
 
-  it("LOAD: a fence with no caption line → empty caption", () => {
+  it("LOAD: accepts the old positional fence (ref, width, caption) for back-compat", () => {
     const block = reconstructImageFence({
       type: "codeBlock",
       props: { language: IMAGE_FENCE },
-      content: [{ type: "text", text: `${REF}\n1` }],
+      content: [{ type: "text", text: `${REF}\n1\nhello world` }],
     });
-    expect(block!.props).toEqual({ url: REF, caption: "", width: 1 });
+    expect(block!.props).toEqual({ url: REF, caption: "hello world", width: 1, aspect: 0 });
   });
 
   it("LOAD: a non-image fence is ignored", () => {
@@ -78,11 +89,11 @@ describe("image markdown bridge", () => {
     expect(reconstructImageFence({ type: "paragraph" })).toBeNull();
   });
 
-  it("round-trips a non-default width through encode→reconstruct", () => {
+  it("round-trips width + aspect through encode→reconstruct", () => {
     registerMediaUrl(REF, "blob:xyz");
-    const fence = encodeImageBlock({ type: "image", props: { url: "blob:xyz", caption: "cap", width: 0.5 } });
+    const fence = encodeImageBlock({ type: "image", props: { url: "blob:xyz", caption: "cap", width: 0.5, aspect: 1.5 } });
     const back = reconstructImageFence(fence)!;
-    expect(back.props).toEqual({ url: REF, caption: "cap", width: 0.5 });
+    expect(back.props).toEqual({ url: REF, caption: "cap", width: 0.5, aspect: 1.5 });
   });
 
   it("resolveImageUrls keeps the ref when the store can't resolve it (broken/missing — never crashes)", async () => {

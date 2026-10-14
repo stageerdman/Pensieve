@@ -1,28 +1,30 @@
 import { forwardRef, type ReactNode } from "react";
 import { MediaRune } from "./MediaRune";
+import { frameAspect } from "./mediaShape";
 import { mediaAlt, type MediaBackupState } from "../../../lib/media";
 
 // The shared visual base for ALL inline media (design.md names it "MediaBlock").
-// A single image is one MediaBlock; a gallery (Phase 3) is MediaBlocks sharing one
-// frame; the phone image (Phase 4) is the same MediaBlock in a narrower column. The
-// sameness IS the family — everything here is token-driven and identical across the
-// three, so no surface grows a second radius, shadow, or ring colour.
+// A single image is one MediaBlock; a gallery reuses its CSS language; the phone image is
+// the same family. Token-driven and identical across surfaces — the sameness IS the family,
+// so no surface grows a second radius, shadow, or ring colour.
 //
-// This component is PURELY visual: it renders the frame, the four states, and the
-// caption slot. All interaction (resize drag, caption editing, keyboard) lives in the
-// composing block (ImageBlock) and is passed in through the `overlay`/`caption` slots.
+// Purely visual: it renders the frame, the states (incl. the EMPTY add-an-image placeholder),
+// the caption slot and the backup rune. All interaction (resize, popover, ⋯ menu, keyboard)
+// lives in the composing block (ImageBlock) via the overlay/placeholder/caption slots.
 
-/** The states matrix (wiki "States matrix — absence = healthy"). Every state is quiet
- *  and non-blocking: no spinners, no success checkmarks, never collapse to nothing. */
-export type MediaState = "loading" | "saving" | "loaded" | "broken";
+/** States (wiki "States matrix — absence = healthy"). `empty` = the add-an-image placeholder;
+ *  every state is quiet and non-blocking (no spinners, no success tick, never collapse). */
+export type MediaState = "empty" | "loading" | "saving" | "loaded" | "broken";
 
 export interface MediaBlockProps {
-  /** A loadable URL (Tauri asset / browser blob / external). Absent while loading or broken. */
+  /** A loadable URL (Tauri asset / browser blob / external). Absent while empty/loading/broken. */
   url?: string | null;
   /** Alt text for the <img> (= the caption). */
   alt: string;
-  /** Display width as a fraction of the text column (0.25 / 0.5 / 0.75 / 1). */
+  /** Display width as a fraction of the text column (0..1). */
   width: number;
+  /** Box shape (width/height); 0 = natural — the image's own, or a default for the placeholder. */
+  aspect?: number;
   state: MediaState;
   /** Shown in the broken/missing state so the ref is never silent. */
   filename?: string;
@@ -33,11 +35,13 @@ export interface MediaBlockProps {
   onImgError?: () => void;
   /** Broken state: re-point the ref to a file on disk. */
   onLocate?: () => void;
-  /** Expand the image to the lightbox. Bound to DOUBLE-click on the frame (a single
-   *  click just selects the block, so the resize handle / caption stay reachable). */
+  /** Expand to the lightbox — bound to DOUBLE-click (a single click just selects the block,
+   *  so the resize handle / caption / popover stay reachable). */
   onActivate?: () => void;
-  /** Affordances drawn INSIDE the frame (e.g. the resize handle). */
+  /** Affordances drawn INSIDE the frame (resize handles, ⋯/tools, the add popover). */
   overlay?: ReactNode;
+  /** The add-an-image placeholder content, rendered when state === "empty". */
+  placeholder?: ReactNode;
   /** The caption slot BELOW the frame — editable input (selected) or static text. */
   caption?: ReactNode;
   /** OneDrive backup state → the gold rune bottom-right. Absent / "backed-up" → no rune. */
@@ -57,11 +61,17 @@ function BrokenGlyph() {
 }
 
 export const MediaBlock = forwardRef<HTMLDivElement, MediaBlockProps>(function MediaBlock(
-  { url, alt, width, state, filename, selected, focused, onImgLoad, onImgError, onLocate, onActivate, overlay, caption, backup },
+  { url, alt, width, aspect, state, filename, selected, focused, onImgLoad, onImgError, onLocate, onActivate, overlay, placeholder, caption, backup },
   ref,
 ) {
   const broken = state === "broken";
-  const showImg = !broken && !!url && (state === "loaded" || state === "saving");
+  const empty = state === "empty";
+  const showImg = !broken && !empty && !!url && (state === "loaded" || state === "saving");
+  const pct = `${Math.round(width * 100)}%`;
+  // A "shaped" box (explicit aspect, or the empty placeholder) needs a definite width +
+  // aspect-ratio; a natural loaded image shrink-wraps to its own size (width:fit-content).
+  const shaped = empty || !!(aspect && aspect > 0);
+  const ratio = frameAspect(aspect, showImg);
 
   return (
     <div
@@ -69,21 +79,24 @@ export const MediaBlock = forwardRef<HTMLDivElement, MediaBlockProps>(function M
       className={
         "pensieve-media" +
         (selected ? " is-selected" : "") +
-        (focused ? " is-focused" : "")
+        (focused ? " is-focused" : "") +
+        (shaped ? " is-shaped" : "")
       }
-      // width is a MAX (a fraction of the text column); the frame shrink-wraps the image
-      // (width:fit-content in CSS) so the border/outline hug the picture — no letterbox.
-      style={{ maxWidth: `${Math.round(width * 100)}%` }}
+      // Natural: width is a MAX, the frame shrink-wraps (no letterbox). Shaped: a concrete
+      // width + an aspect-ratio on the frame, so even an empty box has a real size.
+      style={shaped ? { width: pct, maxWidth: "100%" } : { maxWidth: pct }}
       data-state={state}
     >
       <div
-        className="pensieve-media-frame"
-        onDoubleClick={onActivate && !broken ? () => onActivate() : undefined}
+        className={"pensieve-media-frame" + (shaped ? " is-shaped" : "")}
+        style={ratio ? { aspectRatio: String(ratio) } : undefined}
+        onDoubleClick={onActivate && showImg ? () => onActivate() : undefined}
       >
         {showImg && (
           // eslint-disable-next-line jsx-a11y/alt-text
           <img src={url!} alt={mediaAlt(alt)} className="pensieve-media-img" onLoad={onImgLoad} onError={onImgError} draggable={false} />
         )}
+        {empty && <div className="pensieve-media-placeholder">{placeholder}</div>}
         {state === "loading" && <div className="pensieve-media-shim" aria-hidden="true" />}
         {state === "saving" && <div className="pensieve-media-progress" aria-hidden="true" />}
         {broken && (
@@ -101,7 +114,7 @@ export const MediaBlock = forwardRef<HTMLDivElement, MediaBlockProps>(function M
           </div>
         )}
         {overlay}
-        {backup && !broken && <MediaRune state={backup} />}
+        {backup && !broken && !empty && <MediaRune state={backup} />}
       </div>
       {caption}
     </div>

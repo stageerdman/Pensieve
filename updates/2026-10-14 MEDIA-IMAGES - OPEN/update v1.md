@@ -135,6 +135,17 @@ on a real decision/blocker. Each phase is independently verifiable.
 ---
 
 ## Live status
+- **2026-10-14 (LIVE-FIX 2 — insertion rework)** — Owner's 2nd native test: two slash popups at once,
+  arrow-nav still dead, and `/image`/`/gallery` inserting a broken state. Fixes on `update/media-images`:
+  (1) disabled BlockNote's built-in slash menu + file panel (the 2nd popup); (2) OWN the slash keyboard —
+  a custom `suggestionMenuComponent` (`SlashMenu.tsx`) driven by a unit-tested reducer (`slashNav.ts`):
+  ↓/↑ + Tab/Shift+Tab + Home/End + Enter + Escape, capture-phase, ignoring BlockNote's selectedIndex;
+  (3) insertion is placeholder-first — `/image` & `/gallery` insert EMPTY MediaBlock placeholders you
+  click for a popover (Upload / Embed link / drag-drop), each a drop target; (4) a `⋯` size/shape menu +
+  a corner reshape handle that work even when empty, with "Restore to original"; new `aspect` prop +
+  unit-tested `mediaShape.ts`, serialized via the `pensieve:image` `width= aspect=` params line.
+  705 tests green, `tsc` clean. **Needs a fresh `tauri:build` + owner retest** (live slash nav, the
+  click popover, drop-onto-placeholder, ⋯ reshape/restore, empty-gallery picker). See `wiki.md` Lessons.
 - **2026-10-14 (LIVE-FIX)** — v1 shipped with BROKEN live interactions (jsdom green ≠ real BlockNote/
   WKWebView). Owner device test surfaced ~11 issues; all fixed on `update/media-images`:
   Tauri `dragDropEnabled:false` (Finder drop), clipboard `items` paste detection, slash menu deduped +

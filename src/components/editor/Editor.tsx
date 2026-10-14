@@ -16,7 +16,7 @@ import {
 import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core";
 import { AllSelection, TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { blocksToExtendedMd, extendedMdToBlocks } from "../../lib/md/extended";
 import { setNoteLinkOpen, setNoteLinkResolve } from "./noteLink";
 import { editorSchema } from "./editorSchema";
@@ -28,6 +28,7 @@ import { insertImagesSmart, type GroupEditor } from "./media/insertGroup";
 import { mediaToast } from "./media/mediaToast";
 import { Image as ImageIcon, Images as ImagesIcon } from "../icons";
 import { GutterHandle } from "./GutterHandle";
+import { makeSlashMenu } from "./SlashMenu";
 import { useBlockMarquee } from "./useBlockMarquee";
 import { useBlockDrag } from "./useBlockDrag";
 import { FlaskFor } from "../Flask";
@@ -123,6 +124,10 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
   // Cast: the hook needs only a small slice of the editor; BlockNote's full generic type
   // over-constrains insertBlocks' argument, so we adapt to the hook's minimal interface.
   const startBlockDrag = useBlockDrag(editor as unknown as Parameters<typeof useBlockDrag>[0], wrapRef);
+
+  // Our own slash-menu component — owns keyboard nav (see SlashMenu.tsx); the built-in
+  // menu's keys didn't drive selection in the WKWebView shell.
+  const slashMenu = useMemo(() => makeSlashMenu(editor as never), [editor]);
 
   // The image block + paste/drop plugin live outside React; give them the current note
   // id (for the media path) and the save+insert flow. insertImagesSmart decides whether
@@ -237,6 +242,7 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
             2+ chosen files become a gallery (ImageBlock handles the split). */}
         <SuggestionMenuController
           triggerCharacter="/"
+          suggestionMenuComponent={slashMenu as never}
           getItems={async (query) => {
             const MEDIA_KEYS = new Set(["image", "video", "audio", "file"]);
             const MEDIA_TITLES = new Set(["Image", "Video", "Audio", "File", "Embed"]);
@@ -255,24 +261,21 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
                   aliases: ["img", "photo", "picture"],
                   group: "Media",
                   icon: <ImageIcon size={18} />,
-                  subtext: "Add a single image",
+                  subtext: "A single image",
+                  // Insert an EMPTY image block — it renders a placeholder you click to
+                  // upload / embed / drop (ImageBlock), not an inline URL prompt.
                   onItemClick: () =>
-                    insertOrUpdateBlockForSlashMenu(editor, {
-                      type: "image",
-                      props: { status: "prompt" },
-                    } as never),
+                    insertOrUpdateBlockForSlashMenu(editor, { type: "image", props: {} } as never),
                 },
                 {
                   title: "Gallery",
                   aliases: ["images", "album", "photos", "grid"],
                   group: "Media",
                   icon: <ImagesIcon size={18} />,
-                  subtext: "Add several images",
+                  subtext: "Several images in one block",
+                  // Insert an EMPTY gallery placeholder (multi-image picker on click).
                   onItemClick: () =>
-                    insertOrUpdateBlockForSlashMenu(editor, {
-                      type: "image",
-                      props: { status: "prompt", multiple: true },
-                    } as never),
+                    insertOrUpdateBlockForSlashMenu(editor, { type: "imageGroup", props: { images: "[]" } } as never),
                 },
               ],
               query,

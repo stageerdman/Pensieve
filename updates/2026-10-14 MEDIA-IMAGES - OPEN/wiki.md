@@ -599,3 +599,34 @@ The lessons worth carrying into AUDIO / VIDEO / PWA-CAPTURE and any future media
   `update v1.md` covers the live path. Phone media backup is intentionally NOT built here (deferred to
   PWA-CAPTURE) — the phone already produces byte-identical `.md`, so it rides this engine unchanged
   when real phone sync lands.
+
+## Lessons — insertion-UX rework (2026-10-14, after owner native test)
+The v1 image/gallery insertion shipped broken in the live WKWebView (jsdom tests passed but the
+real editor didn't). Root causes + fixes:
+- **Two slash menus.** `<BlockNoteView>` kept its BUILT-IN slash menu while we also mounted a custom
+  `SuggestionMenuController` for "/". Both popped → double insert (our prompt + a default empty image
+  block showing "Image Missing") + Tab/focus fight. Fix: `slashMenu={false}` + `filePanel={false}`.
+- **Slash arrow-nav dead.** Under `slashMenu={false}` + a custom controller, BlockNote's menu keyboard
+  didn't drive selection in the WKWebView (arrows moved the caret, closing the menu). Fix: we OWN the
+  keyboard — a custom `suggestionMenuComponent` (`SlashMenu.tsx`) with a pure reducer (`slashNav.ts`,
+  unit-tested) handling ↓/↑ + Tab/Shift+Tab (wrap) + Home/End + Enter + Escape in the document CAPTURE
+  phase (preventDefault+stopPropagation), ignoring BlockNote's `selectedIndex`. Escape deletes the
+  "/query" text (closing the menu via the plugin, no internal API). `SuggestionMenuProps` only gives
+  items/selectedIndex/onItemClick (no closeMenu) — selecting an item or clearing the trigger text is
+  what actually closes.
+- **Insertion is now placeholder-first, not an inline URL prompt.** `/image` inserts an EMPTY image
+  block → a MediaBlock placeholder ("Add an image") you CLICK for a popover (Upload / Embed link /
+  drag-drop hint); it's also a drop target (stopPropagation so the editor-wide plugin doesn't double-
+  insert). `/gallery` inserts an EMPTY `imageGroup` placeholder (multi-picker). MediaBlock gained an
+  `empty` state + a `placeholder` slot.
+- **Box shape + the ⋯ menu work even when empty.** New pure `mediaShape.ts` (unit-tested): width
+  snaps/presets, a corner (w+aspect) reshape, `restoreShape` (→ default width, natural aspect). Image
+  block gained an `aspect` prop; a `⋯` menu (Small/Medium/Large/Full + "Restore to original") + a
+  bottom-right corner handle, usable on the placeholder. `frameAspect` sizes the empty/shaped box;
+  a natural loaded image still shrink-wraps.
+- **`aspect` serialization.** `pensieve:image` fence line 2 is now a `width=<w> aspect=<a>` params
+  line (reconstruct still accepts the old positional `width` line for back-compat); a default-size,
+  natural-shape image stays plain `![caption](ref)`.
+- **Still needs the owner's native retest:** live slash ↑/↓/Tab nav + Enter/Escape; the placeholder
+  click popover (upload/embed); drop-onto-placeholder; the ⋯ reshape + corner drag; restore. Gallery
+  empty-placeholder picker. The 6-dot gutter handle on media blocks (prior fallback, still unconfirmed).
