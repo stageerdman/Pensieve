@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { IconButton } from "../IconButton";
 import { X, ChevronLeft, ChevronRight } from "../icons";
 import { lightbox, type LightboxOpenOptions } from "./lightboxController";
+import { mediaAlt } from "../../lib/media";
 import { log } from "../../lib/logger";
 
 // The ONE magical moment (wiki "lightbox"): a thumbnail travels (FLIP / shared-element)
@@ -244,7 +245,7 @@ export function ImageLightbox() {
           <img
             className="lightbox-img"
             src={current.url}
-            alt={current.caption ?? ""}
+            alt={mediaAlt(current.caption)}
             draggable={false}
             onLoad={playEnter}
           />

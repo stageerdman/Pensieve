@@ -18,6 +18,7 @@ import {
   collapseImages,
   galleryMd,
   imageMd,
+  mediaAlt,
   parseNoteContent,
   reorderImages,
   type MediaImage,
@@ -92,7 +93,7 @@ function buildImageEl(block: Extract<NoteBlock, { kind: "image" }>, ctx: MediaCt
 
   const fig = document.createElement("figure");
   const img = document.createElement("img");
-  img.alt = block.caption ?? "";
+  img.alt = mediaAlt(block.caption);
   img.draggable = false;
   attachImg(img, block.ref);
   fig.appendChild(img);
@@ -138,7 +139,7 @@ function renderGallery(el: HTMLElement, ctx: MediaCtx, noteBody: HTMLElement) {
     frame.className = "ph-frame";
     frame.dataset.index = String(i);
     const img = document.createElement("img");
-    img.alt = im.caption ?? "";
+    img.alt = mediaAlt(im.caption);
     img.draggable = false;
     attachImg(img, im.ref);
     frame.appendChild(img);

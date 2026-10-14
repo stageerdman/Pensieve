@@ -30,6 +30,13 @@ describe("MediaBlock states", () => {
     cleanup();
   });
 
+  it("a11y: an uncaptioned image falls back to a non-empty alt (never decorative alt='')", () => {
+    render(<MediaBlock url="blob:abc" alt="" width={0.75} state="loaded" />);
+    // alt="" would mark a content image decorative to a screen reader — never that.
+    expect(document.querySelector("img")!.getAttribute("alt")).toBe("Image");
+    cleanup();
+  });
+
   it("saving: shows the image instantly plus a progress hairline (no spinner)", () => {
     render(<MediaBlock url="blob:local" alt="" width={0.75} state="saving" />);
     expect(document.querySelector("img")).toBeTruthy();

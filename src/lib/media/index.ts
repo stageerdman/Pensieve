@@ -13,6 +13,7 @@ export {
   extractMediaRefs,
 } from "./ref";
 export { bytesToBase64, base64ToBytes } from "./base64";
+export { mediaAlt } from "./alt";
 export {
   resolveMediaUrl,
   refForUrl,

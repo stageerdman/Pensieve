@@ -48,6 +48,14 @@ export function imageMd(ref: string, caption?: string): string {
   return `![${caption ?? ""}](${ref})`;
 }
 
+/** Accessible alt/aria-label for an image: the caption, or a plain "Image" fallback (never
+ *  an empty alt — which marks a content image decorative — nor an opaque blob/asset URL).
+ *  Matches the desktop src/lib/media/alt.ts helper (the two apps are decoupled). */
+export function mediaAlt(caption?: string | null): string {
+  const c = caption?.trim();
+  return c ? c : "Image";
+}
+
 /** Serialize an ordered image list → the `pensieve:gallery` fenced block (as a string
  *  that may span several lines). One `ref | caption` per line; caption omitted when empty. */
 export function galleryMd(images: MediaImage[]): string {

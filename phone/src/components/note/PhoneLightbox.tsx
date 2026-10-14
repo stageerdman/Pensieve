@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { phoneLightbox, type LightboxState } from "../../lib/media/lightboxController";
+import { mediaAlt } from "../../lib/media/noteMedia";
 import { haptic } from "../../util";
 
 export function PhoneLightbox() {
@@ -111,7 +112,7 @@ export function PhoneLightbox() {
       >
         {s.items.map((it, i) => (
           <figure className="ph-lightbox-frame" key={i}>
-            <img src={it.url} alt={it.caption ?? ""} draggable={false} />
+            <img src={it.url} alt={mediaAlt(it.caption)} draggable={false} />
             {it.caption ? <figcaption>{it.caption}</figcaption> : null}
           </figure>
         ))}

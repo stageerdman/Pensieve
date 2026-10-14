@@ -1,6 +1,6 @@
 import { forwardRef, type ReactNode } from "react";
 import { MediaRune } from "./MediaRune";
-import type { MediaBackupState } from "../../../lib/media";
+import { mediaAlt, type MediaBackupState } from "../../../lib/media";
 
 // The shared visual base for ALL inline media (design.md names it "MediaBlock").
 // A single image is one MediaBlock; a gallery (Phase 3) is MediaBlocks sharing one
@@ -80,7 +80,7 @@ export const MediaBlock = forwardRef<HTMLDivElement, MediaBlockProps>(function M
       >
         {showImg && (
           // eslint-disable-next-line jsx-a11y/alt-text
-          <img src={url!} alt={alt} className="pensieve-media-img" onLoad={onImgLoad} onError={onImgError} draggable={false} />
+          <img src={url!} alt={mediaAlt(alt)} className="pensieve-media-img" onLoad={onImgLoad} onError={onImgError} draggable={false} />
         )}
         {state === "loading" && <div className="pensieve-media-shim" aria-hidden="true" />}
         {state === "saving" && <div className="pensieve-media-progress" aria-hidden="true" />}

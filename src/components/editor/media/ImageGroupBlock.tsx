@@ -15,7 +15,7 @@ import { getMediaNoteId } from "./mediaContext";
 import { mergeFilesIntoBlock, type GroupEditor } from "./insertGroup";
 import { useMediaBackup } from "./useMediaBackup";
 import { MediaRune } from "./MediaRune";
-import { refForUrl } from "../../../lib/media";
+import { mediaAlt, refForUrl } from "../../../lib/media";
 import { lightbox } from "../../media/lightboxController";
 import { X, GripVertical, Plus } from "../../icons";
 import { log } from "../../../lib/logger";
@@ -187,7 +187,7 @@ function GroupRender({ block, editor }: RenderProps) {
                 <img
                   className="pensieve-gallery-img"
                   src={img.url}
-                  alt={img.caption ?? ""}
+                  alt={mediaAlt(img.caption)}
                   draggable={false}
                   onError={() => markBroken(i)}
                   onClick={(e) => expand(isCover ? layout.coverIndex : i, e.currentTarget.closest(".pensieve-gallery-tile") as HTMLElement)}

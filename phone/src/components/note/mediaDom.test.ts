@@ -6,7 +6,7 @@
 import "../../test/phoneSetup";
 import { describe, expect, it } from "vitest";
 import { insertImages, renderNoteBody, serializeNoteBody } from "./mediaDom";
-import { galleryMd } from "../../lib/media/noteMedia";
+import { galleryMd, mediaAlt } from "../../lib/media/noteMedia";
 
 const ctx = { onChange: () => {} };
 
@@ -30,6 +30,22 @@ describe("mediaDom — render <-> serialize", () => {
     const out = serializeNoteBody(el);
     expect(out.title).toBe("My title");
     expect(out.content).toBe(content);
+  });
+
+  it("a11y: every <img> gets a non-empty alt — caption when present, else the fallback", () => {
+    const content = ["![a view](media/9/a.png)", galleryMd([{ ref: "media/9/b.png", caption: "two" }, { ref: "media/9/c.png" }])].join("\n");
+    const el = body();
+    renderNoteBody(el, "T", content, ctx);
+    const alts = Array.from(el.querySelectorAll("img")).map((i) => i.getAttribute("alt"));
+    // single image caption, gallery tile caption, and the uncaptioned tile's fallback.
+    expect(alts).toEqual(["a view", "two", "Image"]);
+    expect(alts.every((a) => a && a.length > 0)).toBe(true);
+  });
+
+  it("mediaAlt matches the desktop helper (caption, else a plain 'Image')", () => {
+    expect(mediaAlt("a caption")).toBe("a caption");
+    expect(mediaAlt("  ")).toBe("Image");
+    expect(mediaAlt(undefined)).toBe("Image");
   });
 });
 
