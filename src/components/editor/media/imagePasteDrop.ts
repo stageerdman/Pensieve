@@ -20,11 +20,34 @@ export const setImageDropHandlers = (h: FilesHandler | null, reject: Reject | nu
   onReject = reject;
 };
 
-const imagesFrom = (dt: DataTransfer | null): File[] =>
-  dt ? Array.from(dt.files).filter((f) => f.type.startsWith("image/")) : [];
+// Pull image files from a clipboard/drag payload. A COPIED image (⌘C from Preview, a
+// browser, a screenshot) usually arrives only in `items` as a file-kind entry — NOT in
+// `.files` — so we must check both, or paste silently falls through to the default handler
+// (which drops a "image.png" text node). Dedupe isn't needed: items and files don't overlap
+// for the same payload in practice, but we guard with a name/size set just in case.
+const imagesFrom = (dt: DataTransfer | null): File[] => {
+  if (!dt) return [];
+  const out: File[] = [];
+  const seen = new Set<string>();
+  const add = (f: File | null) => {
+    if (!f || !f.type.startsWith("image/")) return;
+    const k = `${f.name}:${f.size}:${f.type}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push(f);
+  };
+  Array.from(dt.files).forEach(add);
+  Array.from(dt.items ?? []).forEach((it) => {
+    if (it.kind === "file") add(it.getAsFile());
+  });
+  return out;
+};
 
 const hasFiles = (dt: DataTransfer | null): boolean =>
-  !!dt && (Array.from(dt.types).includes("Files") || dt.files.length > 0);
+  !!dt &&
+  (Array.from(dt.types).includes("Files") ||
+    dt.files.length > 0 ||
+    Array.from(dt.items ?? []).some((it) => it.kind === "file"));
 
 // The block element under a point (for drop targeting). Null → fall back to the cursor.
 function blockIdAt(x: number, y: number): string | null {
