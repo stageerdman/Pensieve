@@ -97,13 +97,20 @@ on a real decision/blocker. Each phase is independently verifiable.
 - Extend phone `Note` type + `seed.ts` + `useAutosave.ts` for media; serialize to the SAME markdown model.
 - **Verify:** `npm run dev:phone` on the owner's iPhone — add from library, take a photo, multi-select → carousel, reopen.
 
-### Phase 5 — OneDrive binary backup  ⏳
+### Phase 5 — OneDrive binary backup  ✅ (built 2026-10-14, pending owner native-app run)
 - Adapter: media remote path scheme + binary upload/download (not a string body); loosen the `.md`-only
   filters; keyed on `mediaId`. Engine enumerates media alongside notes (`engine.ts` push/pull loops).
 - `gold` sync-rune states on `MediaBlock`: held-local → backing-up (pulse) → backed-up (fades) →
   failed (`warn` + one toast, auto-retry). StatusWhisper aggregates.
 - Tests: media enumerated + PUT; delta pulls media; restore on a second vault rehydrates images.
 - **Verify:** native app — add an image, watch it back up (rune fades), confirm the binary in OneDrive.
+- BUILT: `http_request` grew a binary path (base64 body + opt-in base64 response); the note/JSON
+  string path is byte-identical. Adapter gained `uploadMedia`/`downloadMedia` + a nested remote
+  scheme `<root>/media/<noteId>/<id>.<ext>` + `mediaRefFromItem`. Engine pushes not-yet-backed-up
+  local media (content-addressed — a recorded ref = done; failures retried, never thrown) and pulls
+  the media a pulled/restored note references. `SyncState.media` records backup; a framework-light
+  `backupStatus` store drives the gold rune on every image + the aggregate whisper/toast. `tsc`
+  clean; Vitest **677** (653 prior + 24 new); `cargo test` 3/3.
 
 ### Phase 6 — Polish, docs, close-out  ⏳
 - Full states-matrix + a11y pass (focus rings, keyboard contract, alt=caption, reduced-motion, both themes).
@@ -205,8 +212,47 @@ on a real decision/blocker. Each phase is independently verifiable.
   **Pending owner device run** (`npm run dev:phone` on the iPhone — see the checklist below).
   **Next: Phase 5 (OneDrive binary backup) — do NOT start without go-ahead.**
 
+- **2026-10-14** — **Phase 5 built.** OneDrive binary backup for desktop image media (phone
+  sync stays deferred to PWA-CAPTURE). The native `http_request` could only carry a JS string,
+  so it gained a binary path: an optional base64 request body (decoded to bytes before send)
+  and an opt-in base64 response (raw bytes read back, base64'd) — `serde(rename_all=camelCase)`
+  keeps the single-word fields (method/url/headers/body) identical, so the note/.md/token/JSON
+  path is untouched. `graph.ts`'s transport grew `binaryBody`/`binaryResponse` flags (Uint8Array
+  body → base64 over the bridge; binary response → a bytes-backed `Response`); the browser/test
+  path handles bytes natively. The adapter got a nested remote scheme
+  `<root>/media/<noteId>/<id>.<ext>` (Graph path addressing auto-creates the folders on the PUT),
+  `uploadMedia` (binary PUT, content-type by ext) / `downloadMedia` (binary GET), and
+  `mediaRefFromItem` (recognise a media binary by parent-path + name so it's never misread as a
+  note — the `.md` filters are unchanged because a `.png` already fails `noteIdFromName`). The
+  engine enumerates local media (`vault.listMedia` walks `media/<noteId>/*`) and pushes any ref
+  not yet recorded as backed up (content-addressed, immutable bytes → a present remote copy = done;
+  a failed image is recorded + retried next sync, never thrown so it can't abort the note sync),
+  and pulls the media a pulled/restored note references (`extractMediaRefs` over the `.md`) so a
+  second machine / `restoreFromCloud` rehydrates images. `SyncState.media` records
+  `{remoteId?, backedUp, failedAt?}`. A framework-light module-level `backupStatus` store
+  (`local → uploading → backed-up → failed`, **absence = healthy**) is updated per ref by the
+  engine, seeded from `SyncState` on mount, and gated on the connection; `MediaBlock` + gallery
+  tiles render the **gold rune** from it via `useMediaBackup`, and one `MediaBackupWhisper`
+  aggregates ("Backing up N images…" + one failure toast). `tsc` clean; Vitest **677** (653 prior
+  + 24 new: adapter.media 7, engine.media 5, backupStatus 7, extractMediaRefs 2, vault media 3);
+  `cargo test` 3/3. **Pending owner native-app run** (see the Phase 5 checklist below).
+  **Next: Phase 6 (polish/close-out) — do NOT start without go-ahead.**
+
 ## Decisions
 - Inline gallery **block** (not a library). Backup **in scope**. Full **phone** UX now. (owner, 2026-10-14)
+- **Binary over the Graph bridge = base64 both ways; the string path stays string.** The desktop
+  native `http_request` is the only transport that bypasses CORS; it carries image bytes as a
+  base64 request body / opt-in base64 response, while notes/.md/JSON/token calls keep the plain
+  string body (unchanged). `graph.ts` flags `binaryBody`/`binaryResponse` localise this; tests
+  mock the GraphClient so the real transport is owner-verified.
+- **Media backup is content-addressed, not cTag-tracked.** A media ref's bytes are immutable (a new
+  edit mints a new id), so there's no If-Match dance: a ref recorded `backedUp` is done, and a
+  re-upload is an idempotent replace. Pull is driven by scanning a pulled note's markdown for refs
+  (`extractMediaRefs`) rather than the /delta feed — simpler and exactly "rehydrate what the note needs".
+- **The gold rune's store is module-level + connection-gated.** `backupStatus` is pub/sub callable
+  from the engine (outside React) and read via `useMediaBackup` inside it, mirroring
+  `lightboxController`. It only shows runes while OneDrive is connected, so a drive-less setup never
+  wears permanent "not safe" dots; `absence = healthy` means a backed-up image renders no rune at all.
 - **imageGroup stores its ordered images as a JSON-string prop** (`images`) — BlockNote
   propSchema values must be primitives, so an array of `{url,caption?,saving?}` can't be a
   prop directly. SAVE never hands the block to BlockNote's converter (encodeStructure maps
@@ -284,3 +330,24 @@ can't reach the dev server; jsdom has no layout). On the phone:
    (bytes from IndexedDB, refs from the persisted note).
 8. **Desktop-made gallery renders** — open the seeded **"Three frames from the coast"** memory
    → a `pensieve:gallery` fence shows as a carousel, not raw text.
+
+## Phase 5 — owner native-app checklist (`npm run tauri dev` / the built `.app`)
+A real OneDrive sync needs the owner's authenticated account + the native shell, so it can't be
+exercised here (browser automation can't reach the dev server; no auth in jsdom). On the desktop app
+with OneDrive connected (Pensieve summoned):
+1. **Rune on a fresh image** — add an image to a note (paste / `/image` / drag). A small **gold dot**
+   appears bottom-right of the frame ("held locally, not safe yet").
+2. **Backs up → fades** — trigger a sync (it runs on connect; or hit Sync). The dot pulses while
+   uploading, then **disappears** once backed up (absence = healthy). A quiet "Backing up N images…"
+   line shows bottom-right while uploads are in flight.
+3. **Binary in OneDrive** — in the OneDrive web UI, confirm the file under
+   `Pensieve/media/<noteId>/<mediaId>.<ext>` (same path as the local vault), and that it opens as the
+   real image.
+4. **Reload holds** — restart the app; the backed-up images show **no rune** (state was persisted in
+   `sync/state.json`).
+5. **Second machine / restore** — on another machine (or after a destructive "restore from cloud"),
+   the note pulls down AND its image rehydrates from OneDrive (the frame shows the photo, not the
+   broken state).
+6. **Failure is quiet** — (if you can force it, e.g. go offline mid-sync) a failed image turns the
+   rune **warn-coloured** and you get **one** toast; it auto-retries on the next sync (never asks you
+   to act).

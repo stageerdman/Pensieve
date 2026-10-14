@@ -440,3 +440,63 @@ auto-gallery (swipe carousel + page dots). Collapse to single when a gallery dro
   via `npm run dev:phone` (browser automation can't reach the dev server; jsdom has no layout).
   The pure bridge (parse/serialize/collapse/reorder) + the DOM render↔serialize + insert
   single/gallery/merge are unit-tested (16 new tests).
+
+### Phase 5 — OneDrive binary backup (2026-10-14)
+- **`http_request` was string-only, both ways — that was the real blocker.** `HttpReq.body` was an
+  `Option<String>` sent via `send_string`; the response came back via `resp.into_string()`. Neither
+  can carry arbitrary image bytes. Fix: add `body_base64: Option<String>` (decoded to bytes, sent via
+  `ureq`'s `send_bytes`) and a `response_base64: bool` flag (response read via `into_reader()` →
+  `read_to_end` → base64). **`serde(rename_all = "camelCase")` on both structs is the trick that keeps
+  the string path byte-identical** — `method`/`url`/`headers`/`body` are single words so they're
+  unchanged, and the new multi-word fields map to the JS `bodyBase64`/`responseBase64`. A pure
+  `request_body(body, body_base64)` helper encodes the precedence (base64 > string > none) and is the
+  one `#[test]` (the HTTP itself needs the network/owner run). Model it on Phase 0's `write_bytes`
+  (same `base64` crate, `STANDARD` engine).
+- **The TS binary seam is two flags on `GraphFetchOptions`, not a new client.** `binaryBody` base64's
+  a `Uint8Array`/`ArrayBuffer` body across the native bridge; `binaryResponse` decodes the base64
+  response into a bytes-backed `Response` (so `.arrayBuffer()` works). The upload PUT returns small
+  JSON — left as the normal string path; only the download GET sets `binaryResponse`. The browser/test
+  path handles bytes natively, so the flags are no-ops there and tests just mock the GraphClient.
+  TS 5.7 narrows typed arrays to `Uint8Array<ArrayBufferLike>` which doesn't satisfy the DOM `BodyInit`
+  generic — one `as unknown as BodyInit` cast at each byte-body site (adapter PUT, Response ctor).
+- **Remote scheme mirrors local exactly: `<root>/media/<noteId>/<mediaId>.<ext>`.** Graph path
+  addressing (`/me/drive/root:/Pensieve/media/<noteId>/<file>:/content`) auto-creates the intermediate
+  folders on the content PUT — no separate mkdir. Content-type is mapped by extension
+  (octet-stream fallback).
+- **The `.md`-only filters did NOT need loosening to AVOID media — they already skip it safely.** A
+  media file (`<id>.png`) fails `noteIdFromName` (not `.md`) → `id=null` → skipped, and the `media/`
+  folder is a folder item → skipped. So media is never *misread* as a note. What was needed was the
+  positive direction: `mediaRefFromItem(item)` recognises a media binary from its `parentReference.path`
+  + name (used for classification/tests). Pull, though, is driven by **scanning a pulled note's
+  markdown** (`extractMediaRefs`, a regex for `media/<noteId>/<id>.<ext>` validated by `parseMediaPath`,
+  catching both `![](…)` and `pensieve:gallery` fence lines) — simpler than a /delta media walk and
+  exactly "fetch what the note references".
+- **Media backup is content-addressed, so there's no cTag.** The bytes are immutable (an edit mints a
+  new id), so a ref recorded `backedUp` in `SyncState.media` is done and a re-upload is an idempotent
+  replace. Push enumerates `vault.listMedia()` (two-level walk: `media/` → `<noteId>` dirs → files) and
+  uploads anything not yet backed up. **Failures are recorded (`failedAt`) + surfaced via the rune and
+  retried next sync, never thrown** — one flaky image must not abort the note sync.
+- **`SyncState.media` is optional for back-compat.** Pre-media `state.json` files have no `media` key;
+  the engine inits it to `{}`. `EMPTY_SYNC_STATE` gained `media: {}` but `readState` still returns the
+  parsed file as-is (no injection), so the existing "parses a valid stored state" test (no media key)
+  stays green.
+- **The rune store is module-level pub/sub, connection-gated, `absence = healthy`.**
+  `src/lib/media/backupStatus.ts` — `setMediaBackupState(ref,state)` from the engine (outside React),
+  read via `useMediaBackup(ref)` (`useSyncExternalStore`) inside it, same seam as `lightboxController`.
+  `getMediaBackupState` defaults an unknown ref to `"local"` and a null/external ref to `"backed-up"`
+  (= no rune). A cached `summary` object keeps `useSyncExternalStore`'s getSnapshot stable (React errors
+  on a fresh object each call). `setMediaBackupEnabled` gates every rune on the OneDrive connection
+  (flipped by `useSync` on connect/disconnect/mount), so a drive-less setup shows no dots. `useSync`
+  seeds the store from `SyncState.media` on mount so runes are right before any manual sync.
+- **MediaBlock got a `backup?` prop; gallery tiles need a child component for the hook.** The single
+  image passes `useMediaBackup(refForUrl(url))` into MediaBlock (which renders `<MediaRune/>` bottom-
+  right, or nothing when backed up). Gallery tiles can't call the hook inside the `.map` (rules of
+  hooks), so a tiny `<TileRune url=…/>` child calls it per tile. One `MediaBackupWhisper` (beside
+  StatusWhisper, a little higher to avoid overlap) is the single aggregate: "Backing up N images…" +
+  exactly one toast when the failure count grows.
+- **Not verifiable here (owner native run):** a real OneDrive round-trip (needs the authenticated
+  account + native shell), the rune fade feel, and the second-machine/restore rehydration against live
+  Graph. Everything is unit-tested against a mocked Graph/HTTP (24 new tests); the owner checklist in
+  `update v1.md` covers the live path. Phone media backup is intentionally NOT built here (deferred to
+  PWA-CAPTURE) — the phone already produces byte-identical `.md`, so it rides this engine unchanged
+  when real phone sync lands.
