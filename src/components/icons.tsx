@@ -109,6 +109,12 @@ export const Pin = ({ filled, ...p }: IconProps & { filled?: boolean }) =>
 export const ChevronDown = (p: IconProps) =>
   svg(<polyline points="6 9 12 15 18 9" />, p);
 
+export const ChevronLeft = (p: IconProps) =>
+  svg(<polyline points="15 18 9 12 15 6" />, p);
+
+export const ChevronRight = (p: IconProps) =>
+  svg(<polyline points="9 18 15 12 9 6" />, p);
+
 export const Plus = (p: IconProps) =>
   svg(
     <>
