@@ -61,12 +61,17 @@ on a real decision/blocker. Each phase is independently verifiable.
 - Tests: md round-trip incl. caption+width; paste inserts a block; broken-file render; undo-load regression still green.
 - **Verify:** native app — paste a screenshot, `/image` a URL, drag a file, reload and confirm it loads.
 
-### Phase 2 — The lightbox (shared magic)  ⏳
+### Phase 2 — The lightbox (shared magic)  ✅ (built 2026-10-14, pending owner native-app run)
 - Extend `PreviewPortal` into a shared image lightbox at z-30 (blur+darken+water-sway already there);
   add shared-element expand-from-rect if cheap, `prefers-reduced-motion` → cut.
 - Wire single image → `Space`/`Enter`/click opens; Esc/backdrop/close closes; focus returns to tile.
 - Tests: open/close, focus trap + restore, reduced-motion path.
 - **Verify:** native app — expand a single image, keyboard + mouse.
+- BUILT: did NOT extend PreviewPortal (it's note-markdown-specific) — built a standalone
+  `src/components/media/ImageLightbox.tsx` that **reuses PreviewPortal's CSS language** and a
+  module-level `lightboxController.ts` (open/close/subscribe) callable from outside React.
+  API `open({ items, index, originRect?, originElement? })` is one-OR-many from day one (arrows +
+  "n / N" counter hide at length 1), so Phase 3 passes a gallery with zero rework. 7 new tests.
 
 ### Phase 3 — Desktop inline gallery (`ImageGroupBlock`)  ⏳
 - `createReactBlockSpec` `ImageGroupBlock` (template: `noteLink.tsx`); register in `editorSchema.ts`.
@@ -136,6 +141,24 @@ on a real decision/blocker. Each phase is independently verifiable.
   green. **Pending owner native-app run** (paste a screenshot, `/image` a URL, drag a file,
   reload → image loads via its asset URL). **Next: Phase 2 (lightbox) — do NOT start without go-ahead.**
 
+- **2026-10-14** — **Phase 2 built.** The shared lightbox — the one magical moment. A
+  module-level `lightboxController` (open/close/subscribe) + one `<ImageLightbox/>` at the app
+  root (`App.tsx`, beside `StatusWhisper`), portalled to `document.body` at **z-30** (below z-40
+  modal / z-50 toast, so a StatusWhisper still surfaces over it). Opener API shaped for one OR
+  many: `open({ items:{url,caption?}[], index, originRect?, originElement? })` — a single image is
+  a one-item list; arrows (`←`/`→`), `Home`/`End`, chevron IconButtons and the quiet "n / N"
+  counter all hide at length 1 → Phase 3 passes a gallery with **zero rework**. Reuses
+  PreviewPortal's CSS **verbatim** (`focus-backdrop`/`portal-halo`/`portal-water`) — did NOT
+  extend PreviewPortal (it renders note markdown, not an image). Rect→centre **FLIP travel**
+  (~200ms ease-out, collapse reverses it); `prefers-reduced-motion` or no origin rect →
+  `portal-enter` cross-fade/cut. Dismiss: Esc / backdrop / close IconButton; `role="dialog"` +
+  `aria-modal`, focus trapped on open and **restored to the originating element** on close.
+  `IconButton` gained `forwardRef` + an AA `focus-visible` accent ring; new ChevronLeft/Right
+  icons. `tsc` clean; full Vitest **609** green (602 prior + 7 new); PreviewPortal/home-preview
+  untouched (no regression). **Pending owner native-app run** (travel feel, backdrop blur +
+  water-light in light/dark, Space-to-expand from a real image). **Next: Phase 3 (gallery) — do
+  NOT start without go-ahead.**
+
 ## Decisions
 - Inline gallery **block** (not a library). Backup **in scope**. Full **phone** UX now. (owner, 2026-10-14)
 - **Images own their markdown in `lib/md/image.ts`** (not BlockNote's built-in): the built-in
@@ -146,7 +169,11 @@ on a real decision/blocker. Each phase is independently verifiable.
 - **Replace/Remove live on the image's own selected-state overlay**, not the GutterHandle —
   there is no existing block context menu to hang them off (GutterHandle is drag-only).
 - Stable `mediaId` in the path + typed reference w/ unused `kind`/`timecode` = the future seam.
-- Lightbox **reuses** `PreviewPortal`; gallery block coded as `ImageGroupBlock` (name clash avoidance).
+- Lightbox **reuses** `PreviewPortal`'s CSS but is its OWN component (`ImageLightbox` + a
+  module-level `lightboxController`), not an extension of PreviewPortal — PreviewPortal renders
+  note markdown, which an image lightbox must not carry. Opener is a module-level controller (not
+  React context) so it's callable from a BlockNote block render / phone, outside the React tree.
+  Gallery block coded as `ImageGroupBlock` (name clash avoidance).
 - v1 lightbox: arrows/swipe/Home-End + "n/N" counter, **no filmstrip**; tile gutter `gap-1`.
 - Media files are **never** auto-deleted on removal this update (version snapshots may reference them).
 

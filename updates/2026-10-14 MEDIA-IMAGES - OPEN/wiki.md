@@ -265,3 +265,53 @@ auto-gallery (swipe carousel + page dots). Collapse to single when a gallery dro
   `convertFileSrc` url in the WKWebView?), real OS paste/drag/file-picker, and the drop ring +
   caret visuals — all need the owner's native-app run (browser automation can't reach the dev
   server; `tauri build` is out of scope for the phase).
+
+### Phase 2 — the lightbox (2026-10-14)
+- **Reused PreviewPortal's CSS, did NOT extend the component.** PreviewPortal renders note
+  markdown (`<NotePreview>`) and is inherently note-specific — wrong base for an image viewer.
+  The magic CSS, though, is NOT note-specific: `focus-backdrop`/`focus-backdrop-fx` (blur+darken
+  backdrop), `portal-halo` (outer breathing glow), `portal-water` (drifting caustic light) and
+  `portal-enter` (scale-in) all key off `border-radius: inherit` + absolute positioning and work
+  on ANY positioned parent. So `ImageLightbox` **reuses them verbatim** — no edits to those
+  classes, hence **no way to regress PreviewPortal's home-preview** (zero generalisation needed).
+  New CSS is namespaced `.lightbox-*` (layout/framing/chrome only). The one shared *value*
+  borrowed (not a class) is PreviewPortal's pane shadow `0 40px 120px -24px rgba(0,0,0,0.55)` on
+  the image, keeping the magical shadow language consistent.
+- **The opener is a module-level pub/sub controller, not React context** (`lightboxController.ts`:
+  `open`/`close`/`subscribe`). It MUST be callable from a BlockNote custom-block render and the
+  paste/drop ProseMirror plugin — both live outside the React tree, where a context hook is
+  unreachable. One `<ImageLightbox/>` mounted at the app root subscribes and renders. This is the
+  same "inject through a module seam" pattern as `mediaContext`/`noteLink`. **The Phase 3/4 API:**
+  `lightbox.open({ items:{url,caption?}[], index, originRect?, originElement? })` — one-OR-many
+  from day one; `many = items.length > 1` gates the arrows/Home-End/counter, so a gallery needs
+  no change here. The lightbox DISPLAYS urls only — it never resolves refs (Phase 0 did that).
+- **z-30, portalled to `document.body`.** z-30 is design.md "preview/overlay" — deliberately below
+  z-40 modal and z-50 toast, so a StatusWhisper surfaces over an open lightbox (confirmed: z-index
+  wins over DOM order, so even though the body-portal is appended after `#root`, the z-50 toast
+  still paints on top). Portalling to body escapes the editor's `overflow-y-auto` clip.
+- **FLIP travel = inline transform on the frame, cleared over a transition.** Capture the centred
+  frame's rect, compute `translate+scale` (top-left origin) to the origin thumb rect, apply it
+  instantly (transition:none + reflow), then clear transform under a 200ms ease-out → it travels
+  from thumb to centre. Collapse reverses (transition TO the origin transform, unmount on
+  `transitionend` with a `setTimeout` safety net so it never hangs). `prefers-reduced-motion` OR a
+  missing `originRect` → skip FLIP, use the `portal-enter` cross-fade (which reduced-motion itself
+  stills to an instant cut via the existing media query). Collapse only reverse-travels when still
+  on the origin index; a navigated-away item cuts (can't cleanly scale a different aspect to the
+  origin thumb).
+- **Two different origin elements.** Focus-restore needs the *focusable* host (the `tabIndex` div);
+  the travel rect needs the *picture frame* (`.pensieve-media-frame`, the actual image box, not the
+  full-width host). `expandImage(url, alt, focusEl, rectEl)` passes them separately →
+  `originElement` (focus) and `originRect` (travel) on the controller.
+- **jsdom caveats the tests rely on:** jsdom has no `matchMedia` (so `prefersReducedMotion()` guards
+  `typeof matchMedia === "function"`) and `getBoundingClientRect` returns all-zeros (so the FLIP
+  bails on a zero-size frame) — meaning the travel never fires in tests and doesn't interfere.
+  The reduced-motion test stubs `matchMedia`; the single-image close path has no `originRect` so it
+  cuts via `queueMicrotask` (awaited by `waitFor`). `afterEach` must `cleanup()` BEFORE
+  `lightbox.close()` (unmount unsubscribes first) or the stray close logs an act() warning.
+- **`IconButton` gained `forwardRef` + an AA `focus-visible:ring-2 ring-accent` ring** (needed to
+  move focus to the close button and for keyboard operability) — a safe, backward-compatible change
+  to the shared component; all existing callers pass children/onClick/label/title/active only.
+- **Not verifiable here (owner's native run):** the travel animation *feel* (timing/easing),
+  backdrop blur + water-light legibility in light vs dark, and Space-to-expand from a real
+  WKWebView-rendered image — browser automation can't reach the dev server; `tauri build` is out
+  of scope for the phase.
