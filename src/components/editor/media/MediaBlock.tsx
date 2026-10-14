@@ -33,7 +33,8 @@ export interface MediaBlockProps {
   onImgError?: () => void;
   /** Broken state: re-point the ref to a file on disk. */
   onLocate?: () => void;
-  /** Click / activate the image (expand hook — Phase 2 wires the lightbox). */
+  /** Expand the image to the lightbox. Bound to DOUBLE-click on the frame (a single
+   *  click just selects the block, so the resize handle / caption stay reachable). */
   onActivate?: () => void;
   /** Affordances drawn INSIDE the frame (e.g. the resize handle). */
   overlay?: ReactNode;
@@ -70,13 +71,14 @@ export const MediaBlock = forwardRef<HTMLDivElement, MediaBlockProps>(function M
         (selected ? " is-selected" : "") +
         (focused ? " is-focused" : "")
       }
-      style={{ width: `${Math.round(width * 100)}%` }}
+      // width is a MAX (a fraction of the text column); the frame shrink-wraps the image
+      // (width:fit-content in CSS) so the border/outline hug the picture — no letterbox.
+      style={{ maxWidth: `${Math.round(width * 100)}%` }}
       data-state={state}
     >
       <div
         className="pensieve-media-frame"
-        onClick={onActivate ? () => onActivate() : undefined}
-        role={onActivate && !broken ? "button" : undefined}
+        onDoubleClick={onActivate && !broken ? () => onActivate() : undefined}
       >
         {showImg && (
           // eslint-disable-next-line jsx-a11y/alt-text
