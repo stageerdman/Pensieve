@@ -23,7 +23,8 @@ import { editorSchema } from "./editorSchema";
 import { BlockSelectionDecorations } from "./blockSelectionDecorations";
 import { ImagePasteDrop, setImageDropHandlers } from "./media/imagePasteDrop";
 import { setMediaNoteId } from "./media/mediaContext";
-import { makeUploadFile, insertImageFromFile } from "./media/insertImage";
+import { makeUploadFile } from "./media/insertImage";
+import { insertImagesSmart, type GroupEditor } from "./media/insertGroup";
 import { mediaToast } from "./media/mediaToast";
 import { Image as ImageIcon } from "../icons";
 import { GutterHandle } from "./GutterHandle";
@@ -124,24 +125,14 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
   const startBlockDrag = useBlockDrag(editor as unknown as Parameters<typeof useBlockDrag>[0], wrapRef);
 
   // The image block + paste/drop plugin live outside React; give them the current note
-  // id (for the media path) and the save+insert flow. Multiple files each become their
-  // own image block (a gallery is Phase 3); a non-image drop is rejected with one whisper.
+  // id (for the media path) and the save+insert flow. insertImagesSmart decides whether
+  // the incoming images form a gallery (2+ in one gesture / adjacency / drop-onto) or stay
+  // a single image (Phase 3); a non-image drop is rejected with one whisper.
   useEffect(() => setMediaNoteId(selfId), [selfId]);
   useEffect(() => {
     setImageDropHandlers(
       (files, atBlockId) => {
-        void (async () => {
-          let ref: string | undefined = atBlockId ?? undefined;
-          for (const file of files) {
-            ref = await insertImageFromFile(
-              editor as unknown as Parameters<typeof insertImageFromFile>[0],
-              selfId,
-              file,
-              ref,
-              "after",
-            );
-          }
-        })();
+        void insertImagesSmart(editor as unknown as GroupEditor, selfId, files, atBlockId);
       },
       (reason) => mediaToast(reason),
     );
