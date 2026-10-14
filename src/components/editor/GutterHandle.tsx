@@ -25,8 +25,10 @@ function scanRows(view: EditorView): Array<{ id: string; top: number; bottom: nu
   const els = view.dom.querySelectorAll<HTMLElement>('[data-node-type="blockContainer"][data-id]');
   els.forEach((el) => {
     const id = el.getAttribute("data-id");
-    const content = el.querySelector<HTMLElement>(":scope > .bn-block-content");
-    if (!id || !content) return;
+    // Fall back to the container's own box: a custom block (the image/gallery) may not
+    // expose a `> .bn-block-content` child, which would otherwise skip it → no handle.
+    const content = el.querySelector<HTMLElement>(":scope > .bn-block-content") ?? el;
+    if (!id) return;
     const r = content.getBoundingClientRect();
     out.push({ id, top: r.top, bottom: r.bottom, left: r.left });
   });

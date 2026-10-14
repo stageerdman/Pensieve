@@ -135,6 +135,14 @@ on a real decision/blocker. Each phase is independently verifiable.
 ---
 
 ## Live status
+- **2026-10-14 (LIVE-FIX)** — v1 shipped with BROKEN live interactions (jsdom green ≠ real BlockNote/
+  WKWebView). Owner device test surfaced ~11 issues; all fixed on `update/media-images`:
+  Tauri `dragDropEnabled:false` (Finder drop), clipboard `items` paste detection, slash menu deduped +
+  distinct `/image` & `/gallery`, single-click selects (expand = magnify button / double-click, not
+  click/Space), caption typeable, `MediaRune` now the real `SyncRune` glyph, frame shrink-wraps the
+  image (no portrait letterbox), lightbox real dark backdrop + zoom/pan, gutter-handle fallback for
+  custom blocks. 689 tests green, `tsc` clean. **Needs a fresh `tauri:build` + owner retest** (esp.
+  asset-protocol image load, Finder drop, drag handle on images). See `wiki.md` Lessons for each fix.
 - **2026-10-14** — Update opened. Recon done (editor=BlockNote 0.55, storage, phone, sync all mapped).
   Three decisions locked with the owner (inline gallery block · backup in scope · full phone UX now).
   4-agent Steve-Jobs UX team run + synthesized into `wiki.md`. Plan written.

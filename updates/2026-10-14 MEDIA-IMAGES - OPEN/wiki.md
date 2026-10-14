@@ -171,6 +171,44 @@ auto-gallery (swipe carousel + page dots). Collapse to single when a gallery dro
 
 ## Lessons (fill as we build)
 
+### Live-interaction fixes — v1 shipped broken, owner device test (2026-10-14)
+The jsdom test suite was green (689) but the REAL BlockNote/WKWebView editor was badly broken —
+passing tests is not proof of live behaviour. Root causes + fixes:
+- **Finder drag-drop did nothing (macOS showed "+").** Tauri's webview captures OS file drops by
+  default, so the DOM never got a `drop` event. Fix: `app.windows[].dragDropEnabled: false` in
+  `tauri.conf.json` → the webview receives HTML5 drag/drop, and `imagePasteDrop`'s handler runs.
+- **Paste inserted "image.png", no image.** `imagesFrom` only read `clipboardData.files`; a COPIED
+  image usually arrives in `clipboardData.items` (kind `file`) only. Fix: read BOTH files and items
+  (and `hasFiles` too) — else our `handlePaste` returns false and BlockNote's default drops a text node.
+- **4× "/image" in the slash menu + broken Tab/Enter nav.** `getDefaultReactSlashMenuItems` already
+  includes BlockNote's built-in Image/Video/Audio/File items; we added ours on top. Fix: filter the
+  defaults out (by runtime `key` ∈ {image,video,audio,file} with a title fallback {Image,Video,Audio,
+  File,Embed}), leaving exactly our **Image** (single) and **Gallery** (multi) commands.
+- **`/gallery` is now its OWN command** (owner: "image and gallery are two very different things").
+  It inserts the `image` prompt block with a transient `multiple:true` prop → the picker allows
+  multi-select; 2+ files route through `insertImagesSmart` to become a gallery.
+- **Click opened the lightbox / couldn't resize or select.** The frame treated any click as "expand".
+  Fix: single click just selects (BlockNote atom selection); expand is DELIBERATE — a magnify button
+  in the overlay tools, or a double-click. Removed `onActivate` from `onClick`; it's `onDoubleClick`.
+- **Space opened the image; captions impossible.** The host `onKeyDown` bound Space→expand and
+  Enter→caption, hijacking typing. Fix: `onKeyDown` now only handles `⌘[`/`⌘]` (width). A "Caption"
+  button focuses the caption input.
+- **Rune was an "orange circle that does shit".** It was a bespoke CSS dot. Fix: `MediaRune` renders
+  the app's real `SyncRune` figure-8 glyph (gold, `pointer-events:none`, on a faint chip) — same sync
+  language everywhere; fades to nothing once backed up.
+- **Box bigger than the image (portrait letterboxed).** `.pensieve-media-img` was `width:100%` +
+  `max-height:60vh` + `object-fit:contain` inside a full-width frame. Fix: img is `max-width:100%;
+  max-height:60vh; width/height:auto`; the `.pensieve-media` width knob is now `max-width` and the
+  frame is `width:fit-content` → it shrink-wraps the picture, so border/outline hug it.
+- **Lightbox backdrop never darkened + no zoom.** It reused the gallery's `focus-backdrop`, whose
+  radial MASK is transparent in the centre — exactly where the image sits. Fix: a dedicated
+  `.lightbox-backdrop` dark scrim + blur across the whole viewport (both themes). Added zoom
+  (wheel/trackpad, drag-to-pan when zoomed, double-click fit↔2×) — reversing the earlier
+  "OS-pinch-only" cut, which was wrong for desktop.
+- **Drag handle (6-dot) missing on images (suspected).** `GutterHandle.scanRows` skipped any block
+  without a `> .bn-block-content` child; a custom block may not expose one. Fix: fall back to the
+  container's own rect. **Needs owner retest** to confirm the handle now appears on image/gallery blocks.
+
 ### Phase 0 — storage plumbing (2026-10-14)
 - **Binary IPC = base64 strings, not `Vec<u8>` params.** `write_bytes(rel, data: String)` /
   `read_bytes(rel) -> Option<String>` take/return base64; the JS side encodes

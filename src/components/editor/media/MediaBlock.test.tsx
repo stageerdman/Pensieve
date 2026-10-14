@@ -26,7 +26,8 @@ describe("MediaBlock states", () => {
     const img = document.querySelector("img")!;
     expect(img.getAttribute("src")).toBe("blob:abc");
     expect(img.getAttribute("alt")).toBe("a cat");
-    expect((document.querySelector(".pensieve-media") as HTMLElement).style.width).toBe("50%");
+    // width is applied as a MAX (the frame shrink-wraps the image; no letterbox).
+    expect((document.querySelector(".pensieve-media") as HTMLElement).style.maxWidth).toBe("50%");
     cleanup();
   });
 
