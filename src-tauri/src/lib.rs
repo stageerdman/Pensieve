@@ -136,9 +136,10 @@ pub fn run() {
                 )?;
             }
 
-            // Park in the menu bar at launch: no dock icon, window stays hidden
-            // (tauri.conf.json sets `visible: false`) until summoned.
-            set_policy(app.handle(), false);
+            // A manual launch (Spotlight / Finder / dock) is an explicit "open Pensieve",
+            // so show the window (it's created hidden via `visible: false`). Closing it
+            // later (red button / ⌘W) is what hides Pensieve back into the menu bar.
+            reveal(app.handle(), None);
 
             // Tray icon + global shortcuts are desktop-only (the future iPhone app is
             // capture-only and builds without them).
@@ -231,6 +232,14 @@ pub fn run() {
             sync::port_available,
             sync::http_request
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|_app, _event| {
+            // Clicking Pensieve's dock icon or relaunching it via Spotlight/Finder while it's
+            // already running (window hidden in the bar) fires Reopen — bring the window back.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = _event {
+                reveal(_app, None);
+            }
+        });
 }
