@@ -110,6 +110,28 @@ aspect ratios** by default.
   - Phone drag/move (all three): **reorder photos within the collection** (drag tiles), **move a
     gallery/image block** up/down among the note's blocks (DOM sibling reorder), and **drag an image
     onto a gallery to merge** it in. Reuse `reorderImages` + `mergeInto` (data ops intact); the
-    gesture layer is new. Build AFTER the owner device-tests Ship 1.
+    gesture layer is new. Build AFTER the owner device-tests the fixes below.
+- Phase 3 fix round 2 (controls = the Dock): the Ship-1 bottom bar was STILL wrong — I hand-rolled a
+  floating `position:absolute` cluster instead of the 4-cell Dock, and the collection's menu button
+  didn't work. Fixed: `NoteActions` now renders the real `<Dock>` with a new `NOTE_DOCK` layout (gold
+  Spell-Menu button cell 3 + Back collapsed spell in the ADJACENT cell 2 via a new `align:"end"`);
+  collection menu button now uses the proven Dock→openMenu wiring. The 4-cell principle is written
+  concretely into UX.md + memory [[phone-controls-bottom-standard]] + a dock-model adjacency test.
+
+## Live status (2026-10-15, pausing — "finishing the job for now")
+- Phase 1 (desktop): SHIPPED to main, owner-confirmed "looks good" + polish done (rune removed,
+  lift-out gone, caption bottom). Dead code to clean in Phase 4: `galleryModel.galleryLayout`/
+  `galleryColumns`, old `.pensieve-gallery-grid`/`-cover` CSS, old phone carousel CSS (`.ph-gallery-
+  track`/`.ph-frame`/`.ph-dots`/long-press edit).
+- Phase 2 (manual per-image reshape): DROPPED by owner.
+- Phase 3 (phone saved-collection): BUILT + on main. Cover → full-screen masonry; "Photo" spell;
+  Picture-button fix; write-under-images; controls now the 4-cell Dock (bottom) on memory + collection.
+  **Awaiting the owner's device re-test** of the Dock placement + the collection menu button.
+- Phase 3 Ship 2 (QUEUED, decisions locked): explicit "New gallery" spell (2nd conditional spell
+  beside Photo) + phone drag (reorder-in-collection, move block to top, drag-image-into-gallery).
+- Everything on `main`, pushed. Tests: full suite 747 + phone 132 green; desktop + `build:phone` clean.
+- Resume: owner device-tests → then Ship 2 → then Phase 4 cleanup + close-out. Phone tested via
+  `npm run dev:phone` (LAN, was 192.168.1.149:5174; DHCP-varies). Desktop app unaffected (no tauri
+  rebuild needed for phone changes).
 - NEXT: owner device-tests the phone (`npm run dev:phone`); then Phase 4 (cleanup of dead
   galleryLayout/old gallery CSS + the dropped-carousel CSS, docs, close-out) and merge/close.

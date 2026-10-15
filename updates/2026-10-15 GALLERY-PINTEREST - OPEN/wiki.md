@@ -63,6 +63,42 @@ Lightbox controller + `expand`; reorder/collapse/promote/merge/lift-out/extract 
 parse/serialize + `mediaStore.ts` (phone is render-only). ProseMirror/WKWebView event rules from
 MEDIA-IMAGES still apply (native mousedown for drag handles, pointer-based drag, build-before-native).
 
+## Lessons (2026-10-15)
+
+### Desktop
+- Natural aspect is DERIVED (`<img onLoad>` → component-local `url→aspect` map), never serialized —
+  keeps the fence + the desktop↔phone byte-compat guard almost untouched. Only the dragged gallery
+  HEIGHT persists (optional `h=<px>` fence header; round-tripped on BOTH stacks incl. phone's
+  noteMedia + a guard fixture). The justified strip is a pure packer (`galleryJustify.ts`): dragged
+  height → row count → shared rowH → per-tile width = aspect·rowH → `linearPartition` (order-
+  preserving, balanced) → horizontal scroll. Height handle = live preview, commit once on release.
+
+### Phone control standard — I BROKE IT TWICE (the expensive lesson)
+The phone has ONE control language and it is STRICT; violating it reads as "broken" to the owner.
+1. First I put the photo-collection's controls (close/count) at the TOP. WRONG — controls live at
+   the BOTTOM.
+2. Then I "fixed" it with a floating `position:absolute` bottom-right cluster (back + spell-fab).
+   STILL WRONG — controls are not placed freely; they ARE the **4-cell Dock**.
+The real rule (now in UX.md "Phone control standard" + memory [[phone-controls-bottom-standard]] +
+a `dockModel` test): the Dock is a fixed 4-cell grid (`dockModel.ts`/`Dock.tsx`); the gold Spell-
+Menu button sits in a cell (`menuSlot`, usually 3 = bottom-right); the rest = ONE expanded spell OR
+up to 3 collapsed; a **Back is a collapsed spell in the cell ADJACENT to the menu** (`align:"end"`).
+ALWAYS render `<Dock>` with a `DockLayout` (`HOME_DOCK`/`NOTE_DOCK`) — NEVER a bespoke cluster or a
+top bar. A new overlay's controls = mount `<Dock>` + reuse `useSpellMenu` (the conditional ring).
+Process lesson: before any phone UI, READ `dockModel.ts` + UX.md; don't infer the standard from the
+surface you're looking at. The collection's dead menu button was the same root cause (not wired
+through the Dock) — reusing the proven `<Dock>` path fixed placement AND the button at once.
+
+### Phone misc
+- iOS only opens the native file picker (`input.click()`) inside a TRUSTED, not-defaultPrevented
+  gesture → the keyboard-toolbar Photo button must be a plain `onClick`, NOT the format keys'
+  `onPointerDown`+`preventDefault` (that silently suppressed the sheet).
+- Notion trailing text row: `renderNoteBody` appends an editable `<div>` after trailing media and a
+  tap in the empty surface below drops the caret there (`caretToTrailingRow`); serialize trims it so
+  it never persists until typed in. Also found/fixed: the phone DOM serializer (`serializeNoteBody`)
+  was dropping the gallery `height` — now passes it to `galleryMd`.
+- Phone is render-only over the SAME markdown model; desktop round-trip preserved (guard green).
+
 ## Sources
 flickr/justified-layout (raw lib/row.js); react-photo-album.com/documentation; naver egjs-grid
 JustifiedGrid; jaredLunde/masonic; paulhyunchong.com masonry; markus.is justified image grid;
