@@ -81,4 +81,15 @@ aspect ratios** by default.
     (commit-once → fence); 2D reorder; dropped the +N cap. 745 tests pass.
   - Dead code left for Phase 4 cleanup: `galleryModel.galleryLayout`/`galleryColumns` (no longer
     used by the render) + the old `.pensieve-gallery-grid`/`-cover` CSS.
-- NEXT: owner tests the desktop gallery, then Phase 2 (manual per-image reshape) or Phase 3 (phone).
+- Phase 1 polish (owner feedback): per-image sync rune removed everywhere (gallery + single image;
+  deleted MediaRune/useMediaBackup), "Lift out" button gone, caption dropped to the image bottom,
+  stuck drop-ring guard. Desktop rebuilt + installed.
+- Phase 3 (phone) — owner chose phone as the next phase (Phase 2 manual-reshape deferred). BUILT,
+  awaiting device test via `npm run dev:phone`. Shipped (render-only, markdown byte-compat kept):
+  - Composite COVER (1 big + ≤2 small + "+N") replaces the carousel; tap → full-screen COLLECTION
+    overlay (CSS-columns vertical masonry, close X/swipe-down/Esc, tap→lightbox, × to remove).
+    New collectionController + PhoneCollection at app root. Removed carousel + long-press reorder.
+  - Note conditional spells → single "Upload photo"; "Go back" moved into the top-right action
+    cluster next to the Spell Menu opener.
+- NEXT: owner device-tests the phone; then Phase 2 (desktop manual per-image reshape) + Phase 4
+  (polish/cleanup of dead galleryLayout/CSS, docs, close-out).
