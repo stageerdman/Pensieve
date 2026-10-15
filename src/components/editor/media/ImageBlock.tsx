@@ -42,6 +42,38 @@ interface RenderProps {
   editor: InsertEditor & { isEditable: boolean; removeBlocks?: (ids: string[]) => void };
 }
 
+// Begin a pointer drag from a resize/reshape handle. In the WKWebView shell, preventDefault on
+// pointerdown does NOT stop the native text-selection drag, so dragging a handle over the
+// contentEditable surface selects the note text instead of resizing. We (1) capture the pointer
+// to the handle so every move routes through it (even past the frame), and (2) suppress text
+// selection for the drag's duration via a body class. `onMove` gets each raw pointer move.
+function beginHandleDrag(e: PointerEvent, onMove: (ev: globalThis.PointerEvent) => void): void {
+  e.preventDefault();
+  e.stopPropagation();
+  const handle = e.currentTarget as HTMLElement;
+  const pointerId = e.pointerId;
+  try {
+    handle.setPointerCapture(pointerId);
+  } catch {
+    /* capture is best-effort */
+  }
+  document.body.classList.add("pensieve-resizing");
+  window.getSelection()?.removeAllRanges();
+  const move = (ev: globalThis.PointerEvent) => onMove(ev);
+  const done = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", done);
+    document.body.classList.remove("pensieve-resizing");
+    try {
+      handle.releasePointerCapture(pointerId);
+    } catch {
+      /* best-effort */
+    }
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", done);
+}
+
 function ImageRender({ block, editor }: RenderProps) {
   const { url, caption, width, aspect, status } = block.props;
   const editable = editor.isEditable;
@@ -123,26 +155,16 @@ function ImageRender({ block, editor }: RenderProps) {
 
   // Right-edge handle — width only, snapped.
   const startResize = (e: PointerEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
     const media = frameRef.current?.closest(".pensieve-media") as HTMLElement | null;
     const column = media?.parentElement;
     if (!media || !column) return;
     const left = media.getBoundingClientRect().left;
     const colWidth = column.clientWidth || 1;
-    const onMove = (ev: globalThis.PointerEvent) => update({ width: snapWidth(Math.min(1, Math.max(0.15, (ev.clientX - left) / colWidth))) });
-    const done = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", done);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", done);
+    beginHandleDrag(e, (ev) => update({ width: snapWidth(Math.min(1, Math.max(0.15, (ev.clientX - left) / colWidth))) }));
   };
 
   // Bottom-right corner — free reshape (width + aspect together), works on the placeholder too.
   const startCorner = (e: PointerEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
     const frame = rectEl();
     const media = frameRef.current?.closest(".pensieve-media") as HTMLElement | null;
     const column = media?.parentElement;
@@ -151,13 +173,7 @@ function ImageRender({ block, editor }: RenderProps) {
     const colWidth = column.clientWidth || 1;
     const sx = e.clientX;
     const sy = e.clientY;
-    const onMove = (ev: globalThis.PointerEvent) => update(cornerResize(r.width, r.height, ev.clientX - sx, ev.clientY - sy, colWidth));
-    const done = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", done);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", done);
+    beginHandleDrag(e, (ev) => update(cornerResize(r.width, r.height, ev.clientX - sx, ev.clientY - sy, colWidth)));
   };
 
   const setPreset = (p: SizePreset) => {

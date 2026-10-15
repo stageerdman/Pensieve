@@ -268,6 +268,15 @@
   color: hsl(var(--text));
 }
 
+/* While dragging a media handle: kill text selection document-wide so the reshape doesn't
+   turn into a text-selection drag (WKWebView ignores preventDefault on pointerdown here). The
+   pointer is captured to the handle, so its own resize cursor holds through the drag. */
+body.pensieve-resizing,
+body.pensieve-resizing * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
 /* Bottom-right corner reshape handle (width + aspect together). */
 .pensieve-media-corner {
   position: absolute;
@@ -277,6 +286,8 @@
   height: 16px;
   cursor: nwse-resize;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
   z-index: 3;
 }
 .pensieve-media-corner::after {
@@ -544,6 +555,8 @@
   height: 100%;
   cursor: ew-resize;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .pensieve-media-resize::after {
   content: "";
