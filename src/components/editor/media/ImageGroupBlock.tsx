@@ -10,6 +10,7 @@ import {
   removeImageAt,
   reorderImages,
 } from "./galleryModel";
+import { computeDrop, type DropBlock, type DropTarget } from "../blockDrag";
 import { DEFAULT_IMAGE_WIDTH, imageFilename } from "../../../lib/md/image";
 import { getMediaNoteId } from "./mediaContext";
 import { mergeFilesIntoBlock, type GroupEditor } from "./insertGroup";
@@ -20,6 +21,46 @@ import { lightbox } from "../../media/lightboxController";
 import { X, GripVertical, Plus, Images as ImagesIcon } from "../../icons";
 import { MediaLibrary } from "./MediaLibraryModal";
 import { log } from "../../../lib/logger";
+
+// Scan the editor's block rows (from the ProseMirror root containing `fromEl`) so a tile dragged
+// OUT of the gallery can land at a document position — a lightweight mirror of useBlockDrag's scan.
+function scanDocBlocks(fromEl: HTMLElement | null): { blocks: DropBlock[]; rects: Map<string, DOMRect> } {
+  const rects = new Map<string, DOMRect>();
+  const blocks: DropBlock[] = [];
+  const root = fromEl?.closest(".ProseMirror") as HTMLElement | null;
+  if (!root) return { blocks, rects };
+  root.querySelectorAll<HTMLElement>('[data-node-type="blockContainer"][data-id]').forEach((el) => {
+    const id = el.getAttribute("data-id");
+    if (!id) return;
+    const content = (el.querySelector<HTMLElement>(":scope > .bn-block-content") ?? el) as HTMLElement;
+    const r = content.getBoundingClientRect();
+    rects.set(id, r);
+    blocks.push({ id, top: r.top, bottom: r.bottom, left: r.left, canNest: false });
+  });
+  return { blocks, rects };
+}
+
+// Draw/clear the body-level drop line for an out-of-gallery extraction (reuses .pensieve-drop-
+// indicator). `ref` holds the element across moves.
+function drawDocDrop(target: DropTarget | null, rects: Map<string, DOMRect>, ref: { current: HTMLDivElement | null }): void {
+  const r = target && rects.get(target.referenceId);
+  if (!target || !r) {
+    ref.current?.remove();
+    ref.current = null;
+    return;
+  }
+  if (!ref.current) {
+    ref.current = document.createElement("div");
+    ref.current.className = "pensieve-drop-indicator";
+    document.body.appendChild(ref.current);
+  }
+  const y = target.placement === "before" ? r.top : r.bottom;
+  const el = ref.current;
+  el.style.height = "";
+  el.style.left = `${r.left}px`;
+  el.style.top = `${y - 1}px`;
+  el.style.width = `${Math.max(40, r.right - r.left)}px`;
+}
 
 // Images from a drop: prefer dataTransfer.files, fall back to items (a copied/screenshot image
 // often lives only in items, kind "file") — matches the editor-wide paste/drop plugin.
@@ -80,6 +121,10 @@ function GroupRender({ block, editor }: RenderProps) {
   const [dragOver, setDragOver] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const docDropRef = useRef<HTMLDivElement | null>(null); // extract-out drop line (body-level)
+
+  // Never leave the body-level drop line behind if we unmount mid-drag.
+  useEffect(() => () => drawDocDrop(null, new Map(), docDropRef), []);
 
   const setImages = (next: GalleryImage[]) =>
     editor.updateBlock(block.id, { props: { images: stringifyGalleryImages(next) } });
@@ -230,26 +275,73 @@ function GroupRender({ block, editor }: RenderProps) {
     return tiles.length;
   };
 
+  // Is the pointer within (a little slack around) the gallery grid? Inside → reorder tiles;
+  // outside → extract the tile into its own image block at a document position.
+  const insideGallery = (x: number, y: number): boolean => {
+    const g = gridRef.current?.getBoundingClientRect();
+    if (!g) return true;
+    const m = 28;
+    return x >= g.left - m && x <= g.right + m && y >= g.top - m && y <= g.bottom + m;
+  };
+
+  // Pull tile `i` out of the gallery into its own single `image` block at `target`, then remove
+  // it from the group (collapsing 2→1 as usual). Reuses the tile's saved url — no re-upload.
+  const extractTile = (i: number, target: DropTarget) => {
+    const img = images[i];
+    if (!img) return;
+    editor.insertBlocks(
+      [{ type: "image", props: { url: img.url, caption: img.caption ?? "", width: DEFAULT_IMAGE_WIDTH } }],
+      target.referenceId,
+      target.placement,
+    );
+    log.info("media", "group.extract", { id: block.id, index: i, to: target.referenceId, placement: target.placement });
+    remove(i);
+  };
+
   const onGripDown = (i: number) => (e: PointerEvent) => {
     if (!editable) return;
     e.preventDefault();
     e.stopPropagation();
     setDragFrom(i);
-    const onMove = (ev: globalThis.PointerEvent) => setDropAt(insertionIndexAt(ev.clientX, ev.clientY));
-    const onUp = (ev: globalThis.PointerEvent) => {
+    let docTarget: DropTarget | null = null;
+    const onMove = (ev: globalThis.PointerEvent) => {
+      if (insideGallery(ev.clientX, ev.clientY)) {
+        docTarget = null;
+        drawDocDrop(null, new Map(), docDropRef);
+        setDropAt(insertionIndexAt(ev.clientX, ev.clientY));
+      } else {
+        // Dragged out of the gallery → preview a document drop for a standalone image.
+        setDropAt(null);
+        const { blocks, rects } = scanDocBlocks(gridRef.current);
+        docTarget = computeDrop(blocks, ev.clientX, ev.clientY, new Set(), false);
+        drawDocDrop(docTarget, rects, docDropRef);
+      }
+    };
+    const finish = (ev: globalThis.PointerEvent, apply: boolean) => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
-      const insertion = insertionIndexAt(ev.clientX, ev.clientY);
-      const to = insertion > i ? insertion - 1 : insertion;
-      if (to !== i && to >= 0 && to < images.length) {
-        setImages(reorderImages(images, i, to));
-        log.info("media", "group.reorder", { id: block.id, from: i, to });
+      window.removeEventListener("pointercancel", onCancel);
+      drawDocDrop(null, new Map(), docDropRef);
+      if (apply) {
+        if (!insideGallery(ev.clientX, ev.clientY) && docTarget) {
+          extractTile(i, docTarget);
+        } else {
+          const insertion = insertionIndexAt(ev.clientX, ev.clientY);
+          const to = insertion > i ? insertion - 1 : insertion;
+          if (to !== i && to >= 0 && to < images.length) {
+            setImages(reorderImages(images, i, to));
+            log.info("media", "group.reorder", { id: block.id, from: i, to });
+          }
+        }
       }
       setDragFrom(null);
       setDropAt(null);
     };
+    const onUp = (ev: globalThis.PointerEvent) => finish(ev, true);
+    const onCancel = (ev: globalThis.PointerEvent) => finish(ev, false);
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
   };
 
   const onTileKey = (i: number) => (e: KeyboardEvent<HTMLDivElement>) => {
