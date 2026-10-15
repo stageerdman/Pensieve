@@ -709,3 +709,39 @@ a slip for Pensieve).
 - Pure logic is unit-tested (computeDrop merge cases; `imagesOfMediaBlock`/`mergeMediaBlocksInto`;
   `isImageRef`). The DOM drag feel, the live library thumbnails, and the drop rings are
   owner-native-verified.
+
+## Decision-making / working lessons (carry forward — don't wait to be reminded)
+Hard-won process lessons from the image editor work. These apply to ANY future editor/native
+work, not just media. (Also saved to auto-memory so they load every session.)
+1. **Research the source; stop guessing.** When a live behaviour is broken and can't be inspected
+   (WKWebView has no attachable devtools; browser automation can't reach the dev server), DO NOT
+   iterate guesses. The resize bug took ~5 wrong guesses (pointer capture, capture-phase listeners,
+   selectstart suppression) — all irrelevant — until I READ the installed `prosemirror-view` +
+   `@tiptap` NodeView source (node_modules + `.map` sourcesContent) and found the TWO real causes in
+   one pass. Read the framework's actual event/API contract first, then lock the finding with a test.
+2. **Prove the handler RUNS before blaming event plumbing.** The decisive resize bug was a silent
+   early-return (`frameRef.closest(".pensieve-media")` returned null because the element is a
+   DESCENDANT, not an ancestor — should've been `querySelector`). Every event-wiring tweak before
+   that was dead code downstream of a function that bailed immediately. First confirm the body
+   executes (a log/throw), then debug the mechanism.
+3. **`npm run build` before EVERY `tauri:build`.** The project build's `tsc` compiles test files and
+   caught a `TS2531` that `tsc --noEmit` (its config) missed — it failed the native build at
+   `beforeBuildCommand`. Run the full web build (tsc+vite) first; it's seconds and saves a multi-
+   minute native build that dies late.
+4. **jsdom-green ≠ works in the real editor.** Vitest passing proves pure logic, never live
+   BlockNote/WKWebView behaviour. Every user-facing change ends with `npm run tauri:build`, then
+   verify `/Applications/Pensieve.app` mod-time advanced (don't trust exit 0) and tell the owner to
+   quit-and-relaunch. Unit-test the pure core; mark DOM/drag/visual bits "owner-native-verified".
+5. **The WKWebView/BlockNote event model (recurring facts):** ProseMirror listens to `mousedown`,
+   never pointer events, and for a selectable custom block starts its own gesture unless the REAL
+   mousedown is `preventDefault`ed before it bubbles to the editor DOM — so interactive controls
+   inside a `createReactBlockSpec` block need a NATIVE `mousedown` listener (React synthetic is
+   delegated at the app root = too late). HTML5 drag can't drop in the shell → all drag is
+   pointer-based with `window` listeners. Custom blocks may lack a `> .bn-block-content` child → DOM
+   scans need a `?? el` fallback, and read a block's type from the EDITOR, not a DOM attribute.
+6. **Save durable lessons to the wiki proactively** at the end of each work chunk — the owner should
+   never have to ask. Live-verification caveats and "why native/why capture-phase" reasoning are
+   exactly what a future session needs.
+7. **Autonomous cadence (owner preference):** build the whole request end-to-end; commit AND push
+   every working logical change; merge to `main` and `tauri:build` so the owner can device-test;
+   only stop to ask on a real decision or a genuine blocker.
