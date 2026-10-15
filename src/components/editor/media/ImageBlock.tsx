@@ -42,16 +42,20 @@ interface RenderProps {
   editor: InsertEditor & { isEditable: boolean; removeBlocks?: (ids: string[]) => void };
 }
 
-// Begin a pointer drag from a resize/reshape handle. In the WKWebView shell, preventDefault on
-// pointerdown does NOT stop the native text-selection drag, so dragging a handle over the
-// contentEditable surface selects the note text instead of resizing. We (1) capture the pointer
-// to the handle so every move routes through it (even past the frame), and (2) suppress text
-// selection for the drag's duration via a body class. `onMove` gets each raw pointer move.
+// Begin a pointer drag from a resize/reshape handle. In the WKWebView shell, dragging a handle
+// over the contentEditable surface selects the note text instead of resizing: ProseMirror starts
+// a selection from the mousedown/selectstart events, and its listeners sit on an ancestor that
+// fires BEFORE any React handler — so neither preventDefault on our pointerdown nor an onMouseDown
+// can stop it. We therefore cancel `selectstart` at the document level (capture phase) for the
+// drag's whole duration — the definitive stop for a mouse-drag text selection. We also capture the
+// pointer to the handle (so moves keep flowing past the frame) and drop a body class that sets
+// user-select:none as a belt-and-suspenders. `onMove` gets each raw pointer move.
 function beginHandleDrag(e: PointerEvent, onMove: (ev: globalThis.PointerEvent) => void): void {
   e.preventDefault();
   e.stopPropagation();
   const handle = e.currentTarget as HTMLElement;
   const pointerId = e.pointerId;
+  log.info("media", "resize.start", { handle: handle.className, pointerId, pointerType: e.pointerType });
   try {
     handle.setPointerCapture(pointerId);
   } catch {
@@ -59,10 +63,13 @@ function beginHandleDrag(e: PointerEvent, onMove: (ev: globalThis.PointerEvent) 
   }
   document.body.classList.add("pensieve-resizing");
   window.getSelection()?.removeAllRanges();
+  const blockSelect = (ev: Event) => ev.preventDefault();
+  document.addEventListener("selectstart", blockSelect, true);
   const move = (ev: globalThis.PointerEvent) => onMove(ev);
   const done = () => {
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", done);
+    document.removeEventListener("selectstart", blockSelect, true);
     document.body.classList.remove("pensieve-resizing");
     try {
       handle.releasePointerCapture(pointerId);
