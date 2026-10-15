@@ -35,11 +35,15 @@ export interface GalleryImage {
 
 interface Block {
   type?: string;
-  props?: { images?: string; [k: string]: unknown };
+  props?: { images?: string; height?: number; [k: string]: unknown };
   content?: unknown;
   children?: Block[];
   [k: string]: unknown;
 }
+
+/** The gallery's user-dragged display height (px). An optional leading `h=<px>` line in the fence
+ *  carries it (a media ref never starts with `h=`, so it's unambiguous). 0 / absent = auto. */
+const HEIGHT_LINE = /^h=(\d+)$/;
 
 export function isImageGroupBlock(b: Block): boolean {
   return b?.type === "imageGroup";
@@ -84,6 +88,8 @@ export function encodeImageGroupBlock(b: Block): Block {
     const caption = (img.caption ?? "").replace(/\n/g, " ").trim();
     return caption ? `${ref} | ${caption}` : ref;
   });
+  const height = Math.round(Number(b.props?.height) || 0);
+  if (height > 0) lines.unshift(`h=${height}`);
   return { type: "codeBlock", props: { language: GALLERY_FENCE }, content: [{ type: "text", text: lines.join("\n"), styles: {} }] };
 }
 
@@ -91,16 +97,23 @@ export function encodeImageGroupBlock(b: Block): Block {
 export function reconstructGalleryFence(b: Block): Block | null {
   const lang = b.type === "codeBlock" && (b.props as { language?: string } | undefined)?.language;
   if (lang !== GALLERY_FENCE) return null;
-  const images: GalleryImage[] = fenceText(b)
+  const rawLines = fenceText(b)
     .split("\n")
     .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map((line) => {
-      const sep = line.indexOf(" | ");
-      if (sep === -1) return { url: line };
-      return { url: line.slice(0, sep).trim(), caption: line.slice(sep + 3).trim() };
-    });
-  return { type: "imageGroup", props: { images: stringifyGalleryImages(images) } };
+    .filter((line) => line.length > 0);
+  let height = 0;
+  if (rawLines.length && HEIGHT_LINE.test(rawLines[0])) {
+    height = Number(HEIGHT_LINE.exec(rawLines[0])![1]);
+    rawLines.shift();
+  }
+  const images: GalleryImage[] = rawLines.map((line) => {
+    const sep = line.indexOf(" | ");
+    if (sep === -1) return { url: line };
+    return { url: line.slice(0, sep).trim(), caption: line.slice(sep + 3).trim() };
+  });
+  const props: { images: string; height?: number } = { images: stringifyGalleryImages(images) };
+  if (height > 0) props.height = height;
+  return { type: "imageGroup", props };
 }
 
 /** LOAD: resolve an imageGroup block's refs → loadable urls (new object; registers the

@@ -93,6 +93,7 @@ interface Fixture {
   name: string;
   images: Img[];
   md: string;
+  height?: number; // desktop gallery height → the `h=` fence header; phone round-trips it
 }
 
 const N = "note1";
@@ -130,6 +131,12 @@ const FIXTURES: Fixture[] = [
     images: [{ ref: A, caption: "a | b | c" }, { ref: D, caption: "plain" }],
     md: ["```" + "pensieve:gallery", `${A} | a | b | c`, `${D} | plain`, "```"].join("\n"),
   },
+  {
+    name: "gallery with a dragged height (h= header line, round-tripped on both stacks)",
+    images: [{ ref: A, caption: "first" }, { ref: B }],
+    height: 320,
+    md: ["```" + "pensieve:gallery", "h=320", `${A} | first`, B, "```"].join("\n"),
+  },
 ];
 
 const isGallery = (f: Fixture) => f.images.length > 1;
@@ -139,7 +146,10 @@ function desktopBlockFor(f: Fixture): unknown {
   if (isGallery(f)) {
     return {
       type: "imageGroup",
-      props: { images: stringifyGalleryImages(f.images.map((i) => ({ url: i.ref, ...(i.caption ? { caption: i.caption } : {}) }))) },
+      props: {
+        images: stringifyGalleryImages(f.images.map((i) => ({ url: i.ref, ...(i.caption ? { caption: i.caption } : {}) }))),
+        ...(f.height ? { height: f.height } : {}),
+      },
     };
   }
   const img = f.images[0];
@@ -157,7 +167,7 @@ function desktopParse(blocks: Array<{ type: string; props: Record<string, unknow
 
 // ── phone adapters (string layer → canonical) ──
 function phoneBlockFor(f: Fixture): NoteBlock {
-  if (isGallery(f)) return { kind: "gallery", images: f.images.map((i) => ({ ref: i.ref, ...(i.caption ? { caption: i.caption } : {}) })) };
+  if (isGallery(f)) return { kind: "gallery", images: f.images.map((i) => ({ ref: i.ref, ...(i.caption ? { caption: i.caption } : {}) })), ...(f.height ? { height: f.height } : {}) };
   const img = f.images[0];
   return { kind: "image", ref: img.ref, ...(img.caption ? { caption: img.caption } : {}) };
 }

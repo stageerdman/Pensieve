@@ -83,6 +83,31 @@ describe("full bridge round-trip", () => {
   });
 });
 
+describe("gallery height (h= fence header)", () => {
+  it("emits an `h=<px>` header line before the images when height > 0", () => {
+    const fence = encodeImageGroupBlock({ type: "imageGroup", props: { images: JSON.stringify([{ url: A }, { url: B }]), height: 320 } });
+    expect(fenceText(fence)).toBe(`h=320\n${A}\n${B}`);
+  });
+
+  it("omits the header when height is 0 / absent (old galleries unchanged)", () => {
+    const fence = encodeImageGroupBlock({ type: "imageGroup", props: { images: JSON.stringify([{ url: A }]), height: 0 } });
+    expect(fenceText(fence)).toBe(A);
+  });
+
+  it("reconstruct reads the height header into a prop and strips it from the images", () => {
+    const fence = { type: "codeBlock", props: { language: GALLERY_FENCE }, content: [{ type: "text", text: `h=240\n${A} | cap\n${B}` }] };
+    const block = reconstructGalleryFence(fence)!;
+    expect((block.props as { height?: number }).height).toBe(240);
+    expect(parseGalleryImages((block.props as { images: string }).images)).toEqual([{ url: A, caption: "cap" }, { url: B }]);
+  });
+
+  it("round-trips height through encode → reconstruct", () => {
+    const fence = encodeImageGroupBlock({ type: "imageGroup", props: { images: JSON.stringify([{ url: A }, { url: B }]), height: 288 } });
+    const back = reconstructGalleryFence({ ...fence, content: [{ text: fenceText(fence) }] })!;
+    expect((back.props as { height?: number }).height).toBe(288);
+  });
+});
+
 describe("isImageGroupBlock", () => {
   it("recognises the block type", () => {
     expect(isImageGroupBlock({ type: "imageGroup" })).toBe(true);

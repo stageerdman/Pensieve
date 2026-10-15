@@ -517,6 +517,9 @@ export const ImageGroupBlock = createReactBlockSpec(
       // url → its vault ref and emits the `pensieve:gallery` fence (encodeImageGroupBlock),
       // so this block is never handed to BlockNote's own Markdown converter.
       images: { default: "[]" },
+      // The user-dragged display height (px) for the Pinterest-style justified strip; 0 = auto.
+      // Round-trips via the fence's `h=` header (lib/md/gallery).
+      height: { default: 0, type: "number" },
     },
   },
   {

@@ -32,7 +32,12 @@ export interface MediaImage {
 export type NoteBlock =
   | { kind: "text"; text: string }
   | { kind: "image"; ref: string; caption?: string }
-  | { kind: "gallery"; images: MediaImage[] };
+  | { kind: "gallery"; images: MediaImage[]; height?: number };
+
+/** The desktop gallery's dragged display HEIGHT rides an optional leading `h=<px>` fence line
+ *  (matches src/lib/md/gallery.ts). The phone ignores it for layout but MUST round-trip it so the
+ *  `.md` stays byte-identical to the desktop. A media ref never starts with `h=`, so it's unambiguous. */
+const HEIGHT_LINE = /^h=(\d+)$/;
 
 /** Is this a vault-relative media path (`media/<noteId>/<file>`)? Direct urls
  *  (data:/blob:/http) are NOT — they resolve as-is (external, like desktop). */
@@ -58,11 +63,13 @@ export function mediaAlt(caption?: string | null): string {
 
 /** Serialize an ordered image list → the `pensieve:gallery` fenced block (as a string
  *  that may span several lines). One `ref | caption` per line; caption omitted when empty. */
-export function galleryMd(images: MediaImage[]): string {
+export function galleryMd(images: MediaImage[], height?: number): string {
   const lines = images.map((img) => {
     const caption = (img.caption ?? "").replace(/\n/g, " ").trim();
     return caption ? `${img.ref}${GALLERY_SEP}${caption}` : img.ref;
   });
+  const h = Math.round(Number(height) || 0);
+  if (h > 0) lines.unshift(`h=${h}`);
   return "```" + GALLERY_FENCE + "\n" + lines.join("\n") + "\n```";
 }
 
@@ -93,8 +100,14 @@ export function parseNoteContent(content: string): NoteBlock[] {
         if (lines[j].trim() === "```") break;
         inner.push(lines[j]);
       }
-      const images = parseGalleryLines(inner);
-      if (images.length) blocks.push({ kind: "gallery", images });
+      const body = inner.map((l) => l.trim()).filter((l) => l.length > 0);
+      let height = 0;
+      if (body.length && HEIGHT_LINE.test(body[0])) {
+        height = Number(HEIGHT_LINE.exec(body[0])![1]);
+        body.shift();
+      }
+      const images = parseGalleryLines(body);
+      if (images.length) blocks.push({ kind: "gallery", images, ...(height > 0 ? { height } : {}) });
       i = j; // skip past the closing fence
       continue;
     }
@@ -115,7 +128,7 @@ export function serializeBlocks(blocks: NoteBlock[]): string {
     .map((b) => {
       if (b.kind === "text") return b.text;
       if (b.kind === "image") return imageMd(b.ref, b.caption);
-      return galleryMd(b.images);
+      return galleryMd(b.images, b.height);
     })
     .join("\n");
 }
