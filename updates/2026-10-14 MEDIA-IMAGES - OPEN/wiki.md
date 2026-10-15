@@ -675,3 +675,37 @@ revealed **two independent root causes**, both now covered by tests driving a RE
   devtools, browser automation can't reach the dev server), the authoritative move is to READ the
   library/framework source for the exact event contract, then lock the finding with a jsdom test
   that dispatches REAL native events through the REAL editor — not more guesses against a black box.
+
+## Lessons — gallery drag-drop, richer "+", and vault image library (2026-10-15)
+Owner asks: drag images into a gallery (Finder OR an existing media row), make "+" offer the same
+menu as a single image's placeholder, and reuse images already uploaded to the vault ("Notion" was
+a slip for Pensieve).
+- **`Store.listMedia()` is the data source for the reuse library.** Added to the Store interface +
+  both adapters: Tauri walks `media/` → `<noteId>` dirs → files via the existing `list_dir` command
+  (same two-level walk the sync vault already does); browser lists IndexedDB keys (new `keys()` on
+  `MediaBlobStore`, `getAllKeys()`). `mediaLibrary.ts` filters to image extensions and resolves each
+  ref→url via `resolveMediaUrl` — which REGISTERS the ref↔url pair, so a reused image saves straight
+  back to its vault ref with **no new bytes written** (two notes can share one media file; GC is
+  already never-auto so sharing is safe). `MediaLibraryModal.tsx` is a body-portalled modal (z-40);
+  single-select fires on click, multi-select accumulates. NB filename case trap: a `MediaLibrary.tsx`
+  next to `mediaLibrary.ts` collides on case-insensitive macOS (TS2305/TS1261) — named the modal
+  `MediaLibraryModal.tsx`.
+- **Gallery "+" now mirrors the single-image add popover** (Upload / Choose from library / Embed
+  link / drop hint), shared by the empty placeholder and the populated "+". Galleries store a LIST,
+  so embed/library append `{url}` tiles (`appendUrls`) rather than setting one `url` prop. The
+  gallery root is `position:relative` to anchor the popover; Esc closes it.
+- **Drop images onto a gallery** (both layouts) mirrors ImageBlock's host: React
+  `onDragOver/onDrop` + `stopPropagation` (so the editor-wide plugin doesn't double-insert) + an
+  `is-dragover` dashed ring; reads `dataTransfer.files` AND `items` (copied/screenshot images live
+  only in `items`).
+- **Drag a media ROW onto a gallery/image → merge, not reorder.** Extended the pure block-drag:
+  `DropBlock` carries a `media` flag (read from `data-content-type`), `DropTarget` gains `merge`,
+  and `computeDrop(..., draggedMedia)` returns a merge target when the pointer is INSIDE a media
+  block AND every dragged block is media. `commit` forks to `mergeMediaBlocksInto` (insertGroup.ts):
+  it reads the dragged blocks' already-saved urls (`imagesOfMediaBlock` — image→1 entry, gallery→its
+  list), appends them to the target (promoting a single image to a gallery), and removes the
+  sources — **reusing saved urls, no re-upload**. A distinct `is-merge` indicator outlines the whole
+  target block instead of the thin insertion line. Mixed drags (text+image) stay a plain reorder.
+- Pure logic is unit-tested (computeDrop merge cases; `imagesOfMediaBlock`/`mergeMediaBlocksInto`;
+  `isImageRef`). The DOM drag feel, the live library thumbnails, and the drop rings are
+  owner-native-verified.

@@ -44,3 +44,31 @@ describe("computeDrop", () => {
     expect(computeDrop(blocks, 100, 30, new Set(["a", "b", "c"]))).toBeNull();
   });
 });
+
+describe("computeDrop — drop-onto-merge (media rows → gallery)", () => {
+  const none = new Set<string>();
+  // b is a gallery/image (media); a and c are not.
+  const withMedia: DropBlock[] = [
+    { id: "a", top: 0, bottom: 20, left: 100, canNest: true },
+    { id: "b", top: 20, bottom: 40, left: 100, canNest: true, media: true },
+    { id: "c", top: 40, bottom: 60, left: 100, canNest: true },
+  ];
+
+  it("merges when dragging media and the pointer is INSIDE a media block", () => {
+    expect(computeDrop(withMedia, 100, 30, none, true)).toEqual({ referenceId: "b", placement: "after", nest: false, merge: true });
+  });
+
+  it("does NOT merge when the drag is not all-media (plain reorder instead)", () => {
+    expect(computeDrop(withMedia, 100, 30, none, false)).toEqual({ referenceId: "b", placement: "after", nest: false });
+  });
+
+  it("does NOT merge over a non-media block — falls back to reorder", () => {
+    // y=10 is inside block a (not media) → ordinary after-a/before logic, never a merge.
+    expect(computeDrop(withMedia, 100, 10, none, true).merge).toBeUndefined();
+  });
+
+  it("never merges into a moving media block (can't drop onto itself)", () => {
+    const t = computeDrop(withMedia, 100, 30, new Set(["b"]), true);
+    expect(t?.merge).toBeUndefined();
+  });
+});

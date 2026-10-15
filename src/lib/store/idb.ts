@@ -10,6 +10,8 @@ export interface MediaBlobStore {
   put(ref: string, blob: Blob): Promise<void>;
   get(ref: string): Promise<Blob | null>;
   delete(ref: string): Promise<void>;
+  /** All stored refs (keys) — for the reuse-an-image library. */
+  keys(): Promise<string[]>;
 }
 
 const DB_NAME = "pensieve-media";
@@ -54,6 +56,10 @@ export function createIdbMediaStore(): MediaBlobStore {
     },
     async delete(ref) {
       await tx("readwrite", (s) => s.delete(ref));
+    },
+    async keys() {
+      const ks = await tx<IDBValidKey[]>("readonly", (s) => s.getAllKeys());
+      return ks.map(String);
     },
   };
 }

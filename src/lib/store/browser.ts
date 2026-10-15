@@ -153,6 +153,10 @@ export class BrowserStore implements Store {
     }
   }
 
+  async listMedia(): Promise<string[]> {
+    return this.media.keys();
+  }
+
   async loadMediaUrl(ref: string): Promise<string | null> {
     const blob = await this.media.get(ref);
     if (!blob) return null;

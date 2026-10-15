@@ -18,6 +18,9 @@ function memMediaStore(): MediaBlobStore & { map: Map<string, Blob> } {
     async delete(ref) {
       map.delete(ref);
     },
+    async keys() {
+      return [...map.keys()];
+    },
   };
 }
 

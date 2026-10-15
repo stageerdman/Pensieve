@@ -97,6 +97,9 @@ export interface Store {
 
   // Mint a mediaId, write the bytes, and return the vault-relative ref string.
   saveMedia(noteId: string, bytes: Uint8Array | ArrayBuffer, ext: string): Promise<string>;
+  // Every media ref currently stored (`media/<noteId>/<mediaId>.<ext>`) — powers the
+  // "reuse an already-uploaded image" library picker. Order is unspecified.
+  listMedia(): Promise<string[]>;
   // Resolve a ref to a URL the webview can load (Tauri asset URL / browser blob URL), or
   // null if the file is missing.
   loadMediaUrl(ref: string): Promise<string | null>;

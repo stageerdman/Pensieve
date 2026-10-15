@@ -15,6 +15,7 @@ import { imageFilename } from "../../../lib/md/image";
 import { getMediaNoteId, expandImage } from "./mediaContext";
 import { persistIntoBlock, type InsertEditor } from "./insertImage";
 import { runResizeDrag, useResizeHandle } from "./mediaResize";
+import { MediaLibrary } from "./MediaLibraryModal";
 import { insertImagesSmart, type GroupEditor } from "./insertGroup";
 import { useMediaBackup } from "./useMediaBackup";
 import { refForUrl } from "../../../lib/media";
@@ -58,6 +59,7 @@ function ImageRender({ block, editor }: RenderProps) {
   const [embedUrl, setEmbedUrl] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [panning, setPanning] = useState(false);
+  const [library, setLibrary] = useState(false);
 
   const backup = useMediaBackup(url ? refForUrl(url) : null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -339,6 +341,7 @@ function ImageRender({ block, editor }: RenderProps) {
                     {!embedding ? (
                       <>
                         <button type="button" role="menuitem" onClick={() => fileRef.current?.click()}>Upload from computer</button>
+                        <button type="button" role="menuitem" onClick={() => { setPopover(null); setLibrary(true); }}>Choose from library</button>
                         <button type="button" role="menuitem" onClick={() => setEmbedding(true)}>Embed link</button>
                         <div className="pensieve-media-menu-hint">or drag &amp; drop an image here</div>
                       </>
@@ -394,6 +397,17 @@ function ImageRender({ block, editor }: RenderProps) {
           setPopover(null);
         }}
       />
+      {library && (
+        <MediaLibrary
+          onPick={(urls) => {
+            // Reuse an existing vault image: its ref↔url is already registered, so saving
+            // rewrites straight back to the vault ref (no new bytes written).
+            if (urls[0]) update({ url: urls[0], status: "" });
+            setLibrary(false);
+          }}
+          onClose={() => setLibrary(false)}
+        />
+      )}
     </div>
   );
 }

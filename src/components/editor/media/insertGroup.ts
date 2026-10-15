@@ -20,6 +20,43 @@ export interface GroupEditor extends InsertEditor {
   document: Array<{ id: string; type: string; props?: Record<string, unknown>; content?: unknown }>;
 }
 
+/** The gallery images a media block contributes when merged into a gallery (already-saved urls,
+ *  no re-upload). A single image → one entry; a gallery → its whole ordered list. */
+export function imagesOfMediaBlock(
+  b: { type?: string; props?: Record<string, unknown> } | undefined,
+): GalleryImage[] {
+  if (!b) return [];
+  if (b.type === "image") {
+    const url = String(b.props?.url ?? "");
+    return url ? [{ url, caption: String(b.props?.caption ?? "") }] : [];
+  }
+  if (b.type === "imageGroup") return parseGalleryImages(b.props?.images as string | undefined);
+  return [];
+}
+
+/** The minimal editor surface the row-merge needs. */
+export interface MergeEditor {
+  getBlock: (id: string) => { id: string; type?: string; props?: Record<string, unknown> } | undefined;
+  updateBlock: (id: string, update: unknown) => void;
+  removeBlocks: (ids: string[]) => void;
+}
+
+/** Merge already-saved media blocks (`sourceIds`) INTO `targetId` (an image/gallery), promoting
+ *  a single-image target to a gallery, then remove the sources. Reuses saved urls — no re-upload.
+ *  Returns false (no-op) if nothing mergeable was found. Used by the drag-a-row-onto-a-gallery drop. */
+export function mergeMediaBlocksInto(editor: MergeEditor, targetId: string, sourceIds: string[]): boolean {
+  const target = editor.getBlock(targetId);
+  if (!target) return false;
+  const sources = sourceIds.filter((id) => id !== targetId);
+  const incoming = sources.flatMap((id) => imagesOfMediaBlock(editor.getBlock(id)));
+  if (incoming.length === 0) return false;
+  const images = imagesOfMediaBlock(target).concat(incoming);
+  editor.updateBlock(targetId, { type: "imageGroup", props: { images: stringifyGalleryImages(images) } });
+  editor.removeBlocks(sources);
+  log.info("media", "group.merge-rows", { targetId, sources: sources.length, images: images.length });
+  return true;
+}
+
 function isBlankParagraph(block: { type: string; content?: unknown }): boolean {
   if (block.type !== "paragraph") return false;
   const c = block.content;

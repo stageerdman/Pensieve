@@ -1,5 +1,5 @@
 import { createReactBlockSpec } from "@blocknote/react";
-import { useRef, useState, type KeyboardEvent, type PointerEvent, type DragEvent as ReactDragEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type DragEvent as ReactDragEvent } from "react";
 import {
   parseGalleryImages,
   stringifyGalleryImages,
@@ -18,7 +18,22 @@ import { MediaRune } from "./MediaRune";
 import { mediaAlt, refForUrl } from "../../../lib/media";
 import { lightbox } from "../../media/lightboxController";
 import { X, GripVertical, Plus, Images as ImagesIcon } from "../../icons";
+import { MediaLibrary } from "./MediaLibraryModal";
 import { log } from "../../../lib/logger";
+
+// Images from a drop: prefer dataTransfer.files, fall back to items (a copied/screenshot image
+// often lives only in items, kind "file") — matches the editor-wide paste/drop plugin.
+function imagesFromDT(dt: DataTransfer): File[] {
+  const out: File[] = [];
+  for (const f of Array.from(dt.files)) if (f.type.startsWith("image/")) out.push(f);
+  if (!out.length)
+    for (const it of Array.from(dt.items))
+      if (it.kind === "file") {
+        const f = it.getAsFile();
+        if (f && f.type.startsWith("image/")) out.push(f);
+      }
+  return out;
+}
 
 // Per-tile gold backup rune. A tiny child so the hook is called at a component top level
 // (not inside the tiles .map, which would break the rules of hooks).
@@ -58,6 +73,11 @@ function GroupRender({ block, editor }: RenderProps) {
   const [broken, setBroken] = useState<Set<number>>(new Set());
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropAt, setDropAt] = useState<number | null>(null);
+  const [popover, setPopover] = useState<null | "add">(null);
+  const [embedding, setEmbedding] = useState(false);
+  const [embedUrl, setEmbedUrl] = useState("");
+  const [library, setLibrary] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -117,6 +137,85 @@ function GroupRender({ block, editor }: RenderProps) {
     if (files.length) void mergeFilesIntoBlock(editor as unknown as GroupEditor, getMediaNoteId(), files, block.id);
   };
 
+  // Append already-loadable urls as new tiles (embed link / reused library images) — no new
+  // bytes; a library url is ref-registered so it saves straight back to its vault ref.
+  const appendUrls = (urls: string[]) => {
+    if (urls.length) setImages(images.concat(urls.map((u) => ({ url: u, caption: "" }))));
+  };
+  const embed = () => {
+    const v = embedUrl.trim();
+    if (!v) return;
+    appendUrls([v]);
+    setEmbedUrl("");
+    setEmbedding(false);
+    setPopover(null);
+  };
+
+  // Esc closes the add popover (the embed sub-input handles its own Esc first).
+  useEffect(() => {
+    if (!popover) return;
+    const onEsc = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      setPopover(null);
+      setEmbedding(false);
+    };
+    document.addEventListener("keydown", onEsc, true);
+    return () => document.removeEventListener("keydown", onEsc, true);
+  }, [popover]);
+
+  // The add menu (Upload / Choose from library / Embed) — shared by the empty placeholder and
+  // the populated grid's "+". Mirrors ImageBlock's placeholder popover. Anchored top-right of
+  // the (position:relative) gallery root.
+  const addPopover =
+    popover === "add" ? (
+      <>
+        <div className="pensieve-media-popover-backdrop" onPointerDown={() => { setPopover(null); setEmbedding(false); }} />
+        <div className="pensieve-media-menu" role="menu">
+          {!embedding ? (
+            <>
+              <button type="button" role="menuitem" onClick={() => fileRef.current?.click()}>Upload from computer</button>
+              <button type="button" role="menuitem" onClick={() => { setPopover(null); setLibrary(true); }}>Choose from library</button>
+              <button type="button" role="menuitem" onClick={() => setEmbedding(true)}>Embed link</button>
+              <div className="pensieve-media-menu-hint">or drag &amp; drop images here</div>
+            </>
+          ) : (
+            <input
+              className="pensieve-media-embed-input"
+              autoFocus
+              placeholder="Paste an image URL, then Enter"
+              value={embedUrl}
+              onChange={(e) => setEmbedUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); embed(); }
+                else if (e.key === "Escape") { e.preventDefault(); setEmbedding(false); }
+              }}
+            />
+          )}
+        </div>
+      </>
+    ) : null;
+
+  const libraryModal = library ? (
+    <MediaLibrary multiple onPick={(urls) => { appendUrls(urls); setLibrary(false); }} onClose={() => setLibrary(false)} />
+  ) : null;
+
+  // Drag handlers shared by both layouts — a dashed drop ring, then merge the dropped images.
+  // Mirrors ImageBlock's host: stopPropagation so the editor-wide plugin doesn't double-insert.
+  const dropProps = editable
+    ? {
+        onDragOver: (e: ReactDragEvent) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); },
+        onDragLeave: (e: ReactDragEvent) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); },
+        onDrop: (e: ReactDragEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setDragOver(false);
+          addFiles(imagesFromDT(e.dataTransfer));
+        },
+      }
+    : {};
+
   // ── pointer-based tile reorder (HTML5 drag can't drop in the WKWebView shell) ──
   const insertionIndexAt = (clientX: number, clientY: number): number => {
     const grid = gridRef.current;
@@ -160,23 +259,31 @@ function GroupRender({ block, editor }: RenderProps) {
     }
   };
 
-  const onDropFiles = (e: ReactDragEvent) => {
-    if (!editable) return;
-    e.preventDefault();
-    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
-    if (files.length) addFiles(files);
-  };
+  const hiddenFileInput = (
+    <input
+      ref={fileRef}
+      type="file"
+      accept="image/*"
+      multiple
+      hidden
+      onChange={(e) => {
+        addFiles(Array.from(e.target.files ?? []));
+        e.target.value = "";
+        setPopover(null);
+      }}
+    />
+  );
 
-  // Empty gallery (just inserted via /gallery) → a MediaBlock-style placeholder: click to
-  // pick images (multiple), or drop them here. Removing the last image collapses elsewhere.
+  // Empty gallery (just inserted via /gallery) → a MediaBlock-style placeholder: click for the
+  // add menu (upload / library / embed), or drop images here. Removing the last collapses.
   if (images.length === 0) {
     return (
-      <div className="pensieve-gallery" contentEditable={false} onDragOver={(e) => e.preventDefault()} onDrop={onDropFiles}>
+      <div className={"pensieve-gallery" + (dragOver ? " is-dragover" : "")} contentEditable={false} {...dropProps}>
         <div className="pensieve-media is-shaped" style={{ width: "75%", maxWidth: "100%" }}>
           <div className="pensieve-media-frame is-shaped" style={{ aspectRatio: "3 / 2" }}>
             <div className="pensieve-media-placeholder">
               {editable ? (
-                <button type="button" className="pensieve-media-add" onClick={() => fileRef.current?.click()}>
+                <button type="button" className="pensieve-media-add" onClick={() => setPopover((p) => (p === "add" ? null : "add"))}>
                   <ImagesIcon size={22} />
                   <span>Add images</span>
                 </button>
@@ -184,23 +291,15 @@ function GroupRender({ block, editor }: RenderProps) {
             </div>
           </div>
         </div>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
-          onChange={(e) => {
-            addFiles(Array.from(e.target.files ?? []));
-            e.target.value = "";
-          }}
-        />
+        {addPopover}
+        {libraryModal}
+        {hiddenFileInput}
       </div>
     );
   }
 
   return (
-    <div className="pensieve-gallery" contentEditable={false}>
+    <div className={"pensieve-gallery" + (dragOver ? " is-dragover" : "")} contentEditable={false} {...dropProps}>
       <div
         ref={gridRef}
         className="pensieve-gallery-grid"
@@ -299,23 +398,15 @@ function GroupRender({ block, editor }: RenderProps) {
             className="pensieve-gallery-add"
             title="Add images"
             aria-label="Add images"
-            onClick={() => fileRef.current?.click()}
+            onClick={() => setPopover((p) => (p === "add" ? null : "add"))}
           >
             <Plus size={20} />
           </button>
         )}
       </div>
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        multiple
-        hidden
-        onChange={(e) => {
-          addFiles(Array.from(e.target.files ?? []));
-          e.target.value = "";
-        }}
-      />
+      {addPopover}
+      {libraryModal}
+      {hiddenFileInput}
     </div>
   );
 }

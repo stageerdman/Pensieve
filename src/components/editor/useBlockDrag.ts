@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, type RefObject } from "react";
 import type { EditorView } from "@tiptap/pm/view";
 import { log } from "../../lib/logger";
 import { computeDrop, NEST_INDENT, type DropBlock, type DropTarget } from "./blockDrag";
+import { mergeMediaBlocksInto } from "./media/insertGroup";
 import { DRAG_THRESHOLD, autoScrollEdge, findScrollParent } from "./dragScroll";
 
 // A block as BlockNote hands it back — we only touch id + children (recursively) here.
@@ -16,10 +17,13 @@ interface DragEditor {
   getBlock: (id: string) => Block | undefined;
   insertBlocks: (blocks: unknown[], reference: string, placement: "before" | "after") => Block[];
   removeBlocks: (ids: string[]) => void;
+  updateBlock: (id: string, update: unknown) => void;
   setSelection: (anchor: string, head: string) => void;
   setTextCursorPosition: (id: string, placement?: "start" | "end") => void;
   nestBlock: () => void;
 }
+
+const isMediaType = (t: string | undefined): boolean => t === "image" || t === "imageGroup";
 
 // Drop a block's `id`s (recursively) so re-inserted copies get fresh ids — avoids any
 // duplicate-id window between insert and the removal of the originals.
@@ -40,6 +44,7 @@ interface DragState {
   target: DropTarget | null;
   scroller: HTMLElement | null;
   raf: number;
+  draggedMedia: boolean; // the drag carries only image/gallery blocks → drop-onto-merge allowed
 }
 
 // Pointer-based block drag — the move engine BlockNote's HTML5 drag can't be in this
@@ -66,7 +71,7 @@ export function useBlockDrag(editor: DragEditor, wrapRef: RefObject<HTMLElement 
       if (!id || !content) continue;
       const r = content.getBoundingClientRect();
       rects.set(id, r);
-      blocks.push({ id, top: r.top, bottom: r.bottom, left: r.left, canNest: true });
+      blocks.push({ id, top: r.top, bottom: r.bottom, left: r.left, canNest: true, media: isMediaType(content.getAttribute("data-content-type") ?? undefined) });
     }
     return { blocks, rects };
   }, [editor]);
@@ -105,20 +110,30 @@ export function useBlockDrag(editor: DragEditor, wrapRef: RefObject<HTMLElement 
       indicator.current.className = "pensieve-drop-indicator";
       document.body.appendChild(indicator.current);
     }
+    const el = indicator.current;
+    el.classList.toggle("is-nest", target.nest);
+    el.classList.toggle("is-merge", !!target.merge);
+    if (target.merge) {
+      // A box outlining the whole target block = "drop INTO this gallery".
+      el.style.left = `${r.left}px`;
+      el.style.top = `${r.top}px`;
+      el.style.width = `${r.width}px`;
+      el.style.height = `${r.height}px`;
+      return;
+    }
     const left = target.nest ? r.left + NEST_INDENT : r.left;
     const y = target.placement === "before" ? r.top : r.bottom;
-    const el = indicator.current;
+    el.style.height = ""; // back to the CSS line height
     el.style.left = `${left}px`;
     el.style.top = `${y - 1}px`;
     el.style.width = `${Math.max(40, r.right - left)}px`;
-    el.classList.toggle("is-nest", target.nest);
   };
 
   const recompute = useCallback(() => {
     const s = state.current;
     if (!s) return;
     const { blocks, rects } = scanBlocks();
-    s.target = computeDrop(blocks, s.lastX, s.lastY, s.moving);
+    s.target = computeDrop(blocks, s.lastX, s.lastY, s.moving, s.draggedMedia);
     drawIndicator(s.target, rects);
   }, [scanBlocks]);
 
@@ -135,6 +150,13 @@ export function useBlockDrag(editor: DragEditor, wrapRef: RefObject<HTMLElement 
   const commit = useCallback(
     (ids: string[], target: DropTarget) => {
       try {
+        // Drop media rows ONTO a gallery/image → merge their images in (reusing saved urls),
+        // not a reorder. mergeMediaBlocksInto reads getBlock, updateBlocks the target, removes
+        // the sources; if it finds nothing mergeable it returns false and we fall through.
+        if (target.merge && mergeMediaBlocksInto(editor, target.referenceId, ids)) {
+          log.debug("editor", "blockdrag.merge", { count: ids.length, targetId: target.referenceId });
+          return;
+        }
         const moving = ids.map((id) => editor.getBlock(id)).filter((b): b is Block => !!b);
         if (moving.length === 0) return;
         const copies = moving.map(stripIds);
@@ -224,6 +246,9 @@ export function useBlockDrag(editor: DragEditor, wrapRef: RefObject<HTMLElement 
         target: null,
         scroller: null,
         raf: 0,
+        // Drop-onto-merge is offered only when EVERY dragged block is media — a mixed drag
+        // (text + image) is a plain reorder, never a merge.
+        draggedMedia: ids.every((id) => isMediaType(editor.getBlock(id)?.type as string | undefined)),
       };
       try {
         if (e.pointerId != null) (e.currentTarget as Element & { setPointerCapture?: (id: number) => void })?.setPointerCapture?.(e.pointerId);

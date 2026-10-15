@@ -215,6 +215,17 @@ export class TauriStore implements Store {
     }
   }
 
+  async listMedia(): Promise<string[]> {
+    // media/<noteId>/<file>: the top level is per-note folders, each holding the files.
+    const noteDirs = await listDir("media");
+    const refs: string[] = [];
+    for (const noteId of noteDirs) {
+      const files = await listDir(`media/${noteId}`);
+      for (const f of files) refs.push(`media/${noteId}/${f}`);
+    }
+    return refs;
+  }
+
   async loadMediaUrl(ref: string): Promise<string | null> {
     // Build the absolute vault path and hand it to the asset protocol. We don't probe
     // the file first (that'd be a second IPC round-trip per image) — a missing file shows
