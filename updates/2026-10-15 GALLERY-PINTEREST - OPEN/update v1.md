@@ -74,4 +74,11 @@ aspect ratios** by default.
 
 ## Live status
 - Phase 0 research: DONE. Decisions locked.
-- Phase 1 (desktop) IN PROGRESS: packer → fence height round-trip → render/height-drag → CSS.
+- Phase 1 (desktop): BUILT, awaiting owner device test. Shipped:
+  - `galleryJustify.ts` pure packer (11 tests); `height` prop + fence `h=` header round-trip
+    (desktop + phone byte-compat, guard fixture); justified horizontal-strip render with
+    `<img onLoad>` aspect capture (local, unserialized); draggable bottom height handle
+    (commit-once → fence); 2D reorder; dropped the +N cap. 745 tests pass.
+  - Dead code left for Phase 4 cleanup: `galleryModel.galleryLayout`/`galleryColumns` (no longer
+    used by the render) + the old `.pensieve-gallery-grid`/`-cover` CSS.
+- NEXT: owner tests the desktop gallery, then Phase 2 (manual per-image reshape) or Phase 3 (phone).
