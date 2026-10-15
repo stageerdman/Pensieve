@@ -64,6 +64,14 @@ aspect ratios** by default.
 2. **Manual per-image resize:** natural ratios + draggable height now, manual per-image override as a
    fast follow (Phase 2) — or include the per-image override in the first desktop drop?
 
+## Decisions (locked 2026-10-15)
+- **Desktop first**, then phone (verify each surface before moving on).
+- **Manual per-image reshape = Phase 2 fast-follow.** Phase 1 = natural ratios + draggable height.
+- Natural aspect: NOT serialized — kept in a component-local `url→aspect` map filled on `<img onLoad>`
+  (no block/doc mutation, so no false dirty). Only the gallery HEIGHT persists (fence `h=` header).
+- Desktop rows use **linear partition** (order-preserving, balanced) not greedy shortest-row, so the
+  user's tile order reads left-to-right, top-to-bottom.
+
 ## Live status
-- Phase 0 research: DONE.
-- Awaiting the two decisions above, then Phase 1.
+- Phase 0 research: DONE. Decisions locked.
+- Phase 1 (desktop) IN PROGRESS: packer → fence height round-trip → render/height-drag → CSS.
