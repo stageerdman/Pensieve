@@ -26,6 +26,8 @@ export interface MediaBlockProps {
   /** Box shape (width/height); 0 = natural — the image's own, or a default for the placeholder. */
   aspect?: number;
   state: MediaState;
+  /** CSS `object-position` for the <img> (e.g. "30% 70%") — repositions a cropped (cover) image. */
+  objectPosition?: string;
   /** Shown in the broken/missing state so the ref is never silent. */
   filename?: string;
   selected?: boolean;
@@ -61,7 +63,7 @@ function BrokenGlyph() {
 }
 
 export const MediaBlock = forwardRef<HTMLDivElement, MediaBlockProps>(function MediaBlock(
-  { url, alt, width, aspect, state, filename, selected, focused, onImgLoad, onImgError, onLocate, onActivate, overlay, placeholder, caption, backup },
+  { url, alt, width, aspect, objectPosition, state, filename, selected, focused, onImgLoad, onImgError, onLocate, onActivate, overlay, placeholder, caption, backup },
   ref,
 ) {
   const broken = state === "broken";
@@ -94,7 +96,7 @@ export const MediaBlock = forwardRef<HTMLDivElement, MediaBlockProps>(function M
       >
         {showImg && (
           // eslint-disable-next-line jsx-a11y/alt-text
-          <img src={url!} alt={mediaAlt(alt)} className="pensieve-media-img" onLoad={onImgLoad} onError={onImgError} draggable={false} />
+          <img src={url!} alt={mediaAlt(alt)} className="pensieve-media-img" style={objectPosition ? { objectPosition } : undefined} onLoad={onImgLoad} onError={onImgError} draggable={false} />
         )}
         {empty && <div className="pensieve-media-placeholder">{placeholder}</div>}
         {state === "loading" && <div className="pensieve-media-shim" aria-hidden="true" />}

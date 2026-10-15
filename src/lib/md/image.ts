@@ -25,7 +25,7 @@ export const IMAGE_FENCE = "pensieve:image";
 
 interface Block {
   type?: string;
-  props?: { url?: string; caption?: string; width?: number; aspect?: number; [k: string]: unknown };
+  props?: { url?: string; caption?: string; width?: number; aspect?: number; posX?: number; posY?: number; [k: string]: unknown };
   content?: unknown;
   children?: Block[];
   [k: string]: unknown;
@@ -55,14 +55,20 @@ export function encodeImageBlock(b: Block): Block {
   const caption = b.props?.caption ?? "";
   const width = b.props?.width;
   const aspect = b.props?.aspect;
+  const posX = b.props?.posX;
+  const posY = b.props?.posY;
 
   if (isDefaultWidth(width) && isNaturalAspect(aspect)) {
     // Minimal props so toExternalHTML emits a clean `<img src alt>` → `![caption](ref)`.
+    // (posX/posY only matter for a cropped image, which always has a non-natural aspect here.)
     return { type: "image", props: { url: ref, caption, width: DEFAULT_IMAGE_WIDTH, aspect: 0 } };
   }
-  // ref \n width=<w> aspect=<a> \n caption(rest). The key=value line is unambiguous and
-  // extensible; reconstruct also accepts the old positional `width` line for back-compat.
-  const params = `width=${width ?? DEFAULT_IMAGE_WIDTH} aspect=${aspect ?? 0}`;
+  // ref \n width=<w> aspect=<a> [posX=<x> posY=<y>] \n caption(rest). The key=value line is
+  // unambiguous and extensible; reconstruct also accepts the old positional `width` line.
+  const parts = [`width=${width ?? DEFAULT_IMAGE_WIDTH}`, `aspect=${aspect ?? 0}`];
+  if (posX !== undefined && Math.abs(posX - 50) > 1e-6) parts.push(`posX=${posX}`);
+  if (posY !== undefined && Math.abs(posY - 50) > 1e-6) parts.push(`posY=${posY}`);
+  const params = parts.join(" ");
   const text = `${ref}\n${params}${caption ? `\n${caption}` : ""}`;
   return { type: "codeBlock", props: { language: IMAGE_FENCE }, content: [{ type: "text", text, styles: {} }] };
 }
@@ -79,12 +85,18 @@ export function reconstructImageFence(b: Block): Block | null {
   const paramLine = lines[1] ?? "";
   let width = DEFAULT_IMAGE_WIDTH;
   let aspect = 0;
+  let posX = 50;
+  let posY = 50;
   let captionStart = 2;
   if (paramLine.includes("=")) {
     const w = /width=([\d.]+)/.exec(paramLine);
     const a = /aspect=([\d.]+)/.exec(paramLine);
+    const px = /posX=([\d.]+)/.exec(paramLine);
+    const py = /posY=([\d.]+)/.exec(paramLine);
     if (w) width = Number(w[1]);
     if (a) aspect = Number(a[1]);
+    if (px) posX = Number(px[1]);
+    if (py) posY = Number(py[1]);
   } else {
     // Back-compat: the old positional form was `ref \n width \n caption`.
     const w = Number(paramLine);
@@ -98,6 +110,8 @@ export function reconstructImageFence(b: Block): Block | null {
       caption,
       width: Number.isFinite(width) ? width : DEFAULT_IMAGE_WIDTH,
       aspect: Number.isFinite(aspect) ? aspect : 0,
+      posX: Number.isFinite(posX) ? posX : 50,
+      posY: Number.isFinite(posY) ? posY : 50,
     },
   };
 }

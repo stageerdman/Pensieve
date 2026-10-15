@@ -18,7 +18,7 @@ import { runResizeDrag, useResizeHandle } from "./mediaResize";
 import { insertImagesSmart, type GroupEditor } from "./insertGroup";
 import { useMediaBackup } from "./useMediaBackup";
 import { refForUrl } from "../../../lib/media";
-import { Image as ImageIcon, MoreHorizontal } from "../../icons";
+import { Image as ImageIcon, MoreHorizontal, Move as MoveIcon, Trash as TrashIcon } from "../../icons";
 import { log } from "../../../lib/logger";
 
 // The custom `image` block — renders in the Pensieve MediaBlock language (not BlockNote's
@@ -35,6 +35,8 @@ interface Props {
   caption: string;
   width: number;
   aspect: number;
+  posX: number; // object-position X% (0..100) — only meaningful when cropped (cover)
+  posY: number; // object-position Y% (0..100)
   status: string;
   filename: string;
 }
@@ -44,7 +46,7 @@ interface RenderProps {
 }
 
 function ImageRender({ block, editor }: RenderProps) {
-  const { url, caption, width, aspect, status } = block.props;
+  const { url, caption, width, aspect, posX, posY, status } = block.props;
   const editable = editor.isEditable;
   const selectedBlocks = useSelectedBlocks(editor as never);
   const selected = editable && selectedBlocks.length === 1 && selectedBlocks[0].id === block.id;
@@ -55,11 +57,15 @@ function ImageRender({ block, editor }: RenderProps) {
   const [embedding, setEmbedding] = useState(false);
   const [embedUrl, setEmbedUrl] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [panning, setPanning] = useState(false);
 
   const backup = useMediaBackup(url ? refForUrl(url) : null);
   const frameRef = useRef<HTMLDivElement>(null);
   const captionRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Latest object-position, read live at pan-drag start (props change mid-pan).
+  const posRef = useRef({ x: posX, y: posY });
+  posRef.current = { x: posX, y: posY };
 
   useEffect(() => setImgError(false), [url]);
   // Close popovers when the block is deselected.
@@ -83,6 +89,68 @@ function ImageRender({ block, editor }: RenderProps) {
       : url
         ? "loaded"
         : "empty";
+
+  // Only a cropped (explicit-aspect = object-fit:cover) image can be repositioned — a natural
+  // image fills its box with no overflow to pan into.
+  const cropped = state === "loaded" && !!aspect && aspect > 0;
+
+  // Leave pan mode if the image stops being croppable (e.g. "Restore to original").
+  useEffect(() => {
+    if (!cropped) setPanning(false);
+  }, [cropped]);
+
+  // Esc closes the ⋯ menu / add popover and exits pan mode (capture phase so it wins over the
+  // editor). Only mounted while something is open, so it never swallows a stray Esc.
+  useEffect(() => {
+    if (!popover && !panning) return;
+    const onEsc = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      setPanning(false);
+      setPopover(null);
+      setEmbedding(false);
+    };
+    document.addEventListener("keydown", onEsc, true);
+    return () => document.removeEventListener("keydown", onEsc, true);
+  }, [popover, panning]);
+
+  // Pan mode: a NATIVE mousedown on the image frame drags the image inside its cropped box
+  // (same native-event reason as the resize handles — ProseMirror only stops a mousedown).
+  // object-position % maps 1:1 to pixels via the cover overflow, clamped to [0,100] so an edge
+  // can never pull inward and expose a transparent gap.
+  useEffect(() => {
+    if (!panning) return;
+    const host = frameRef.current;
+    const frame = host?.querySelector<HTMLElement>(".pensieve-media-frame");
+    const img = host?.querySelector<HTMLImageElement>(".pensieve-media-img");
+    if (!frame || !img) return;
+    const onDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const fr = frame.getBoundingClientRect();
+      const natW = img.naturalWidth || fr.width;
+      const natH = img.naturalHeight || fr.height;
+      const scale = Math.max(fr.width / natW, fr.height / natH);
+      const overflowX = Math.max(0, natW * scale - fr.width);
+      const overflowY = Math.max(0, natH * scale - fr.height);
+      const start = posRef.current;
+      const sx = e.clientX;
+      const sy = e.clientY;
+      const clamp = (v: number) => Math.min(100, Math.max(0, v));
+      log.debug("media", "pan.start", { id: block.id });
+      runResizeDrag((cx, cy) => {
+        // Drag the image right → reveal more of its left → object-position X decreases.
+        const nx = overflowX > 0 ? clamp(start.x - ((cx - sx) / overflowX) * 100) : start.x;
+        const ny = overflowY > 0 ? clamp(start.y - ((cy - sy) / overflowY) * 100) : start.y;
+        update({ posX: nx, posY: ny });
+      });
+    };
+    frame.addEventListener("mousedown", onDown);
+    return () => frame.removeEventListener("mousedown", onDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panning, block.id]);
 
   const rectEl = (): HTMLElement | null =>
     (frameRef.current?.querySelector(".pensieve-media-frame") as HTMLElement | null) ?? frameRef.current;
@@ -162,7 +230,7 @@ function ImageRender({ block, editor }: RenderProps) {
   return (
     <div
       ref={frameRef}
-      className={"pensieve-media-host" + (dragOver ? " is-dragover" : "")}
+      className={"pensieve-media-host" + (dragOver ? " is-dragover" : "") + (panning ? " is-panning" : "")}
       contentEditable={false}
       tabIndex={editable ? 0 : -1}
       onKeyDown={onKeyDown}
@@ -191,6 +259,7 @@ function ImageRender({ block, editor }: RenderProps) {
         alt={caption}
         width={width || DEFAULT_WIDTH}
         aspect={aspect}
+        objectPosition={`${posX ?? 50}% ${posY ?? 50}%`}
         state={state}
         filename={imageFilename(url)}
         selected={selected}
@@ -216,8 +285,20 @@ function ImageRender({ block, editor }: RenderProps) {
               <div className="pensieve-media-corner" ref={cornerHandleRef} aria-label="Reshape box" />
               <div className="pensieve-media-tools" contentEditable={false}>
                 {/* No Expand button (double-click the image opens the lightbox) and no Caption
-                    button (the caption input shows below the image whenever it's selected). */}
-                {state !== "empty" && <button type="button" onClick={() => fileRef.current?.click()}>Replace</button>}
+                    button (the caption input shows below the image whenever it's selected).
+                    Replace lives in the ⋯ menu now (it's not a frequent action). */}
+                {cropped && (
+                  <button
+                    type="button"
+                    className={"pensieve-media-tool-icon" + (panning ? " is-active" : "")}
+                    title="Reposition image"
+                    aria-label="Reposition image"
+                    aria-pressed={panning}
+                    onClick={() => setPanning((p) => !p)}
+                  >
+                    <MoveIcon size={15} />
+                  </button>
+                )}
                 <button
                   type="button"
                   className="pensieve-media-tool-icon"
@@ -227,7 +308,9 @@ function ImageRender({ block, editor }: RenderProps) {
                 >
                   <MoreHorizontal size={15} />
                 </button>
-                <button type="button" onClick={removeSelf}>Remove</button>
+                <button type="button" className="pensieve-media-tool-icon" title="Remove" aria-label="Remove" onClick={removeSelf}>
+                  <TrashIcon size={15} />
+                </button>
               </div>
 
               {popover === "menu" && (
@@ -242,6 +325,9 @@ function ImageRender({ block, editor }: RenderProps) {
                     ))}
                     <div className="pensieve-media-menu-sep" />
                     <button type="button" role="menuitem" onClick={restore}>Restore to original</button>
+                    {state !== "empty" && (
+                      <button type="button" role="menuitem" onClick={() => fileRef.current?.click()}>Replace image…</button>
+                    )}
                   </div>
                 </>
               )}
@@ -321,7 +407,9 @@ export const ImageBlock = createReactBlockSpec(
       caption: { default: "" },
       width: { default: DEFAULT_WIDTH, type: "number" },
       aspect: { default: 0, type: "number" }, // box w/h; 0 = natural
-      // Transient (never serialized — lib/md/image reads only url/caption/width/aspect):
+      posX: { default: 50, type: "number" }, // object-position X% when cropped (50 = centred)
+      posY: { default: 50, type: "number" }, // object-position Y%
+      // Transient (never serialized — lib/md/image reads only url/caption/width/aspect/posX/posY):
       status: { default: "" }, // "" | "saving"
       filename: { default: "" },
     },

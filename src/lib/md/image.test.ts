@@ -72,7 +72,7 @@ describe("image markdown bridge", () => {
       content: [{ type: "text", text: `${REF}\nwidth=0.25 aspect=1.5\nhello world` }],
     });
     expect(block).not.toBeNull();
-    expect(block!.props).toEqual({ url: REF, caption: "hello world", width: 0.25, aspect: 1.5 });
+    expect(block!.props).toEqual({ url: REF, caption: "hello world", width: 0.25, aspect: 1.5, posX: 50, posY: 50 });
   });
 
   it("LOAD: accepts the old positional fence (ref, width, caption) for back-compat", () => {
@@ -81,7 +81,7 @@ describe("image markdown bridge", () => {
       props: { language: IMAGE_FENCE },
       content: [{ type: "text", text: `${REF}\n1\nhello world` }],
     });
-    expect(block!.props).toEqual({ url: REF, caption: "hello world", width: 1, aspect: 0 });
+    expect(block!.props).toEqual({ url: REF, caption: "hello world", width: 1, aspect: 0, posX: 50, posY: 50 });
   });
 
   it("LOAD: a non-image fence is ignored", () => {
@@ -93,7 +93,28 @@ describe("image markdown bridge", () => {
     registerMediaUrl(REF, "blob:xyz");
     const fence = encodeImageBlock({ type: "image", props: { url: "blob:xyz", caption: "cap", width: 0.5, aspect: 1.5 } });
     const back = reconstructImageFence(fence)!;
-    expect(back.props).toEqual({ url: REF, caption: "cap", width: 0.5, aspect: 1.5 });
+    expect(back.props).toEqual({ url: REF, caption: "cap", width: 0.5, aspect: 1.5, posX: 50, posY: 50 });
+  });
+
+  it("SAVE: a repositioned (panned) crop writes posX/posY into the params line", () => {
+    registerMediaUrl(REF, "blob:xyz");
+    const out = encodeImageBlock({
+      type: "image",
+      props: { url: "blob:xyz", caption: "", width: DEFAULT_IMAGE_WIDTH, aspect: 1.5, posX: 20, posY: 80 },
+    });
+    const text = (out.content as Array<{ text: string }>)[0].text;
+    expect(text).toBe(`${REF}\nwidth=${DEFAULT_IMAGE_WIDTH} aspect=1.5 posX=20 posY=80`);
+  });
+
+  it("round-trips posX/posY through encode→reconstruct; centred (50) stays off the params line", () => {
+    registerMediaUrl(REF, "blob:xyz");
+    const panned = reconstructImageFence(
+      encodeImageBlock({ type: "image", props: { url: "blob:xyz", caption: "c", width: 0.5, aspect: 1.5, posX: 20, posY: 80 } }),
+    )!;
+    expect(panned.props).toEqual({ url: REF, caption: "c", width: 0.5, aspect: 1.5, posX: 20, posY: 80 });
+    // A centred image (default 50/50) omits posX/posY from the fence.
+    const centred = encodeImageBlock({ type: "image", props: { url: "blob:xyz", caption: "", width: 0.5, aspect: 1.5, posX: 50, posY: 50 } });
+    expect((centred.content as Array<{ text: string }>)[0].text).toBe(`${REF}\nwidth=0.5 aspect=1.5`);
   });
 
   it("resolveImageUrls keeps the ref when the store can't resolve it (broken/missing — never crashes)", async () => {

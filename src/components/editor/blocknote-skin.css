@@ -624,6 +624,19 @@ body.pensieve-resizing * {
   padding: 0.22em;
   color: hsl(var(--text));
 }
+/* Active toggle (e.g. reposition mode engaged) — accent-tinted so it's clearly "on". */
+.pensieve-media-tools button.pensieve-media-tool-icon.is-active {
+  color: hsl(var(--accent));
+  border-color: hsl(var(--accent) / 0.6);
+  background: hsl(var(--accent) / 0.12);
+}
+/* Reposition mode: the image invites a drag (grab), grabbing while a pan drag is live. */
+.pensieve-media-host.is-panning .pensieve-media-img {
+  cursor: grab;
+}
+body.pensieve-resizing .pensieve-media-host.is-panning .pensieve-media-img {
+  cursor: grabbing;
+}
 
 /* Caption (= alt): text-muted, text-xs, BELOW the frame — never overlaid. */
 .pensieve-media-caption,
