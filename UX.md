@@ -3,6 +3,25 @@
 How Pensieve should **feel and behave**. Complements `design.md` (visual tokens /
 the look) and `VISION.md` (the product). Read before designing any user-facing flow.
 
+## Phone control standard — NON-NEGOTIABLE (read before any phone UI)
+The phone (PWA, `phone/`) has ONE control language: the **Spell Menu**. Every control surface —
+home, an open memory, a photo collection, any overlay — obeys these rules. Breaking them is a bug.
+- **Controls live at the BOTTOM.** Never put control bars, close buttons, back buttons, or action
+  buttons at the top of a surface. The action bar / dock sits along the bottom (thumb reach).
+- **The Spell Menu is the menu.** A bottom button blooms a **radial ring** of **spell** glyphs
+  (blur+darken scrim). The ring **ROTATES** — you grab a glyph and swing the arc (signed-arc scroll
+  for >8). Forms: **General** (gold daily roster) and **Conditional** (accent, page-recommended
+  spells). A surface's context picks its conditional roster (`conditionalSpells(context)`).
+- **Back / close is a control too → bottom.** A "go back" or "close" belongs in the bottom action
+  bar, next to the spell-menu button — not a top chrome button.
+- **Reuse the system, don't reinvent:** `phone/src/lib/spells/*` (ringLayout rotation, registry
+  rosters), `hooks/useSpellMenu`, `components/dock/*` + `components/spellmenu/*`. A new overlay gets
+  its controls by mounting the same dock/spell-menu pattern at the bottom, not a bespoke top bar.
+- Terminology: notes = **memories**, every action = a **spell**. See [[phone-ux-the-wand]] (memory)
+  and `updates/2026-10-11 SPELL-MENU - CLOSED/`.
+
+Everything below is the desktop/home vision.
+
 ## North star
 **Magical AND highly practical.** The UI disappears around the thoughts. Finding and
 orienting should feel like magic — but with real intelligence behind it, not just
