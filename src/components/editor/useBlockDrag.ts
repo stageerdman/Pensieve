@@ -67,11 +67,16 @@ export function useBlockDrag(editor: DragEditor, wrapRef: RefObject<HTMLElement 
     const blocks: DropBlock[] = [];
     for (const el of els) {
       const id = el.getAttribute("data-id");
-      const content = el.querySelector<HTMLElement>(":scope > .bn-block-content");
-      if (!id || !content) continue;
+      // Fall back to the container's own box — a custom block (image/gallery) may not expose a
+      // `> .bn-block-content` child, which would otherwise skip it (no drop/merge target). Same
+      // fallback GutterHandle uses so media rows are always draggable AND droppable-onto.
+      const content = el.querySelector<HTMLElement>(":scope > .bn-block-content") ?? el;
+      if (!id) continue;
       const r = content.getBoundingClientRect();
       rects.set(id, r);
-      blocks.push({ id, top: r.top, bottom: r.bottom, left: r.left, canNest: true, media: isMediaType(content.getAttribute("data-content-type") ?? undefined) });
+      // Media-ness from the EDITOR (authoritative), not a DOM attribute — the drop-onto-merge
+      // target must be detected reliably regardless of BlockNote's markup.
+      blocks.push({ id, top: r.top, bottom: r.bottom, left: r.left, canNest: true, media: isMediaType(editor.getBlock(id)?.type as string | undefined) });
     }
     return { blocks, rects };
   }, [editor]);

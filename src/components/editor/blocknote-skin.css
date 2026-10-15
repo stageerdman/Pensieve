@@ -1053,13 +1053,19 @@ body.pensieve-resizing .pensieve-media-host.is-panning .pensieve-media-img {
 /* The 2px accent insertion line shown while reordering tiles. */
 .pensieve-gallery-insert {
   position: absolute;
-  left: -3px;
+  left: 0; /* inside the tile's left edge — the tile is overflow:hidden, so -3px was clipped */
   top: 0;
   bottom: 0;
-  width: 2px;
+  width: 3px;
   background: hsl(var(--accent));
-  box-shadow: 0 0 6px hsl(var(--accent-glow) / 0.6);
-  z-index: 3;
+  box-shadow: 0 0 6px hsl(var(--accent-glow) / 0.8);
+  z-index: 4;
+  pointer-events: none;
+}
+/* Insertion at the very end of the gallery → the right edge of the last tile. */
+.pensieve-gallery-insert.is-end {
+  left: auto;
+  right: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

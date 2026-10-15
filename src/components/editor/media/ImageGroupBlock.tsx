@@ -320,6 +320,10 @@ function GroupRender({ block, editor }: RenderProps) {
               onKeyDown={onTileKey(i)}
             >
               {dropAt === i && editable && <div className="pensieve-gallery-insert" aria-hidden />}
+              {/* Drop-at-end lands past the last tile — show the bar on that tile's right edge. */}
+              {editable && dropAt === layout.tilesShown && i === layout.tilesShown - 1 && (
+                <div className="pensieve-gallery-insert is-end" aria-hidden />
+              )}
               {img.url && !broken.has(i) ? (
                 // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
                 <img
