@@ -12,9 +12,7 @@ import { computeDrop, type DropBlock, type DropTarget } from "../blockDrag";
 import { DEFAULT_IMAGE_WIDTH, imageFilename } from "../../../lib/md/image";
 import { getMediaNoteId } from "./mediaContext";
 import { mergeFilesIntoBlock, type GroupEditor } from "./insertGroup";
-import { useMediaBackup } from "./useMediaBackup";
-import { MediaRune } from "./MediaRune";
-import { mediaAlt, refForUrl } from "../../../lib/media";
+import { mediaAlt } from "../../../lib/media";
 import { lightbox } from "../../media/lightboxController";
 import { X, GripVertical, Plus, Images as ImagesIcon } from "../../icons";
 import { MediaLibrary } from "./MediaLibraryModal";
@@ -81,13 +79,6 @@ function imagesFromDT(dt: DataTransfer): File[] {
         if (f && f.type.startsWith("image/")) out.push(f);
       }
   return out;
-}
-
-// Per-tile gold backup rune. A tiny child so the hook is called at a component top level
-// (not inside the tiles .map, which would break the rules of hooks).
-function TileRune({ url }: { url: string }) {
-  const state = useMediaBackup(url ? refForUrl(url) : null);
-  return <MediaRune state={state} />;
 }
 
 // The inline gallery — several images grouped into ONE block (wiki "inline gallery block").
@@ -177,6 +168,19 @@ function GroupRender({ block, editor }: RenderProps) {
   // Never leave the body-level drop line behind if we unmount mid-drag.
   useEffect(() => () => drawDocDrop(null, new Map(), docDropRef), []);
 
+  // Safety net: never let the drop-highlight ring stick on. If a drag ends anywhere (a drop that
+  // didn't land on us, or a cancelled drag), clear it. (Fixes the occasional "stuck during drop".)
+  useEffect(() => {
+    if (!dragOver) return;
+    const clear = () => setDragOver(false);
+    window.addEventListener("drop", clear, true);
+    window.addEventListener("dragend", clear, true);
+    return () => {
+      window.removeEventListener("drop", clear, true);
+      window.removeEventListener("dragend", clear, true);
+    };
+  }, [dragOver]);
+
   const setImages = (next: GalleryImage[]) =>
     editor.updateBlock(block.id, { props: { images: stringifyGalleryImages(next) } });
 
@@ -209,19 +213,6 @@ function GroupRender({ block, editor }: RenderProps) {
       setImages(next);
       log.info("media", "group.remove", { id: block.id, remaining: next.length });
     }
-  };
-
-  // Lift one tile out into its own single ImageBlock below the group, then drop it from the
-  // group (collapsing to a single image if that leaves one behind).
-  const liftOut = (i: number) => {
-    const img = images[i];
-    editor.insertBlocks(
-      [{ type: "image", props: { url: img.url, caption: img.caption ?? "", width: DEFAULT_IMAGE_WIDTH } }],
-      block.id,
-      "after",
-    );
-    log.info("media", "group.liftout", { id: block.id, index: i });
-    remove(i);
   };
 
   const setCaption = (i: number, caption: string) => {
@@ -454,7 +445,7 @@ function GroupRender({ block, editor }: RenderProps) {
 
   // One tile in the justified strip (its width comes from the packer; height = the shared row
   // height). Keeps every per-tile affordance from before: reorder grip, remove, lift-out, caption,
-  // saving hairline, backup rune, broken state, and the reorder insertion bar.
+  // saving hairline, broken state, and the reorder insertion bar.
   const renderTile = (i: number, width: number) => {
     const img = images[i];
     return (
@@ -488,7 +479,6 @@ function GroupRender({ block, editor }: RenderProps) {
         )}
 
         {img.saving && <div className="pensieve-media-progress" aria-hidden />}
-        {!img.saving && img.url && !broken.has(i) && <TileRune url={img.url} />}
 
         {editable && (
           <>
@@ -498,9 +488,6 @@ function GroupRender({ block, editor }: RenderProps) {
             <div className="pensieve-gallery-grip" title="Drag to reorder (or out of the gallery)" aria-label="Reorder image" onPointerDown={onGripDown(i)}>
               <GripVertical size={14} />
             </div>
-            <button type="button" className="pensieve-gallery-lift" title="Lift out as its own image" onClick={() => liftOut(i)}>
-              Lift out
-            </button>
             <input
               className="pensieve-gallery-caption"
               value={img.caption ?? ""}

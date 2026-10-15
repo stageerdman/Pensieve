@@ -1026,9 +1026,8 @@ body.pensieve-resizing .pensieve-media-host.is-panning .pensieve-media-img {
   backdrop-filter: blur(4px);
 }
 .pensieve-gallery-caption::placeholder { color: hsl(var(--text-muted)); }
-/* The lift affordance sits above the caption when both are visible. */
-.pensieve-gallery-tile:hover .pensieve-gallery-caption,
-.pensieve-gallery-tile:focus-within .pensieve-gallery-caption { bottom: 30px; }
+/* Caption sits at the very bottom of the image (the rune + lift-out that used to share that
+   corner are gone). */
 
 /* The read-only caption (NotePreview) — a quiet strip along the bottom. */
 .pensieve-gallery-caption-static {

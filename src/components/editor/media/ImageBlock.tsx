@@ -17,8 +17,6 @@ import { persistIntoBlock, type InsertEditor } from "./insertImage";
 import { runResizeDrag, useResizeHandle } from "./mediaResize";
 import { MediaLibrary } from "./MediaLibraryModal";
 import { insertImagesSmart, type GroupEditor } from "./insertGroup";
-import { useMediaBackup } from "./useMediaBackup";
-import { refForUrl } from "../../../lib/media";
 import { Image as ImageIcon, MoreHorizontal, Move as MoveIcon, Trash as TrashIcon } from "../../icons";
 import { log } from "../../../lib/logger";
 
@@ -61,7 +59,6 @@ function ImageRender({ block, editor }: RenderProps) {
   const [panning, setPanning] = useState(false);
   const [library, setLibrary] = useState(false);
 
-  const backup = useMediaBackup(url ? refForUrl(url) : null);
   const frameRef = useRef<HTMLDivElement>(null);
   const captionRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -266,7 +263,6 @@ function ImageRender({ block, editor }: RenderProps) {
         filename={imageFilename(url)}
         selected={selected}
         focused={focused}
-        backup={backup}
         onImgError={() => setImgError(true)}
         onActivate={() => state === "loaded" && expand()}
         onLocate={editable ? () => fileRef.current?.click() : undefined}
