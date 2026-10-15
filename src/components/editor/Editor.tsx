@@ -236,10 +236,11 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
             own two, deliberately distinct, Media commands:
               • Image   — one picture (single-file picker / URL embed)
               • Gallery — several pictures in one block (multi-file picker)
-            Both insert our `image` block in its one-input "prompt" state via BlockNote's
-            insertOrUpdateBlockForSlashMenu (which reliably clears the typed "/…" text);
-            Gallery sets the transient `multiple` flag so the picker allows multi-select and
-            2+ chosen files become a gallery (ImageBlock handles the split). */}
+            Both insert our `image`/`imageGroup` block via BlockNote's
+            insertOrUpdateBlockForSlashMenu. That helper only REPLACES the current block in
+            place when it's empty, so SlashMenu.activate clears the typed "/…" text first (see
+            SlashMenu.tsx) — otherwise the block inserts AFTER the "/ima" paragraph and the
+            command text survives. Gallery starts empty; 2+ chosen files become a gallery. */}
         <SuggestionMenuController
           triggerCharacter="/"
           suggestionMenuComponent={slashMenu as never}
