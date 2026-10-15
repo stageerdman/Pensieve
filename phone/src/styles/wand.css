@@ -1064,10 +1064,35 @@ body {
   font-family: var(--font);
   font-size: 15px;
 }
-/* Go back sits in the top-right action cluster, next to the Spell Menu opener. */
-.note-top .note-goback {
+/* Bottom action bar (memory + photo collection): Go back next to the Spell Menu opener. Controls
+   live at the bottom per the phone control standard (UX.md). Hidden while editing — the keyboard
+   toolbar carries in-editing actions then. */
+.note-actions {
+  position: absolute;
+  right: 16px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 136;
+  transition: opacity 0.2s var(--ease);
+}
+.note-actions-back {
+  width: 46px;
+  height: 46px;
+  border: 1px solid hsl(var(--text) / 0.12);
+  border-radius: 50%;
+  background: hsl(var(--surface));
   color: hsl(var(--accent));
-  margin-left: auto; /* push Go-back + Spell to the right; the date stays left */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 16px hsl(0 0% 0% / 0.2);
+}
+.app-root.editing-note .note-actions {
+  opacity: 0;
+  pointer-events: none;
 }
 .note-saved {
   font-size: 12px;
@@ -1236,9 +1261,6 @@ body {
    contentEditable (components/note/mediaDom.ts). The visual language mirrors the
    desktop MediaBlock: rounded frame, hairline border, surface-raised placeholder,
    caption muted below, no shadow — the sameness IS the family. */
-.note-spell svg {
-  overflow: visible;
-}
 .ph-media {
   margin: 0.55em 0;
   -webkit-user-select: none;
@@ -1343,46 +1365,37 @@ body {
 .ph-collection {
   position: fixed;
   inset: 0;
-  z-index: 170; /* above the note (140), below the single-photo lightbox (180) */
+  /* Above the note (140), BELOW the Spell Menu overlay (150) so the ring blooms over the
+     collection, and below the single-photo lightbox (180). */
+  z-index: 145;
   display: flex;
   flex-direction: column;
   background: hsl(var(--surface));
   will-change: transform, opacity;
 }
-.ph-collection-top {
+/* Slim top grabber = the swipe-down-to-close handle only (a gesture affordance, NOT a control
+   bar; the real controls are the bottom action bar). */
+.ph-collection-grab {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px calc(10px + env(safe-area-inset-top, 0px));
-  padding-top: max(10px, env(safe-area-inset-top, 0px));
+  justify-content: center;
+  padding: 8px 0;
+  padding-top: max(8px, env(safe-area-inset-top, 0px));
   flex: none;
-  touch-action: none; /* the grabber owns the swipe-down-to-close */
+  touch-action: none;
 }
 .ph-collection-grabber {
-  width: 36px;
-  height: 4px;
+  width: 40px;
+  height: 5px;
   border-radius: 999px;
   background: hsl(var(--text) / 0.25);
-}
-.ph-collection-count {
-  flex: 1;
-  font-size: 13px;
-  color: hsl(var(--text-muted));
-  text-align: center;
-}
-.ph-collection-close {
-  border: none;
-  background: none;
-  color: hsl(var(--text));
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
 }
 .ph-collection-masonry {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 0 10px 24px;
+  /* Extra bottom padding so the floating bottom action bar never covers the last photos. */
+  padding: 0 10px calc(96px + env(safe-area-inset-bottom, 0px));
   column-count: 2;
   column-gap: 8px;
   overscroll-behavior: contain;

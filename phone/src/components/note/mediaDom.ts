@@ -160,6 +160,12 @@ function renderGallery(el: HTMLElement, ctx: MediaCtx, noteBody: HTMLElement) {
       phoneCollection.open(items, {
         editable: true,
         onRemove: (index) => removeAt(el, index, ctx, noteBody),
+        // The collection's "Photo" spell adds to THIS gallery (reuses saved refs), then returns
+        // the refreshed resolved photos so the masonry updates in place.
+        onAdd: async (images) => {
+          mergeInto(el, images as MediaImage[], ctx, noteBody);
+          return resolveAll(readGalleryImages(el));
+        },
       }),
     );
   });
@@ -219,6 +225,32 @@ export function renderNoteBody(noteBody: HTMLElement, title: string, content: st
   for (const block of parseNoteContent(content)) {
     noteBody.appendChild(buildBlockEl(block, ctx, noteBody));
   }
+  ensureTrailingTextRow(noteBody);
+}
+
+/** Notion-style: if the note's last block is media, append an empty editable text row so the
+ *  caret has a place to land BELOW the images. serializeNoteBody trims it, so it never persists
+ *  as content until the user actually types there. */
+export function ensureTrailingTextRow(noteBody: HTMLElement): HTMLElement {
+  const last = noteBody.lastElementChild as HTMLElement | null;
+  if (last && !isMediaEl(last) && last.tagName !== "H1") return last;
+  const div = document.createElement("div");
+  div.innerHTML = "<br>";
+  noteBody.appendChild(div);
+  return div;
+}
+
+/** Tap below the last block (the big empty area under images) → ensure a trailing text row and
+ *  drop the caret into it, so you can keep writing under media (like Notion). */
+export function caretToTrailingRow(noteBody: HTMLElement) {
+  const row = ensureTrailingTextRow(noteBody);
+  const range = document.createRange();
+  range.selectNodeContents(row);
+  range.collapse(false);
+  const sel = window.getSelection();
+  sel?.removeAllRanges();
+  sel?.addRange(range);
+  noteBody.focus();
 }
 
 /** Serialize the note body DOM → { title, content } in the shared markdown model. Media
@@ -237,7 +269,7 @@ export function serializeNoteBody(noteBody: HTMLElement): { title: string; conte
     if (isMediaEl(el)) {
       const b = readBlock(el);
       if (b?.kind === "image") parts.push(imageMd(b.ref, b.caption));
-      else if (b?.kind === "gallery") parts.push(galleryMd(b.images));
+      else if (b?.kind === "gallery") parts.push(galleryMd(b.images, b.height));
     } else {
       parts.push(el.textContent || "");
     }

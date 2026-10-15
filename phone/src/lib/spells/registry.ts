@@ -68,9 +68,9 @@ export function conditionalSpells(context: PageContext): Spell[] {
       { id: "thread", name: "Thread", icon: "thread" },
     ];
   }
-  // note — a single spell for now: upload a photo into the open memory. (Go back lives in the
-  // note's action bar next to the spell-menu button, not in the ring.)
-  return [{ id: "image", name: "Upload photo", icon: "image" }];
+  // note / photo collection — a single spell for now: add a Photo to the open memory (or the
+  // open gallery). Go back lives in the bottom action bar next to the spell-menu button, not the ring.
+  return [{ id: "image", name: "Photo", icon: "image" }];
 }
 
 /** Does this context recommend spells (→ the menu opens in Conditional)? */

@@ -44,7 +44,10 @@ export function NoteToolbar({
         </button>
       </div>
       <div className="tb-right">
-        <button className="tb pic" aria-label="Add photo" onPointerDown={keep(onInsertImage)}>
+        {/* Photo opens the native file sheet via input.click(), which iOS only honours inside a
+            TRUSTED, not-defaultPrevented gesture — so this must be a plain onClick, NOT the
+            onPointerDown+preventDefault the format keys use (that suppressed the picker entirely). */}
+        <button className="tb pic" aria-label="Add photo" onClick={onInsertImage}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3.2" y="5.2" width="17.6" height="13.6" rx="2.4" />
             <circle cx="8.4" cy="9.8" r="1.5" />

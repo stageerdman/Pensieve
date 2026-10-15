@@ -43,7 +43,7 @@ describe("registry — conditional (page-recommended) rosters", () => {
   it("a note offers a single spell for now: Upload photo", () => {
     const note = conditionalSpells("note");
     expect(note.map((s) => s.id)).toEqual(["image"]);
-    expect(note[0].name).toBe("Upload photo");
+    expect(note[0].name).toBe("Photo");
     expect(hasConditional("note")).toBe(true);
   });
 });

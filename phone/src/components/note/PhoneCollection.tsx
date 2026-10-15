@@ -8,9 +8,10 @@ import { useEffect, useRef, useState } from "react";
 import { phoneCollection, type CollectionState } from "../../lib/media/collectionController";
 import { phoneLightbox } from "../../lib/media/lightboxController";
 import { mediaAlt } from "../../lib/media/noteMedia";
+import { NoteActions } from "./NoteActions";
 import { haptic } from "../../util";
 
-export function PhoneCollection() {
+export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
   const [s, setS] = useState<CollectionState>(phoneCollection.get());
   const sheetRef = useRef<HTMLDivElement>(null);
 
@@ -64,20 +65,17 @@ export function PhoneCollection() {
 
   return (
     <div className="ph-collection" role="dialog" aria-modal="true" aria-label="Photo collection" ref={sheetRef}>
+      {/* A slim top grabber is ONLY a swipe-down-to-close handle (a gesture affordance, not a
+          control bar). The real controls live in the bottom action bar below (phone standard). */}
       <div
-        className="ph-collection-top"
+        className="ph-collection-grab"
+        aria-hidden="true"
         onPointerDown={onGrabDown}
         onPointerMove={onGrabMove}
         onPointerUp={onGrabUp}
         onPointerCancel={onGrabUp}
       >
-        <span className="ph-collection-grabber" aria-hidden="true" />
-        <span className="ph-collection-count">{s.items.length} photos</span>
-        <button className="ph-collection-close" aria-label="Close" onClick={() => phoneCollection.close()}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <path d="M6 6l12 12M18 6L6 18" />
-          </svg>
-        </button>
+        <span className="ph-collection-grabber" />
       </div>
       <div className="ph-collection-masonry">
         {s.items.map((it, i) => (
@@ -104,6 +102,9 @@ export function PhoneCollection() {
           </div>
         ))}
       </div>
+      {/* Bottom action bar (phone control standard): Back → the memory; the Spell Menu opener
+          blooms the Conditional "Photo" ring, which adds a photo to THIS board. */}
+      <NoteActions onBack={() => phoneCollection.close()} onOpenMenu={onOpenMenu} backLabel="Back to memory" />
     </div>
   );
 }

@@ -11,6 +11,8 @@ export interface CollectionState {
   items: LightboxItem[]; // resolved url + caption, in gallery order
   editable: boolean;
   onRemove?: (index: number) => void; // persist a removal back to the gallery block (mediaDom)
+  // Add freshly-picked photos to the gallery; returns the refreshed resolved items (or void).
+  onAdd?: (images: { ref: string }[]) => Promise<LightboxItem[]> | LightboxItem[] | void;
 }
 
 type Listener = (s: CollectionState) => void;
@@ -20,10 +22,22 @@ const listeners = new Set<Listener>();
 const emit = () => listeners.forEach((l) => l(state));
 
 export const phoneCollection = {
-  open(items: LightboxItem[], opts: { editable?: boolean; onRemove?: (index: number) => void } = {}) {
+  open(
+    items: LightboxItem[],
+    opts: { editable?: boolean; onRemove?: (index: number) => void; onAdd?: CollectionState["onAdd"] } = {},
+  ) {
     if (!items.length) return;
-    state = { open: true, items, editable: !!opts.editable, onRemove: opts.onRemove };
+    state = { open: true, items, editable: !!opts.editable, onRemove: opts.onRemove, onAdd: opts.onAdd };
     emit();
+  },
+  /** Add picked photos (already minted refs) to the open board; refresh the view from the result. */
+  async addFiles(images: { ref: string }[]) {
+    if (!state.open || !state.onAdd || !images.length) return;
+    const next = await state.onAdd(images);
+    if (next && next.length) {
+      state = { ...state, items: next };
+      emit();
+    }
   },
   close() {
     if (!state.open) return;

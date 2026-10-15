@@ -46,6 +46,7 @@ import type { FmtKey } from "./components/note/NoteToolbar";
 import { ConjureThread, conjure } from "./components/ConjureThread";
 import { currentBlock, focusTitle, placeCaret, syncPlaceholders } from "./components/note/noteEditing";
 import { insertImages, renderNoteBody, type MediaCtx } from "./components/note/mediaDom";
+import { phoneCollection } from "./lib/media/collectionController";
 import { PhoneLightbox } from "./components/note/PhoneLightbox";
 import { PhoneCollection } from "./components/note/PhoneCollection";
 import { mintMediaRef, registerLocalMedia } from "./lib/media/mediaStore";
@@ -373,6 +374,14 @@ export function PhoneApp() {
       images.push({ ref });
     }
     if (!images.length) return;
+    // If the photo collection is open, the picked photos join THAT gallery (the collection's
+    // "Photo" spell), not the note caret.
+    if (phoneCollection.get().open) {
+      void phoneCollection.addFiles(images);
+      autosave.scheduleSave();
+      haptic(10);
+      return;
+    }
     insertImages(noteBody, images, mediaCtx); // single / gallery / adjacency-merge, then onChange
     syncPlaceholders(noteBody);
     autosave.scheduleSave();
@@ -707,7 +716,7 @@ export function PhoneApp() {
 
       {/* THE LIGHTBOX — full-screen image viewer (summoned imperatively from a media block) */}
       <PhoneLightbox />
-      <PhoneCollection />
+      <PhoneCollection onOpenMenu={() => { haptic(10); menu.openMenu(); }} />
 
       <ConjureThread threadRef={threadRef} />
       <div className="home-indicator" />

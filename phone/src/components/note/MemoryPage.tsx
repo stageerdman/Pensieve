@@ -10,12 +10,13 @@
 //
 // Media: a hidden <input type=file accept=image/* multiple> (NO capture attr → the native
 // iOS sheet: Photo Library / Take Photo / Choose File) is the ONE picker both reach-points
-// drive — the NoteToolbar photo button (keyboard-up) and the "Picture" spell (keyboard-down,
-// via the gold spell-menu opener in the top chrome).
+// drive — the NoteToolbar photo button (keyboard-up) and the "Photo" spell (keyboard-down,
+// via the gold spell-menu opener in the BOTTOM action bar — see the phone control standard).
 
 import { NoteBody } from "./NoteBody";
 import { NoteToolbar, type FmtKey } from "./NoteToolbar";
-import { SpellGlyph } from "../spellmenu/SpellGlyph";
+import { NoteActions } from "./NoteActions";
+import { caretToTrailingRow } from "./mediaDom";
 
 export function MemoryPage({
   open,
@@ -64,26 +65,35 @@ export function MemoryPage({
 }) {
   return (
     <div className={open ? "note open" : "note"} ref={noteRef}>
+      {/* Top chrome = INFO only (date + Saved). Controls live in the bottom action bar, per the
+          phone control standard. */}
       <div className="note-top">
         <div className="note-date" ref={dateRef} onClick={onDateClick} />
         <div className="note-saved" ref={savedRef}>
           <i /> Saved
         </div>
-        {/* The note's action bar (top-right): Go back sits next to the Spell Menu opener. */}
-        <button className="note-goback" onClick={onBack} aria-label="Go back">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="m15 5-7 7 7 7" />
-          </svg>
-        </button>
-        {/* the keyboard-down reach-point: summon the note's Spell Menu (Upload photo) */}
-        <button className="note-spell" onClick={onOpenSpellMenu} aria-label="Spell menu">
-          <SpellGlyph icon="menu" size={22} />
-        </button>
       </div>
-      <div className="note-surface" ref={surfaceRef}>
+      <div
+        className="note-surface"
+        ref={surfaceRef}
+        onPointerDown={(e) => {
+          // Notion-style: a tap in the empty area BELOW the content (the surface itself, or the
+          // body's own padding — not a block) drops the caret into a trailing text row so you can
+          // write under images.
+          const body = bodyRef.current;
+          if (!body) return;
+          if (e.target === e.currentTarget || e.target === body) {
+            e.preventDefault();
+            caretToTrailingRow(body);
+          }
+        }}
+      >
         <NoteBody bodyRef={bodyRef} onInput={onBodyInput} onKeyDown={onBodyKeyDown} onFocus={onBodyFocus} onBlur={onBodyBlur} />
       </div>
       <NoteToolbar micListening={micListening} voiceRef={voiceRef} onFormat={onFormat} onInsertImage={onInsertImage} onVoice={onVoice} onDone={onDone} />
+      {/* Bottom action bar (hidden while editing — the keyboard toolbar takes over): Go back to
+          the memories reel + the Spell Menu opener (Conditional "Photo"). Phone control standard. */}
+      <NoteActions onBack={onBack} onOpenMenu={onOpenSpellMenu} backLabel="Back to memories" />
       {/* the ONE picker: native iOS sheet (no `capture` → Photo Library / Take Photo / Choose File) */}
       <input
         ref={fileInputRef}
