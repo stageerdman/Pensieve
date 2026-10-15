@@ -19,9 +19,24 @@ const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>) => {
       files.set(args!.rel as string, args!.contents as string);
       return undefined;
     }
+    case "write_bytes": {
+      // base64 payload is stored verbatim; the vault wrapper handles the (de)coding.
+      files.set(args!.rel as string, args!.data as string);
+      return undefined;
+    }
+    case "read_bytes": {
+      const rel = args!.rel as string;
+      return files.has(rel) ? files.get(rel)! : null;
+    }
     case "list_dir": {
+      // Return only IMMEDIATE child names (mirrors the real list_dir), deduped — so a
+      // nested media/<noteId>/<file> tree lists <noteId> dirs at the top level.
       const prefix = `${args!.rel as string}/`;
-      return [...files.keys()].filter((k) => k.startsWith(prefix)).map((k) => k.slice(prefix.length));
+      const names = new Set<string>();
+      for (const k of files.keys()) {
+        if (k.startsWith(prefix)) names.add(k.slice(prefix.length).split("/")[0]);
+      }
+      return [...names];
     }
     case "remove_path": {
       files.delete(args!.rel as string);
@@ -170,5 +185,28 @@ describe("writeState", () => {
     const state = { deltaLink: null, notes: {}, lastSyncedAt: 123 };
     await tauriVault().writeState(state);
     expect(JSON.parse(files.get("sync/state.json")!)).toEqual(state);
+  });
+});
+
+describe("media", () => {
+  it("listMedia walks media/<noteId>/* into vault-relative refs", async () => {
+    files.set("media/n1/a.png", "..");
+    files.set("media/n1/b.jpg", "..");
+    files.set("media/n2/c.webp", "..");
+    files.set("notes/x.md", "# X\n"); // not media
+    const refs = (await tauriVault().listMedia()).sort();
+    expect(refs).toEqual(["media/n1/a.png", "media/n1/b.jpg", "media/n2/c.webp"]);
+  });
+
+  it("writeMediaBytes / readMediaBytes round-trips raw bytes via base64", async () => {
+    const bytes = new Uint8Array([0, 1, 2, 250, 255]);
+    await tauriVault().writeMediaBytes("media/n1/a.png", bytes);
+    const back = await tauriVault().readMediaBytes("media/n1/a.png");
+    expect(back).not.toBeNull();
+    expect([...back!]).toEqual([0, 1, 2, 250, 255]);
+  });
+
+  it("readMediaBytes returns null when the file is absent", async () => {
+    expect(await tauriVault().readMediaBytes("media/n1/missing.png")).toBeNull();
   });
 });

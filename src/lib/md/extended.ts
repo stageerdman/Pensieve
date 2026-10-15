@@ -127,6 +127,9 @@ export function mapBlocks(blocks: Block[], fn: (items: Inline[]) => Inline[]): B
 // Known limitation: a fenced code block nested *inside* a toggle/indent body would
 // collide with the outer fence; rare, and noted in issues.
 
+import { encodeImageBlock, isImageBlock, reconstructImageFence, resolveImageUrls } from "./image";
+import { encodeImageGroupBlock, isImageGroupBlock, reconstructGalleryFence } from "./gallery";
+
 const LIST_TYPES = new Set(["bulletListItem", "numberedListItem", "checkListItem"]);
 
 // Empty paragraphs (blank lines the user adds for spacing) are dropped by Markdown —
@@ -175,7 +178,14 @@ async function encodeStructure(editor: MdEditor, blocks: Block[]): Promise<Block
     const isList = LIST_TYPES.has(b.type as string);
     const allListChildren = children.length > 0 && children.every((c) => LIST_TYPES.has(c.type as string));
 
-    if (b.type === "toggleListItem") {
+    if (isImageBlock(b)) {
+      // url → ref; default width serializes natively as `![caption](ref)`, a non-default
+      // width rides a pensieve:image fence (see lib/md/image).
+      out.push(encodeImageBlock(b));
+    } else if (isImageGroupBlock(b)) {
+      // The ordered group → a pensieve:gallery fence (see lib/md/gallery).
+      out.push(encodeImageGroupBlock(b));
+    } else if (b.type === "toggleListItem") {
       const summary = await inlineToMd(editor, b.content);
       const body = children.length ? (await blocksToExtendedMd(editor, children)).replace(/\n+$/, "") : "";
       out.push(fence("pensieve:toggle", body ? `${summary}\n${body}` : summary));
@@ -198,6 +208,16 @@ async function encodeStructure(editor: MdEditor, blocks: Block[]): Promise<Block
 async function reconstructStructure(editor: MdEditor, blocks: Block[]): Promise<Block[]> {
   const out: Block[] = [];
   for (const b of blocks) {
+    const image = reconstructImageFence(b);
+    if (image) {
+      out.push(image);
+      continue;
+    }
+    const gallery = reconstructGalleryFence(b);
+    if (gallery) {
+      out.push(gallery);
+      continue;
+    }
     const lang = langOf(b);
     if (lang === "pensieve:toggle") {
       const text = textOf(b);
@@ -235,5 +255,8 @@ export async function blocksToExtendedMd(editor: MdEditor, blocks: unknown[]): P
 export async function extendedMdToBlocks(editor: MdEditor, markdown: string): Promise<unknown[]> {
   const raw = (await editor.tryParseMarkdownToBlocks(markdown)) as Block[];
   const rebuilt = await reconstructStructure(editor, raw);
-  return mapBlocks(rebuilt, decodeInline);
+  const decoded = mapBlocks(rebuilt, decodeInline) as Block[];
+  // Resolve image refs → loadable urls here (awaited) so the blocks are already display-
+  // ready when the caller mounts them — no post-mount mutation, no false dirty/undo step.
+  return resolveImageUrls(decoded);
 }

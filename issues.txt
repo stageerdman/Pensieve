@@ -1,6 +1,33 @@
 Pensieve — known issues & TODOs
 (one line per item; move resolved items out or mark done)
 
+MEDIA-IMAGES — built on branch update/media-images (2026-10-14), owner to confirm native:
+- [x] Desktop single image: paste / `/image` (URL or OS picker) / drag-drop; width snaps
+      25/50/75/100% (⌘[ / ⌘]); caption = alt; Replace/Remove; broken-keeps-rect state.
+- [x] Shared lightbox (the one magical moment): FLIP travel, arrows/Home/End/Esc, focus
+      trap + restore, prefers-reduced-motion aware; reused across single + gallery.
+- [x] Desktop inline gallery (`imageGroup` block): count-driven layout, drag-reorder,
+      per-tile caption/remove, "+N more" → lightbox, 2→1 collapse to a single image.
+- [x] Phone image capture (library / camera via the OS sheet), carousel + dots, lightbox,
+      long-press reorder/remove; serializes to the SAME markdown model as desktop.
+- [x] OneDrive binary backup (desktop): content-addressed media push/pull; gold sync rune.
+- [x] A11y: caption doubles as alt on every surface; absent caption → a non-blob "Image"
+      fallback (never decorative alt=""); reduced-motion honoured on travel/shimmer/pulse.
+- [ ] Media garbage-collection is deliberately NOT done — version/timeline snapshots may
+      still reference a removed image; safe GC is a later concern.
+- [ ] Phone real-vault write + OneDrive sync await PWA-CAPTURE (phone bytes live in
+      IndexedDB today; the `.md` it produces is already byte-identical to desktop).
+- [ ] Desktop and phone implement the `.md` media format independently (decoupled apps) —
+      guarded against drift by src/components/editor/media/sharedFormat.guard.test.tsx.
+- [ ] Captions with markdown-special chars (`*`, `[`…) escape asymmetrically desktop vs
+      phone (remark escapes, phone does not) — plain captions round-trip identically.
+- [ ] Images beyond the 6th gallery tile have no in-block ×/caption controls (reachable via
+      the view-only lightbox only) — acceptable for v1.
+- [ ] No distinct drop-onto-join visual rail — a join reuses the ordinary insert caret;
+      the merge behaviour is correct, the join isn't visually called out.
+- [ ] Phone note-top gold spell-opener is provisional — it makes the note-conditional ring
+      reachable from an open memory; owner to confirm it doesn't read as clutter.
+
 NOTE-VERSIONING — shipped to main (2026-10-13, v2 reworked same day), owner to confirm:
 - [x] Timeline moments carry a body snapshot = restorable versions.
 - [x] v2: clicking a moment opens it in the MAIN page read-only ("time travel", not

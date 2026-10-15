@@ -42,21 +42,36 @@ export async function portAvailable(port: number): Promise<boolean> {
 export interface HttpRes {
   status: number;
   body: string;
+  /** Present only when `responseBase64` was requested — the raw response bytes, base64'd. */
+  bodyBase64?: string | null;
   headers: Record<string, string>; // names lowercased
 }
 
 /** Make an HTTP request from the native side (no webview Origin header). Used for
  *  the OAuth token endpoint and all Graph calls on desktop — a browser fetch would
- *  attach an Origin that trips Microsoft's CORS rules (AADSTS90023). */
+ *  attach an Origin that trips Microsoft's CORS rules (AADSTS90023).
+ *
+ *  Binary: pass `bodyBase64` to send image bytes (a JS string can't carry them), and
+ *  `responseBase64: true` to get a binary response back base64-encoded in `bodyBase64`.
+ *  The plain `body` string path is unchanged for notes / JSON / the token form. */
 export async function httpRequest(req: {
   method: string;
   url: string;
   headers?: Record<string, string>;
   body?: string | null;
+  bodyBase64?: string | null;
+  responseBase64?: boolean;
 }): Promise<HttpRes> {
   requireTauri("HTTP");
   return invoke<HttpRes>("http_request", {
-    req: { method: req.method, url: req.url, headers: req.headers ?? {}, body: req.body ?? null },
+    req: {
+      method: req.method,
+      url: req.url,
+      headers: req.headers ?? {},
+      body: req.body ?? null,
+      bodyBase64: req.bodyBase64 ?? null,
+      responseBase64: req.responseBase64 ?? false,
+    },
   });
 }
 

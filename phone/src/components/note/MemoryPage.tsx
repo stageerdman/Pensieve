@@ -7,9 +7,15 @@
 // refs (openNote / useAutosave). The top chrome fades out on .editing-note (CSS).
 // (Internal class names + refs still use the legacy `note*` prefix — a cosmetic rename
 // deferred to keep this change surgical.)
+//
+// Media: a hidden <input type=file accept=image/* multiple> (NO capture attr → the native
+// iOS sheet: Photo Library / Take Photo / Choose File) is the ONE picker both reach-points
+// drive — the NoteToolbar photo button (keyboard-up) and the "Picture" spell (keyboard-down,
+// via the gold spell-menu opener in the top chrome).
 
 import { NoteBody } from "./NoteBody";
 import { NoteToolbar, type FmtKey } from "./NoteToolbar";
+import { SpellGlyph } from "../spellmenu/SpellGlyph";
 
 export function MemoryPage({
   open,
@@ -19,6 +25,7 @@ export function MemoryPage({
   dateRef,
   savedRef,
   voiceRef,
+  fileInputRef,
   micListening,
   onBack,
   onDateClick,
@@ -27,6 +34,9 @@ export function MemoryPage({
   onBodyFocus,
   onBodyBlur,
   onFormat,
+  onInsertImage,
+  onPickFiles,
+  onOpenSpellMenu,
   onVoice,
   onDone,
 }: {
@@ -37,6 +47,7 @@ export function MemoryPage({
   dateRef: React.RefObject<HTMLDivElement>;
   savedRef: React.RefObject<HTMLDivElement>;
   voiceRef: React.RefObject<HTMLButtonElement>;
+  fileInputRef: React.RefObject<HTMLInputElement>;
   micListening: boolean;
   onBack: () => void;
   onDateClick: () => void;
@@ -45,6 +56,9 @@ export function MemoryPage({
   onBodyFocus: () => void;
   onBodyBlur: () => void;
   onFormat: (f: FmtKey) => void;
+  onInsertImage: () => void;
+  onPickFiles: (files: FileList | null) => void;
+  onOpenSpellMenu: () => void;
   onVoice: () => void;
   onDone: () => void;
 }) {
@@ -60,11 +74,27 @@ export function MemoryPage({
         <div className="note-saved" ref={savedRef}>
           <i /> Saved
         </div>
+        {/* the keyboard-down reach-point: summon the note's Spell Menu (Picture leads it) */}
+        <button className="note-spell" onClick={onOpenSpellMenu} aria-label="Spell menu">
+          <SpellGlyph icon="menu" size={22} />
+        </button>
       </div>
       <div className="note-surface" ref={surfaceRef}>
         <NoteBody bodyRef={bodyRef} onInput={onBodyInput} onKeyDown={onBodyKeyDown} onFocus={onBodyFocus} onBlur={onBodyBlur} />
       </div>
-      <NoteToolbar micListening={micListening} voiceRef={voiceRef} onFormat={onFormat} onVoice={onVoice} onDone={onDone} />
+      <NoteToolbar micListening={micListening} voiceRef={voiceRef} onFormat={onFormat} onInsertImage={onInsertImage} onVoice={onVoice} onDone={onDone} />
+      {/* the ONE picker: native iOS sheet (no `capture` → Photo Library / Take Photo / Choose File) */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={(e) => {
+          onPickFiles(e.target.files);
+          e.target.value = ""; // allow re-picking the same file
+        }}
+      />
     </div>
   );
 }

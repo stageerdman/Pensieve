@@ -16,7 +16,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { Note } from "./types";
 import { createSeed } from "./seed";
-import { esc, haptic, prefersReducedMotion } from "./util";
+import { haptic, prefersReducedMotion } from "./util";
 import { parseQuery, passesDate, passesText } from "./lib/wand/accioQuery";
 import { rankNotes } from "./lib/wand/accioRank";
 import { CAT_HUE, SHAPES } from "./lib/wand/flaskSvg";
@@ -45,6 +45,10 @@ import { MemoryPage } from "./components/note/MemoryPage";
 import type { FmtKey } from "./components/note/NoteToolbar";
 import { ConjureThread, conjure } from "./components/ConjureThread";
 import { currentBlock, focusTitle, placeCaret, syncPlaceholders } from "./components/note/noteEditing";
+import { insertImages, renderNoteBody, type MediaCtx } from "./components/note/mediaDom";
+import { PhoneLightbox } from "./components/note/PhoneLightbox";
+import { mintMediaRef, registerLocalMedia } from "./lib/media/mediaStore";
+import type { MediaImage } from "./lib/media/noteMedia";
 
 const ACCOUNT = "jakub.cervenka@icloud.com";
 const DICTATION_SAMPLE =
@@ -92,14 +96,40 @@ function loadRecents(): string[] {
   }
 }
 
+// Vault persistence — the phone prototype ran purely on in-memory seed data (reset every
+// reload). Images need a reload to actually ROUND-TRIP (the owner's device check), and the
+// photo BYTES live in IndexedDB keyed by ref, so the note TEXT (which carries those refs as
+// markdown) must persist too. We keep the whole notes array in localStorage; an absent/invalid
+// store falls back to the seed (so clearing storage restores the demo). Media bytes stay in
+// IndexedDB — never base64 in here.
+const VAULT_KEY = "pensieve.phone.vault";
+function loadVault(): Note[] {
+  try {
+    const raw = localStorage.getItem(VAULT_KEY);
+    if (!raw) return createSeed();
+    const v = JSON.parse(raw);
+    if (Array.isArray(v) && v.length && v.every((n) => n && typeof n.id === "number")) return v as Note[];
+  } catch {
+    /* corrupt / absent — fall back to seed */
+  }
+  return createSeed();
+}
+function persistVault(data: Note[]) {
+  try {
+    localStorage.setItem(VAULT_KEY, JSON.stringify(data));
+  } catch {
+    /* quota / unavailable — a reload just falls back to seed, no crash */
+  }
+}
+
 
 export function PhoneApp() {
   const reduce = prefersReducedMotion();
 
   // ---- mutable vault (the prototype's DATA) ----
   const dataRef = useRef<Note[]>();
-  if (!dataRef.current) dataRef.current = createSeed();
-  const uidRef = useRef(dataRef.current.length);
+  if (!dataRef.current) dataRef.current = loadVault();
+  const uidRef = useRef(dataRef.current.reduce((m, n) => Math.max(m, n.id), 0));
   const openedOrderRef = useRef<number[]>([]);
   const currentRef = useRef<Note | null>(null);
 
@@ -119,6 +149,7 @@ export function PhoneApp() {
   const noteSavedRef = useRef<HTMLDivElement>(null);
   const voiceRef = useRef<HTMLButtonElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ---- React state (drives re-renders only; NOT the 60fps loops) ----
   const [view, setView] = useState<Note[]>(() => computeView(dataRef.current!, "", []));
@@ -157,7 +188,9 @@ export function PhoneApp() {
   const syncStatus: SyncStatus = sync.state.status;
 
   const fisheye = useReelFisheye(reelRef, trackRef, glassRef);
-  const menu = useSpellMenu("home");
+  // The Spell Menu is note-aware: with a memory open it opens in Conditional form, whose
+  // roster is led by "Picture" (see registry.conditionalSpells("note")). On home it's General.
+  const menu = useSpellMenu(noteMounted ? "note" : "home");
 
   const kb = useKeyboardInset(rootRef, {
     onUp: () => fns.current.onKbUp(),
@@ -179,14 +212,23 @@ export function PhoneApp() {
   const autosave = useAutosave(noteBodyRef, noteSavedRef, currentRef, {
     onInsert: (note) => {
       dataRef.current!.unshift(note);
+      persistVault(dataRef.current!);
       renderAll(filterQueryRef.current);
       reelIntent.current = { mode: "smooth0", to: 0 };
     },
     onRender: () => {
+      persistVault(dataRef.current!);
       renderAll(filterQueryRef.current);
     },
     onDirty: () => sync.edit(),
   });
+
+  // The media context handed to the imperative media blocks: any in-place mutation (remove,
+  // reorder, merge, collapse) schedules an autosave, which re-serializes the body to markdown.
+  // Kept on a stable ref object (the DOM blocks capture it once) with a fresh closure each
+  // render so it always calls the latest autosave.
+  const mediaCtx = useRef<MediaCtx>({ onChange: () => {} }).current;
+  mediaCtx.onChange = () => autosave.scheduleSave();
 
   const accio = useAccioSearch({
     accioInputRef,
@@ -231,17 +273,9 @@ export function PhoneApp() {
     const noteBody = noteBodyRef.current;
     if (noteDateRef.current) noteDateRef.current.textContent = d.when || "Written " + (d.created || d.d);
     if (noteBody) {
-      if (d.fresh) {
-        noteBody.innerHTML = "<h1><br></h1>"; // empty title line, caret-ready
-      } else {
-        const body = d.c
-          ? d.c
-              .split("\n")
-              .map((l) => (l.trim() ? `<div>${esc(l)}</div>` : "<div><br></div>"))
-              .join("")
-          : "";
-        noteBody.innerHTML = `<h1>${esc(d.t || "")}</h1>` + body;
-      }
+      // Build the body DOM (title H1 + text divs + non-editable media blocks) from the note's
+      // markdown content; media refs resolve to blob/object URLs asynchronously inside.
+      renderNoteBody(noteBody, d.fresh ? "" : d.t || "", d.fresh ? "" : d.c || "", mediaCtx);
       syncPlaceholders(noteBody);
     }
     if (reduce) setNoteOpen(true);
@@ -316,6 +350,32 @@ export function PhoneApp() {
     syncPlaceholders(noteBody);
     autosave.scheduleSave();
     keepCaretVisible();
+  }
+
+  // ---- image capture ----
+  // The ONE hidden <input> both reach-points drive. Opening it keeps the caret: the toolbar
+  // button fires on pointerdown+preventDefault; the spell path appends at the end if the caret
+  // was lost. The native iOS sheet (Photo Library / Take Photo / Choose File) comes free.
+  function openImagePicker() {
+    fileInputRef.current?.click();
+  }
+
+  function onPickFiles(files: FileList | null) {
+    const noteBody = noteBodyRef.current;
+    const note = currentRef.current;
+    if (!files || !files.length || !noteBody || !note) return;
+    const images: MediaImage[] = [];
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith("image/")) continue;
+      const ref = mintMediaRef(note.id, file); // media/<noteId>/<id>.<ext> — the shared model
+      registerLocalMedia(ref, file); // instant object URL + background IndexedDB write
+      images.push({ ref });
+    }
+    if (!images.length) return;
+    insertImages(noteBody, images, mediaCtx); // single / gallery / adjacency-merge, then onChange
+    syncPlaceholders(noteBody);
+    autosave.scheduleSave();
+    haptic(10);
   }
 
   function applyFmt(f: FmtKey) {
@@ -452,6 +512,7 @@ export function PhoneApp() {
     menu.close();
     if (s.id === "write") openNewNote(false);
     else if (s.id === "accio") accio.openAccio();
+    else if (s.id === "image") openImagePicker();
     else showToast(`✨ ${s.name} cast`);
   }
   /** Held a spell (Write = speak). */
@@ -623,6 +684,7 @@ export function PhoneApp() {
           dateRef={noteDateRef}
           savedRef={noteSavedRef}
           voiceRef={voiceRef}
+          fileInputRef={fileInputRef}
           micListening={micListening}
           onBack={() => exitNote()}
           onDateClick={() => noteBodyRef.current?.blur()}
@@ -631,10 +693,19 @@ export function PhoneApp() {
           onBodyFocus={() => setEditingNote(true)}
           onBodyBlur={() => setEditingNote(false)}
           onFormat={applyFmt}
+          onInsertImage={openImagePicker}
+          onPickFiles={onPickFiles}
+          onOpenSpellMenu={() => {
+            haptic(10);
+            menu.openMenu();
+          }}
           onVoice={toggleDictation}
           onDone={() => noteBodyRef.current?.blur()}
         />
       ) : null}
+
+      {/* THE LIGHTBOX — full-screen image viewer (summoned imperatively from a media block) */}
+      <PhoneLightbox />
 
       <ConjureThread threadRef={threadRef} />
       <div className="home-indicator" />

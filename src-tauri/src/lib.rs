@@ -3,6 +3,8 @@
 // plain .md files (the source of truth) with small .json sidecars for metadata
 // and the addition timeline.
 
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use std::fs;
 use std::path::PathBuf;
 use tauri::menu::{Menu, SubmenuBuilder};
@@ -15,9 +17,15 @@ fn vault_root(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("vault"))
 }
 
+/// The single path-traversal guard: a vault-relative path may not escape the vault.
+/// Pulled out as a pure function so it can be unit-tested without an AppHandle.
+fn is_safe_rel(rel: &str) -> bool {
+    !(rel.contains("..") || rel.starts_with('/'))
+}
+
 fn resolve(app: &AppHandle, rel: &str) -> Result<PathBuf, String> {
     // Keep everything inside the vault — no path traversal.
-    if rel.contains("..") || rel.starts_with('/') {
+    if !is_safe_rel(rel) {
         return Err("invalid path".into());
     }
     Ok(vault_root(app)?.join(rel))
@@ -40,6 +48,31 @@ fn write_text(app: AppHandle, rel: String, contents: String) -> Result<(), Strin
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     fs::write(&p, contents).map_err(|e| e.to_string())
+}
+
+// Binary writes. `data` is base64 (not a Vec<u8> param): a JS number array over the invoke
+// bridge is slow for image-sized payloads, so the JS side base64-encodes and we decode here.
+// Mirrors write_text otherwise (reuses resolve, creates the parent dir).
+#[tauri::command]
+fn write_bytes(app: AppHandle, rel: String, data: String) -> Result<(), String> {
+    let p = resolve(&app, &rel)?;
+    let bytes = STANDARD.decode(data.as_bytes()).map_err(|e| e.to_string())?;
+    if let Some(parent) = p.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(&p, bytes).map_err(|e| e.to_string())
+}
+
+// Binary read, returning base64 (None on NotFound). Used by the OneDrive binary-backup
+// phase later; symmetric with read_text.
+#[tauri::command]
+fn read_bytes(app: AppHandle, rel: String) -> Result<Option<String>, String> {
+    let p = resolve(&app, &rel)?;
+    match fs::read(&p) {
+        Ok(b) => Ok(Some(STANDARD.encode(b))),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 #[tauri::command]
@@ -117,6 +150,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             read_text,
             write_text,
+            write_bytes,
+            read_bytes,
             list_dir,
             remove_path,
             sync::secret_get,
@@ -129,4 +164,28 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn guard_rejects_traversal() {
+        assert!(!is_safe_rel("../etc/passwd")); // parent escape
+        assert!(!is_safe_rel("media/foo/../../x")); // embedded ..
+        assert!(!is_safe_rel("/absolute/path")); // absolute
+        assert!(is_safe_rel("media/note1/abc.png")); // ordinary media ref
+        assert!(is_safe_rel("notes/abc.md"));
+    }
+
+    #[test]
+    fn base64_round_trips_bytes() {
+        // The write_bytes/read_bytes contract: bytes -> base64 -> bytes is lossless,
+        // including non-UTF8 binary.
+        let bytes: Vec<u8> = vec![0, 1, 2, 137, 80, 78, 71, 255, 128, 64];
+        let encoded = STANDARD.encode(&bytes);
+        let decoded = STANDARD.decode(encoded.as_bytes()).unwrap();
+        assert_eq!(bytes, decoded);
+    }
 }

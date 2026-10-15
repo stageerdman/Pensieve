@@ -7,6 +7,8 @@ import type { Note, NoteBody, NoteMeta, Store, TimelineEntry } from "../types";
 import { titleFromMarkdown, excerptFromMarkdown, contentCharCount, plainTextFromMarkdown } from "../text";
 import { pruneToRecentDays } from "../timeline";
 import { log } from "../logger";
+import { newMediaId, mediaRef } from "../media";
+import { createIdbMediaStore, type MediaBlobStore } from "./idb";
 
 const NOTE_PREFIX = "pensieve:note:";
 const TIMELINE_PREFIX = "pensieve:timeline:";
@@ -35,6 +37,10 @@ function readNote(id: string): Note | null {
 }
 
 export class BrowserStore implements Store {
+  // Media bytes live in IndexedDB (never base64 in localStorage). Injectable so tests can
+  // pass an in-memory implementation (jsdom has no IndexedDB).
+  constructor(private media: MediaBlobStore = createIdbMediaStore()) {}
+
   async list(): Promise<NoteMeta[]> {
     const metas: NoteMeta[] = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -131,5 +137,30 @@ export class BrowserStore implements Store {
   async saveTimeline(id: string, entries: TimelineEntry[]): Promise<void> {
     localStorage.setItem(TIMELINE_PREFIX + id, JSON.stringify(entries));
     log.debug("store", "timeline.save", { id, count: entries.length });
+  }
+
+  async saveMedia(noteId: string, bytes: Uint8Array | ArrayBuffer, ext: string): Promise<string> {
+    const ref = mediaRef(noteId, newMediaId(), ext);
+    try {
+      // Uint8Array | ArrayBuffer are both valid BlobParts at runtime; the cast sidesteps
+      // the ArrayBufferLike/SharedArrayBuffer generic noise in lib.dom.
+      await this.media.put(ref, new Blob([bytes as BlobPart]));
+      log.info("media", "save", { noteId, ref, bytes: bytes.byteLength });
+      return ref;
+    } catch (e) {
+      log.error("media", "save.error", { noteId, ref, error: String(e) });
+      throw e;
+    }
+  }
+
+  async loadMediaUrl(ref: string): Promise<string | null> {
+    const blob = await this.media.get(ref);
+    if (!blob) return null;
+    return URL.createObjectURL(blob);
+  }
+
+  async removeMedia(ref: string): Promise<void> {
+    await this.media.delete(ref);
+    log.info("media", "remove", { ref });
   }
 }

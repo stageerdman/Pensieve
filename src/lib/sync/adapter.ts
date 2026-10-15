@@ -11,6 +11,7 @@
 import type { GraphClient } from "./graph";
 import { REMOTE_ROOT } from "./config";
 import { ConflictError, type RemoteItem, type SyncAccount, type SyncQuota } from "./types";
+import { isMediaPath, parseMediaPath } from "../media";
 import { log } from "../logger";
 
 /** The signed-in account (Graph /me). Personal accounts expose the address as
@@ -150,6 +151,87 @@ export async function deleteNote(graph: GraphClient, noteId: string, ifMatch?: s
   }
   const text = await res.text().catch(() => "");
   throw new Error(`deleteNote failed (${res.status}): ${text.slice(0, 200)}`);
+}
+
+// ── Media binaries ────────────────────────────────────────────────────────────────
+// Media mirrors the local vault layout under the same Pensieve root:
+//   <root>/media/<noteId>/<mediaId>.<ext>
+// Graph path-addressing creates the intermediate folders on the content PUT, so there's
+// no separate folder-creation step. Media is content-addressed by its stable ref (the
+// bytes are immutable), so a re-upload of the same ref is an idempotent replace — no
+// cTag/If-Match dance is needed (unlike a note, a photo never changes in place).
+
+const MEDIA_CONTENT_TYPES: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  svg: "image/svg+xml",
+  bmp: "image/bmp",
+  heic: "image/heic",
+  heif: "image/heif",
+  avif: "image/avif",
+};
+
+/** The upload Content-Type for a media ref, by extension (octet-stream fallback). */
+export function mediaContentType(ref: string): string {
+  const ext = parseMediaPath(ref)?.ext.toLowerCase() ?? "";
+  return MEDIA_CONTENT_TYPES[ext] ?? "application/octet-stream";
+}
+
+/** The Graph item path for a media ref, nested under the Pensieve root. Each segment is
+ *  URL-encoded; the ref already begins with `media/`. */
+function mediaItemPath(ref: string): string {
+  const segs = ref.split("/").map(enc).join("/");
+  return `/me/drive/root:/${enc(REMOTE_ROOT)}/${segs}`;
+}
+
+/** A /delta or children item → its vault-relative media ref, or null if it isn't one of
+ *  our media binaries. Recognises media from the parent path + name so a media file is
+ *  never mistaken for a note (and a note is never mistaken for media). */
+export function mediaRefFromItem(item: RemoteItem): string | null {
+  if (item.folder || !item.name) return null;
+  const path = item.parentReference?.path;
+  if (!path) return null;
+  const marker = `/${REMOTE_ROOT}/`;
+  const idx = path.indexOf(marker);
+  if (idx === -1) return null;
+  const rel = path.slice(idx + marker.length); // e.g. "media/<noteId>"
+  const ref = `${rel}/${item.name}`;
+  return isMediaPath(ref) && parseMediaPath(ref) ? ref : null;
+}
+
+/** Upload (create or replace) a media binary by ref. Returns the remote item. */
+export async function uploadMedia(graph: GraphClient, ref: string, bytes: Uint8Array): Promise<RemoteItem> {
+  const res = await graph.fetch(`${mediaItemPath(ref)}:/content`, {
+    method: "PUT",
+    headers: { "Content-Type": mediaContentType(ref) },
+    // A Uint8Array is a valid runtime body; cast past the DOM BodyInit generic (TS 5.7
+    // narrows typed arrays to ArrayBufferLike). The native transport reads it as bytes.
+    body: bytes as unknown as BodyInit,
+    binaryBody: true,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`uploadMedia failed (${res.status}): ${text.slice(0, 200)}`);
+  }
+  const item = (await res.json()) as RemoteItem;
+  log.debug("sync", "adapter.media.upload", { ref, id: item.id, size: item.size });
+  return item;
+}
+
+/** Download a media binary by ref. Null if it isn't on the remote (404). */
+export async function downloadMedia(graph: GraphClient, ref: string): Promise<Uint8Array | null> {
+  const res = await graph.fetch(`${mediaItemPath(ref)}:/content`, { binaryResponse: true });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`downloadMedia failed (${res.status}): ${text.slice(0, 200)}`);
+  }
+  const buf = await res.arrayBuffer();
+  log.debug("sync", "adapter.media.download", { ref, size: buf.byteLength });
+  return new Uint8Array(buf);
 }
 
 export interface DeltaResult {

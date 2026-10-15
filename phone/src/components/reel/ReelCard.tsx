@@ -8,6 +8,7 @@
 import type { Note } from "../../types";
 import { highlight } from "../../highlight";
 import { Flask } from "../Flask";
+import { stripMediaForPreview } from "../../lib/media/noteMedia";
 
 export function ReelCard({ note, queryText, onOpen }: { note: Note; queryText: string; onOpen: (n: Note) => void }) {
   return (
@@ -21,7 +22,7 @@ export function ReelCard({ note, queryText, onOpen }: { note: Note; queryText: s
         <div className="body">
           <div className="title">{highlight(note.t || "New thought", queryText)}</div>
           <div className="meta">{note.created || note.d}</div>
-          <div className="snippet">{highlight(note.c || "…", queryText)}</div>
+          <div className="snippet">{highlight(stripMediaForPreview(note.c) || "…", queryText)}</div>
         </div>
       </div>
     </div>

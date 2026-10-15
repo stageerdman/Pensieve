@@ -7,19 +7,28 @@ import {
   FormattingToolbar,
   FormattingToolbarController,
   SuggestionMenuController,
+  getDefaultReactSlashMenuItems,
   BlockTypeSelect,
   BasicTextStyleButton,
   ColorStyleButton,
   CreateLinkButton,
 } from "@blocknote/react";
+import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core";
 import { AllSelection, TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { blocksToExtendedMd, extendedMdToBlocks } from "../../lib/md/extended";
 import { setNoteLinkOpen, setNoteLinkResolve } from "./noteLink";
 import { editorSchema } from "./editorSchema";
 import { BlockSelectionDecorations } from "./blockSelectionDecorations";
+import { ImagePasteDrop, setImageDropHandlers } from "./media/imagePasteDrop";
+import { setMediaNoteId } from "./media/mediaContext";
+import { makeUploadFile } from "./media/insertImage";
+import { insertImagesSmart, type GroupEditor } from "./media/insertGroup";
+import { mediaToast } from "./media/mediaToast";
+import { Image as ImageIcon, Images as ImagesIcon } from "../icons";
 import { GutterHandle } from "./GutterHandle";
+import { makeSlashMenu } from "./SlashMenu";
 import { useBlockMarquee } from "./useBlockMarquee";
 import { useBlockDrag } from "./useBlockDrag";
 import { FlaskFor } from "../Flask";
@@ -97,7 +106,10 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
   // extensions — here, the multi-row block-selection highlight (blockSelectionDecorations).
   const editor = useCreateBlockNote({
     schema: editorSchema,
-    _tiptapOptions: { extensions: [BlockSelectionDecorations] },
+    // Every image insert path (uploadFile, /image, paste, drop) funnels through the
+    // Phase-0 save flow; uploadFile is BlockNote's own funnel for file selection.
+    uploadFile: makeUploadFile(() => selfId),
+    _tiptapOptions: { extensions: [BlockSelectionDecorations, ImagePasteDrop] },
   });
   const loading = useRef(true);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -112,6 +124,25 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
   // Cast: the hook needs only a small slice of the editor; BlockNote's full generic type
   // over-constrains insertBlocks' argument, so we adapt to the hook's minimal interface.
   const startBlockDrag = useBlockDrag(editor as unknown as Parameters<typeof useBlockDrag>[0], wrapRef);
+
+  // Our own slash-menu component — owns keyboard nav (see SlashMenu.tsx); the built-in
+  // menu's keys didn't drive selection in the WKWebView shell.
+  const slashMenu = useMemo(() => makeSlashMenu(editor as never), [editor]);
+
+  // The image block + paste/drop plugin live outside React; give them the current note
+  // id (for the media path) and the save+insert flow. insertImagesSmart decides whether
+  // the incoming images form a gallery (2+ in one gesture / adjacency / drop-onto) or stay
+  // a single image (Phase 3); a non-image drop is rejected with one whisper.
+  useEffect(() => setMediaNoteId(selfId), [selfId]);
+  useEffect(() => {
+    setImageDropHandlers(
+      (files, atBlockId) => {
+        void insertImagesSmart(editor as unknown as GroupEditor, selfId, files, atBlockId);
+      },
+      (reason) => mediaToast(reason),
+    );
+    return () => setImageDropHandlers(null, null);
+  }, [editor, selfId]);
 
   // Wire note-link clicks to open the note (the inline spec's render is module-level).
   useEffect(() => setNoteLinkOpen(onOpenNote), [onOpenNote]);
@@ -175,6 +206,14 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
         onChange={handleChange}
         formattingToolbar={false}
         sideMenu={false}
+        // Disable BlockNote's BUILT-IN slash menu — our own "/" SuggestionMenuController
+        // (below) fully replaces it. Leaving the default on rendered TWO slash popups at
+        // once (ours + BlockNote's), so Enter inserted twice (our Image prompt AND the
+        // default image block → an empty "Image Missing" block) and focus fought over Tab.
+        slashMenu={false}
+        // We own the image block + its prompt, so BlockNote's default file-upload panel
+        // must not pop up either.
+        filePanel={false}
       >
         {/* BlockNote's own side menu is disabled (sideMenu={false}); its handle uses HTML5
             drag, which can't drop in the WKWebView shell. GutterHandle (below) is our own
@@ -191,6 +230,58 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
               <CreateLinkButton key="link" />
             </FormattingToolbar>
           )}
+        />
+        {/* "/" — the default block menu with BlockNote's built-in media items REMOVED
+            (they'd otherwise show as duplicate Image/Video/Audio/File entries), PLUS our
+            own two, deliberately distinct, Media commands:
+              • Image   — one picture (single-file picker / URL embed)
+              • Gallery — several pictures in one block (multi-file picker)
+            Both insert our `image`/`imageGroup` block via BlockNote's
+            insertOrUpdateBlockForSlashMenu. That helper only REPLACES the current block in
+            place when it's empty, so SlashMenu.activate clears the typed "/…" text first (see
+            SlashMenu.tsx) — otherwise the block inserts AFTER the "/ima" paragraph and the
+            command text survives. Gallery starts empty; 2+ chosen files become a gallery. */}
+        <SuggestionMenuController
+          triggerCharacter="/"
+          suggestionMenuComponent={slashMenu as never}
+          getItems={async (query) => {
+            const MEDIA_KEYS = new Set(["image", "video", "audio", "file"]);
+            const MEDIA_TITLES = new Set(["Image", "Video", "Audio", "File", "Embed"]);
+            const defaults = getDefaultReactSlashMenuItems(editor).filter((it) => {
+              // `key` is dropped from the React item's TS type but survives at runtime;
+              // fall back to the (localized) title so we never leave a stray media item.
+              const key = (it as { key?: string }).key;
+              if (key && MEDIA_KEYS.has(key)) return false;
+              return !MEDIA_TITLES.has(it.title);
+            });
+            return filterSuggestionItems(
+              [
+                ...defaults,
+                {
+                  title: "Image",
+                  aliases: ["img", "photo", "picture"],
+                  group: "Media",
+                  icon: <ImageIcon size={18} />,
+                  subtext: "A single image",
+                  // Insert an EMPTY image block — it renders a placeholder you click to
+                  // upload / embed / drop (ImageBlock), not an inline URL prompt.
+                  onItemClick: () =>
+                    insertOrUpdateBlockForSlashMenu(editor, { type: "image", props: {} } as never),
+                },
+                {
+                  title: "Gallery",
+                  aliases: ["images", "album", "photos", "grid"],
+                  group: "Media",
+                  icon: <ImagesIcon size={18} />,
+                  subtext: "Several images in one block",
+                  // Insert an EMPTY gallery placeholder (multi-image picker on click).
+                  onItemClick: () =>
+                    insertOrUpdateBlockForSlashMenu(editor, { type: "imageGroup", props: { images: "[]" } } as never),
+                },
+              ],
+              query,
+            );
+          }}
         />
         {/* "@" opens a menu to link an existing note (recent-first; filters by title). */}
         <SuggestionMenuController

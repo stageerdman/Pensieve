@@ -32,6 +32,8 @@ function result(overrides: Partial<SyncResult> = {}): SyncResult {
     pushed: [],
     pulledDeletes: [],
     pushedDeletes: [],
+    pushedMedia: [],
+    pulledMedia: [],
     conflicts: [],
     lastSyncedAt: 123,
     ...overrides,

@@ -10,20 +10,27 @@ import type { GraphClient } from "./graph";
 import { makeGraphClient } from "./graph";
 import type { LocalVault } from "./vault";
 import { tauriVault } from "./vault";
-import { ConflictError, EMPTY_SYNC_STATE, type NoteSyncRecord, type SyncProgress, type SyncState } from "./types";
+import { ConflictError, EMPTY_SYNC_STATE, type MediaSyncRecord, type NoteSyncRecord, type SyncProgress, type SyncState } from "./types";
 import type { RemoteItem } from "./types";
 import {
   createRoot,
   delta,
   deleteNote,
+  downloadMedia,
   downloadNote,
   getAccount,
   getQuota,
   listNotes,
   noteIdFromName,
   remoteRootExists,
+  uploadMedia,
   uploadNote,
 } from "./adapter";
+import {
+  extractMediaRefs,
+  primeMediaBackupStates,
+  setMediaBackupState,
+} from "../media";
 import { RemoteRootMissingError } from "./types";
 import type { SyncAccount, SyncQuota } from "./types";
 import { getAccessToken, clearTokenCache } from "./tokens";
@@ -41,6 +48,8 @@ export interface SyncResult {
   pushed: string[]; // ids sent to remote
   pulledDeletes: string[]; // ids removed locally because they vanished remotely
   pushedDeletes: string[]; // ids removed remotely because they vanished locally
+  pushedMedia: string[]; // media refs uploaded to the remote this run
+  pulledMedia: string[]; // media refs downloaded from the remote this run
   conflicts: SyncConflict[];
   lastSyncedAt: number;
 }
@@ -50,12 +59,77 @@ const emptyResult = (): SyncResult => ({
   pushed: [],
   pulledDeletes: [],
   pushedDeletes: [],
+  pushedMedia: [],
+  pulledMedia: [],
   conflicts: [],
   lastSyncedAt: 0,
 });
 
 function nowMs(): number {
   return Date.now();
+}
+
+/** Download every referenced media binary a pulled note needs but the vault lacks, and
+ *  record it as backed up (so a second machine / a restore rehydrates images). `have` is
+ *  the set of refs already on disk (mutated as we add). Never throws — a flaky media
+ *  download must not abort the whole sync; it's retried on a later sync. */
+async function pullReferencedMedia(
+  graph: GraphClient,
+  vault: LocalVault,
+  referencedRefs: Iterable<string>,
+  have: Set<string>,
+  media: Record<string, MediaSyncRecord>,
+  result: SyncResult,
+): Promise<void> {
+  for (const ref of referencedRefs) {
+    if (have.has(ref)) {
+      media[ref] ??= { ref, backedUp: true };
+      setMediaBackupState(ref, "backed-up");
+      continue;
+    }
+    try {
+      const bytes = await downloadMedia(graph, ref);
+      if (!bytes) continue; // not on the remote (yet) — leave it; a later sync may find it
+      await vault.writeMediaBytes(ref, bytes);
+      have.add(ref);
+      media[ref] = { ref, backedUp: true };
+      setMediaBackupState(ref, "backed-up");
+      result.pulledMedia.push(ref);
+    } catch (e) {
+      log.error("sync", "media.download.failed", { ref, error: String(e) });
+    }
+  }
+}
+
+/** Upload every local media binary not yet recorded as backed up. Content-addressed, so a
+ *  present remote copy = done. Failures are recorded + surfaced via the backup-status
+ *  store (auto-retried next sync), never thrown — one flaky image must not abort the sync. */
+async function pushLocalMedia(
+  graph: GraphClient,
+  vault: LocalVault,
+  media: Record<string, MediaSyncRecord>,
+  result: SyncResult,
+): Promise<void> {
+  const local = await vault.listMedia();
+  for (const ref of local) {
+    if (media[ref]?.backedUp) {
+      setMediaBackupState(ref, "backed-up");
+      continue;
+    }
+    const bytes = await vault.readMediaBytes(ref);
+    if (!bytes) continue;
+    setMediaBackupState(ref, "uploading");
+    try {
+      const item = await uploadMedia(graph, ref, bytes);
+      media[ref] = { ref, remoteId: item.id, backedUp: true };
+      setMediaBackupState(ref, "backed-up");
+      result.pushedMedia.push(ref);
+    } catch (e) {
+      media[ref] = { ref, remoteId: media[ref]?.remoteId, backedUp: false, failedAt: nowMs() };
+      setMediaBackupState(ref, "failed");
+      log.error("sync", "media.upload.failed", { ref, error: String(e) });
+    }
+  }
 }
 
 /** Run a full two-way sync. Pull first (so remote wins where only remote changed),
@@ -77,6 +151,9 @@ export async function sync(
   if (!(await remoteRootExists(graph))) throw new RemoteRootMissingError();
   const state: SyncState = await vault.readState();
   if (!state.notes) state.notes = {};
+  if (!state.media) state.media = {};
+  // Reflect what's already backed up in the rune store before we transfer anything.
+  primeMediaBackupStates(state.media);
   const result = emptyResult();
 
   // ---------- PULL: classify ----------
@@ -149,6 +226,9 @@ export async function sync(
     result.pulledDeletes.push(id);
   }
 
+  // Media refs mentioned by notes we pull this run — their binaries are fetched after.
+  const pulledMediaRefs = new Set<string>();
+
   // Downloads.
   for (const { id, item } of downloads) {
     emit("down", id, item.size);
@@ -159,6 +239,7 @@ export async function sync(
     }
     const remoteTime = item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : nowMs();
     await vault.writeNote(id, dl.content, { updatedAt: remoteTime });
+    for (const ref of extractMediaRefs(dl.content)) pulledMediaRefs.add(ref);
     state.notes[id] = {
       id,
       remoteId: item.id,
@@ -202,6 +283,15 @@ export async function sync(
     doneItems++;
   }
 
+  // ---------- MEDIA BACKUP ----------
+  // Pull the binaries pulled notes reference (rehydrate on a second machine), then push
+  // any local media not yet backed up. Media is the slow, large payload — kept off the
+  // note progress bar (the gold rune on each image is its surface); it's best-effort so a
+  // flaky image never blocks the note sync.
+  const haveMedia = new Set(await vault.listMedia());
+  await pullReferencedMedia(graph, vault, pulledMediaRefs, haveMedia, state.media!, result);
+  await pushLocalMedia(graph, vault, state.media!, result);
+
   // ---------- LOCAL DELETIONS → remote ----------
   // Use the CURRENT on-disk set (downloads above added notes; localDeletes removed
   // some) — not the pre-download `localIds`, or a freshly-pulled note would look
@@ -232,6 +322,8 @@ export async function sync(
     pushed: result.pushed.length,
     pulledDeletes: result.pulledDeletes.length,
     pushedDeletes: result.pushedDeletes.length,
+    pushedMedia: result.pushedMedia.length,
+    pulledMedia: result.pulledMedia.length,
     conflicts: result.conflicts.length,
   });
   return result;
@@ -288,10 +380,13 @@ export async function restoreFromCloud(
   }
 
   // Fresh state, rebuilt as we download. deltaLink stays null → next sync re-baselines.
-  const state: SyncState = { ...EMPTY_SYNC_STATE, notes: {} };
+  const state: SyncState = { ...EMPTY_SYNC_STATE, notes: {}, media: {} };
 
   const totalItems = remote.length;
   let doneItems = 0;
+
+  // Media refs the restored notes reference — their binaries are fetched after the notes.
+  const restoredMediaRefs = new Set<string>();
 
   // Download every remote note, overwriting local byte-for-byte.
   for (const item of remote) {
@@ -303,6 +398,7 @@ export async function restoreFromCloud(
     if (!dl) continue;
     const remoteTime = item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : nowMs();
     await vault.writeNote(id, dl.content, { updatedAt: remoteTime });
+    for (const ref of extractMediaRefs(dl.content)) restoredMediaRefs.add(ref);
     state.notes[id] = {
       id,
       remoteId: item.id,
@@ -320,6 +416,11 @@ export async function restoreFromCloud(
     result.pulledDeletes.push(info.id);
   }
 
+  // Rehydrate the referenced media binaries (content-addressed, so a fresh vault just
+  // downloads them). Best-effort — a missing/flaky image shows its broken/rune state.
+  const haveMedia = new Set(await vault.listMedia());
+  await pullReferencedMedia(graph, vault, restoredMediaRefs, haveMedia, state.media!, result);
+
   state.lastSyncedAt = nowMs();
   result.lastSyncedAt = state.lastSyncedAt;
   await vault.writeState(state);
@@ -327,6 +428,7 @@ export async function restoreFromCloud(
   log.info("sync", "restore.done", {
     pulled: result.pulled.length,
     deletedLocal: result.pulledDeletes.length,
+    pulledMedia: result.pulledMedia.length,
   });
   return result;
 }

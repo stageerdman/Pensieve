@@ -35,8 +35,8 @@ function tapNode(container: HTMLElement, index: number) {
 describe("PhoneApp — boot + the Dock", () => {
   it("renders the reel with the seed cards + the header count", async () => {
     const { container } = await boot();
-    expect(container.querySelectorAll(".reel .slot").length).toBe(12);
-    expect(container.querySelector(".header .count")?.textContent).toBe("12 memories");
+    expect(container.querySelectorAll(".reel .slot").length).toBe(13);
+    expect(container.querySelector(".header .count")?.textContent).toBe("13 memories");
   });
 
   it("renders the dock: the gold menu button + the resident Accio bar", async () => {

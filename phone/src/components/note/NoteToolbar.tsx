@@ -10,12 +10,16 @@ export function NoteToolbar({
   micListening,
   voiceRef,
   onFormat,
+  onInsertImage,
   onVoice,
   onDone,
 }: {
   micListening: boolean;
   voiceRef: React.RefObject<HTMLButtonElement>;
   onFormat: (f: FmtKey) => void;
+  /** Insert a photo at the live caret (an INSERT, not a format) — fired on pointerdown +
+   *  preventDefault like the format keys so the contentEditable selection is preserved. */
+  onInsertImage: () => void;
   onVoice: () => void;
   onDone: () => void;
 }) {
@@ -40,6 +44,13 @@ export function NoteToolbar({
         </button>
       </div>
       <div className="tb-right">
+        <button className="tb pic" aria-label="Add photo" onPointerDown={keep(onInsertImage)}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3.2" y="5.2" width="17.6" height="13.6" rx="2.4" />
+            <circle cx="8.4" cy="9.8" r="1.5" />
+            <path d="M4 16.5l4.6-4.3a1.6 1.6 0 0 1 2.2 0L16 17M14 14.2l1.8-1.7a1.6 1.6 0 0 1 2.2 0l2 1.9" />
+          </svg>
+        </button>
         <button
           className={micListening ? "tb mic listening" : "tb mic"}
           ref={voiceRef}

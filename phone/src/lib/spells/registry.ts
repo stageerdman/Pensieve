@@ -68,8 +68,9 @@ export function conditionalSpells(context: PageContext): Spell[] {
       { id: "thread", name: "Thread", icon: "thread" },
     ];
   }
-  // note
+  // note — "Picture" leads (the keyboard-down path to add a photo to the open memory)
   return [
+    { id: "image", name: "Picture", icon: "image" },
     { id: "label", name: "Label", icon: "label", children: LABEL_VARIANTS },
     { id: "highlight", name: "Mark", icon: "highlight" },
     { id: "link", name: "Link", icon: "link" },

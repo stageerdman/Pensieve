@@ -9,7 +9,23 @@ import type { Note } from "./types";
 
 type SeedRecord = Omit<Note, "id" | "created">;
 
+// A desktop-authored gallery, so the phone proves it renders a `pensieve:gallery` fence as a
+// carousel (not raw fence text). The refs are inline SVG data URIs so the demo renders offline
+// with no byte store — a real desktop gallery would carry `media/<noteId>/...` refs that show
+// the broken state on the phone until PWA-CAPTURE / sync brings the bytes across.
+const C1 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNjAiIGhlaWdodD0iMTIwIj48cmVjdCB3aWR0aD0iMTYwIiBoZWlnaHQ9IjEyMCIgZmlsbD0iIzViN2NmYSIvPjx0ZXh0IHg9IjgwIiB5PSI2OCIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjIiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5Db2FzdCAxPC90ZXh0Pjwvc3ZnPg==";
+const C2 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNjAiIGhlaWdodD0iMTIwIj48cmVjdCB3aWR0aD0iMTYwIiBoZWlnaHQ9IjEyMCIgZmlsbD0iIzE5YjM2YiIvPjx0ZXh0IHg9IjgwIiB5PSI2OCIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjIiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5Db2FzdCAyPC90ZXh0Pjwvc3ZnPg==";
+const C3 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNjAiIGhlaWdodD0iMTIwIj48cmVjdCB3aWR0aD0iMTYwIiBoZWlnaHQ9IjEyMCIgZmlsbD0iI2UwYTQzYiIvPjx0ZXh0IHg9IjgwIiB5PSI2OCIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjIiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5Db2FzdCAzPC90ZXh0Pjwvc3ZnPg==";
+const GALLERY_DEMO_C = `Three frames from the walk — the light kept changing.
+
+\`\`\`pensieve:gallery
+${C1} | Morning
+${C2} | Midday
+${C3} | Golden hour
+\`\`\``;
+
 const RAW: SeedRecord[] = [
+  { t: "Three frames from the coast", c: GALLERY_DEMO_C, cat: "--cat-blue", shape: "beaker", fill: 0.7, d: "Today" },
   { t: "The bridge idea for the sync layer", c: "If each flask carries its own cTag, I never have to diff the whole vault — just ask Graph what moved since the last delta token. Lightweight by design.", cat: "--cat-blue", shape: "round", fill: 0.8, d: "2m ago" },
   { t: "Why mornings feel heavier lately", c: "Noticed I open the day reacting instead of choosing. One line before coffee — what matters today — seems to reset it.", cat: "--cat-purple", shape: "erlenmeyer", fill: 0.6, d: "Today" },
   { t: "Dad's story about the lighthouse", c: "He said the keeper never watched the sea — he watched the lamp. The job was to keep the light, not to fear the dark.", cat: "--cat-gold", shape: "potion", fill: 0.95, d: "Yesterday" },
