@@ -217,6 +217,14 @@
 .pensieve-media-host {
   outline: none;
   position: relative;
+  /* BlockNote's `.bn-block-content` is `display:flex`, so this host is a flex item that
+     otherwise shrink-wraps its content. A shaped/empty box sizes itself with a PERCENT width
+     (e.g. 75%), and a percentage inside a shrink-to-fit flex item resolves against a collapsed
+     track → the box would render ~0 wide (and, via aspect-ratio, ~0 tall → "an invisible dot").
+     Filling the block width makes the host the text column, so the % resolves correctly. A
+     loaded image still shrink-wraps itself (`.pensieve-media` is width:fit-content) and stays
+     left-aligned in the now-full-width host. */
+  width: 100%;
 }
 .pensieve-media-host.is-dragover .pensieve-media-frame {
   outline: 2px dashed hsl(var(--accent));
@@ -228,9 +236,13 @@
   width: 100%;
 }
 
-/* Empty placeholder — a dashed "add an image" target. */
+/* Empty placeholder — a dashed "add an image" target. The resting --border hairline is
+   near-invisible on the light surface, so the empty target gets a slightly stronger,
+   muted-tinted dashed edge (still calm, theme-aware) so it reads as a real drop zone. */
 .pensieve-media[data-state="empty"] .pensieve-media-frame {
   border-style: dashed;
+  border-width: 1.5px;
+  border-color: hsl(var(--text-muted) / 0.4);
 }
 .pensieve-media-placeholder {
   position: absolute;
@@ -673,6 +685,13 @@
 .pensieve-gallery {
   margin: 0.4em 0;
   max-width: 100%;
+}
+/* Empty gallery = a `.pensieve-media` placeholder directly inside (vs. the `-grid` when
+   populated). Like the single-image host, that percent-width placeholder collapses inside the
+   shrink-to-fit flex item, so give ONLY the empty case the full block width. A populated
+   gallery keeps shrink-wrapping its grid. */
+.pensieve-gallery:has(> .pensieve-media) {
+  width: 100%;
 }
 .pensieve-gallery-grid {
   display: grid;
