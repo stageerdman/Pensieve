@@ -5,11 +5,9 @@ import {
   stringifyGalleryImages,
   type GalleryImage,
 } from "../../../lib/md/gallery";
-import {
-  galleryLayout,
-  removeImageAt,
-  reorderImages,
-} from "./galleryModel";
+import { removeImageAt, reorderImages } from "./galleryModel";
+import { justifyGallery } from "./galleryJustify";
+import { useResizeHandle } from "./mediaResize";
 import { computeDrop, type DropBlock, type DropTarget } from "../blockDrag";
 import { DEFAULT_IMAGE_WIDTH, imageFilename } from "../../../lib/md/image";
 import { getMediaNoteId } from "./mediaContext";
@@ -62,6 +60,15 @@ function drawDocDrop(target: DropTarget | null, rects: Map<string, DOMRect>, ref
   el.style.width = `${Math.max(40, r.right - r.left)}px`;
 }
 
+// Pinterest-style justified strip tuning.
+const GALLERY_GAP = 4; // px between tiles and rows
+const TARGET_ROW_H = 220; // the per-row height the row count aims for
+const MAX_ROWS = 4; // never stack more than this many rows
+const DEFAULT_GALLERY_HEIGHT = 260; // px, before the user drags
+const MIN_GALLERY_HEIGHT = 120;
+const MAX_GALLERY_HEIGHT = 640;
+const DEFAULT_ASPECT = 1.5; // optimistic landscape until an image reports its natural size
+
 // Images from a drop: prefer dataTransfer.files, fall back to items (a copied/screenshot image
 // often lives only in items, kind "file") — matches the editor-wide paste/drop plugin.
 function imagesFromDT(dt: DataTransfer): File[] {
@@ -102,14 +109,13 @@ interface BlockEditor {
 }
 
 interface RenderProps {
-  block: { id: string; props: { images: string } };
+  block: { id: string; props: { images: string; height?: number } };
   editor: BlockEditor;
 }
 
 function GroupRender({ block, editor }: RenderProps) {
   const editable = editor.isEditable;
   const images = parseGalleryImages(block.props.images);
-  const layout = galleryLayout(images.length);
 
   const [broken, setBroken] = useState<Set<number>>(new Set());
   const [dragFrom, setDragFrom] = useState<number | null>(null);
@@ -119,9 +125,54 @@ function GroupRender({ block, editor }: RenderProps) {
   const [embedUrl, setEmbedUrl] = useState("");
   const [library, setLibrary] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  // Natural aspect ratios (w/h) keyed by url, measured on <img onLoad>. Kept in LOCAL state (never
+  // serialized / written to the block) so backfilling them never dirties the note. Drives the layout.
+  const [aspects, setAspects] = useState<Record<string, number>>({});
+  // The live gallery height while the user drags the handle (null = use the saved prop).
+  const [liveHeight, setLiveHeight] = useState<number | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const docDropRef = useRef<HTMLDivElement | null>(null); // extract-out drop line (body-level)
+
+  const containerHeight = liveHeight ?? (Number(block.props.height) || DEFAULT_GALLERY_HEIGHT);
+  const onTileLoad = (url: string, el: HTMLImageElement) => {
+    const w = el.naturalWidth;
+    const h = el.naturalHeight;
+    if (!w || !h) return;
+    const ar = w / h;
+    setAspects((prev) => (Math.abs((prev[url] ?? 0) - ar) < 1e-3 ? prev : { ...prev, [url]: ar }));
+  };
+  // The justified horizontal layout: dragged height → rows → per-tile widths (ratio preserved).
+  const packed = justifyGallery(
+    images.map((img) => aspects[img.url] ?? DEFAULT_ASPECT),
+    { containerHeight, gap: GALLERY_GAP, targetRowH: TARGET_ROW_H, maxRows: MAX_ROWS },
+  );
+
+  // Drag the bottom handle to resize the gallery height; preview live, commit once on release.
+  const heightHandleRef = useResizeHandle((_startX, startY) => {
+    const startH = containerHeight;
+    let last = startH;
+    const move = (ev: MouseEvent | TouchEvent) => {
+      const y = "touches" in ev ? ev.touches[0]?.clientY ?? startY : ev.clientY;
+      last = Math.min(MAX_GALLERY_HEIGHT, Math.max(MIN_GALLERY_HEIGHT, startH + (y - startY)));
+      setLiveHeight(last);
+    };
+    const end = () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("touchmove", move);
+      window.removeEventListener("mouseup", end);
+      window.removeEventListener("touchend", end);
+      document.body.classList.remove("pensieve-resizing");
+      setLiveHeight(null);
+      // Commit the dragged height to the block prop (round-trips via the fence `h=` header).
+      editor.updateBlock(block.id, { props: { height: Math.round(last) } });
+    };
+    document.body.classList.add("pensieve-resizing");
+    window.addEventListener("mousemove", move);
+    window.addEventListener("touchmove", move, { passive: false });
+    window.addEventListener("mouseup", end);
+    window.addEventListener("touchend", end);
+  });
 
   // Never leave the body-level drop line behind if we unmount mid-drag.
   useEffect(() => () => drawDocDrop(null, new Map(), docDropRef), []);
@@ -262,17 +313,28 @@ function GroupRender({ block, editor }: RenderProps) {
     : {};
 
   // ── pointer-based tile reorder (HTML5 drag can't drop in the WKWebView shell) ──
+  // A flat insertion index 0..n, found from the nearest tile centre (works across the justified
+  // strip's multiple rows): before it if the pointer is left of its centre, else after.
   const insertionIndexAt = (clientX: number, clientY: number): number => {
     const grid = gridRef.current;
     if (!grid) return images.length;
     const tiles = Array.from(grid.querySelectorAll<HTMLElement>("[data-tile]"));
-    for (let i = 0; i < tiles.length; i++) {
-      const r = tiles[i].getBoundingClientRect();
-      // Same row and pointer left of this tile's centre → insert before it.
-      if (clientY < r.bottom && clientX < r.left + r.width / 2) return i;
-      if (clientY < r.bottom && clientX < r.right) return i + 1;
+    if (!tiles.length) return 0;
+    let nearestIndex = 0;
+    let before = true;
+    let bestDist = Infinity;
+    for (const el of tiles) {
+      const r = el.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const d = (cx - clientX) ** 2 + (cy - clientY) ** 2;
+      if (d < bestDist) {
+        bestDist = d;
+        nearestIndex = Number(el.dataset.tile);
+        before = clientX < cx;
+      }
     }
-    return tiles.length;
+    return before ? nearestIndex : nearestIndex + 1;
   };
 
   // Is the pointer within (a little slack around) the gallery grid? Inside → reorder tiles;
@@ -390,108 +452,92 @@ function GroupRender({ block, editor }: RenderProps) {
     );
   }
 
+  // One tile in the justified strip (its width comes from the packer; height = the shared row
+  // height). Keeps every per-tile affordance from before: reorder grip, remove, lift-out, caption,
+  // saving hairline, backup rune, broken state, and the reorder insertion bar.
+  const renderTile = (i: number, width: number) => {
+    const img = images[i];
+    return (
+      <div
+        key={`${i}-${img.url}`}
+        data-tile={i}
+        className={"pensieve-gallery-tile" + (dragFrom === i ? " is-dragging" : "") + (broken.has(i) ? " is-broken" : "")}
+        style={{ width, height: packed.rowH }}
+        tabIndex={0}
+        onKeyDown={onTileKey(i)}
+      >
+        {dropAt === i && editable && <div className="pensieve-gallery-insert" aria-hidden />}
+        {editable && dropAt === images.length && i === images.length - 1 && (
+          <div className="pensieve-gallery-insert is-end" aria-hidden />
+        )}
+        {img.url && !broken.has(i) ? (
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+          <img
+            className="pensieve-gallery-img"
+            src={img.url}
+            alt={mediaAlt(img.caption)}
+            draggable={false}
+            onLoad={(e) => onTileLoad(img.url, e.currentTarget)}
+            onError={() => markBroken(i)}
+            onClick={(e) => expand(i, e.currentTarget.closest(".pensieve-gallery-tile") as HTMLElement)}
+          />
+        ) : (
+          <div className="pensieve-gallery-brokentile">
+            <span className="pensieve-media-filename">{imageFilename(img.url) || "image missing"}</span>
+          </div>
+        )}
+
+        {img.saving && <div className="pensieve-media-progress" aria-hidden />}
+        {!img.saving && img.url && !broken.has(i) && <TileRune url={img.url} />}
+
+        {editable && (
+          <>
+            <button type="button" className="pensieve-gallery-remove" title="Remove from gallery" aria-label="Remove image" onClick={() => remove(i)}>
+              <X size={14} />
+            </button>
+            <div className="pensieve-gallery-grip" title="Drag to reorder (or out of the gallery)" aria-label="Reorder image" onPointerDown={onGripDown(i)}>
+              <GripVertical size={14} />
+            </div>
+            <button type="button" className="pensieve-gallery-lift" title="Lift out as its own image" onClick={() => liftOut(i)}>
+              Lift out
+            </button>
+            <input
+              className="pensieve-gallery-caption"
+              value={img.caption ?? ""}
+              placeholder="Caption…"
+              onChange={(e) => setCaption(i, e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            />
+          </>
+        )}
+        {!editable && img.caption && <div className="pensieve-gallery-caption-static">{img.caption}</div>}
+      </div>
+    );
+  };
+
   return (
     <div className={"pensieve-gallery" + (dragOver ? " is-dragover" : "")} contentEditable={false} {...dropProps}>
-      <div
-        ref={gridRef}
-        className="pensieve-gallery-grid"
-        style={{ gridTemplateColumns: `repeat(${layout.columns}, 1fr)` }}
-      >
-        {images.slice(0, layout.tilesShown).map((img, i) => {
-          const isCover = layout.hasOverflow && i === layout.coverIndex;
-          return (
+      {/* Pinterest-style justified strip: a horizontal scroller of `rowCount` stacked rows, each
+          `rowH` tall; images keep their ratios (width = aspect·rowH); the whole strip is as tall as
+          the (draggable) gallery height. The "+" add button sits full-height at the right. */}
+      <div ref={gridRef} className="pensieve-gallery-strip" style={{ height: containerHeight }}>
+        <div className="pensieve-gallery-rows" style={{ gap: `${GALLERY_GAP}px` }}>
+          {packed.rows.map((row, ri) => (
             <div
-              key={`${i}-${img.url}`}
-              data-tile={i}
-              className={
-                "pensieve-gallery-tile" +
-                (dragFrom === i ? " is-dragging" : "") +
-                (broken.has(i) ? " is-broken" : "")
-              }
-              tabIndex={0}
-              onKeyDown={onTileKey(i)}
+              key={ri}
+              className="pensieve-gallery-row"
+              style={{ height: packed.rowH, width: packed.contentWidth, gap: `${GALLERY_GAP}px` }}
             >
-              {dropAt === i && editable && <div className="pensieve-gallery-insert" aria-hidden />}
-              {/* Drop-at-end lands past the last tile — show the bar on that tile's right edge. */}
-              {editable && dropAt === layout.tilesShown && i === layout.tilesShown - 1 && (
-                <div className="pensieve-gallery-insert is-end" aria-hidden />
-              )}
-              {img.url && !broken.has(i) ? (
-                // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
-                <img
-                  className="pensieve-gallery-img"
-                  src={img.url}
-                  alt={mediaAlt(img.caption)}
-                  draggable={false}
-                  onError={() => markBroken(i)}
-                  onClick={(e) => expand(isCover ? layout.coverIndex : i, e.currentTarget.closest(".pensieve-gallery-tile") as HTMLElement)}
-                />
-              ) : (
-                <div className="pensieve-gallery-brokentile">
-                  <span className="pensieve-media-filename">{imageFilename(img.url) || "image missing"}</span>
-                </div>
-              )}
-
-              {img.saving && <div className="pensieve-media-progress" aria-hidden />}
-              {!img.saving && img.url && !broken.has(i) && <TileRune url={img.url} />}
-
-              {isCover && (
-                <button
-                  type="button"
-                  className="pensieve-gallery-cover"
-                  onClick={() => expand(layout.coverIndex, null)}
-                  aria-label={`Show ${layout.overflowMore} more images`}
-                >
-                  +{layout.overflowMore}
-                </button>
-              )}
-
-              {editable && !isCover && (
-                <>
-                  <button
-                    type="button"
-                    className="pensieve-gallery-remove"
-                    title="Remove from gallery"
-                    aria-label="Remove image"
-                    onClick={() => remove(i)}
-                  >
-                    <X size={14} />
-                  </button>
-                  <div
-                    className="pensieve-gallery-grip"
-                    title="Drag to reorder"
-                    aria-label="Reorder image"
-                    onPointerDown={onGripDown(i)}
-                  >
-                    <GripVertical size={14} />
-                  </div>
-                  <button
-                    type="button"
-                    className="pensieve-gallery-lift"
-                    title="Lift out as its own image"
-                    onClick={() => liftOut(i)}
-                  >
-                    Lift out
-                  </button>
-                  <input
-                    className="pensieve-gallery-caption"
-                    value={img.caption ?? ""}
-                    placeholder="Caption…"
-                    onChange={(e) => setCaption(i, e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    onPointerDown={(e) => e.stopPropagation()}
-                  />
-                </>
-              )}
-              {!editable && img.caption && <div className="pensieve-gallery-caption-static">{img.caption}</div>}
+              {row.tiles.map((t) => renderTile(t.index, t.width))}
             </div>
-          );
-        })}
-
+          ))}
+        </div>
         {editable && (
           <button
             type="button"
             className="pensieve-gallery-add"
+            style={{ height: containerHeight }}
             title="Add images"
             aria-label="Add images"
             onClick={() => setPopover((p) => (p === "add" ? null : "add"))}
@@ -500,6 +546,14 @@ function GroupRender({ block, editor }: RenderProps) {
           </button>
         )}
       </div>
+      {editable && (
+        <div
+          className="pensieve-gallery-height-handle"
+          ref={heightHandleRef}
+          title="Drag to resize the gallery"
+          aria-label="Resize gallery height"
+        />
+      )}
       {addPopover}
       {libraryModal}
       {hiddenFileInput}
