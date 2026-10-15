@@ -55,7 +55,7 @@ function beginHandleDrag(e: PointerEvent, onMove: (ev: globalThis.PointerEvent) 
   e.stopPropagation();
   const handle = e.currentTarget as HTMLElement;
   const pointerId = e.pointerId;
-  log.info("media", "resize.start", { handle: handle.className, pointerId, pointerType: e.pointerType });
+  log.debug("media", "resize.start", { handle: handle.className, pointerId, pointerType: e.pointerType });
   try {
     handle.setPointerCapture(pointerId);
   } catch {

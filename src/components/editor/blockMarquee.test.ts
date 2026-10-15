@@ -69,21 +69,33 @@ describe("isBlankMarqueeTarget", () => {
             <div class="bn-block-content"><p class="bn-inline-content">hello world</p></div>
           </div>
         </div>
+        <div class="bn-block-outer" data-node-type="blockContainer" data-id="y">
+          <div class="bn-block">
+            <div class="bn-block-content" data-content-type="image">
+              <div class="pensieve-media-host"><div class="pensieve-media-corner"></div></div>
+            </div>
+          </div>
+        </div>
       </div>`;
     document.body.appendChild(root);
     return root;
   }
 
-  it("is blank over margin / block padding (not on text)", () => {
+  it("is blank in the page margins / outside any block", () => {
     const root = build();
     expect(isBlankMarqueeTarget(root, root)).toBe(true);
     expect(isBlankMarqueeTarget(root.querySelector(".bn-editor"), root)).toBe(true);
-    expect(isBlankMarqueeTarget(root.querySelector(".bn-block-content"), root)).toBe(true);
+    // The block OUTER (container) is outside the content box → still a margin press.
+    expect(isBlankMarqueeTarget(root.querySelector(".bn-block-outer"), root)).toBe(true);
   });
 
-  it("is NOT blank on real text (so text drags still select text)", () => {
+  it("is NOT blank anywhere inside a block (the block owns that drag)", () => {
     const root = build();
+    // Block content box, real text, and a non-interactive handle inside the block all
+    // belong to the block — no marquee (text select / image resize / cursor instead).
+    expect(isBlankMarqueeTarget(root.querySelector(".bn-block-content"), root)).toBe(false);
     expect(isBlankMarqueeTarget(root.querySelector(".bn-inline-content"), root)).toBe(false);
+    expect(isBlankMarqueeTarget(root.querySelector(".pensieve-media-corner"), root)).toBe(false);
   });
 
   it("is NOT blank on the drag handle or its button", () => {

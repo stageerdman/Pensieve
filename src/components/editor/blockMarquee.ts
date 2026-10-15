@@ -49,13 +49,16 @@ export function nearestRowId(rows: BlockRect[], y: number): string | null {
 }
 
 // Would a press at this element begin a marquee? Only in genuinely blank editor space —
-// not on real text (that stays a text selection), not the drag-handle gutter, and not an
-// interactive control (buttons, links, inputs, file blocks). This is what lets a drag
-// over paragraph text keep selecting text while a drag from the margin rubber-bands rows.
+// the page margins, the gaps between blocks, and the trailing area below the last block —
+// never a press that lands *inside* a block. A press within a block is that block's own
+// gesture: text selection on its text, resize on an image handle, a click on its controls.
+// So the one decisive gate is "not inside `.bn-block-content`" (which contains every block's
+// text, media, and handles); the drag-handle gutter and floating toolbars live outside the
+// block content, so they're excluded explicitly.
 export function isBlankMarqueeTarget(el: Element | null, root: Element): boolean {
   if (!el || !root.contains(el)) return false;
-  if (el.closest(".bn-inline-content")) return false; // real text → native text selection
-  if (el.closest(".bn-side-menu")) return false; // the drag handle lives here
+  if (el.closest(".bn-block-content")) return false; // inside a block → the block owns the drag
+  if (el.closest(".bn-side-menu")) return false; // the drag handle gutter
   if (
     el.closest(
       'button, a, input, textarea, select, label, [role="button"], [role="menuitem"], .bn-formatting-toolbar, [data-file-block]',
