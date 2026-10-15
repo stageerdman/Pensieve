@@ -91,9 +91,9 @@ export function MemoryPage({
         <NoteBody bodyRef={bodyRef} onInput={onBodyInput} onKeyDown={onBodyKeyDown} onFocus={onBodyFocus} onBlur={onBodyBlur} />
       </div>
       <NoteToolbar micListening={micListening} voiceRef={voiceRef} onFormat={onFormat} onInsertImage={onInsertImage} onVoice={onVoice} onDone={onDone} />
-      {/* Bottom action bar (hidden while editing — the keyboard toolbar takes over): Go back to
-          the memories reel + the Spell Menu opener (Conditional "Photo"). Phone control standard. */}
-      <NoteActions onBack={onBack} onOpenMenu={onOpenSpellMenu} backLabel="Back to memories" />
+      {/* Bottom control bar = the 4-cell Dock (phone standard): Back beside the Spell Menu opener
+          (Conditional "Photo"), bottom-right. Hides while editing — the keyboard toolbar takes over. */}
+      <NoteActions onBack={onBack} onOpenMenu={onOpenSpellMenu} />
       {/* the ONE picker: native iOS sheet (no `capture` → Photo Library / Take Photo / Choose File) */}
       <input
         ref={fileInputRef}

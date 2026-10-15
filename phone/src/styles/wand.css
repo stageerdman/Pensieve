@@ -1064,33 +1064,10 @@ body {
   font-family: var(--font);
   font-size: 15px;
 }
-/* Bottom action bar (memory + photo collection): Go back next to the Spell Menu opener. Controls
-   live at the bottom per the phone control standard (UX.md). Hidden while editing — the keyboard
-   toolbar carries in-editing actions then. */
-.note-actions {
-  position: absolute;
-  right: 16px;
-  bottom: calc(18px + env(safe-area-inset-bottom));
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  z-index: 136;
-  transition: opacity 0.2s var(--ease);
-}
-.note-actions-back {
-  width: 46px;
-  height: 46px;
-  border: 1px solid hsl(var(--text) / 0.12);
-  border-radius: 50%;
-  background: hsl(var(--surface));
-  color: hsl(var(--accent));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 4px 16px hsl(0 0% 0% / 0.2);
-}
-.app-root.editing-note .note-actions {
+/* The memory + collection bottom control bar IS the 4-cell Dock (phone standard) — see dock.css.
+   The note's dock must hide while editing (the keyboard toolbar takes over), like the home dock
+   hides under the keyboard. */
+.app-root.editing-note .dock {
   opacity: 0;
   pointer-events: none;
 }

@@ -4,21 +4,33 @@ How Pensieve should **feel and behave**. Complements `design.md` (visual tokens 
 the look) and `VISION.md` (the product). Read before designing any user-facing flow.
 
 ## Phone control standard — NON-NEGOTIABLE (read before any phone UI)
-The phone (PWA, `phone/`) has ONE control language: the **Spell Menu**. Every control surface —
-home, an open memory, a photo collection, any overlay — obeys these rules. Breaking them is a bug.
-- **Controls live at the BOTTOM.** Never put control bars, close buttons, back buttons, or action
-  buttons at the top of a surface. The action bar / dock sits along the bottom (thumb reach).
-- **The Spell Menu is the menu.** A bottom button blooms a **radial ring** of **spell** glyphs
-  (blur+darken scrim). The ring **ROTATES** — you grab a glyph and swing the arc (signed-arc scroll
-  for >8). Forms: **General** (gold daily roster) and **Conditional** (accent, page-recommended
-  spells). A surface's context picks its conditional roster (`conditionalSpells(context)`).
-- **Back / close is a control too → bottom.** A "go back" or "close" belongs in the bottom action
-  bar, next to the spell-menu button — not a top chrome button.
-- **Reuse the system, don't reinvent:** `phone/src/lib/spells/*` (ringLayout rotation, registry
-  rosters), `hooks/useSpellMenu`, `components/dock/*` + `components/spellmenu/*`. A new overlay gets
-  its controls by mounting the same dock/spell-menu pattern at the bottom, not a bespoke top bar.
-- Terminology: notes = **memories**, every action = a **spell**. See [[phone-ux-the-wand]] (memory)
-  and `updates/2026-10-11 SPELL-MENU - CLOSED/`.
+The phone (PWA, `phone/`) has ONE control language: the **Dock + Spell Menu**. Every control
+surface — home, an open memory, a photo collection, any overlay — obeys these rules. Breaking them
+is a bug. (I have broken this twice: a top control bar, then a floating bottom cluster. Neither is
+allowed — the controls ARE the Dock.)
+
+**The Dock is a fixed 4-cell grid pinned to the BOTTOM** (`phone/src/lib/spells/dockModel.ts`,
+`components/dock/Dock.tsx`, `styles/dock.css`). You do NOT place buttons freely — you author a
+`DockLayout` and let `placeDock()` put them in cells:
+- 4 cells (0..3). The gold **Spell-Menu button** occupies ONE cell (`menuSlot`), normally the
+  bottom-RIGHT (cell 3). It is the opener; the radial ring blooms UP from it.
+- The other cells hold EITHER one **expanded** spell (spans the 3 free cells, e.g. home's Accio bar)
+  OR up to **3 collapsed** spells (one cell each). Never mixed.
+- A **Back/close is a collapsed spell**, and it may ONLY sit in a real cell **adjacent to the menu
+  button** (use `align: "end"` so a lone Back lands in the cell beside the menu — e.g. cell 2 when
+  the menu is cell 3). You cannot drop it anywhere you like.
+- A surface shows its controls by rendering `<Dock>` with its layout (home = `HOME_DOCK`; a memory /
+  collection = `NOTE_DOCK`). NEVER hand-roll a `position:absolute` button cluster or a top bar.
+- The dock hides while the keyboard is up (`.kb-open`) / the note is editing — the keyboard toolbar
+  carries in-editing actions then.
+
+**The Spell Menu** (the ring the button blooms): **radial**, **ROTATES** (grab a glyph, swing the
+arc; signed-arc scroll for >8), scrim behind. Forms: **General** (gold daily roster) and
+**Conditional** (accent, page-recommended via `conditionalSpells(context)`). Reuse
+`hooks/useSpellMenu` + `components/spellmenu/*`; never reinvent.
+
+Terminology: notes = **memories**, every action = a **spell**. See [[phone-ux-the-wand]] +
+[[phone-controls-bottom-standard]] (memories) and `updates/2026-10-11 SPELL-MENU - CLOSED/`.
 
 Everything below is the desktop/home vision.
 

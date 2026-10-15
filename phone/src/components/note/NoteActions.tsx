@@ -1,27 +1,13 @@
-// NoteActions.tsx — the bottom-right action bar for a memory and for the photo collection.
-// Follows the phone control standard (UX.md "Phone control standard"): controls live at the
-// BOTTOM, never the top. A back button sits next to the gold Spell Menu opener (the same
-// SpellMenuButton the home dock uses); the ring blooms UP from it in its Conditional form.
+// NoteActions.tsx — the bottom control bar for a memory and for the photo collection.
+//
+// This is the SAME 4-cell Dock the home screen uses (phone control standard, UX.md): controls
+// live at the bottom, in fixed slots — never a floating cluster. The NOTE_DOCK layout places the
+// gold Spell-Menu button bottom-right (cell 3) with Back in the slot directly beside it (cell 2).
+// The ring blooms UP from the menu button in its Conditional form; Back is a collapsed spell.
 
-import { SpellMenuButton } from "../dock/SpellMenuButton";
+import { Dock } from "../dock/Dock";
+import { NOTE_DOCK } from "../../lib/spells/dockModel";
 
-export function NoteActions({
-  onBack,
-  onOpenMenu,
-  backLabel = "Back",
-}: {
-  onBack: () => void;
-  onOpenMenu: () => void;
-  backLabel?: string;
-}) {
-  return (
-    <div className="note-actions">
-      <button type="button" className="note-actions-back" aria-label={backLabel} onClick={onBack}>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="m15 5-7 7 7 7" />
-        </svg>
-      </button>
-      <SpellMenuButton onOpen={onOpenMenu} />
-    </div>
-  );
+export function NoteActions({ onBack, onOpenMenu }: { onBack: () => void; onOpenMenu: () => void }) {
+  return <Dock layout={NOTE_DOCK} onOpenMenu={onOpenMenu} onSpell={(id) => id === "back" && onBack()} />;
 }

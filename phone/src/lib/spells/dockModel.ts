@@ -61,8 +61,13 @@ export function placeDock(layout: DockLayout): Placed[] {
     return out;
   }
 
-  // collapsed: fill the free cells left → right
+  // collapsed: fill the free cells. "start" (default) = left→right from cell 0; "end" = the cells
+  // NEAREST the menu button first (so a lone Back sits directly beside the menu — the note/
+  // collection dock), tie-breaking toward the lower cell for determinism.
   const freeCells = ([0, 1, 2, 3] as DockCell[]).filter((c) => c !== menuSlot);
+  if (layout.align === "end") {
+    freeCells.sort((a, b) => Math.abs(a - menuSlot) - Math.abs(b - menuSlot) || a - b);
+  }
   spells.forEach((s, i) => {
     if (s.kind !== "collapsed") return;
     out.push({ kind: "collapsed", id: s.id, icon: s.icon, label: s.label, badge: s.badge, cell: freeCells[i] });
@@ -75,4 +80,13 @@ export const HOME_DOCK: DockLayout = {
   menuSlot: 3,
   spells: [{ kind: "expanded", id: "accio" }],
   settings: true,
+};
+
+/** The note / photo-collection dock: gold menu button bottom-right (cell 3) with a single Back
+ *  collapsed spell in the cell DIRECTLY beside it (cell 2, via align "end"). The remaining cells
+ *  stay empty — a control may only sit in a real slot, never floating. */
+export const NOTE_DOCK: DockLayout = {
+  menuSlot: 3,
+  align: "end",
+  spells: [{ kind: "collapsed", id: "back", icon: "back", label: "Back" }],
 };

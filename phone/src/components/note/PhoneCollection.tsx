@@ -102,9 +102,9 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
           </div>
         ))}
       </div>
-      {/* Bottom action bar (phone control standard): Back → the memory; the Spell Menu opener
-          blooms the Conditional "Photo" ring, which adds a photo to THIS board. */}
-      <NoteActions onBack={() => phoneCollection.close()} onOpenMenu={onOpenMenu} backLabel="Back to memory" />
+      {/* Bottom control bar = the 4-cell Dock (phone standard): Back → the memory; the Spell Menu
+          opener blooms the Conditional "Photo" ring, which adds a photo to THIS board. */}
+      <NoteActions onBack={() => phoneCollection.close()} onOpenMenu={onOpenMenu} />
     </div>
   );
 }

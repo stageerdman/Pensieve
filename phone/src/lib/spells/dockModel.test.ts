@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { HOME_DOCK, placeDock } from "./dockModel";
+import { HOME_DOCK, NOTE_DOCK, placeDock } from "./dockModel";
 import type { DockLayout } from "./types";
 
 describe("placeDock — the home layout", () => {
@@ -33,6 +33,21 @@ describe("placeDock — collapsed spells", () => {
     const placed = placeDock({ menuSlot: 1, spells: [{ kind: "collapsed", id: "pin", icon: "pin" }] });
     // free cells are 0,2,3 → first spell lands in cell 0
     expect(placed.find((p) => p.kind === "collapsed")).toMatchObject({ cell: 0 });
+  });
+
+  it("align:'end' puts a lone collapsed spell DIRECTLY beside the menu (not the far side)", () => {
+    // menu bottom-right (cell 3) → Back must land in cell 2, the adjacent slot.
+    const placed = placeDock({ menuSlot: 3, align: "end", spells: [{ kind: "collapsed", id: "back", icon: "back" }] });
+    expect(placed).toContainEqual({ kind: "menu", cell: 3 });
+    expect(placed.find((p) => p.kind === "collapsed" && p.id === "back")).toMatchObject({ cell: 2 });
+  });
+});
+
+describe("NOTE_DOCK — the note / collection layout", () => {
+  it("is the gold menu bottom-right with Back in the slot beside it", () => {
+    const placed = placeDock(NOTE_DOCK);
+    expect(placed).toContainEqual({ kind: "menu", cell: 3 });
+    expect(placed.find((p) => p.kind === "collapsed" && p.id === "back")).toMatchObject({ cell: 2 });
   });
 });
 

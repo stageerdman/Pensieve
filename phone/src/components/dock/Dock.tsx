@@ -15,7 +15,7 @@ export interface DockProps {
   onOpenMenu: () => void;
   menuBadge?: SyncBadge;
   /** props for the expanded Accio spell (only read when the layout includes it). */
-  accio: ExpandedAccioProps;
+  accio?: ExpandedAccioProps;
   /** tap handler for collapsed spells (non-home views). */
   onSpell?: (id: string) => void;
 }
@@ -35,7 +35,7 @@ export function Dock({ layout, onOpenMenu, menuBadge, accio, onSpell }: DockProp
         if (p.kind === "expanded") {
           return (
             <div className="dock-cell dock-exp" style={{ gridColumn: `${p.startCell + 1} / span 3` }} key={`exp-${p.id}`}>
-              {p.id === "accio" ? <ExpandedAccio {...accio} /> : null}
+              {p.id === "accio" && accio ? <ExpandedAccio {...accio} /> : null}
             </div>
           );
         }

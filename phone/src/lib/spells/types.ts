@@ -21,7 +21,8 @@ export type IconName =
   | "highlight"
   | "export"
   | "thread"
-  | "image";
+  | "image"
+  | "back";
 
 /** Sync's live status, mirrored from lib/wand/syncMachine so the dock/menu can badge it. */
 export type SyncBadge = "synced" | "reminder" | "syncing" | "failed" | "offline";
@@ -72,4 +73,7 @@ export interface DockLayout {
   spells: DockSpell[];
   /** whether this view may raise the thin secondary-settings row above the dock. */
   settings?: boolean;
+  /** Collapsed-spell fill side. "start" (default) = left→right from cell 0; "end" = fill the
+   *  cells NEAREST the menu button first (so e.g. a lone Back sits directly beside it). */
+  align?: "start" | "end";
 }
