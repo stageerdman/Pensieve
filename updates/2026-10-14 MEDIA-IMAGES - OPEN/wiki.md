@@ -630,3 +630,48 @@ real editor didn't). Root causes + fixes:
 - **Still needs the owner's native retest:** live slash ↑/↓/Tab nav + Enter/Escape; the placeholder
   click popover (upload/embed); drop-onto-placeholder; the ⋯ reshape + corner drag; restore. Gallery
   empty-placeholder picker. The 6-dot gutter handle on media blocks (prior fallback, still unconfirmed).
+
+## Lessons — media resize finally works (2026-10-15, owner native test + source research)
+The corner/edge resize handles did NOTHING in the live WKWebView across several guessed "fixes"
+(pointer-capture, capture-phase listeners, selectstart suppression — all irrelevant). The actual
+breakthrough came from reading the installed prosemirror-view + @tiptap NodeView source, which
+revealed **two independent root causes**, both now covered by tests driving a REAL editor
+(`mediaResize.test.tsx`, `resizeIntegration.test.tsx`):
+
+1. **THE decisive bug — a wrong DOM traversal direction.** The handlers looked up the sizing
+   element with `frameRef.current.closest(".pensieve-media")`. But `frameRef` is on
+   `.pensieve-media-host` and `.pensieve-media` is a **child** of it — `closest()` walks ANCESTORS,
+   so it returned `null`, the handler hit `if (!media || !column) return`, and bailed before any
+   drag began. Every event-wiring change before this was downstream of a function that always
+   returned early = dead code. **Fix: `querySelector` (descendant), not `closest`.** Lesson: when a
+   gesture "does nothing," first confirm the handler's body actually RUNS — a silent early-return
+   masquerades as an event-plumbing problem.
+2. **ProseMirror only listens to `mousedown`, never pointer events.** For a selectable custom block
+   (ours is `selectable:true` by default), ProseMirror starts its OWN node gesture on `mousedown`
+   unless that REAL mousedown is already `defaultPrevented` by the time it bubbles to the editor DOM
+   (`prosemirror-view` `eventBelongsToView` → `defaultPrevented` / NodeView `stopEvent`). A React
+   `onPointerDown`/`onMouseDown` is delegated at the app root — BELOW the editor DOM in the bubble
+   path — so it fires too late, and a pointer-event `preventDefault` never touches the mousedown at
+   all. **Fix: attach a NATIVE `mousedown`/`touchstart` listener on the handle element itself that
+   calls `preventDefault()`, then track the drag on `window` (mouse+touch).** This is exactly
+   BlockNote's own `createResizableFileBlockWrapper` pattern (native mousedown + preventDefault;
+   no stopPropagation, no pointer capture). Plumbing lives in `media/mediaResize.ts`
+   (`runResizeDrag` + `useResizeHandle`), isolated so the "why native" reasoning is in one place.
+   - Capture-vs-bubble on the window move listener was a RED HERRING: nothing in PM/BlockNote stops
+     pointer/mouse-move propagation (confirmed in source). The working block drag used capture for
+     unrelated reasons; copying that wasn't the fix.
+   - Alternative also valid per source: set `meta:{ selectable:false }` so BlockNote's
+     `applyNonSelectableBlockFix` makes `stopEvent` return true for everything. We chose native
+     mousedown instead (keeps the node selectable, which our `useSelectedBlocks` UI relies on).
+- **Resize grows the image to fill (cover), never letterboxes.** A reshaped box (explicit aspect via
+  the corner) is a FIXED frame: `.pensieve-media-frame.is-shaped .pensieve-media-img` is
+  `width/height:100%; object-fit:cover; max-height:none`, so the image scales UP to cover and crops
+  the ratio mismatch (owner: "always get larger so it's full screen, rest cropped"). Un-reshaped
+  natural images keep `object-fit:contain` + `max-height:60vh`.
+- **Removed the overlay "Expand" (zoom) and "Caption" buttons** — redundant reach-points. Expand is
+  double-click (lightbox); the caption input already appears below a selected image. Overlay now:
+  Replace · Size&shape (⋯) · Remove.
+- **Diagnosis method that finally worked:** when live behaviour can't be inspected (no WKWebView
+  devtools, browser automation can't reach the dev server), the authoritative move is to READ the
+  library/framework source for the exact event contract, then lock the finding with a jsdom test
+  that dispatches REAL native events through the REAL editor — not more guesses against a black box.

@@ -18,7 +18,7 @@ import { runResizeDrag, useResizeHandle } from "./mediaResize";
 import { insertImagesSmart, type GroupEditor } from "./insertGroup";
 import { useMediaBackup } from "./useMediaBackup";
 import { refForUrl } from "../../../lib/media";
-import { Image as ImageIcon, Expand as ExpandIcon, MoreHorizontal } from "../../icons";
+import { Image as ImageIcon, MoreHorizontal } from "../../icons";
 import { log } from "../../../lib/logger";
 
 // The custom `image` block — renders in the Pensieve MediaBlock language (not BlockNote's
@@ -215,12 +215,8 @@ function ImageRender({ block, editor }: RenderProps) {
               {state !== "empty" && <div className="pensieve-media-resize" ref={resizeHandleRef} aria-label="Resize width" />}
               <div className="pensieve-media-corner" ref={cornerHandleRef} aria-label="Reshape box" />
               <div className="pensieve-media-tools" contentEditable={false}>
-                {state === "loaded" && (
-                  <button type="button" className="pensieve-media-tool-icon" title="Expand" aria-label="Expand image" onClick={expand}>
-                    <ExpandIcon size={15} />
-                  </button>
-                )}
-                {state === "loaded" && <button type="button" onClick={() => captionRef.current?.focus()}>Caption</button>}
+                {/* No Expand button (double-click the image opens the lightbox) and no Caption
+                    button (the caption input shows below the image whenever it's selected). */}
                 {state !== "empty" && <button type="button" onClick={() => fileRef.current?.click()}>Replace</button>}
                 <button
                   type="button"

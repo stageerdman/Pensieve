@@ -442,6 +442,16 @@ body.pensieve-resizing * {
   object-fit: contain;
   background: hsl(var(--surface-raised));
 }
+/* A shaped box = a reshape via the corner handle (an explicit aspect): the frame is a FIXED
+   box, so the image FILLS it and scales up to cover, cropping whatever doesn't fit the chosen
+   ratio — resizing grows the image, never letterboxes. (The empty placeholder is also shaped
+   but has no <img>, so this is inert there.) Un-reshaped natural images keep the rule above. */
+.pensieve-media-frame.is-shaped .pensieve-media-img {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: cover;
+}
 .pensieve-media.is-selected .pensieve-media-frame {
   outline: 2px solid hsl(var(--accent));
   outline-offset: 2px;
