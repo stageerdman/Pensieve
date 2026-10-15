@@ -65,10 +65,15 @@ function beginHandleDrag(e: PointerEvent, onMove: (ev: globalThis.PointerEvent) 
   window.getSelection()?.removeAllRanges();
   const blockSelect = (ev: Event) => ev.preventDefault();
   document.addEventListener("selectstart", blockSelect, true);
-  const move = (ev: globalThis.PointerEvent) => onMove(ev);
+  const move = (ev: globalThis.PointerEvent) => {
+    ev.preventDefault();
+    onMove(ev);
+  };
   const done = () => {
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", done);
+    // Listeners are registered in the CAPTURE phase (see below) — remove with the same flag.
+    window.removeEventListener("pointermove", move, true);
+    window.removeEventListener("pointerup", done, true);
+    window.removeEventListener("pointercancel", done, true);
     document.removeEventListener("selectstart", blockSelect, true);
     document.body.classList.remove("pensieve-resizing");
     try {
@@ -77,8 +82,13 @@ function beginHandleDrag(e: PointerEvent, onMove: (ev: globalThis.PointerEvent) 
       /* best-effort */
     }
   };
-  window.addEventListener("pointermove", move);
-  window.addEventListener("pointerup", done);
+  // CAPTURE phase, like the (working) block drag: a pointermove listener in BlockNote/
+  // ProseMirror stops propagation before the event bubbles to window, so a bubble-phase
+  // listener here never fires and the drag does nothing. Capture runs first, before any
+  // stopPropagation, so our move handler reliably sees every move.
+  window.addEventListener("pointermove", move, true);
+  window.addEventListener("pointerup", done, true);
+  window.addEventListener("pointercancel", done, true);
 }
 
 function ImageRender({ block, editor }: RenderProps) {
