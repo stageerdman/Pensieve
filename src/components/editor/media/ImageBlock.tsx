@@ -1,5 +1,5 @@
 import { createReactBlockSpec, useSelectedBlocks } from "@blocknote/react";
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { MediaBlock, type MediaState } from "./MediaBlock";
 import {
   DEFAULT_WIDTH,
@@ -14,6 +14,7 @@ import {
 import { imageFilename } from "../../../lib/md/image";
 import { getMediaNoteId, expandImage } from "./mediaContext";
 import { persistIntoBlock, type InsertEditor } from "./insertImage";
+import { runResizeDrag, useResizeHandle } from "./mediaResize";
 import { insertImagesSmart, type GroupEditor } from "./insertGroup";
 import { useMediaBackup } from "./useMediaBackup";
 import { refForUrl } from "../../../lib/media";
@@ -40,55 +41,6 @@ interface Props {
 interface RenderProps {
   block: { id: string; props: Props };
   editor: InsertEditor & { isEditable: boolean; removeBlocks?: (ids: string[]) => void };
-}
-
-// Begin a pointer drag from a resize/reshape handle. In the WKWebView shell, dragging a handle
-// over the contentEditable surface selects the note text instead of resizing: ProseMirror starts
-// a selection from the mousedown/selectstart events, and its listeners sit on an ancestor that
-// fires BEFORE any React handler — so neither preventDefault on our pointerdown nor an onMouseDown
-// can stop it. We therefore cancel `selectstart` at the document level (capture phase) for the
-// drag's whole duration — the definitive stop for a mouse-drag text selection. We also capture the
-// pointer to the handle (so moves keep flowing past the frame) and drop a body class that sets
-// user-select:none as a belt-and-suspenders. `onMove` gets each raw pointer move.
-function beginHandleDrag(e: PointerEvent, onMove: (ev: globalThis.PointerEvent) => void): void {
-  e.preventDefault();
-  e.stopPropagation();
-  const handle = e.currentTarget as HTMLElement;
-  const pointerId = e.pointerId;
-  log.debug("media", "resize.start", { handle: handle.className, pointerId, pointerType: e.pointerType });
-  try {
-    handle.setPointerCapture(pointerId);
-  } catch {
-    /* capture is best-effort */
-  }
-  document.body.classList.add("pensieve-resizing");
-  window.getSelection()?.removeAllRanges();
-  const blockSelect = (ev: Event) => ev.preventDefault();
-  document.addEventListener("selectstart", blockSelect, true);
-  const move = (ev: globalThis.PointerEvent) => {
-    ev.preventDefault();
-    onMove(ev);
-  };
-  const done = () => {
-    // Listeners are registered in the CAPTURE phase (see below) — remove with the same flag.
-    window.removeEventListener("pointermove", move, true);
-    window.removeEventListener("pointerup", done, true);
-    window.removeEventListener("pointercancel", done, true);
-    document.removeEventListener("selectstart", blockSelect, true);
-    document.body.classList.remove("pensieve-resizing");
-    try {
-      handle.releasePointerCapture(pointerId);
-    } catch {
-      /* best-effort */
-    }
-  };
-  // CAPTURE phase, like the (working) block drag: a pointermove listener in BlockNote/
-  // ProseMirror stops propagation before the event bubbles to window, so a bubble-phase
-  // listener here never fires and the drag does nothing. Capture runs first, before any
-  // stopPropagation, so our move handler reliably sees every move.
-  window.addEventListener("pointermove", move, true);
-  window.addEventListener("pointerup", done, true);
-  window.addEventListener("pointercancel", done, true);
 }
 
 function ImageRender({ block, editor }: RenderProps) {
@@ -170,28 +122,30 @@ function ImageRender({ block, editor }: RenderProps) {
     }
   };
 
-  // Right-edge handle — width only, snapped.
-  const startResize = (e: PointerEvent) => {
-    const media = frameRef.current?.closest(".pensieve-media") as HTMLElement | null;
+  // Right-edge handle — width only, snapped. `.pensieve-media` is a DESCENDANT of the host
+  // (frameRef) → querySelector, not closest (the old closest() returned null, so the drag
+  // returned before it ever began). Its parent is the host, whose width is the text column.
+  const resizeHandleRef = useResizeHandle(() => {
+    const media = frameRef.current?.querySelector<HTMLElement>(".pensieve-media");
     const column = media?.parentElement;
     if (!media || !column) return;
     const left = media.getBoundingClientRect().left;
     const colWidth = column.clientWidth || 1;
-    beginHandleDrag(e, (ev) => update({ width: snapWidth(Math.min(1, Math.max(0.15, (ev.clientX - left) / colWidth))) }));
-  };
+    log.debug("media", "resize.start", { id: block.id, kind: "width" });
+    runResizeDrag((cx) => update({ width: snapWidth(Math.min(1, Math.max(0.15, (cx - left) / colWidth))) }));
+  });
 
   // Bottom-right corner — free reshape (width + aspect together), works on the placeholder too.
-  const startCorner = (e: PointerEvent) => {
+  const cornerHandleRef = useResizeHandle((startX, startY) => {
     const frame = rectEl();
-    const media = frameRef.current?.closest(".pensieve-media") as HTMLElement | null;
+    const media = frameRef.current?.querySelector<HTMLElement>(".pensieve-media");
     const column = media?.parentElement;
     if (!frame || !column) return;
     const r = frame.getBoundingClientRect();
     const colWidth = column.clientWidth || 1;
-    const sx = e.clientX;
-    const sy = e.clientY;
-    beginHandleDrag(e, (ev) => update(cornerResize(r.width, r.height, ev.clientX - sx, ev.clientY - sy, colWidth)));
-  };
+    log.debug("media", "resize.start", { id: block.id, kind: "corner" });
+    runResizeDrag((cx, cy) => update(cornerResize(r.width, r.height, cx - startX, cy - startY, colWidth)));
+  });
 
   const setPreset = (p: SizePreset) => {
     update({ width: presetWidth(p) });
@@ -258,8 +212,8 @@ function ImageRender({ block, editor }: RenderProps) {
         overlay={
           showControls ? (
             <>
-              {state !== "empty" && <div className="pensieve-media-resize" onPointerDown={startResize} aria-label="Resize width" />}
-              <div className="pensieve-media-corner" onPointerDown={startCorner} aria-label="Reshape box" />
+              {state !== "empty" && <div className="pensieve-media-resize" ref={resizeHandleRef} aria-label="Resize width" />}
+              <div className="pensieve-media-corner" ref={cornerHandleRef} aria-label="Reshape box" />
               <div className="pensieve-media-tools" contentEditable={false}>
                 {state === "loaded" && (
                   <button type="button" className="pensieve-media-tool-icon" title="Expand" aria-label="Expand image" onClick={expand}>
