@@ -47,6 +47,10 @@ aspect ratios** by default.
   (structure). Keep `noteMedia.test.ts` (format guard) green.
 
 ## Phased roadmap
+> **Phase 2 (manual per-image reshape) DROPPED (owner, 2026-10-15).** Natural ratios are the look;
+> a per-tile ratio override isn't needed. The gallery `GalleryImage` stays `{url,caption}` (no
+> per-image aspect in the fence); the desktop corner-reshape stays a single-image-only feature.
+
 - **Phase 1 — Desktop ratio-preserving horizontal justified gallery.** Pure packer
   (`galleryJustify.ts`, unit-tested) + natural-aspect capture/backfill + horizontal-scroll render +
   draggable height handle (persisted via fence header) + horizontal reorder. Drop the +N cap. Keep
@@ -91,5 +95,6 @@ aspect ratios** by default.
     New collectionController + PhoneCollection at app root. Removed carousel + long-press reorder.
   - Note conditional spells → single "Upload photo"; "Go back" moved into the top-right action
     cluster next to the Spell Menu opener.
-- NEXT: owner device-tests the phone; then Phase 2 (desktop manual per-image reshape) + Phase 4
-  (polish/cleanup of dead galleryLayout/CSS, docs, close-out).
+- Phase 2 (manual per-image reshape): DROPPED by owner — natural ratios are the look.
+- NEXT: owner device-tests the phone (`npm run dev:phone`); then Phase 4 (cleanup of dead
+  galleryLayout/old gallery CSS + the dropped-carousel CSS, docs, close-out) and merge/close.
