@@ -64,7 +64,7 @@ describe("computeDrop — drop-onto-merge (media rows → gallery)", () => {
 
   it("does NOT merge over a non-media block — falls back to reorder", () => {
     // y=10 is inside block a (not media) → ordinary after-a/before logic, never a merge.
-    expect(computeDrop(withMedia, 100, 10, none, true).merge).toBeUndefined();
+    expect(computeDrop(withMedia, 100, 10, none, true)?.merge).toBeUndefined();
   });
 
   it("never merges into a moving media block (can't drop onto itself)", () => {
