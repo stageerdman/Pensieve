@@ -65,16 +65,17 @@ export function MemoryPage({
   return (
     <div className={open ? "note open" : "note"} ref={noteRef}>
       <div className="note-top">
-        <button className="back" onClick={onBack} aria-label="Back">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="m15 5-7 7 7 7" />
-          </svg>
-        </button>
         <div className="note-date" ref={dateRef} onClick={onDateClick} />
         <div className="note-saved" ref={savedRef}>
           <i /> Saved
         </div>
-        {/* the keyboard-down reach-point: summon the note's Spell Menu (Picture leads it) */}
+        {/* The note's action bar (top-right): Go back sits next to the Spell Menu opener. */}
+        <button className="note-goback" onClick={onBack} aria-label="Go back">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m15 5-7 7 7 7" />
+          </svg>
+        </button>
+        {/* the keyboard-down reach-point: summon the note's Spell Menu (Upload photo) */}
         <button className="note-spell" onClick={onOpenSpellMenu} aria-label="Spell menu">
           <SpellGlyph icon="menu" size={22} />
         </button>

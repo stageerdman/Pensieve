@@ -20,19 +20,18 @@ import {
   imageMd,
   mediaAlt,
   parseNoteContent,
-  reorderImages,
   type MediaImage,
   type NoteBlock,
 } from "../../lib/media/noteMedia";
 import { cachedMediaUrl, resolveMediaUrl } from "../../lib/media/mediaStore";
 import { phoneLightbox } from "../../lib/media/lightboxController";
+import { phoneCollection } from "../../lib/media/collectionController";
 
 export interface MediaCtx {
   /** fired after any media mutation so the app can schedule an autosave. */
   onChange: () => void;
 }
 
-const LONG_PRESS_MS = 460;
 
 // ---- payload read/write ----
 
@@ -113,7 +112,7 @@ function buildImageEl(block: Extract<NoteBlock, { kind: "image" }>, ctx: MediaCt
   return el;
 }
 
-// ---- gallery block (carousel + dots + long-press edit) ----
+// ---- gallery block (Pinterest "saved collection": composite cover → full-screen masonry) ----
 
 function buildGalleryEl(block: Extract<NoteBlock, { kind: "gallery" }>, ctx: MediaCtx, noteBody: HTMLElement): HTMLElement {
   const el = document.createElement("div");
@@ -121,63 +120,50 @@ function buildGalleryEl(block: Extract<NoteBlock, { kind: "gallery" }>, ctx: Med
   el.contentEditable = "false";
   writeBlock(el, block);
   renderGallery(el, ctx, noteBody);
-  wireLongPress(el, ctx, noteBody); // once per element (renderGallery only rebuilds inner DOM)
   return el;
 }
 
-/** (Re)build a gallery element's visuals from its payload. */
+/** (Re)build a gallery's visuals = a single composite COVER (a board thumbnail made of the first
+ *  few photos). Tapping it opens the full-screen collection (all photos, vertical masonry). */
 function renderGallery(el: HTMLElement, ctx: MediaCtx, noteBody: HTMLElement) {
   const block = readBlock(el);
   if (block?.kind !== "gallery") return;
   const images = block.images;
   el.innerHTML = "";
 
-  const track = document.createElement("div");
-  track.className = "ph-gallery-track";
-  images.forEach((im, i) => {
-    const frame = document.createElement("div");
-    frame.className = "ph-frame";
-    frame.dataset.index = String(i);
+  const coverCount = Math.min(images.length, 3); // 1 big + up to 2 small
+  const cover = document.createElement("button");
+  cover.type = "button";
+  cover.className = "ph-cover ph-cover-" + coverCount;
+  cover.setAttribute("aria-label", `Open photo collection (${images.length} photos)`);
+
+  for (let i = 0; i < coverCount; i++) {
+    const cell = document.createElement("div");
+    cell.className = "ph-cover-cell";
     const img = document.createElement("img");
-    img.alt = mediaAlt(im.caption);
+    img.alt = "";
     img.draggable = false;
-    attachImg(img, im.ref);
-    frame.appendChild(img);
+    attachImg(img, images[i].ref);
+    cell.appendChild(img);
+    // "+N" on the last cover cell when the board has more than the cover shows.
+    if (i === coverCount - 1 && images.length > coverCount) {
+      const more = document.createElement("span");
+      more.className = "ph-cover-more";
+      more.textContent = "+" + (images.length - coverCount);
+      cell.appendChild(more);
+    }
+    cover.appendChild(cell);
+  }
 
-    // a quiet Remove, revealed in edit mode
-    const rm = document.createElement("button");
-    rm.className = "ph-frame-remove";
-    rm.setAttribute("aria-label", "Remove image");
-    rm.textContent = "×";
-    rm.addEventListener("click", (e) => {
-      e.stopPropagation();
-      removeAt(el, i, ctx, noteBody);
-    });
-    frame.appendChild(rm);
-
-    frame.addEventListener("click", () => {
-      if (el.classList.contains("editing")) return; // taps edit tiles, not the lightbox
-      void resolveAll(readGalleryImages(el)).then((items) => phoneLightbox.open(items, i));
-    });
-    track.appendChild(frame);
+  cover.addEventListener("click", () => {
+    void resolveAll(readGalleryImages(el)).then((items) =>
+      phoneCollection.open(items, {
+        editable: true,
+        onRemove: (index) => removeAt(el, index, ctx, noteBody),
+      }),
+    );
   });
-  el.appendChild(track);
-
-  const dots = document.createElement("div");
-  dots.className = "ph-dots";
-  dots.setAttribute("aria-hidden", "true");
-  images.forEach((_, i) => {
-    const d = document.createElement("span");
-    if (i === 0) d.className = "on";
-    dots.appendChild(d);
-  });
-  el.appendChild(dots);
-
-  track.addEventListener("scroll", () => {
-    if (!track.clientWidth) return;
-    const idx = Math.round(track.scrollLeft / track.clientWidth);
-    dots.querySelectorAll("span").forEach((s, i) => s.classList.toggle("on", i === idx));
-  });
+  el.appendChild(cover);
 }
 
 function readGalleryImages(el: HTMLElement): MediaImage[] {
@@ -210,73 +196,6 @@ function removeAt(el: HTMLElement, index: number, ctx: MediaCtx, noteBody: HTMLE
   const next = images.filter((_, i) => i !== index);
   haptic(8);
   setGalleryImages(el, next, ctx, noteBody);
-}
-
-/** Long-press a gallery → edit mode (quiet Remove per tile + drag-to-reorder). Tap the
- *  body / wait exits. Haptic on lift into edit mode. */
-function wireLongPress(el: HTMLElement, ctx: MediaCtx, noteBody: HTMLElement) {
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  const clear = () => {
-    if (timer) {
-      clearTimeout(timer);
-      timer = null;
-    }
-  };
-  el.addEventListener("pointerdown", (e) => {
-    if (el.classList.contains("editing")) {
-      startReorder(el, e as PointerEvent, ctx, noteBody);
-      return;
-    }
-    clear();
-    timer = setTimeout(() => {
-      el.classList.add("editing");
-      haptic(16);
-    }, LONG_PRESS_MS);
-  });
-  el.addEventListener("pointermove", clear);
-  el.addEventListener("pointerup", clear);
-  el.addEventListener("pointercancel", clear);
-  // exit edit mode when the body is tapped elsewhere
-  const exit = (ev: Event) => {
-    if (!el.contains(ev.target as Node)) el.classList.remove("editing");
-  };
-  noteBody.addEventListener("pointerdown", exit);
-}
-
-/** Drag-reorder within edit mode: follow the finger, reorder on crossing a tile midpoint,
- *  commit on release. (Device-verified; jsdom has no layout so this is inert in tests.) */
-function startReorder(el: HTMLElement, e: PointerEvent, ctx: MediaCtx, noteBody: HTMLElement) {
-  const startFrame = (e.target as HTMLElement).closest<HTMLElement>(".ph-frame");
-  if (!startFrame) return;
-  let from = Number(startFrame.dataset.index);
-  const track = el.querySelector<HTMLElement>(".ph-gallery-track");
-  if (!track || Number.isNaN(from)) return;
-  startFrame.classList.add("dragging");
-  haptic(10);
-
-  const move = (ev: PointerEvent) => {
-    const target = document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>(".ph-frame");
-    if (!target || target === startFrame) return;
-    const to = Number(target.dataset.index);
-    if (Number.isNaN(to) || to === from) return;
-    const imgs = reorderImages(readGalleryImages(el), from, to);
-    writeBlock(el, { kind: "gallery", images: imgs });
-    renderGallery(el, ctx, noteBody);
-    el.classList.add("editing");
-    from = to;
-    const nf = track.querySelector<HTMLElement>(`.ph-frame[data-index="${to}"]`);
-    nf?.classList.add("dragging");
-  };
-  const up = () => {
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", up);
-    window.removeEventListener("pointercancel", up);
-    el.querySelectorAll(".ph-frame.dragging").forEach((f) => f.classList.remove("dragging"));
-    ctx.onChange();
-  };
-  window.addEventListener("pointermove", move);
-  window.addEventListener("pointerup", up);
-  window.addEventListener("pointercancel", up);
 }
 
 // ---- body render + serialize ----

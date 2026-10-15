@@ -47,6 +47,7 @@ import { ConjureThread, conjure } from "./components/ConjureThread";
 import { currentBlock, focusTitle, placeCaret, syncPlaceholders } from "./components/note/noteEditing";
 import { insertImages, renderNoteBody, type MediaCtx } from "./components/note/mediaDom";
 import { PhoneLightbox } from "./components/note/PhoneLightbox";
+import { PhoneCollection } from "./components/note/PhoneCollection";
 import { mintMediaRef, registerLocalMedia } from "./lib/media/mediaStore";
 import type { MediaImage } from "./lib/media/noteMedia";
 
@@ -706,6 +707,7 @@ export function PhoneApp() {
 
       {/* THE LIGHTBOX — full-screen image viewer (summoned imperatively from a media block) */}
       <PhoneLightbox />
+      <PhoneCollection />
 
       <ConjureThread threadRef={threadRef} />
       <div className="home-indicator" />

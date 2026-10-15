@@ -32,14 +32,18 @@ describe("mediaDom — render <-> serialize", () => {
     expect(out.content).toBe(content);
   });
 
-  it("a11y: every <img> gets a non-empty alt — caption when present, else the fallback", () => {
+  it("a11y: a content image gets a non-empty alt; a gallery renders a labelled cover button", () => {
     const content = ["![a view](media/9/a.png)", galleryMd([{ ref: "media/9/b.png", caption: "two" }, { ref: "media/9/c.png" }])].join("\n");
     const el = body();
     renderNoteBody(el, "T", content, ctx);
-    const alts = Array.from(el.querySelectorAll("img")).map((i) => i.getAttribute("alt"));
-    // single image caption, gallery tile caption, and the uncaptioned tile's fallback.
-    expect(alts).toEqual(["a view", "two", "Image"]);
-    expect(alts.every((a) => a && a.length > 0)).toBe(true);
+    // The single (content) image keeps a real alt.
+    const single = el.querySelector(".ph-media.ph-image img");
+    expect(single?.getAttribute("alt")).toBe("a view");
+    // The gallery is a composite COVER: a button labelled for the whole board; its cover-cell
+    // images are decorative (alt="") — the captioned photos live in the collection view.
+    const cover = el.querySelector(".ph-gallery .ph-cover");
+    expect(cover?.getAttribute("aria-label")).toMatch(/collection \(2 photos\)/);
+    expect(cover?.querySelectorAll("img").length).toBe(2);
   });
 
   it("mediaAlt matches the desktop helper (caption, else a plain 'Image')", () => {
