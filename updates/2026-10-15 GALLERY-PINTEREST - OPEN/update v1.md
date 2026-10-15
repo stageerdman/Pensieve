@@ -96,5 +96,20 @@ aspect ratios** by default.
   - Note conditional spells → single "Upload photo"; "Go back" moved into the top-right action
     cluster next to the Spell Menu opener.
 - Phase 2 (manual per-image reshape): DROPPED by owner — natural ratios are the look.
+- Phase 3 phone — owner device test found: (a) I put collection controls on TOP = broke the phone
+  control standard (controls ALWAYS bottom via the Spell Menu; now written into UX.md + memory
+  [[phone-controls-bottom-standard]]); (b) keyboard-toolbar Picture did nothing; (c) wanted memory +
+  collection controls at the bottom (Back next to the Spell Menu opener, Conditional "Photo" spell,
+  rotating); (d) write under images. **Ship 1 (DONE, awaiting device test):** NoteActions bottom bar
+  on memory + collection; "Photo" spell; Picture onClick fix; collection "Photo" adds to that gallery;
+  Notion trailing text row + tap-below; collection z 170→145; fixed phone serializer dropping gallery
+  height.
+- **Ship 2 (queued, owner decisions locked):**
+  - **"New gallery" = an explicit action** → add a second conditional spell "Gallery" (alongside
+    "Photo") that starts a gallery to fill (multi-pick → a gallery block).
+  - Phone drag/move (all three): **reorder photos within the collection** (drag tiles), **move a
+    gallery/image block** up/down among the note's blocks (DOM sibling reorder), and **drag an image
+    onto a gallery to merge** it in. Reuse `reorderImages` + `mergeInto` (data ops intact); the
+    gesture layer is new. Build AFTER the owner device-tests Ship 1.
 - NEXT: owner device-tests the phone (`npm run dev:phone`); then Phase 4 (cleanup of dead
   galleryLayout/old gallery CSS + the dropped-carousel CSS, docs, close-out) and merge/close.
