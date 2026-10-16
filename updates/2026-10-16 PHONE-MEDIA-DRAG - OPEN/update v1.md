@@ -49,10 +49,10 @@ decisions pending the UX report.
 
 ## Status
 - P0 done. **P1+P2 shipped** (Edit spell + edit mode; pull-out to note). **P3 shipped** (board
-  reorder via a handle, replacing the flaky long-press). All on branch
-  `fix/phone-media-keyboard-drag`; phone suite 144 green, phone build OK.
-- **Checkpoint before P4**: P1–P3 + the keyboard fix need DEVICE verification (owner tests over
-  LAN). P4 (note-body block drag) reuses P3's handle+ghost pattern, so validating the board
-  handle-drag on-device first de-risks P4. Two-tap fallback in reserve if continuous drag is flaky.
-- Next: build P4 (note-body block reorder + drag-into-gallery) after device feedback on the foundation.
+  reorder via a handle). **P4 shipped** (note-body block drag: grip handle → reorder among blocks,
+  3-zone merge onto a gallery/image). All on branch `fix/phone-media-keyboard-drag`; phone suite
+  **148 green**, phone build OK. commitMove unit-tested; the gestures are device-verified.
+- **P5 — DEVICE verification.** All drag/handle gestures need the owner to test on the phone over
+  LAN (jsdom can't drive touch/layout). If a handle-drag is flaky on device, the two-tap "pick up →
+  tap to drop" fallback is in reserve (same hit-zones). Then merge the branch to main.
 </content>
