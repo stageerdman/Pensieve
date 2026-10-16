@@ -82,7 +82,14 @@ const PATHS: Record<Exclude<IconName, "menu">, React.ReactNode> = {
       <path d="M4 16.5l4.6-4.3a1.6 1.6 0 0 1 2.2 0L16 17M14 14.2l1.8-1.7a1.6 1.6 0 0 1 2.2 0l2 1.9" />
     </>
   ),
-  back: <path d="m15 5-7 7 7 7" />,
+  // a "return rune": a left arrowhead feeding a line that hooks and curls back on itself —
+  // reads as "go back" in a magical register, distinct from the gold Orbit beside it.
+  back: (
+    <>
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11" />
+    </>
+  ),
 };
 
 /** Six fire-gold ember-orbs on a ring (12 o'clock clockwise), 32-grid, radius 11 — no hub. */

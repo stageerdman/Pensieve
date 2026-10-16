@@ -160,6 +160,7 @@ function renderGallery(el: HTMLElement, ctx: MediaCtx, noteBody: HTMLElement) {
       phoneCollection.open(items, {
         editable: true,
         onRemove: (index) => removeAt(el, index, ctx, noteBody),
+        onReorder: (from, to) => reorderAt(el, from, to, ctx, noteBody),
         // The collection's "Photo" spell adds to THIS gallery (reuses saved refs), then returns
         // the refreshed resolved photos so the masonry updates in place.
         onAdd: async (images) => {
@@ -201,6 +202,17 @@ function removeAt(el: HTMLElement, index: number, ctx: MediaCtx, noteBody: HTMLE
   if (!images.length) return;
   const next = images.filter((_, i) => i !== index);
   haptic(8);
+  setGalleryImages(el, next, ctx, noteBody);
+}
+
+/** Move the image at `from` to `to` (order-preserving splice) and persist. Mirrors removeAt —
+ *  the collection view calls this after a drag-reorder; desktop reads the new gallery order. */
+function reorderAt(el: HTMLElement, from: number, to: number, ctx: MediaCtx, noteBody: HTMLElement) {
+  const images = readGalleryImages(el);
+  if (from === to || from < 0 || to < 0 || from >= images.length || to >= images.length) return;
+  const next = images.slice();
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
   setGalleryImages(el, next, ctx, noteBody);
 }
 

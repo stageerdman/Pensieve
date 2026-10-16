@@ -155,6 +155,35 @@
   filter: brightness(1.12);
 }
 
+/* ── Back: the "return rune" — the one collapsed spell that must always read.
+   Accent-blue (--conditional), NOT gold: a cool hue recedes so the gold hero
+   stays the star, while a pre-painted glow lifts the rune clear of the Basin.
+   aria-label="back" is already on the button (Dock.tsx) — no markup change. */
+.dock-spell[aria-label="back"] {
+  background: hsl(var(--conditional) / 0.12);
+  border-color: hsl(var(--conditional) / 0.5);
+  color: hsl(var(--conditional));
+}
+.dock-spell[aria-label="back"] svg {
+  overflow: visible; /* let the glow bleed past the viewBox */
+  filter:
+    drop-shadow(0 0 3px hsl(var(--conditional-glow) / 0.85))
+    drop-shadow(0 0 7px hsl(var(--conditional) / 0.45));
+}
+.dock-spell[aria-label="back"]::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  z-index: -1;
+  background: radial-gradient(
+    circle,
+    hsl(var(--conditional) / 0.18),
+    hsl(var(--conditional) / 0.06) 55%,
+    transparent 72%
+  );
+}
+
 /* ── the expanded Accio spell (resident, keyboard-down presentation) ──────── */
 .accio-bar {
   width: 100%;

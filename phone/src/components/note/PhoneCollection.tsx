@@ -2,7 +2,8 @@
 // tapping a gallery's composite cover; shows every photo in a vertical MASONRY scroll (CSS
 // multi-column — images keep their ratio, no layout math). Close at the top (X), swipe the sheet
 // down, or Esc. Tapping a photo opens the single-photo lightbox ON TOP. When the note is editable
-// each photo has a quiet × to remove it (persisted back to the gallery block via the controller).
+// each photo has a quiet × to remove it, and can be DRAG-REORDERED (long-press to lift) — both
+// persisted back to the gallery block via the controller.
 
 import { useEffect, useRef, useState } from "react";
 import { phoneCollection, type CollectionState } from "../../lib/media/collectionController";
@@ -11,9 +12,18 @@ import { mediaAlt } from "../../lib/media/noteMedia";
 import { NoteActions } from "./NoteActions";
 import { haptic } from "../../util";
 
+// Drag-reorder thresholds (see the UX spec): a tile only lifts after a deliberate hold that
+// hasn't moved — below this window every gesture belongs to tap / scroll / swipe-close.
+const LIFT_MS = 350;
+const MOVE_CANCEL_PX = 10;
+const EDGE_PX = 72; // top/bottom auto-scroll band
+const EDGE_MAX_V = 14; // px/frame cap
+const LIFT_SCALE = 1.06;
+
 export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
   const [s, setS] = useState<CollectionState>(phoneCollection.get());
   const sheetRef = useRef<HTMLDivElement>(null);
+  const masonryRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => phoneCollection.subscribe(setS), []);
   useEffect(() => {
@@ -29,6 +39,212 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [s.open]);
+
+  // iOS: React's onTouchMove is passive and can't block scroll. Attach ONE stable non-passive
+  // listener for the open board's life; it preventDefaults only while a tile is actually lifted.
+  useEffect(() => {
+    if (!s.open) return;
+    const m = masonryRef.current;
+    if (!m) return;
+    const onTouch = (e: TouchEvent) => {
+      if (rd.lifted) e.preventDefault();
+    };
+    m.addEventListener("touchmove", onTouch, { passive: false });
+    return () => m.removeEventListener("touchmove", onTouch);
+  }, [s.open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── drag-reorder state (one gesture at a time; a ref so mid-gesture mutation never re-renders).
+  const rd = useRef({
+    from: -1,
+    startX: 0,
+    startY: 0,
+    lastX: 0,
+    lastY: 0,
+    timer: 0 as number,
+    lifted: false,
+    suppressClick: false,
+    tileEl: null as HTMLElement | null,
+    pointerId: -1,
+    target: -1,
+    before: true,
+    rafScroll: 0,
+  }).current;
+
+  const clearRing = () => {
+    masonryRef.current?.querySelectorAll(".drop-before,.drop-after").forEach((el) => el.classList.remove("drop-before", "drop-after"));
+  };
+
+  const stopEdgeScroll = () => {
+    if (rd.rafScroll) cancelAnimationFrame(rd.rafScroll);
+    rd.rafScroll = 0;
+  };
+
+  const resetDrag = () => {
+    window.clearTimeout(rd.timer);
+    stopEdgeScroll();
+    clearRing();
+    const m = masonryRef.current;
+    m?.classList.remove("reordering");
+    try {
+      if (rd.pointerId >= 0) m?.releasePointerCapture?.(rd.pointerId);
+    } catch {
+      /* capture may already be gone */
+    }
+    rd.from = -1;
+    rd.tileEl = null;
+    rd.pointerId = -1;
+    rd.lifted = false;
+    rd.target = -1;
+  };
+
+  // Ease a lifted (but not committed) tile back to its slot, then clean up.
+  const animateHome = () => {
+    const tile = rd.tileEl;
+    if (!tile) return resetDrag();
+    tile.style.transition = "transform .18s ease";
+    tile.style.transform = "";
+    const done = () => {
+      tile.style.transition = "";
+      tile.classList.remove("lifting");
+      tile.removeEventListener("transitionend", done);
+      resetDrag();
+    };
+    tile.addEventListener("transitionend", done);
+    // fallback if transitionend doesn't fire (no actual movement)
+    window.setTimeout(done, 220);
+  };
+
+  const beginLift = (x: number, y: number) => {
+    const tile = rd.tileEl;
+    const m = masonryRef.current;
+    if (!tile || !m) return;
+    rd.lifted = true;
+    haptic(18);
+    tile.classList.add("lifting");
+    m.classList.add("reordering");
+    // Capture on the MASONRY (stable, pointer-events:auto) — NOT the lifting tile, which is
+    // pointer-events:none so elementFromPoint can read the tile under the finger.
+    try {
+      m.setPointerCapture?.(rd.pointerId);
+    } catch {
+      /* ignore */
+    }
+    hitTest(x, y);
+  };
+
+  const hitTest = (x: number, y: number) => {
+    const el = document.elementFromPoint(x, y) as HTMLElement | null;
+    const tile = el?.closest(".ph-collection-tile") as HTMLElement | null;
+    if (!tile || tile === rd.tileEl) return;
+    const t = Number(tile.dataset.index);
+    if (Number.isNaN(t)) return;
+    const r = tile.getBoundingClientRect();
+    const before = y < r.top + r.height / 2;
+    if (t !== rd.target || before !== rd.before) {
+      clearRing();
+      rd.target = t;
+      rd.before = before;
+      tile.classList.add(before ? "drop-before" : "drop-after");
+      haptic(8);
+    }
+  };
+
+  const edgeScroll = (y: number) => {
+    const m = masonryRef.current;
+    if (!m) return;
+    const r = m.getBoundingClientRect();
+    let v = 0;
+    if (y < r.top + EDGE_PX) v = -EDGE_MAX_V * (1 - (y - r.top) / EDGE_PX);
+    else if (y > r.bottom - EDGE_PX) v = EDGE_MAX_V * (1 - (r.bottom - y) / EDGE_PX);
+    if (v === 0) return stopEdgeScroll();
+    if (!rd.rafScroll) {
+      const step = () => {
+        m.scrollTop += v;
+        hitTest(rd.lastX, rd.lastY); // re-resolve target as content scrolls under a still finger
+        rd.rafScroll = requestAnimationFrame(step);
+      };
+      rd.rafScroll = requestAnimationFrame(step);
+    }
+  };
+
+  const commitDrop = () => {
+    if (rd.target < 0) return animateHome();
+    const insertPos = rd.before ? rd.target : rd.target + 1; // gap index 0..n
+    const to = rd.from < insertPos ? insertPos - 1 : insertPos; // remove-then-insert correction
+    if (to === rd.from) return animateHome();
+    haptic(12);
+    const tile = rd.tileEl;
+    if (tile) {
+      tile.style.transform = "";
+      tile.style.transition = "";
+      tile.classList.remove("lifting");
+    }
+    clearRing();
+    phoneCollection.reorder(rd.from, to); // re-renders in the new order (single reflow)
+    resetDrag();
+  };
+
+  // ── pointer handlers. pointerdown is per-tile (to learn `from`); move/up/cancel live on the
+  // masonry (events bubble up pre-lift; retarget to it after capture) so one set handles both phases.
+  const onTileDown = (i: number) => (e: React.PointerEvent) => {
+    if (!s.editable) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const tile = (e.currentTarget as HTMLElement).closest(".ph-collection-tile") as HTMLElement | null;
+    if (!tile) return;
+    rd.from = i;
+    rd.tileEl = tile;
+    rd.pointerId = e.pointerId;
+    rd.startX = rd.lastX = e.clientX;
+    rd.startY = rd.lastY = e.clientY;
+    rd.lifted = false;
+    rd.suppressClick = false;
+    rd.target = -1;
+    window.clearTimeout(rd.timer);
+    rd.timer = window.setTimeout(() => beginLift(rd.lastX, rd.lastY), LIFT_MS);
+    // NOTE: no preventDefault / no capture here — scroll must stay free until a real lift.
+  };
+
+  const onMasonryMove = (e: React.PointerEvent) => {
+    if (rd.from < 0) return;
+    if (rd.pointerId >= 0 && e.pointerId !== rd.pointerId) return; // ignore a second finger
+    rd.lastX = e.clientX;
+    rd.lastY = e.clientY;
+    const dx = e.clientX - rd.startX;
+    const dy = e.clientY - rd.startY;
+    if (!rd.lifted) {
+      if (Math.hypot(dx, dy) > MOVE_CANCEL_PX) {
+        window.clearTimeout(rd.timer);
+        rd.from = -1;
+        rd.tileEl = null; // a real scroll owns the gesture now
+      }
+      return;
+    }
+    e.preventDefault();
+    rd.tileEl!.style.transform = `translate(${dx}px, ${dy}px) scale(${LIFT_SCALE})`;
+    hitTest(e.clientX, e.clientY);
+    edgeScroll(e.clientY);
+  };
+
+  const onMasonryUp = (e: React.PointerEvent) => {
+    if (rd.from < 0) return;
+    if (rd.pointerId >= 0 && e.pointerId !== rd.pointerId) return;
+    window.clearTimeout(rd.timer);
+    stopEdgeScroll();
+    if (!rd.lifted) {
+      resetDrag(); // was a tap → let the img onClick open the lightbox
+      return;
+    }
+    rd.suppressClick = true;
+    commitDrop();
+  };
+
+  const onMasonryCancel = () => {
+    if (rd.from < 0) return;
+    window.clearTimeout(rd.timer);
+    stopEdgeScroll();
+    if (rd.lifted) animateHome();
+    else resetDrag();
+  };
 
   if (!s.open) return null;
 
@@ -77,14 +293,27 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
       >
         <span className="ph-collection-grabber" />
       </div>
-      <div className="ph-collection-masonry">
+      <div
+        className="ph-collection-masonry"
+        ref={masonryRef}
+        onPointerMove={onMasonryMove}
+        onPointerUp={onMasonryUp}
+        onPointerCancel={onMasonryCancel}
+      >
         {s.items.map((it, i) => (
-          <div className="ph-collection-tile" key={`${i}-${it.url}`}>
+          <div className="ph-collection-tile" data-index={i} key={`${i}-${it.url}`}>
             <img
               src={it.url}
               alt={mediaAlt(it.caption)}
               draggable={false}
-              onClick={() => phoneLightbox.open(s.items, i)}
+              onPointerDown={onTileDown(i)}
+              onClick={() => {
+                if (rd.suppressClick) {
+                  rd.suppressClick = false;
+                  return; // this click is the tail of a drag — don't open the lightbox
+                }
+                phoneLightbox.open(s.items, i);
+              }}
             />
             {it.caption ? <div className="ph-collection-caption">{it.caption}</div> : null}
             {s.editable ? (

@@ -1376,6 +1376,13 @@ body {
   column-count: 2;
   column-gap: 8px;
   overscroll-behavior: contain;
+  touch-action: pan-y; /* vertical scroll is the normal mode; a lift flips this to none */
+}
+/* while a tile is lifted for reorder, kill native panning so the drag owns the gesture */
+.ph-collection-masonry.reordering {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .ph-collection-tile {
   position: relative;
@@ -1389,6 +1396,40 @@ body {
   width: 100%;
   height: auto;
   display: block;
+  /* a clean long-press lift needs no iOS text-selection / "save image" callout */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+/* the lifted token = the original tile, transformed per-frame. pointer-events:none lets
+   elementFromPoint read the tile UNDER the finger (capture lives on the masonry, not here). */
+.ph-collection-tile.lifting {
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0.96;
+  box-shadow: 0 12px 28px hsl(0 0% 0% / 0.35);
+  transition: box-shadow 0.18s ease; /* transform is set inline per-frame; released on drop */
+  will-change: transform;
+}
+/* insertion indicator: an accent bar on the target tile's leading/trailing edge. A ::after bar
+   (not an inset shadow) so it paints OVER the full-bleed img, and isn't clipped behind it. */
+.ph-collection-tile.drop-before::after,
+.ph-collection-tile.drop-after::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 6;
+  background: hsl(var(--accent));
+  box-shadow: 0 0 6px hsl(var(--accent-glow) / 0.85);
+  pointer-events: none;
+}
+.ph-collection-tile.drop-before::after {
+  top: 0;
+}
+.ph-collection-tile.drop-after::after {
+  bottom: 0;
 }
 .ph-collection-caption {
   position: absolute;

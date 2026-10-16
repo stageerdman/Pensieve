@@ -11,6 +11,7 @@ export interface CollectionState {
   items: LightboxItem[]; // resolved url + caption, in gallery order
   editable: boolean;
   onRemove?: (index: number) => void; // persist a removal back to the gallery block (mediaDom)
+  onReorder?: (from: number, to: number) => void; // persist a drag-reorder back to the gallery block
   // Add freshly-picked photos to the gallery; returns the refreshed resolved items (or void).
   onAdd?: (images: { ref: string }[]) => Promise<LightboxItem[]> | LightboxItem[] | void;
 }
@@ -24,10 +25,33 @@ const emit = () => listeners.forEach((l) => l(state));
 export const phoneCollection = {
   open(
     items: LightboxItem[],
-    opts: { editable?: boolean; onRemove?: (index: number) => void; onAdd?: CollectionState["onAdd"] } = {},
+    opts: {
+      editable?: boolean;
+      onRemove?: (index: number) => void;
+      onReorder?: (from: number, to: number) => void;
+      onAdd?: CollectionState["onAdd"];
+    } = {},
   ) {
     if (!items.length) return;
-    state = { open: true, items, editable: !!opts.editable, onRemove: opts.onRemove, onAdd: opts.onAdd };
+    state = {
+      open: true,
+      items,
+      editable: !!opts.editable,
+      onRemove: opts.onRemove,
+      onReorder: opts.onReorder,
+      onAdd: opts.onAdd,
+    };
+    emit();
+  },
+  /** Commit a drag-reorder: move items[from] → items[to] in view, then persist via onReorder. */
+  reorder(from: number, to: number) {
+    if (!state.open || from === to) return;
+    const items = state.items.slice();
+    if (from < 0 || to < 0 || from >= items.length || to >= items.length) return;
+    const [moved] = items.splice(from, 1);
+    items.splice(to, 0, moved);
+    state = { ...state, items };
+    state.onReorder?.(from, to);
     emit();
   },
   /** Add picked photos (already minted refs) to the open board; refresh the view from the result. */
