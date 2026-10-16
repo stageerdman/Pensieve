@@ -135,3 +135,22 @@ aspect ratios** by default.
   rebuild needed for phone changes).
 - NEXT: owner device-tests the phone (`npm run dev:phone`); then Phase 4 (cleanup of dead
   galleryLayout/old gallery CSS + the dropped-carousel CSS, docs, close-out) and merge/close.
+
+## Live status (2026-10-16 — scroll fix, Back rune, drag-reorder, New-gallery spell)
+- Scroll-jump fix: tap-below-to-write now fires on `click` not `onPointerDown`, so scrolling the
+  memory page no longer yanks the keyboard up + focuses the trailing row. Owner-CONFIRMED, shipped.
+- Back control made "magical": return-rune glyph + accent-blue (--conditional) glow (recedes vs the
+  gold hero), no animation. Shipped.
+- Phone DRAG-TO-REORDER photos in the collection: BUILT (long-press lift, drop-indicator bar,
+  auto-scroll, data path controller.reorder + mediaDom reorderAt, 3 controller tests). Iterated
+  twice on device (stable keys → position:fixed ghost to dodge the Safari multicol+transform bug)
+  but owner reports STILL broken (right-column tiles vanish/jump on grab). DEFERRED by owner; logged
+  in issues.txt with next ideas (ditch CSS column-count for an explicit JS 2-col layout).
+- Ship-2 "NEW GALLERY" spell: DONE. Second conditional spell "Gallery" (2×2-grid glyph) beside
+  "Photo" in the note ring; casts a picker that forces a fresh SEPARATE gallery block (insertImages
+  `{newBlock:true}` skips adjacency-merge). Photo still merges as before. Tests updated (registry 2
+  spells; mediaDom newBlock). 136 phone tests + build:phone clean.
+- STILL QUEUED (Ship 2 remainder): block-level phone drag (move an image/gallery block up/down in
+  the note; drag a single image onto a gallery to merge) — these are MORE touch-drag gestures, held
+  until the collection reorder gesture/render is sorted (same multicol/gesture risk). Then Phase 4
+  cleanup + close-out.

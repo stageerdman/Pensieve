@@ -40,10 +40,11 @@ describe("registry — conditional (page-recommended) rosters", () => {
     expect(hasConditional("home")).toBe(true);
   });
 
-  it("a note offers a single spell for now: Upload photo", () => {
+  it("a note offers Photo + Gallery (add a photo, or start a fresh gallery)", () => {
     const note = conditionalSpells("note");
-    expect(note.map((s) => s.id)).toEqual(["image"]);
-    expect(note[0].name).toBe("Photo");
+    expect(note.map((s) => s.id)).toEqual(["image", "gallery"]);
+    expect(note.map((s) => s.name)).toEqual(["Photo", "Gallery"]);
+    expect(isScroll(note.length)).toBe(false); // a clean static ring
     expect(hasConditional("note")).toBe(true);
   });
 });

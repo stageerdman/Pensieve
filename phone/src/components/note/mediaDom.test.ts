@@ -74,6 +74,22 @@ describe("mediaDom — insert", () => {
     expect(content).toContain("media/1/y.png");
   });
 
+  it("newBlock forces a SEPARATE gallery instead of merging into an adjacent image", () => {
+    const el = body();
+    renderNoteBody(el, "", "![](media/1/x.png)", ctx);
+    // caret inside the existing image block — normally this would merge into it...
+    const img = el.querySelector<HTMLElement>(".ph-media")!;
+    const sel = window.getSelection();
+    const r = document.createRange();
+    r.selectNodeContents(img);
+    sel?.removeAllRanges();
+    sel?.addRange(r);
+    // ...but the "Gallery" spell forces a new block: the old single image survives untouched.
+    insertImages(el, [{ ref: "media/1/y.png" }, { ref: "media/1/z.png" }], ctx, { newBlock: true });
+    expect(el.querySelectorAll(".ph-image").length).toBe(1); // the original single image is intact
+    expect(el.querySelectorAll(".ph-gallery").length).toBe(1); // a brand-new, separate gallery
+  });
+
   it("merging into an existing image promotes it to a gallery", () => {
     const el = body();
     renderNoteBody(el, "", "![](media/1/x.png)", ctx);

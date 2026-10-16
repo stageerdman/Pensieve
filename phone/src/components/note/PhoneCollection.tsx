@@ -64,6 +64,7 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
     lifted: false,
     suppressClick: false,
     tileEl: null as HTMLElement | null,
+    ghost: null as HTMLElement | null, // the position:fixed clone that actually moves (see beginLift)
     pointerId: -1,
     target: -1,
     before: true,
@@ -79,6 +80,9 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
     rd.rafScroll = 0;
   };
 
+  // LOGICAL reset only — frees `rd` for the next gesture immediately. Removes the ghost and
+  // un-dims the source; each terminal path that wants an ANIMATED ghost detaches it from `rd` first
+  // (so this never nukes an in-flight settle animation).
   const resetDrag = () => {
     window.clearTimeout(rd.timer);
     stopEdgeScroll();
@@ -90,6 +94,9 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
     } catch {
       /* capture may already be gone */
     }
+    rd.ghost?.remove();
+    rd.ghost = null;
+    rd.tileEl?.classList.remove("drag-source");
     rd.from = -1;
     rd.tileEl = null;
     rd.pointerId = -1;
@@ -97,33 +104,50 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
     rd.target = -1;
   };
 
-  // Ease a lifted (but not committed) tile back to its slot, then clean up.
+  // Ease the ghost back to the source slot when a lift ends without a move. Detach the ghost +
+  // source from `rd`, free the logical state, then fly the captured ghost home and remove it.
   const animateHome = () => {
-    const tile = rd.tileEl;
-    if (!tile) return resetDrag();
-    tile.style.transition = "transform .18s ease";
-    tile.style.transform = "";
-    const done = () => {
-      tile.style.transition = "";
-      tile.classList.remove("lifting");
-      tile.removeEventListener("transitionend", done);
-      resetDrag();
-    };
-    tile.addEventListener("transitionend", done);
-    // fallback if transitionend doesn't fire (no actual movement)
-    window.setTimeout(done, 220);
+    const g = rd.ghost;
+    const src = rd.tileEl;
+    rd.ghost = null; // detach so resetDrag won't remove it mid-animation
+    rd.tileEl = null;
+    resetDrag();
+    src?.classList.remove("drag-source");
+    if (!g) return;
+    g.style.transition = "transform .18s ease, opacity .18s ease";
+    g.style.transform = "translate3d(0,0,0) scale(1)";
+    g.style.opacity = "0";
+    window.setTimeout(() => g.remove(), 210);
   };
 
+  // Lift = build a position:FIXED clone of the tile pinned to its current viewport rect, and dim
+  // the original in place as a placeholder. The ghost is what follows the finger — it lives OUTSIDE
+  // the CSS multi-column flow, so Safari's multicol+transform mis-render (right-column tiles jumping
+  // to the left / vanishing) cannot happen. The in-flow tile is never transformed.
   const beginLift = (x: number, y: number) => {
     const tile = rd.tileEl;
     const m = masonryRef.current;
-    if (!tile || !m) return;
+    const sheet = sheetRef.current;
+    if (!tile || !m || !sheet) return;
     rd.lifted = true;
     haptic(18);
-    tile.classList.add("lifting");
+
+    const rect = tile.getBoundingClientRect();
+    const g = tile.cloneNode(true) as HTMLElement;
+    g.classList.add("ph-drag-ghost");
+    g.classList.remove("drop-before", "drop-after");
+    g.querySelectorAll(".ph-collection-remove").forEach((b) => b.remove());
+    g.style.left = `${rect.left}px`;
+    g.style.top = `${rect.top}px`;
+    g.style.width = `${rect.width}px`;
+    g.style.height = `${rect.height}px`;
+    sheet.appendChild(g);
+    rd.ghost = g;
+    tile.classList.add("drag-source");
+
     m.classList.add("reordering");
-    // Capture on the MASONRY (stable, pointer-events:auto) — NOT the lifting tile, which is
-    // pointer-events:none so elementFromPoint can read the tile under the finger.
+    // Capture on the MASONRY (stable, pointer-events:auto) so moves keep arriving even as the finger
+    // leaves the source tile. The ghost is pointer-events:none → elementFromPoint reads tiles under it.
     try {
       m.setPointerCapture?.(rd.pointerId);
     } catch {
@@ -159,7 +183,18 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
     if (v === 0) return stopEdgeScroll();
     if (!rd.rafScroll) {
       const step = () => {
-        m.scrollTop += v;
+        // Recompute speed from the LATEST finger position so the loop self-terminates the moment
+        // the finger leaves the edge band (never a runaway rAF after the drag).
+        const rr = m.getBoundingClientRect();
+        const yy = rd.lastY;
+        let vv = 0;
+        if (yy < rr.top + EDGE_PX) vv = -EDGE_MAX_V * (1 - (yy - rr.top) / EDGE_PX);
+        else if (yy > rr.bottom - EDGE_PX) vv = EDGE_MAX_V * (1 - (rr.bottom - yy) / EDGE_PX);
+        if (vv === 0 || !rd.lifted) {
+          rd.rafScroll = 0;
+          return;
+        }
+        m.scrollTop += vv;
         hitTest(rd.lastX, rd.lastY); // re-resolve target as content scrolls under a still finger
         rd.rafScroll = requestAnimationFrame(step);
       };
@@ -173,15 +208,11 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
     const to = rd.from < insertPos ? insertPos - 1 : insertPos; // remove-then-insert correction
     if (to === rd.from) return animateHome();
     haptic(12);
-    const tile = rd.tileEl;
-    if (tile) {
-      tile.style.transform = "";
-      tile.style.transition = "";
-      tile.classList.remove("lifting");
-    }
-    clearRing();
-    phoneCollection.reorder(rd.from, to); // re-renders in the new order (single reflow)
-    resetDrag();
+    const from = rd.from;
+    resetDrag(); // removes the ghost + un-dims the source in one shot
+    // Stable keys (keyed by url below) mean React MOVES the existing node into place rather than
+    // rebuilding it — no <img> reload, no flash, one reflow.
+    phoneCollection.reorder(from, to);
   };
 
   // ── pointer handlers. pointerdown is per-tile (to learn `from`); move/up/cancel live on the
@@ -220,7 +251,7 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
       return;
     }
     e.preventDefault();
-    rd.tileEl!.style.transform = `translate(${dx}px, ${dy}px) scale(${LIFT_SCALE})`;
+    if (rd.ghost) rd.ghost.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${LIFT_SCALE})`;
     hitTest(e.clientX, e.clientY);
     edgeScroll(e.clientY);
   };
@@ -279,6 +310,16 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
     }
   };
 
+  // STABLE keys — keyed by the photo's url (not its index), so a reorder makes React MOVE the
+  // existing tile node (and its already-decoded <img>) to the new slot instead of rebuilding it.
+  // Duplicate urls in one board are disambiguated by occurrence so keys stay unique and stable.
+  const seenUrl = new Map<string, number>();
+  const itemKeys = s.items.map((it) => {
+    const n = seenUrl.get(it.url) ?? 0;
+    seenUrl.set(it.url, n + 1);
+    return `${it.url}#${n}`;
+  });
+
   return (
     <div className="ph-collection" role="dialog" aria-modal="true" aria-label="Photo collection" ref={sheetRef}>
       {/* A slim top grabber is ONLY a swipe-down-to-close handle (a gesture affordance, not a
@@ -301,7 +342,7 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
         onPointerCancel={onMasonryCancel}
       >
         {s.items.map((it, i) => (
-          <div className="ph-collection-tile" data-index={i} key={`${i}-${it.url}`}>
+          <div className="ph-collection-tile" data-index={i} key={itemKeys[i]}>
             <img
               src={it.url}
               alt={mediaAlt(it.caption)}

@@ -358,13 +358,19 @@ export function PhoneApp() {
   // The ONE hidden <input> both reach-points drive. Opening it keeps the caret: the toolbar
   // button fires on pointerdown+preventDefault; the spell path appends at the end if the caret
   // was lost. The native iOS sheet (Photo Library / Take Photo / Choose File) comes free.
-  function openImagePicker() {
+  // Which action opened the picker: "photo" = add to the memory (merge into an adjacent block if
+  // any); "gallery" = the "Gallery" spell → always start a fresh, separate gallery block.
+  const pickModeRef = useRef<"photo" | "gallery">("photo");
+  function openImagePicker(mode: "photo" | "gallery" = "photo") {
+    pickModeRef.current = mode;
     fileInputRef.current?.click();
   }
 
   function onPickFiles(files: FileList | null) {
     const noteBody = noteBodyRef.current;
     const note = currentRef.current;
+    const mode = pickModeRef.current;
+    pickModeRef.current = "photo"; // reset for the next open (toolbar button / Photo spell)
     if (!files || !files.length || !noteBody || !note) return;
     const images: MediaImage[] = [];
     for (const file of Array.from(files)) {
@@ -382,7 +388,8 @@ export function PhoneApp() {
       haptic(10);
       return;
     }
-    insertImages(noteBody, images, mediaCtx); // single / gallery / adjacency-merge, then onChange
+    // "Gallery" spell → force a new separate gallery block; "Photo" → merge-adjacency as before.
+    insertImages(noteBody, images, mediaCtx, { newBlock: mode === "gallery" });
     syncPlaceholders(noteBody);
     autosave.scheduleSave();
     haptic(10);
@@ -522,7 +529,8 @@ export function PhoneApp() {
     menu.close();
     if (s.id === "write") openNewNote(false);
     else if (s.id === "accio") accio.openAccio();
-    else if (s.id === "image") openImagePicker();
+    else if (s.id === "image") openImagePicker("photo");
+    else if (s.id === "gallery") openImagePicker("gallery");
     else showToast(`✨ ${s.name} cast`);
   }
   /** Held a spell (Write = speak). */

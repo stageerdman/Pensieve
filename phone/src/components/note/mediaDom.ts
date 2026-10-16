@@ -292,8 +292,10 @@ export function serializeNoteBody(noteBody: HTMLElement): { title: string; conte
 // ---- insert (from the picker) ----
 
 /** Insert freshly picked images into the body. Merges into an adjacent media block to form
- *  a gallery (emergent gallery), else drops a new single/gallery block at the caret. */
-export function insertImages(noteBody: HTMLElement, images: MediaImage[], ctx: MediaCtx) {
+ *  a gallery (emergent gallery), else drops a new single/gallery block at the caret.
+ *  `opts.newBlock` forces a fresh, separate block (the "Gallery" spell: an explicit new gallery)
+ *  — it skips the adjacency merge so the picked photos never fold into a neighbouring block. */
+export function insertImages(noteBody: HTMLElement, images: MediaImage[], ctx: MediaCtx, opts?: { newBlock?: boolean }) {
   if (!images.length) return;
 
   // Find the caret's top-level block (or null → append at the end).
@@ -308,22 +310,24 @@ export function insertImages(noteBody: HTMLElement, images: MediaImage[], ctx: M
 
   const isBlank = (el: HTMLElement | null) => !!el && !isMediaEl(el) && !(el.textContent || "").trim();
 
-  // 1) anchor IS a media block → merge into it.
-  if (anchor && isMediaEl(anchor)) {
-    mergeInto(anchor, images, ctx, noteBody);
-    return;
-  }
-  // 2) blank caret line with a media block directly before/after → merge into that.
-  if (isBlank(anchor)) {
-    const prev = anchor!.previousElementSibling as HTMLElement | null;
-    const next = anchor!.nextElementSibling as HTMLElement | null;
-    if (isMediaEl(prev)) {
-      mergeInto(prev!, images, ctx, noteBody);
+  if (!opts?.newBlock) {
+    // 1) anchor IS a media block → merge into it.
+    if (anchor && isMediaEl(anchor)) {
+      mergeInto(anchor, images, ctx, noteBody);
       return;
     }
-    if (isMediaEl(next)) {
-      mergeInto(next!, images, ctx, noteBody);
-      return;
+    // 2) blank caret line with a media block directly before/after → merge into that.
+    if (isBlank(anchor)) {
+      const prev = anchor!.previousElementSibling as HTMLElement | null;
+      const next = anchor!.nextElementSibling as HTMLElement | null;
+      if (isMediaEl(prev)) {
+        mergeInto(prev!, images, ctx, noteBody);
+        return;
+      }
+      if (isMediaEl(next)) {
+        mergeInto(next!, images, ctx, noteBody);
+        return;
+      }
     }
   }
 

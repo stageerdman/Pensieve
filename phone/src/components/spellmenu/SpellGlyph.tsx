@@ -82,6 +82,15 @@ const PATHS: Record<Exclude<IconName, "menu">, React.ReactNode> = {
       <path d="M4 16.5l4.6-4.3a1.6 1.6 0 0 1 2.2 0L16 17M14 14.2l1.8-1.7a1.6 1.6 0 0 1 2.2 0l2 1.9" />
     </>
   ),
+  // a 2×2 grid of rounded tiles — "a collection of photos", distinct from the single image frame
+  gallery: (
+    <>
+      <rect x="3.5" y="3.5" width="7" height="7" rx="1.6" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="1.6" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="1.6" />
+      <rect x="13.5" y="13.5" width="7" height="7" rx="1.6" />
+    </>
+  ),
   // a "return rune": a left arrowhead feeding a line that hooks and curls back on itself —
   // reads as "go back" in a magical register, distinct from the gold Orbit beside it.
   back: (
