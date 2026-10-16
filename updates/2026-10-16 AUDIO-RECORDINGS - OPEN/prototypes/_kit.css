@@ -260,16 +260,29 @@ button { font-family: inherit; color: inherit; }
 }
 .audio-status.is-saving .dot { background: hsl(var(--gold)); }
 
-/* Broken-state inline notice. */
+/* Broken-state inline notice — ONE row at the standard bar height, never taller.
+   The filename truncates with an ellipsis; Locate… stays compact inline. */
 .audio-broken {
   display: flex; align-items: center; gap: 8px;
   flex: 1 1 auto; min-width: 0;
+  flex-wrap: nowrap;            /* never wrap onto a second row */
+  overflow: hidden;
   color: hsl(var(--text-muted));
   font-size: 12px;
+}
+.audio-broken > svg { flex: 0 0 auto; }        /* the locate glyph keeps its size */
+/* The message span is the shrinkable one: it truncates with an ellipsis. */
+.audio-broken-text {
+  min-width: 0;                 /* allow the flex item to shrink below content */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .audio-broken .name { font-family: var(--font-mono); font-size: 11px; color: hsl(var(--text)); }
 .audio-broken-locate {
   margin-left: auto;
+  flex: 0 0 auto;               /* stays compact, never shrinks or wraps */
+  white-space: nowrap;
   padding: 3px 9px;
   border: 1px solid hsl(var(--border));
   background: hsl(var(--surface));

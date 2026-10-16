@@ -1,5 +1,40 @@
 # Audio recordings — design contract
 
+> ## ⚑ P2 — LOCKED owner decisions (2026-10-16) — these OVERRIDE anything below
+> 1. **Scope:** recording/capture **ships in this update**. Transcription engine stays a
+>    stub (the UI trigger exists; whisper lands next). Reader runs on existing sidecars.
+> 2. **Capture:** born from the **`/audio`** slash command; the recorder **IS the inline bar**.
+> 3. **Uniform height:** EVERY bar state is the same height (56 standard / 44 compact).
+>    Recording and broken/missing must NOT be taller — normalize them.
+> 4. **Transcript generation is ALWAYS offered** in ⋯: `Create transcript` when none;
+>    `Regenerate transcript` (re-run, newer model) when one already exists.
+> 5. **Two reader presentations, both from ⋯:** `Open transcript — split view` (**default**;
+>    the transcript icon click also opens this) and `Open transcript — reader` (a focused
+>    full overlay: player docked on top, transcript below). Keep BOTH.
+> 6. **⋯ menu order (final):** Download recording · Open transcript — split view* ·
+>    Open transcript — reader* · Create transcript / Regenerate transcript** · —(sep)— ·
+>    Replace… · Remove.  *shown only when a transcript exists. **label depends on existence.
+> 7. **Split view chrome:** REMOVE the meta chip line (speakers / language / polished) and
+>    the "· click a word to jump" hint — they don't exist in our UI. In the split, DROP the
+>    transcript toggle button; ADD a dedicated **Collapse split view** button. Make the
+>    close/collapse affordance + animation clearly better.
+> 8. **Gallery = improved waveform card:** the tile is a **self-contained mini-player** —
+>    waveform with **functional controls underneath** (play/pause, scrub, time). NO title /
+>    voice-memo-icon label, NO "Now playing" dock indirection. Plays in place. Its transcript
+>    opens **only in split view**.
+> 9. **Speakers:** keep per-turn distinction by **weight/tone + a quiet gutter**; no summary
+>    chips, no second hue.
+> 10. **Transcript:** always show **polished**; no raw/polished toggle, no "polished" chip.
+> 11. **Home/flask:** the **duration chip** cue (Variant B). When audio is transcribed, its
+>     transcript text **contributes to the flask fill** (content volume) — a transcribed voice
+>     memo fills its flask like written text. Peek never auto-plays.
+> 12. Record/stop stays **accent** (not red). Basin `Space` two-tier owner: deferred (quiet hint).
+>
+> Supersedes conflicting details in §2 (heights), §3/§8 (chips, hint), §9 (transcript button
+> → collapse button), and the gallery guidance. Everything else in this contract stands.
+
+
+
 The binding spec for every audio surface in Pensieve. If a surface agent needs a
 value not here, it derives from the scales below — it never invents a new hue,
 radius, bar height, or shadow. Source of truth in code: `_kit.css` (visual) and

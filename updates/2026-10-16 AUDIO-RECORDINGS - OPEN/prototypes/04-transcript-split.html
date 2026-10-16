@@ -54,32 +54,32 @@
     .split-right { display: flex; }
     .split-right .transcript { flex: 1 1 auto; }
 
-    /* When closed, the note widens and a faint hint sits where the bar's
-       transcript icon reopens the pane. */
+    /* When closed, the note widens and a real "reopen" button sits where the
+       pane used to be — a discoverable control, not just a line of hint text. */
     .reopen-hint {
       display: none; align-items: center; gap: 8px;
-      margin: 10px 0 0; font-size: 11px; color: hsl(var(--text-muted));
+      margin: 14px 0 0; padding: 7px 12px 7px 10px;
+      font-size: 12px; font-weight: 600; color: hsl(var(--text));
+      background: hsl(var(--surface-sunken)); border: 1px solid hsl(var(--border));
+      border-radius: var(--radius); cursor: pointer;
+      transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
     }
+    .reopen-hint:hover { border-color: hsl(var(--accent) / 0.5); background: hsl(var(--accent) / 0.06); }
+    .reopen-hint:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
+    .reopen-hint svg { width: 16px; height: 16px; display: block; color: hsl(var(--accent)); }
     .split.is-closed .reopen-hint { display: inline-flex; }
 
-    /* ── Variant #4 — optional faint speaker rail. Honors ONE accent: the rail
-       is a neutral text-coloured border whose WEIGHT/ALPHA distinguishes the two
-       speakers (spk-0 stronger, spk-1 lighter) — never a second hue. ───────── */
-    .transcript.show-rail .turn { border-left: 2px solid transparent; padding-left: 12px; }
-    .transcript.show-rail .turn.spk-0 { border-left: 3px solid hsl(var(--text) / 0.38); }
-    .transcript.show-rail .turn.spk-1 { border-left: 1px solid hsl(var(--text-muted) / 0.30); }
+    /* ── Collapse-split control — lives in the docked player (top of the pane).
+       Reuses the kit .audio-iconbtn; a touch more presence than a ghost icon so
+       the "get out of the split" action is obvious and discoverable. ────────── */
+    .dock-collapse { color: hsl(var(--text-muted)); }
+    .dock-collapse:hover { background: hsl(var(--accent) / 0.12); color: hsl(var(--text)); }
+    .dock-collapse:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
 
-    /* ── Variant #5 — raw vs polished. Only polished data exists; "raw" is a
-       stubbed visual: verbatim-feel (looser, lowercased) + an honest annotation. */
-    .transcript.is-raw .turn-text { text-transform: lowercase; letter-spacing: 0.01em; color: hsl(var(--text) / 0.82); }
-    .transcript-dock-meta .chip.is-toggle { cursor: pointer; }
-    .transcript-dock-meta .chip.is-toggle:hover { border-color: hsl(var(--accent) / 0.5); color: hsl(var(--text)); }
-    .transcript-dock-meta .chip.is-on { background: hsl(var(--accent) / 0.12); border-color: hsl(var(--accent) / 0.45); color: hsl(var(--text)); }
-    .transcript-dock-meta .raw-note { color: hsl(var(--warn)); }
-
-    /* ── Variant #2 — narrow → full overlay fallback. Below the split threshold
-       the SAME .transcript component is shown as a full overlay (dock on top,
-       text below) instead of a split. We relocate the one transcript node here. */
+    /* ── Focused "reader" presentation (locked #5) — the SAME .transcript
+       component shown as a full-area overlay: player docked on top, transcript
+       below. Opened deliberately from ⋯ "Open transcript — reader", and also the
+       graceful fallback when the window is too narrow for a split. ──────────── */
     .overlay {
       position: fixed; inset: 0; z-index: 40;
       display: none; flex-direction: column;
@@ -88,53 +88,20 @@
     }
     .overlay.is-shown { display: flex; opacity: 1; }
     .overlay .transcript { flex: 1 1 auto; min-height: 0; }
-    .overlay-note {
-      position: absolute; top: 12px; left: 16px; z-index: 41;
-      font-size: 11px; color: hsl(var(--text-muted));
+    /* The reader overlay carries its own quiet "back to split" control and an
+       honest label; no fixed note pill needed. */
+    .overlay-back {
+      position: absolute; top: 12px; right: 16px; z-index: 41;
+    }
+    .overlay-label {
+      position: absolute; top: 14px; left: 16px; z-index: 41;
+      font-size: 11px; color: hsl(var(--text-muted)); letter-spacing: 0.02em;
+    }
+    .overlay-back-btn {
       background: hsl(var(--surface-raised)); border: 1px solid hsl(var(--border));
-      border-radius: 999px; padding: 3px 10px;
     }
-
-    /* ── Variants / annotations panel — kept OUT of the main view (collapsed
-       fixed card, bottom-left) so the surface stays clean. ─────────────────── */
-    .vpanel { position: fixed; left: 16px; bottom: 16px; z-index: 55; max-width: 340px; }
-    .vpanel-toggle {
-      display: inline-flex; align-items: center; gap: 7px;
-      padding: 8px 12px; font-size: 12px; font-weight: 600;
-      border: 1px solid hsl(var(--border)); background: hsl(var(--surface-raised));
-      color: hsl(var(--text)); border-radius: var(--radius); cursor: pointer;
-      box-shadow: 0 10px 30px -14px hsl(0 0% 0% / 0.4);
-    }
-    .vpanel-toggle:hover { border-color: hsl(var(--accent) / 0.5); }
-    .vpanel-toggle .dot { width: 6px; height: 6px; border-radius: 50%; background: hsl(var(--accent)); }
-    .vpanel-body {
-      display: none; margin-top: 8px; padding: 14px;
-      background: hsl(var(--surface-raised)); border: 1px solid hsl(var(--border));
-      border-radius: 10px; box-shadow: 0 16px 40px -18px hsl(0 0% 0% / 0.45);
-    }
-    .vpanel.is-open .vpanel-body { display: block; }
-    .vpanel h3 { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: hsl(var(--text-muted)); margin: 0 0 10px; font-weight: 700; }
-    .vrow { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 9px 0; }
-    .vrow + .vrow { border-top: 1px solid hsl(var(--border)); }
-    .vrow .vlabel { font-size: 13px; font-weight: 600; color: hsl(var(--text)); }
-    .vrow .vnote { font-size: 11px; line-height: 1.45; color: hsl(var(--text-muted)); margin-top: 3px; }
-    /* a small, accessible switch */
-    .switch { position: relative; width: 34px; height: 20px; flex: 0 0 auto; }
-    .switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
-    .switch .track {
-      position: absolute; inset: 0; border-radius: 999px;
-      background: hsl(var(--text-muted) / 0.3); transition: background var(--dur) var(--ease);
-    }
-    .switch .thumb {
-      position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
-      background: hsl(var(--surface)); transition: transform var(--dur) var(--ease);
-      box-shadow: 0 1px 2px hsl(0 0% 0% / 0.3);
-    }
-    .switch input:checked + .track { background: hsl(var(--accent)); }
-    .switch input:checked + .track + .thumb { transform: translateX(14px); }
-    .switch input:focus-visible + .track { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
-    .vhint { margin-top: 10px; font-size: 10px; color: hsl(var(--text-muted)); line-height: 1.5; }
-    .vhint .kbd { font-size: 10px; }
+    .overlay-back-btn:hover { background: hsl(var(--accent) / 0.12); border-color: hsl(var(--accent) / 0.5); }
+    .overlay-back-btn:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
 
     @media (prefers-reduced-motion: reduce) {
       .split, .split-right, .split-right .transcript, .overlay { transition: none; }
@@ -157,7 +124,10 @@
           <p>The recording sits inline, like any other media block — I can keep writing around it. Opening the transcript splits this view so the text lives alongside my notes.</p>
 
           <div class="inline-audio" id="inlineBar"></div>
-          <div class="reopen-hint">Transcript closed — press the transcript glyph on the bar to reopen it.</div>
+          <button class="reopen-hint" id="reopenBtn" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6-6 6 6 6"/><path d="m10 6-6 6 6 6"/></svg>
+            Reopen transcript
+          </button>
 
           <blockquote>"We don't need more dashboards. We need the thing to just tell us what changed." — around the eight-minute mark.</blockquote>
           <p>Next step: send the recap and the one-pager by Thursday. The transcript on the right scrolls and highlights in lockstep with playback — click any word to replay that exact moment, even while paused.</p>
@@ -176,48 +146,11 @@
     </div>
   </div>
 
-  <!-- Variant #2 target: the full overlay the transcript relocates into when narrow -->
+  <!-- Focused "reader" presentation (locked #5): the full-area overlay the one
+       .transcript node relocates into. Opened from ⋯ "Open transcript — reader",
+       and the graceful fallback when the window is too narrow for a split. -->
   <div class="overlay" id="overlay">
-    <span class="overlay-note">Narrow window → full overlay (same .transcript component)</span>
-  </div>
-
-  <!-- Variants / annotations — collapsed, bottom-left, out of the main view -->
-  <div class="vpanel" id="vpanel">
-    <button class="vpanel-toggle" id="vpanelToggle" aria-expanded="false">
-      <span class="dot"></span> Owner decisions · variants
-    </button>
-    <div class="vpanel-body">
-      <h3>Toggle to judge each pending decision</h3>
-
-      <div class="vrow">
-        <label class="switch"><input type="checkbox" id="vOverlay" /><span class="track"></span><span class="thumb"></span></label>
-        <div>
-          <div class="vlabel">#2 · Narrow → full overlay</div>
-          <div class="vnote">Default is the split (left). Below the split threshold the <b>same</b> <span class="kbd">.transcript</span> becomes a full overlay — dock on top, text below. Auto-fires under ~760px; toggle here to preview it at any width.</div>
-        </div>
-      </div>
-
-      <div class="vrow">
-        <label class="switch"><input type="checkbox" id="vRail" /><span class="track"></span><span class="thumb"></span></label>
-        <div>
-          <div class="vlabel">#4 · Speaker rail</div>
-          <div class="vnote">Default tells the two speakers apart by weight/tone only. This adds a faint <b>left rail</b> — a neutral border whose thickness/alpha differs per speaker (spk-0 heavier, spk-1 lighter). One-accent rule intact: the rail is never a second hue.</div>
-        </div>
-      </div>
-
-      <div class="vrow">
-        <label class="switch"><input type="checkbox" id="vRaw" /><span class="track"></span><span class="thumb"></span></label>
-        <div>
-          <div class="vlabel">#5 · Raw vs polished</div>
-          <div class="vnote">Also toggleable from the dock chip. Polished is the only data we have; <b>raw is stubbed</b> (verbatim-feel styling + an honest label) so the owner can judge whether a dock toggle is worth shipping.</div>
-        </div>
-      </div>
-
-      <div class="vhint">
-        Divider: drag, or focus it and use <span class="kbd">←</span> <span class="kbd">→</span> to nudge 4% (clamp 24–70%).
-        Close/open the pane from the transcript glyph on either bar.
-      </div>
-    </div>
+    <span class="overlay-label">Reader</span>
   </div>
 
   <script src="_audio.js"></script>
@@ -227,9 +160,30 @@
     const SRC = "assets/audio.mp3";
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    /* ── Bar builder — ported from 00-overview.html buildBar(), with an
-       onTranscript hook so a bar's transcript glyph can open OR close the split.
-       opts: { compact, transcript, controller, duration, onTranscript, transcriptLabel } */
+    // No "collapse" glyph in the kit's ICONS — add one in the same stroke style:
+    // a double-chevron pointing right = "send this pane away / collapse the split".
+    const COLLAPSE_ICON =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 6 6 6-6 6"/><path d="m14 6 6 6-6 6"/></svg>';
+    // mirror image — "bring the pane back / return to split" (used in the reader).
+    const COLLAPSE_ICON_LEFT =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6-6 6 6 6"/><path d="m10 6-6 6 6 6"/></svg>';
+
+    // small helper: a kit .audio-iconbtn with a raw SVG glyph + label + handler.
+    function buildIconBtn(svg, label, onClick) {
+      const b = document.createElement("button");
+      b.className = "audio-iconbtn";
+      b.innerHTML = svg;
+      b.setAttribute("aria-label", label);
+      b.setAttribute("title", label);
+      if (onClick) b.addEventListener("click", onClick);
+      return b;
+    }
+
+    /* ── Bar builder — ported from 00-overview.html buildBar().
+       opts: { compact, transcript, controller, duration,
+               showTranscript (default true), onTranscript, transcriptLabel,
+               collapse, onCollapse, collapseLabel,   // dedicated Collapse button
+               menuItems: [{icon,label,onClick,disabled,sep}] } */
     function buildBar(host, peaks, opts) {
       opts = opts || {};
       const bar = document.createElement("div");
@@ -251,10 +205,27 @@
       const time = document.createElement("span");
       time.className = "audio-time";
 
-      const tr = document.createElement("button");
-      tr.className = "audio-iconbtn audio-transcript is-" + (opts.transcript || "present");
-      tr.innerHTML = A.icon("transcript");
-      tr.setAttribute("aria-label", opts.transcriptLabel || "Open transcript");
+      // Transcript glyph — shown on the inline bar (opens/closes the split).
+      // The DOCKED player drops it (locked #7) in favour of a Collapse button.
+      let tr = null;
+      if (opts.showTranscript !== false) {
+        tr = document.createElement("button");
+        tr.className = "audio-iconbtn audio-transcript is-" + (opts.transcript || "present");
+        tr.innerHTML = A.icon("transcript");
+        tr.setAttribute("aria-label", opts.transcriptLabel || "Open transcript");
+      }
+
+      // Dedicated "Collapse split view" button — reuses the kit .audio-iconbtn
+      // with a collapse glyph; sits at the top of the pane in the docked player.
+      let collapseBtn = null;
+      if (opts.collapse) {
+        collapseBtn = document.createElement("button");
+        collapseBtn.className = "audio-iconbtn dock-collapse";
+        collapseBtn.innerHTML = COLLAPSE_ICON;
+        collapseBtn.setAttribute("aria-label", opts.collapseLabel || "Collapse split view");
+        collapseBtn.setAttribute("title", opts.collapseLabel || "Collapse split view");
+        if (opts.onCollapse) collapseBtn.addEventListener("click", opts.onCollapse);
+      }
 
       const moreWrap = document.createElement("div");
       moreWrap.style.position = "relative"; moreWrap.style.flex = "0 0 auto";
@@ -264,7 +235,10 @@
       more.innerHTML = A.icon("more");
       moreWrap.appendChild(more);
 
-      bar.append(play, wave, time, tr, moreWrap);
+      bar.append(play, wave, time);
+      if (tr) bar.append(tr);
+      if (collapseBtn) bar.append(collapseBtn);
+      bar.append(moreWrap);
       host.appendChild(bar);
 
       const ctrl = opts.controller || A.controller(SRC);
@@ -299,22 +273,30 @@
         else if (e.key === "ArrowRight") { e.preventDefault(); ctrl.seek(ctrl.time() + (e.metaKey ? 0 : 5)); if (e.metaKey && opts.onSegStep) opts.onSegStep(1); }
       });
 
-      if (opts.onTranscript) tr.addEventListener("click", opts.onTranscript);
+      if (tr && opts.onTranscript) tr.addEventListener("click", opts.onTranscript);
 
-      // ⋯ menu (present → Download / Open transcript)
+      // ⋯ menu — data-driven from opts.menuItems so each surface offers the
+      // right actions (locked #6). Reader vs split live here (quiet, not a panel).
+      const menuItems = opts.menuItems || [
+        { icon: "download", label: "Download recording" },
+      ];
       more.addEventListener("click", () => {
         if (moreWrap.querySelector(".audio-menu")) { closeMenu(); return; }
         const backdrop = document.createElement("div"); backdrop.className = "audio-menu-backdrop";
         const menu = document.createElement("div"); menu.className = "audio-menu"; menu.setAttribute("role", "menu");
         menu.style.top = "34px"; menu.style.right = "0";
-        menu.innerHTML =
-          '<button role="menuitem">' + A.icon("download") + 'Download recording</button>' +
-          '<button role="menuitem" data-open>' + A.icon("transcript") + (opts.menuTranscriptLabel || 'Open transcript') + '</button>';
+        menuItems.forEach((it) => {
+          if (it.sep) { const s = document.createElement("div"); s.className = "audio-menu-sep"; menu.appendChild(s); return; }
+          const b = document.createElement("button");
+          b.setAttribute("role", "menuitem");
+          if (it.disabled) b.setAttribute("disabled", "");
+          b.innerHTML = (it.svg || (it.icon ? A.icon(it.icon) : "")) + it.label;
+          if (it.onClick) b.addEventListener("click", () => { closeMenu(); it.onClick(); });
+          menu.appendChild(b);
+        });
         moreWrap.appendChild(backdrop); moreWrap.appendChild(menu);
         more.setAttribute("aria-expanded", "true");
         backdrop.addEventListener("click", closeMenu);
-        const openItem = menu.querySelector("[data-open]");
-        if (opts.onTranscript) openItem.addEventListener("click", () => { closeMenu(); opts.onTranscript(); });
         document.addEventListener("keydown", escClose);
       });
       function escClose(e) { if (e.key === "Escape") closeMenu(); }
@@ -325,27 +307,18 @@
         document.removeEventListener("keydown", escClose);
       }
 
-      return { ctrl, wf, bar, transcriptBtn: tr };
+      return { ctrl, wf, bar, transcriptBtn: tr, collapseBtn };
     }
 
-    /* ── Transcript reading experience — ported from buildTranscript(), plus the
-       dock meta chips (speakers · language · polished/raw · hint) and the
-       raw-toggle wiring. Returns a handle for the variant toggles. */
+    /* ── Transcript reading experience — ported from buildTranscript().
+       Locked chrome: ALWAYS polished (no raw/polished toggle, no "polished"
+       chip), NO meta chip line (speakers/language), NO "click a word" hint.
+       Speakers are told apart by weight/tone + the quiet per-turn gutter only. */
     function buildTranscript(host, peaks, transcript, ctrl, opts) {
       opts = opts || {};
       const S = A.sync(transcript);
       const dock = document.createElement("div"); dock.className = "transcript-dock";
       const barHost = document.createElement("div"); dock.appendChild(barHost);
-      const meta = document.createElement("div"); meta.className = "transcript-dock-meta";
-      const nSpk = S.meta ? S.meta.speakers.length : 2;
-      const lang = S.meta ? S.meta.language.toUpperCase() : "CS";
-      meta.innerHTML =
-        '<span class="chip">' + nSpk + ' speakers</span>' +
-        '<span class="chip">' + lang + '</span>' +
-        '<span class="chip is-toggle is-on" id="rawChip" role="switch" aria-checked="false" tabindex="0">polished</span>' +
-        '<span class="raw-note" id="rawNote" hidden>raw = verbatim ASR (stubbed — only polished data exists)</span>' +
-        '<span id="jumpHint">· click a word to jump</span>';
-      dock.appendChild(meta);
 
       const body = document.createElement("div"); body.className = "transcript-body";
       const speakers = (S.meta && S.meta.speakers) || [];
@@ -371,27 +344,15 @@
       });
 
       host.append(dock, body);
-      // the docked player's transcript glyph CLOSES the split (we're already in it)
+      // Docked player: NO transcript glyph (locked #7). Instead a dedicated
+      // Collapse-split button, plus the ⋯ menu (reader / split / download).
       buildBar(barHost, peaks, {
         transcript: "present", controller: ctrl,
-        transcriptLabel: "Close transcript", menuTranscriptLabel: "Close transcript",
-        onTranscript: opts.onClose,
+        showTranscript: false,
+        collapse: true, onCollapse: opts.onCollapse, collapseLabel: "Collapse split view",
+        menuItems: opts.menuItems,
         onSegStep: segStep,
       });
-
-      // raw/polished dock chip
-      const rawChip = meta.querySelector("#rawChip");
-      const rawNote = meta.querySelector("#rawNote");
-      function setRaw(on) {
-        host.classList.toggle("is-raw", on);
-        rawChip.textContent = on ? "raw" : "polished";
-        rawChip.classList.toggle("is-on", !on);        // "on" tint marks the real (polished) data
-        rawChip.setAttribute("aria-checked", String(on));
-        rawNote.hidden = !on;
-        if (opts.onRaw) opts.onRaw(on);
-      }
-      rawChip.addEventListener("click", () => setRaw(!host.classList.contains("is-raw")));
-      rawChip.addEventListener("keydown", (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); rawChip.click(); } });
 
       // live word highlight + active turn + auto-scroll (while playing only).
       // Timing comes from the engine's sync() — S.at() binary-searches the SORTED
@@ -432,7 +393,7 @@
         else { for (let i = segs.length - 1; i >= 0; i--) if (segs[i].start < t - 0.05) { ctrl.seek(segs[i].start + 0.001); return; } ctrl.seek(0); }
       }
 
-      return { S, body, setRaw, tick };
+      return { S, body, tick };
     }
 
     /* ── boot ──────────────────────────────────────────────────────────────── */
@@ -450,6 +411,7 @@
       // open/close the split; remember the last width so reopening restores it.
       let lastRight = 40;
       function openSplit() {
+        if (readerMode && !isNarrow()) exitReader();   // reader → split
         if (!split.classList.contains("is-closed")) return;
         split.style.setProperty("--split-right", lastRight + "%");
         split.classList.remove("is-closed");
@@ -464,14 +426,33 @@
       }
       function toggleSplit() { split.classList.contains("is-closed") ? openSplit() : closeSplit(); }
 
-      // left inline bar — its transcript glyph OPENS/closes the split
+      // the two reader presentations (locked #5), offered from the ⋯ menu.
+      function showSplit() { enterReaderMode(false); openSplit(); }
+      function showReader() { enterReaderMode(true); }
+
+      // left inline bar — transcript glyph opens/closes the split; ⋯ offers both
+      // presentations (split view = default, reader = focused overlay).
       const inline = buildBar(document.getElementById("inlineBar"), peaks, {
         transcript: "present", controller: ctrl, onTranscript: toggleSplit,
-        transcriptLabel: "Close transcript", menuTranscriptLabel: "Open transcript",
+        transcriptLabel: "Close transcript",
+        menuItems: [
+          { icon: "download", label: "Download recording" },
+          { icon: "transcript", label: "Open transcript — split view", onClick: showSplit },
+          { icon: "transcript", label: "Open transcript — reader", onClick: showReader },
+        ],
       });
 
-      // right transcript — its dock glyph CLOSES the split
-      const T = buildTranscript(transcriptHost, peaks, transcript, ctrl, { onClose: closeSplit });
+      // right transcript — docked player carries the Collapse button; its ⋯ can
+      // switch to the reader or collapse the split.
+      const T = buildTranscript(transcriptHost, peaks, transcript, ctrl, {
+        onCollapse: closeSplit,
+        menuItems: [
+          { icon: "download", label: "Download recording" },
+          { icon: "transcript", label: "Open transcript — reader", onClick: showReader },
+          { sep: true },
+          { svg: COLLAPSE_ICON, label: "Collapse split view", onClick: closeSplit },
+        ],
+      });
 
       /* ── divider drag + keyboard ─────────────────────────────────────────── */
       const divider = document.getElementById("divider");
@@ -494,42 +475,54 @@
         else if (e.key === "ArrowRight") { e.preventDefault(); setRight(cur - 4); }
       });
 
-      /* ── Variant #2 — narrow → full overlay. Relocate the ONE transcript node
-         between the split-right pane and the overlay (single instance, shared
-         controller, listeners intact). Auto-fires under the threshold. ──────── */
+      /* ── Focused "reader" presentation (locked #5). The SAME single
+         .transcript node relocates between the split-right pane and the full
+         overlay (shared controller, listeners intact). It is a deliberate choice
+         from ⋯ "Open transcript — reader"; it is ALSO the graceful fallback when
+         the window is too narrow (< SPLIT_MIN) to hold a usable split. ──────── */
       const SPLIT_MIN = 760;
-      let overlayMode = false, forcedOverlay = false;
-      function applyOverlay(on) {
-        if (on === overlayMode) return;
-        overlayMode = on;
+      let readerMode = false, forcedReader = false;
+      function isNarrow() { return window.innerWidth < SPLIT_MIN; }
+
+      // a quiet "back to split" control inside the reader overlay
+      const overlayBack = buildIconBtn(COLLAPSE_ICON_LEFT, "Back to split view", () => showSplit());
+      overlayBack.classList.add("overlay-back-btn");
+      const backWrap = document.createElement("div"); backWrap.className = "overlay-back";
+      backWrap.appendChild(overlayBack);
+      overlay.appendChild(backWrap);
+
+      function applyReader(on) {
+        if (on === readerMode) return;
+        readerMode = on;
         if (on) {
-          overlay.appendChild(transcriptHost);   // move the live node in
+          overlay.appendChild(transcriptHost);     // move the live node in
           overlay.classList.add("is-shown");
           split.style.visibility = "hidden";
         } else {
-          splitRight.appendChild(transcriptHost); // move it back
+          splitRight.appendChild(transcriptHost);   // move it back
           overlay.classList.remove("is-shown");
           split.style.visibility = "";
-          openSplit();
         }
+        overlayBack.style.display = isNarrow() ? "none" : "";   // no split to go back to when narrow
       }
-      function evalWidth() { applyOverlay(forcedOverlay || window.innerWidth < SPLIT_MIN); }
+      function enterReaderMode(on) { forcedReader = on; evalWidth(); }
+      function exitReader() { forcedReader = false; evalWidth(); }
+      function evalWidth() { applyReader(forcedReader || isNarrow()); }
       window.addEventListener("resize", evalWidth);
       evalWidth();
 
-      /* ── variants panel wiring ───────────────────────────────────────────── */
-      const vpanel = document.getElementById("vpanel");
-      document.getElementById("vpanelToggle").addEventListener("click", (e) => {
-        const open = vpanel.classList.toggle("is-open");
-        e.currentTarget.setAttribute("aria-expanded", String(open));
+      /* ── reopen button (shown where the pane was, when collapsed) ─────────── */
+      document.getElementById("reopenBtn").addEventListener("click", () => { showSplit(); inline.transcriptBtn && inline.transcriptBtn.focus(); });
+
+      /* ── Esc — the discoverable "get out" key. In the reader it returns to the
+         split; in an open split it collapses the pane. Ignored while a ⋯ menu is
+         open (that menu owns Esc). ─────────────────────────────────────────── */
+      document.addEventListener("keydown", (e) => {
+        if (e.key !== "Escape") return;
+        if (document.querySelector(".audio-menu")) return;   // menu's own Esc wins
+        if (readerMode) { if (!isNarrow()) { e.preventDefault(); showSplit(); } return; }
+        if (!split.classList.contains("is-closed")) { e.preventDefault(); closeSplit(); }
       });
-      const vOverlay = document.getElementById("vOverlay");
-      vOverlay.addEventListener("change", () => { forcedOverlay = vOverlay.checked; evalWidth(); });
-      document.getElementById("vRail").addEventListener("change", (e) => transcriptHost.classList.toggle("show-rail", e.target.checked));
-      const vRaw = document.getElementById("vRaw");
-      vRaw.addEventListener("change", (e) => T.setRaw(e.target.checked));
-      // keep the panel switch in sync if the dock chip is used
-      T.body; // (handle kept for clarity)
     }).catch((err) => {
       document.body.insertAdjacentHTML("afterbegin",
         '<div class="card" style="margin:16px;border-color:hsl(var(--danger)/.5)">' + err.message + '</div>');

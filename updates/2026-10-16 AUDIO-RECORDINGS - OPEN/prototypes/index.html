@@ -84,21 +84,21 @@
     <div class="row"><span class="num">02</span><h3>Record &amp; capture</h3></div>
     <p>Slash-menu → live recorder (waveform fills) → “Saving…” (gold) → the settled, playable bar.</p>
     <span class="try">Try: <b>step through</b> the 4 stages (or Auto-play), then play the settled bar.</span>
-    <span class="badge">Decision #3: capture entry point</span>
+    <span class="badge rec">✓ approved · ships this update</span>
   </a>
 
   <a class="card" href="03-in-gallery.html">
     <div class="row"><span class="num">03</span><h3>Audio in a gallery</h3></div>
     <p>The hard one: a horizontal bar among aspect-ratio image tiles. Three options, side by side, with a live row-height slider.</p>
-    <span class="try">Try: <b>drag the row-height slider</b>; play audio in each option.</span>
-    <span class="badge rec">Decision #1 · recommends Option C</span>
+    <span class="try">Try: <b>drag the row-height slider</b>; play the audio card in place.</span>
+    <span class="badge rec">✓ improved waveform card</span>
   </a>
 
   <a class="card" href="04-transcript-split.html">
     <div class="row"><span class="num">04</span><h3>Transcript Split View</h3></div>
     <p>The showcase: editor left, transcript right, player docked on top, words highlighting as it plays. Draggable divider; one playhead, two faces.</p>
-    <span class="try">Try: <b>click a word</b> to jump; press play and watch it track; drag the divider.</span>
-    <span class="badge rec">Decisions #2 #4 #5 (variants inside)</span>
+    <span class="try">Try: <b>click a word</b> to jump; press play and watch it track; drag the divider; Collapse.</span>
+    <span class="badge rec">✓ split default · reader option</span>
   </a>
 
   <a class="card" href="05-accio-hit.html">
@@ -114,37 +114,32 @@
   </a>
 </div>
 
-<h2>Decisions for you</h2>
-<p class="sub">The prototypes make each of these tangible — pick, and I lock the design (P2) before any app code.</p>
+<h2>Decisions — LOCKED (2026-10-16)</h2>
+<p class="sub">Owner reviewed all prototypes; these are now the build contract (design-spec.md). Prototypes 00 / 01 / 03 / 04 refined to match.</p>
 <div class="decisions">
   <div class="decision">
-    <h4>#1 · Audio inside a gallery</h4>
-    <p>A bar has no aspect ratio, so it fights the justified image strip. See prototype 03.</p>
-    <p class="lean">Lean: <b>Option C</b> — a waveform-card tile that opens the canonical bar in a “Now playing” dock. Obeys the tile math and keeps “one bar everywhere.”</p>
+    <h4>✓ #1 · Audio in a gallery → improved waveform card</h4>
+    <p>A self-contained mini-player tile: waveform + functional controls underneath, plays in place. No title/icon, no “Now playing” dock. Scales with the row height like a photo. Its transcript opens only in split view.</p>
   </div>
   <div class="decision">
-    <h4>#2 · Transcript: Split View vs full overlay</h4>
-    <p>Desktop default is the resizable split (new to the shell). Narrow windows fall back to a full overlay. See prototype 04.</p>
-    <p class="lean">Lean: <b>split on desktop</b>, overlay only when too narrow / on phone.</p>
+    <h4>✓ #2 · Two reader presentations</h4>
+    <p><b>Split view is the default</b> (transcript-icon click + ⋯). A focused <b>reader</b> (player docked on top, transcript below) is the second option in ⋯. Narrow windows use the reader overlay.</p>
   </div>
   <div class="decision">
-    <h4>#3 · How recording starts</h4>
-    <p>Capture starts <i>as</i> an inline bar in the note, vs a dedicated recorder that drops a bar on stop. See prototype 02.</p>
-    <p class="lean">Lean: <b>inline bar</b> (one component, in-flow). And: does recording / “Create transcript” ship in <i>this</i> update, or wait for the transcription step?</p>
+    <h4>✓ #3 · Recording ships now, inline</h4>
+    <p>Born from the <code>/audio</code> command; the recorder <b>is</b> the inline bar. Transcription engine itself comes next — the <b>Create / Regenerate transcript</b> trigger is always in ⋯.</p>
   </div>
   <div class="decision">
-    <h4>#4 · Showing two speakers</h4>
-    <p>Diarization by weight/tone only (protects one-accent), vs an optional faint left speaker-rail (border weight, no new hue). Toggle inside prototype 04.</p>
-    <p class="lean">Lean: <b>weight/tone</b>, rail optional.</p>
+    <h4>✓ #4 · Speakers by weight/tone</h4>
+    <p>Per-turn gutter + weight/tone only. No second hue. The summary chips (“2 speakers · CS · polished”) are removed — they don’t exist in our UI.</p>
   </div>
   <div class="decision">
-    <h4>#5 · Polished vs raw transcript</h4>
-    <p>The schema carries <code>polished: true</code>. Always show polished, or offer a raw/polished toggle in the dock? Toggle inside prototype 04.</p>
-    <p class="lean">Lean: <b>show polished</b>, raw as a later toggle.</p>
+    <h4>✓ #5 · Always polished</h4>
+    <p>Show the polished transcript; no raw/polished toggle, no chip.</p>
   </div>
   <div class="decision">
-    <h4>Smaller calls I’ll fold in</h4>
-    <p>Record/stop control is <b>accent, not red</b> (one-accent rule) — override if you want the familiar red. On the Basin, <code>Space</code> both pins a peek and plays a focused bar — needs a clear owner. Accio ranks transcript hits at body-tier so rich recordings surface.</p>
+    <h4>✓ Other</h4>
+    <p>Uniform bar height for every state (the “Recording missing” bar was too tall — fixed). Split view: dropped the transcript button, added a <b>Collapse split view</b> button + better close. Home: <b>duration chip</b>; a transcribed recording’s text <b>fills the flask</b> like written text. Record/stop stays accent.</p>
   </div>
 </div>
 

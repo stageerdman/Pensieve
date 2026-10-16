@@ -86,7 +86,16 @@ the owner picks, then we build.
   Six per-surface prototypes built, all live against the real call, all open by double-click:
   `01-inline-bar`, `02-capture`, `03-in-gallery`, `04-transcript-split`, `05-accio-hit`,
   `06-home-flask`, tied together by `prototypes/index.html` (the entry point to judge).
-  → **NEXT: owner opens `prototypes/index.html`, judges, answers the 5 decisions → P2 locks it.**
+- **2026-10-16 (P2 — design LOCKED):** owner reviewed all prototypes and locked every decision
+  (see the ⚑ LOCKED block at the top of `design-spec.md`). 02/05 approved as-is; 06 approved
+  (duration chip + transcript text fills the flask). Refinement pass on 00/01/03/04 in flight:
+  uniform bar height (broken bar was too tall); ⋯ menu always offers Create/**Regenerate**
+  transcript + **two** reader openers (split default, reader); gallery → improved **waveform
+  card** (controls under the waveform, no title/dock, transcript→split only); split view strips
+  the meta chips + "click a word" hint, drops the transcript button, adds a **Collapse split
+  view** button + better close. Scope confirmed: **recording ships now**; transcription engine
+  is the only stubbed piece (UI trigger present).
+  → **NEXT: confirm refined prototypes, then P3 build (AudioBlock + inline bar).**
 
 ### Agent recommendations to carry into P2
 - #1 gallery: **Option C** (waveform-card tile → opens canonical bar in a "Now playing" dock).

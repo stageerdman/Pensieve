@@ -157,12 +157,12 @@
     <!-- 3 · ⋯ MENU + tooltips ------------------------------------------- -->
     <section>
       <h2>3 · The ⋯ menu &amp; transcript tooltips</h2>
-      <p class="sub">Menu order: <b>Download recording</b>, then the transcript action (<b>Create transcript</b> when absent · <b>Open transcript</b> when present · disabled <b>Transcribing…</b> mid-run), then <b>Replace…</b> / <b>Remove</b> below a separator — matching the image MediaBlock menu. The transcript icon's tooltip reflects its state. Shown open below; hover the transcript icons to read their tooltips.</p>
+      <p class="sub">Menu order: <b>Download recording</b> · <b>Open transcript — split view</b> (the default) · <b>Open transcript — reader</b> (a focused full overlay) — both shown only when a transcript exists — then <b>Create transcript</b> (none yet) / <b>Regenerate transcript</b> (re-run with a newer model), which is <b>always</b> offered, then <b>Replace…</b> / <b>Remove</b> below a separator. Clicking the transcript icon opens the split view by default; its tooltip reflects its state. Shown open below; hover the transcript icons to read their tooltips.</p>
       <div class="note">
         <div class="note-col">
-          <p class="np">Transcript present — the <b>⋯</b> offers <i>Open transcript</i>:</p>
+          <p class="np">Transcript present — the <b>⋯</b> offers both readers (<i>split view</i> default, <i>reader</i> overlay) and <i>Regenerate transcript</i>:</p>
           <div class="media-block" data-menu="present"></div>
-          <p class="np" style="margin-top:26px">No transcript yet — the same menu offers <i>Create transcript</i> instead:</p>
+          <p class="np" style="margin-top:26px">No transcript yet — the same menu drops the two open-items and offers <i>Create transcript</i> instead (generation is always available):</p>
           <div class="media-block" data-menu="absent"></div>
         </div>
       </div>
@@ -206,6 +206,9 @@
       replace: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11a7 7 0 0 1 12-4.9L19 9"/><path d="M19 4.5V9h-4.5"/><path d="M20 13a7 7 0 0 1-12 4.9L5 15"/><path d="M5 19.5V15h4.5"/></svg>',
       trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v5M14 11v5"/><path d="M6.5 7l.8 12.2A1 1 0 0 0 8.3 20h7.4a1 1 0 0 0 1-.8L17.5 7"/><path d="M9 7V4.5h6V7"/></svg>',
       stop: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2.5"/></svg>',
+      splitView: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M13 4v16"/></svg>',
+      reader: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M20 9V5a1 1 0 0 0-1-1h-4"/><path d="M4 15v4a1 1 0 0 0 1 1h4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/></svg>',
+      regenerate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v4h-4"/></svg>',
     };
 
     function toast(msg) {
@@ -244,7 +247,7 @@
         bar.innerHTML =
           '<span class="audio-iconbtn audio-transcript is-absent" aria-hidden="true">' + A.icon("waveform") + '</span>' +
           '<div class="audio-broken">' + A.icon("locate") +
-          '<span>Recording missing <span class="name">' + (opts.filename || "voice-2026-10-15.mp3") + '</span></span>' +
+          '<span class="audio-broken-text">Recording missing <span class="name">' + (opts.filename || "voice-2026-10-15.mp3") + '</span></span>' +
           '<button class="audio-broken-locate">Locate…</button></div>';
         host.appendChild(bar);
         bar.querySelector(".audio-broken-locate").addEventListener("click", () => toast("Locate the moved file on disk…"));
@@ -280,7 +283,7 @@
       const trState = opts.transcript || "absent";
       tr.className = "audio-iconbtn audio-transcript has-tip is-" + trState;
       tr.innerHTML = A.icon("transcript");
-      const trLabel = trState === "present" ? "Open transcript"
+      const trLabel = trState === "present" ? "Open transcript — split view"
                     : trState === "transcribing" ? "Transcribing…"
                     : "No transcript yet";
       tr.setAttribute("aria-label", trLabel);
@@ -431,7 +434,7 @@
       /* ── transcript icon behaviour ── */
       function wireTranscriptClick() {
         tr.addEventListener("click", () => {
-          if (trState === "present") toast("→ Opens the transcript (split view)");
+          if (trState === "present") toast("→ Open transcript — split view (default)");
           else if (trState === "transcribing") { /* no-op, the pulse communicates */ }
           else toast("Create a transcript from the ⋯ menu");
         });
@@ -446,13 +449,24 @@
         const backdrop = document.createElement("div"); backdrop.className = "audio-menu-backdrop";
         const menu = document.createElement("div"); menu.className = "audio-menu"; menu.setAttribute("role", "menu");
         menu.style.top = "34px"; menu.style.right = "0";
-        const trAction =
-          trState === "present" ? '<button role="menuitem">' + A.icon("transcript") + 'Open transcript</button>'
-          : trState === "transcribing" ? '<button role="menuitem" disabled>' + A.icon("transcript") + 'Transcribing…</button>'
-          : '<button role="menuitem">' + A.icon("transcript") + 'Create transcript</button>';
+        /* Locked ⋯ order (decisions #4/#5/#6): Download · Open split* · Open reader* ·
+           Create/Regenerate · —sep— · Replace… · Remove. (*only when a transcript
+           exists.) Transcript generation is ALWAYS offered. */
+        const present = trState === "present";
+        const transcribing = trState === "transcribing";
+        const openItems = present
+          ? '<button role="menuitem">' + GLYPH.splitView + 'Open transcript — split view</button>' +
+            '<button role="menuitem">' + GLYPH.reader + 'Open transcript — reader</button>'
+          : '';
+        const genItem = transcribing
+          ? '<button role="menuitem" disabled>' + A.icon("transcript") + 'Transcribing…</button>'
+          : present
+            ? '<button role="menuitem">' + GLYPH.regenerate + 'Regenerate transcript</button>'
+            : '<button role="menuitem">' + A.icon("transcript") + 'Create transcript</button>';
         menu.innerHTML =
           '<button role="menuitem">' + A.icon("download") + 'Download recording</button>' +
-          trAction +
+          openItems +
+          genItem +
           '<div class="audio-menu-sep" role="separator"></div>' +
           '<button role="menuitem">' + GLYPH.replace + 'Replace…</button>' +
           '<button role="menuitem">' + GLYPH.trash + 'Remove</button>';
