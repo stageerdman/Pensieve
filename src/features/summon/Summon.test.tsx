@@ -41,6 +41,44 @@ describe("Summon surface", () => {
     expect(chips.some((c) => c.textContent?.includes("last month"))).toBe(true);
   });
 
+  it("remembers a confirmed search and suggests it first by prefix fit", async () => {
+    render(<Harness />);
+    // Run a date search → it's remembered as "last 7 days" (the canonical phrase).
+    const input = type("last 7 days");
+    expect(await screen.findByText("Created · last 7 days")).toBeInTheDocument();
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(input.value).toBe(""));
+
+    // Later, typing a prefix surfaces it under a "Recent" header, ahead of parsed rows.
+    type("las");
+    expect(await screen.findByText("Recent")).toBeInTheDocument();
+    const list = screen.getByRole("listbox");
+    const options = within(list).getAllByRole("option");
+    expect(options[0]).toHaveTextContent("last 7 days"); // recent, first
+
+    // A non-fitting prefix must NOT surface it ("late" ≠ "last…").
+    type("late");
+    await waitFor(() => expect(screen.queryByText("Recent")).toBeNull());
+  });
+
+  it("picking a recent fills the bar without running it", async () => {
+    render(<Harness />);
+    const input = type("pinned");
+    expect(await screen.findByText("Pinned")).toBeInTheDocument();
+    fireEvent.keyDown(input, { key: "Enter" }); // remembers "pinned" + stacks a chip
+    await screen.findByTitle(/click to edit/i);
+    // Clear the chip so we can prove picking a recent does NOT re-add one.
+    fireEvent.click(screen.getByLabelText(/clear all filters/i));
+    await waitFor(() => expect(screen.queryByTitle(/click to edit/i)).toBeNull());
+
+    type("pin");
+    expect(await screen.findByText("Recent")).toBeInTheDocument();
+    // Click the recent row → the bar fills with it; no chip is added.
+    fireEvent.mouseDown(within(screen.getByRole("listbox")).getAllByRole("option")[0]);
+    await waitFor(() => expect(input.value).toBe("pinned"));
+    expect(screen.queryByTitle(/click to edit/i)).toBeNull();
+  });
+
   it("whispers existing tags when typing #", async () => {
     render(<Harness />);
     type("#");

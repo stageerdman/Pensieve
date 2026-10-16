@@ -23,6 +23,10 @@ export interface Suggestion {
   filter: Filter;
   label: string; // chip/display label
   hint: string; // "date" | "tag" | "tags" | "category" | "flag"
+  // Canonical re-runnable text for this suggestion — what to drop back into the bar to
+  // reproduce it (recorded as a recent search). Falls back to `label` when omitted; set it
+  // explicitly wherever `label` carries display decoration (e.g. "Created · last 7 days").
+  query?: string;
   source?: [number, number]; // span in the input this came from (so confirm can splice
   // it out). Omitted for prefix suggestions that don't consume text (e.g. partial category).
 }
@@ -84,6 +88,7 @@ function detectDates(input: string, now: number, claims: Claim[]): void {
         key: `date:${field}:${resolved.label}`,
         filter: { kind: "date", field, range: resolved.range, phrase: resolved.label },
         label: `${field === "updated" ? "Updated" : "Created"} · ${resolved.label}`,
+        query: `${field === "updated" ? "updated " : ""}${resolved.label}`,
         hint: "date",
         source: [start, end],
       },
@@ -113,6 +118,7 @@ function detectTagSet(input: string, ctx: ParseContext, claims: Claim[]): void {
       key: `tags:${tags.map(normTag).sort().join("|")}`,
       filter: { kind: "tag", tags },
       label: tags.map((t) => `#${t}`).join(" or "),
+      query: `tags: ${tags.map((t) => `#${t}`).join(", ")}`,
       hint: "tags",
       source: [m.index, input.length],
     },
@@ -189,6 +195,7 @@ function detectFlags(input: string, claims: Claim[]): void {
         key: "flag:pinned",
         filter: { kind: "flag", flag: "pinned" },
         label: "Pinned",
+        query: "pinned",
         hint: "flag",
         source: [m.index, m.index + m[0].length],
       },

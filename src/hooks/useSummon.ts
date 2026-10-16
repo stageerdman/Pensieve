@@ -4,6 +4,7 @@ import type { Filter, FilterLeaf, FilterNode, Relation } from "../lib/search/typ
 import { parseQuery, type Suggestion } from "../lib/search/grammar";
 import { runSearch, type SearchResult } from "../lib/search/search";
 import { appendLeaf, group, moveLeaf, removeNode, replaceFilter, setRelation, ungroup } from "../lib/search/tree";
+import { loadRecents, saveRecents, addRecent } from "../lib/search/recents";
 import { useSearchIndex } from "./useSearchIndex";
 import type { EditContext } from "../features/summon/FilterEditPopover";
 import { log } from "../lib/logger";
@@ -30,7 +31,10 @@ export interface SummonApi {
   total: number;
   active: boolean; // any chip or live text in play
   editCtx: EditContext; // vocabulary + note timestamps for the edit popover/calendar
+  recents: string[]; // past searches, most-recent-first (device-local, never synced)
   // actions
+  applyRecent: (q: string) => void; // drop a recent back into the bar (fills, doesn't run)
+  commitLiveText: () => void; // record the live free text as a recent (on blur)
   confirm: (s: Suggestion) => void;
   pickTag: (tag: string) => void;
   addFilter: (filter: Filter) => void;
@@ -50,6 +54,17 @@ export function useSummon(notes: NoteMeta[], categoryNames: string[]): SummonApi
   const [input, setInputRaw] = useState("");
   const [caret, setCaret] = useState(0);
   const [items, setItems] = useState<FilterNode[]>([]);
+  const [recents, setRecents] = useState<string[]>(loadRecents);
+
+  // Remember a search the owner actually ran. De-dupe + cap live in addRecent; persist only
+  // when it actually changed.
+  const recordSearch = useCallback((q: string) => {
+    setRecents((prev) => {
+      const next = addRecent(prev, q);
+      if (next !== prev) saveRecents(next);
+      return next;
+    });
+  }, []);
 
   // Resolve date phrases against a per-call "now"; stable enough for a session.
   const now = useMemo(() => Date.now(), []);
@@ -94,10 +109,19 @@ export function useSummon(notes: NoteMeta[], categoryNames: string[]): SummonApi
       // Splice the source text out (incremental), else clear the whole input.
       setInputRaw((cur) => (s.source ? splice(cur, s.source) : ""));
       setCaret(0);
+      // Remember it as a recent search (canonical phrase, not the decorated label).
+      recordSearch(s.query ?? s.label);
       log.debug("summon", "filter.add", { hint: s.hint });
     },
-    [addFilter],
+    [addFilter, recordSearch],
   );
+
+  // Drop a recent search back into the bar: fill + caret to the end. It does NOT run —
+  // the parser re-offers it and the owner confirms, exactly like typing it fresh.
+  const applyRecent = useCallback((q: string) => {
+    setInputRaw(q);
+    setCaret(q.length);
+  }, []);
 
   const pickTag = useCallback(
     (tag: string) => {
@@ -138,6 +162,14 @@ export function useSummon(notes: NoteMeta[], categoryNames: string[]): SummonApi
     log.debug("summon", "clear.all", {});
   }, []);
 
+  // Record the leftover free text as a recent (called when the bar loses focus). Confirmed
+  // chips are recorded in confirm(); this catches plain text searches that were never
+  // turned into a filter.
+  const commitLiveText = useCallback(() => {
+    const t = parse.text.trim();
+    if (t) recordSearch(t);
+  }, [parse.text, recordSearch]);
+
   const active = items.length > 0 || parse.text.trim().length > 0;
 
   return {
@@ -153,6 +185,9 @@ export function useSummon(notes: NoteMeta[], categoryNames: string[]): SummonApi
     total: notes.length,
     active,
     editCtx: { tags: tagsInUse, categories: categoryNames, now, dates },
+    recents,
+    applyRecent,
+    commitLiveText,
     confirm,
     pickTag,
     addFilter,

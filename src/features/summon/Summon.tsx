@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type RefObject } from "react";
 import type { SummonApi } from "../../hooks/useSummon";
 import { SummonBar } from "./SummonBar";
 import { SuggestionList, isCategoryRow, type Row } from "./SuggestionList";
+import { matchRecents } from "../../lib/search/recents";
 import { SummonHelp } from "./SummonHelp";
 import { FilterShelf } from "./FilterShelf";
 
@@ -19,9 +20,18 @@ export function Summon({ summon, inputRef }: { summon: SummonApi; inputRef: RefO
 
   const rows: Row[] = useMemo(() => {
     if (helpMode) return [];
+    // Tag-whispering ("#…") is its own specialized surface — no recents there.
     if (summon.whisper) return summon.whisper.matches.map((tag) => ({ kind: "tag", tag }));
-    return summon.suggestions.map((s) => ({ kind: "suggestion", s }));
-  }, [helpMode, summon.whisper, summon.suggestions]);
+    // Recent searches that FIT what's typed come first (up to 5 on an empty bar, 3 while
+    // typing so parsed suggestions aren't crowded out), then the parsed suggestions.
+    const limit = summon.input.trim() === "" ? 5 : 3;
+    const recentRows: Row[] = matchRecents(summon.recents, summon.input, limit).map((query) => ({
+      kind: "recent",
+      query,
+    }));
+    const suggestionRows: Row[] = summon.suggestions.map((s) => ({ kind: "suggestion", s }));
+    return [...recentRows, ...suggestionRows];
+  }, [helpMode, summon.whisper, summon.suggestions, summon.recents, summon.input]);
 
   // Keep the highlight in range as rows change.
   useEffect(() => {
@@ -31,7 +41,8 @@ export function Summon({ summon, inputRef }: { summon: SummonApi; inputRef: RefO
   const activate = (i: number) => {
     const row = rows[i];
     if (!row) return;
-    if (row.kind === "tag") summon.pickTag(row.tag);
+    if (row.kind === "recent") summon.applyRecent(row.query);
+    else if (row.kind === "tag") summon.pickTag(row.tag);
     else summon.confirm(row.s);
     setHighlight(0);
   };
@@ -99,7 +110,11 @@ export function Summon({ summon, inputRef }: { summon: SummonApi; inputRef: RefO
           onCaret={(c) => summon.setInput(summon.input, c)}
           onKeyDown={onKeyDown}
           onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onBlur={() => {
+            setFocused(false);
+            // Catch a plain free-text search that was never turned into a chip.
+            summon.commitLiveText();
+          }}
         />
         {focused && helpMode && (
           <SummonHelp onPick={(ex) => summon.setInput(ex, ex.length)} />
