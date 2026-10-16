@@ -188,7 +188,10 @@
 .pensieve-audio-locate:hover { border-color: hsl(var(--accent) / 0.5); }
 
 /* ── block wrapper + caption + empty placeholder (editor-mounted) ─────────── */
-.pensieve-audio-blockwrap { margin: 0.4em 0; }
+/* BlockNote's `.bn-block-content` is display:flex, so this wrapper would otherwise
+   shrink-wrap to the controls (the bar rendered "quite little"). Fill the block width so
+   the full-width bar/host inside it spans the text column. */
+.pensieve-audio-blockwrap { width: 100%; margin: 0.4em 0; }
 .pensieve-audio-caption {
   margin-top: 4px;
   font-size: 12px;
