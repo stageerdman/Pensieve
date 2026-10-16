@@ -76,14 +76,14 @@ export function MemoryPage({
       <div
         className="note-surface"
         ref={surfaceRef}
-        onPointerDown={(e) => {
+        onClick={(e) => {
           // Notion-style: a tap in the empty area BELOW the content (the surface itself, or the
           // body's own padding — not a block) drops the caret into a trailing text row so you can
-          // write under images.
+          // write under images. Fire on `click`, NOT pointerdown: a scroll gesture never produces a
+          // click, so the keyboard only appears on a real tap-and-release — never while scrolling.
           const body = bodyRef.current;
           if (!body) return;
           if (e.target === e.currentTarget || e.target === body) {
-            e.preventDefault();
             caretToTrailingRow(body);
           }
         }}
