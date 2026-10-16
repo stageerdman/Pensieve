@@ -3,6 +3,7 @@ import { NodeSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { log } from "../../lib/logger";
 import { blocksInBand, isBlankMarqueeTarget, nearestRowId, rectBetween, type BlockRect } from "./blockMarquee";
+import { selectBlockRange } from "./blockRangeSelection";
 import { DRAG_THRESHOLD, autoScrollEdge, findScrollParent } from "./dragScroll";
 
 // Minimal shape we need from the BlockNote editor — avoids leaking its full generic type.
@@ -49,19 +50,13 @@ export function useBlockMarquee(editor: MarqueeEditor, wrapRef: RefObject<HTMLEl
         });
     };
 
-    const setRange = (ids: string[]): boolean => {
-      for (let lo = 0; lo < ids.length; lo++) {
-        for (let hi = ids.length - 1; hi > lo; hi--) {
-          try {
-            editor.setSelection(ids[lo], ids[hi]);
-            return true;
-          } catch {
-            /* endpoint not selectable — try a tighter range */
-          }
-        }
-      }
-      return false;
-    };
+    // Select the whole band, first row → last row. selectBlockRange prefers BlockNote's
+    // id-anchored selection and falls back to a raw position-anchored one when an endpoint
+    // is a void block (e.g. audio) — so a band of recordings selects (and deletes) as a
+    // group instead of grabbing nothing. Always the FULL band: no narrowing that could
+    // silently drop leading/trailing media rows.
+    const setRange = (ids: string[]): boolean =>
+      ids.length >= 2 && selectBlockRange(editor, ids[0], ids[ids.length - 1]);
 
     const selectSingle = (el: HTMLElement) => {
       const view = editor.prosemirrorView;
