@@ -533,6 +533,7 @@ export function PhoneApp() {
     else if (s.id === "accio") accio.openAccio();
     else if (s.id === "image") openImagePicker("photo");
     else if (s.id === "gallery") openImagePicker("gallery");
+    else if (s.id === "edit") phoneCollection.toggleEditMode(); // board-scoped: arrange/remove mode
     else showToast(`✨ ${s.name} cast`);
   }
   /** Held a spell (Write = speak). */

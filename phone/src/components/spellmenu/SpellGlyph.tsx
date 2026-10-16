@@ -91,6 +91,14 @@ const PATHS: Record<Exclude<IconName, "menu">, React.ReactNode> = {
       <rect x="13.5" y="13.5" width="7" height="7" rx="1.6" />
     </>
   ),
+  // "edit the board": a pencil writing on a card — the card distinguishes it from the plain
+  // "write" pencil (this edits an existing collection, not a blank page).
+  edit: (
+    <>
+      <path d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5" />
+      <path d="M18.3 3.7a2 2 0 0 1 2.8 2.8L12 17.6l-4 1 1-4Z" />
+    </>
+  ),
   // a "return rune": a left arrowhead feeding a line that hooks and curls back on itself —
   // reads as "go back" in a magical register, distinct from the gold Orbit beside it.
   back: (

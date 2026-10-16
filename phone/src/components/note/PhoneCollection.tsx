@@ -14,11 +14,32 @@ import { haptic } from "../../util";
 
 // Drag-reorder thresholds (see the UX spec): a tile only lifts after a deliberate hold that
 // hasn't moved — below this window every gesture belongs to tap / scroll / swipe-close.
-const LIFT_MS = 350;
 const MOVE_CANCEL_PX = 10;
 const EDGE_PX = 72; // top/bottom auto-scroll band
 const EDGE_MAX_V = 14; // px/frame cap
 const LIFT_SCALE = 1.06;
+
+/** Six-dot grip — the universal "drag me" affordance. */
+function GripGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+      <circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" />
+      <circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
+      <circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" />
+    </svg>
+  );
+}
+
+/** "Eject to note" glyph — a card with an up-arrow rising out of it. Paired with the × (delete) on
+ *  the opposite corner so pull-out (accent) reads distinctly from remove (quiet/danger). */
+function PullOutGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 14V4M8.5 7.5 12 4l3.5 3.5" />
+      <path d="M6 13v4a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-4" />
+    </svg>
+  );
+}
 
 export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
   const [s, setS] = useState<CollectionState>(phoneCollection.get());
@@ -215,11 +236,15 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
     phoneCollection.reorder(from, to);
   };
 
-  // ── pointer handlers. pointerdown is per-tile (to learn `from`); move/up/cancel live on the
-  // masonry (events bubble up pre-lift; retarget to it after capture) so one set handles both phases.
-  const onTileDown = (i: number) => (e: React.PointerEvent) => {
-    if (!s.editable) return;
+  // ── pointer handlers. The drag is started from a per-tile HANDLE (only in edit mode): pressing
+  // the handle is an unambiguous "grab", so we lift INSTANTLY — no long-press timer racing iOS
+  // scroll (the old timer model was the source of the flaky reorder). move/up/cancel live on the
+  // masonry (pointer capture retargets them there after the lift).
+  const onHandleDown = (i: number) => (e: React.PointerEvent) => {
+    if (!s.editMode) return;
     if (e.pointerType === "mouse" && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation(); // the handle owns this gesture — don't let it scroll or tap the tile
     const tile = (e.currentTarget as HTMLElement).closest(".ph-collection-tile") as HTMLElement | null;
     if (!tile) return;
     rd.from = i;
@@ -227,12 +252,9 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
     rd.pointerId = e.pointerId;
     rd.startX = rd.lastX = e.clientX;
     rd.startY = rd.lastY = e.clientY;
-    rd.lifted = false;
-    rd.suppressClick = false;
+    rd.suppressClick = true; // a lift is in progress; swallow the trailing click
     rd.target = -1;
-    window.clearTimeout(rd.timer);
-    rd.timer = window.setTimeout(() => beginLift(rd.lastX, rd.lastY), LIFT_MS);
-    // NOTE: no preventDefault / no capture here — scroll must stay free until a real lift.
+    beginLift(e.clientX, e.clientY); // lift on press — setPointerCapture runs in a real pointerdown
   };
 
   const onMasonryMove = (e: React.PointerEvent) => {
@@ -335,11 +357,15 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
         <span className="ph-collection-grabber" />
       </div>
       <div
-        className="ph-collection-masonry"
+        className={s.editMode ? "ph-collection-masonry editing" : "ph-collection-masonry"}
         ref={masonryRef}
         onPointerMove={onMasonryMove}
         onPointerUp={onMasonryUp}
         onPointerCancel={onMasonryCancel}
+        onClick={(e) => {
+          // A tap on the board background (not a tile) leaves edit mode — the calm way out.
+          if (s.editMode && e.target === e.currentTarget) phoneCollection.exitEditMode();
+        }}
       >
         {s.items.map((it, i) => (
           <div className="ph-collection-tile" data-index={i} key={itemKeys[i]}>
@@ -347,27 +373,49 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
               src={it.url}
               alt={mediaAlt(it.caption)}
               draggable={false}
-              onPointerDown={onTileDown(i)}
               onClick={() => {
                 if (rd.suppressClick) {
                   rd.suppressClick = false;
                   return; // this click is the tail of a drag — don't open the lightbox
                 }
+                if (s.editMode) return; // editing: the corner buttons own the tile, no lightbox
                 phoneLightbox.open(s.items, i);
               }}
             />
             {it.caption ? <div className="ph-collection-caption">{it.caption}</div> : null}
-            {s.editable ? (
-              <button
-                className="ph-collection-remove"
-                aria-label="Remove photo"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  phoneCollection.remove(i);
-                }}
-              >
-                ×
-              </button>
+            {s.editMode ? (
+              <>
+                {/* Grip = the drag handle. Pressing it lifts the tile for reorder (touch here =
+                    drag; touch the photo = nothing in edit mode). touch-action:none via CSS. */}
+                <div
+                  className="ph-collection-grip"
+                  aria-label="Drag to reorder"
+                  role="button"
+                  onPointerDown={onHandleDown(i)}
+                >
+                  <GripGlyph />
+                </div>
+                <button
+                  className="ph-collection-pullout"
+                  aria-label="Pull out to note"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    phoneCollection.pullOut(i);
+                  }}
+                >
+                  <PullOutGlyph />
+                </button>
+                <button
+                  className="ph-collection-remove"
+                  aria-label="Remove photo"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    phoneCollection.remove(i);
+                  }}
+                >
+                  ×
+                </button>
+              </>
             ) : null}
           </div>
         ))}
