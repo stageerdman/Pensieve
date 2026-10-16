@@ -108,6 +108,29 @@ describe("bucketize — month labels", () => {
   });
 });
 
+describe("bucketize — by updatedAt (Accio recency order)", () => {
+  it("buckets AND sorts by updatedAt when by='updated' (both use the same field)", () => {
+    const notes = [
+      // Created back in June, but last worked with TODAY → must land in "Today", not June.
+      note({ id: "old-but-fresh", createdAt: new Date(2026, 5, 1).getTime(), updatedAt: NOW }),
+      // Created today, untouched since → under "Today" too, but edited earlier than the above.
+      note({ id: "new-today", createdAt: NOW, updatedAt: new Date(2026, 9, 4, 2).getTime() }),
+      // Created today, last edited a week ago → "Last week" by recency of work.
+      note({ id: "edited-last-week", createdAt: NOW, updatedAt: NOW - 4 * DAY }),
+    ];
+    const map = Object.fromEntries(
+      bucketize(notes, NOW, "updated").map((s) => [s.label, s.notes.map((n) => n.id)]),
+    );
+    expect(map["Today"]).toEqual(["old-but-fresh", "new-today"]); // most-recently-edited first
+    expect(map["Last week"]).toEqual(["edited-last-week"]);
+  });
+
+  it("default (no selector) still buckets by createdAt", () => {
+    const n = note({ id: "x", createdAt: new Date(2026, 5, 1).getTime(), updatedAt: NOW });
+    expect(bucketize([n], NOW)[0].label).toBe("June");
+  });
+});
+
 describe("bucketize — edge cases", () => {
   it("returns no sections for an empty list", () => {
     expect(bucketize([], NOW)).toEqual([]);

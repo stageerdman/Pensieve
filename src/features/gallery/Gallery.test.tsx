@@ -169,6 +169,17 @@ describe("Gallery — working set", () => {
     expect(within(strip).getByText("Alpha")).toBeInTheDocument();
   });
 
+  it("during Accio hides the strip and merges the working-set memory into the grid", () => {
+    renderGallery([note({ id: "a", title: "Alpha", createdAt: NOW })], {
+      state: { ...DEFAULT_GALLERY_STATE, workingSet: ["a"] },
+      searchActive: true,
+    });
+    // No strip while summoning; the bottle now lives in the normal grid instead.
+    expect(screen.queryByRole("list", { name: /working set/i })).not.toBeInTheDocument();
+    const grid = screen.getAllByRole("region")[1]; // a date section, not the strip
+    expect(within(grid).getByText("Alpha")).toBeInTheDocument();
+  });
+
   it("reorders the strip when a card is dragged past another", () => {
     const { props } = renderGallery(
       [

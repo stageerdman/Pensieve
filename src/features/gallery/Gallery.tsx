@@ -50,11 +50,19 @@ export function Gallery({
 }: GalleryProps) {
   const now = useMemo(() => Date.now(), []);
   const wsSet = useMemo(() => new Set(state.workingSet), [state.workingSet]);
-  // Working-set memories are pinned to the strip above and hidden from the grid here —
-  // the strip is their only home while pinned (like a note moved to the top).
+  // While an Accio query is active we hide the working-set strip and let ALL matching
+  // bottles share one normal grid — ordered by "when I last worked with them" (updatedAt),
+  // most recent on top. At rest (no query) the strip rides above and its memories are
+  // hidden from the grid below (it's their only home while pinned), grouped by creation.
+  const hideWorkingSet = !!searchActive;
   const sections = useMemo(
-    () => bucketize(notes.filter((n) => !wsSet.has(n.id)), now),
-    [notes, wsSet, now],
+    () =>
+      bucketize(
+        hideWorkingSet ? notes : notes.filter((n) => !wsSet.has(n.id)),
+        now,
+        hideWorkingSet ? "updated" : "created",
+      ),
+    [notes, wsSet, now, hideWorkingSet],
   );
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -70,10 +78,12 @@ export function Gallery({
     [state.workingSet, byId],
   );
 
-  // Always land on the top (the most recent memories) when the gallery opens.
+  // Always land on the top (the most recent memories) when the gallery opens, and again
+  // whenever we cross into/out of a summon (the strip collapses and the order flips, so a
+  // held scroll offset would read as disorientation) — land on the strongest/most-recent.
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
-  }, []);
+  }, [hideWorkingSet]);
 
   // Track Option/Alt for hover-peek. Clear on blur so a held key never gets stuck.
   useEffect(() => {
@@ -153,25 +163,34 @@ export function Gallery({
           backdrop blurs its edges) while a peek is open; the portal is a sibling, so the
           memory stays sharp and untouched. */}
       <div className={peekTarget && peekNote ? "water-bg" : undefined}>
-        <WorkingSetStrip
-          items={wsItems}
-          fields={state.fields}
-          categoryDefs={categoryDefs}
-          now={now}
-          onOpen={onOpen}
-          onContextMenu={openContextMenu}
-          onHoverChange={setHovered}
-          onPeekToggle={onPeekToggle}
-          onToggleWorkingSet={onToggleWorkingSet}
-          onRemove={onRemoveFromWorkingSet}
-          onMove={onMoveInWorkingSet}
-          onReorder={onReorderWorkingSet}
-        />
+        {/* The working set only rides above Home at rest — during a summon it flattens
+            into the grid so every bottle lives in one normal space. */}
+        {!hideWorkingSet && (
+          <WorkingSetStrip
+            items={wsItems}
+            fields={state.fields}
+            categoryDefs={categoryDefs}
+            now={now}
+            onOpen={onOpen}
+            onContextMenu={openContextMenu}
+            onHoverChange={setHovered}
+            onPeekToggle={onPeekToggle}
+            onToggleWorkingSet={onToggleWorkingSet}
+            onRemove={onRemoveFromWorkingSet}
+            onMove={onMoveInWorkingSet}
+            onReorder={onReorderWorkingSet}
+          />
+        )}
 
         {sections.length === 0 ? (
           <Empty searchActive={searchActive} />
         ) : (
-          <div className="grid grid-cols-[80px_minmax(0,1fr)] gap-y-10">
+          // Keyed by mode so the grid gently fades when a summon is cast or cleared —
+          // the strip→grid merge reads as the view settling, not a flicker.
+          <div
+            key={hideWorkingSet ? "accio" : "home"}
+            className="accio-answer-in grid grid-cols-[80px_minmax(0,1fr)] gap-y-10"
+          >
             {sections.map((s) => (
               <Fragment key={s.key}>
                 <div className="relative pt-1">

@@ -506,9 +506,18 @@ body {
 .summon-sigil-spin { animation: summon-spin 9s linear infinite; }
 @keyframes summon-spin { to { transform: rotate(360deg); } }
 
+/* The gallery "answering" a summon: results (and the restored Home view) fade in so the
+   working-set strip collapsing into the grid reads as the view settling, not a glitch. */
+@keyframes accio-answer-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.accio-answer-in { animation: accio-answer-in 150ms ease both; }
+
 @media (prefers-reduced-motion: reduce) {
   .summon-chip-in,
   .summon-popping,
   .summon-bubble { animation-duration: 0.001s !important; }
   .summon-sigil-spin { animation: none; }
+  .accio-answer-in { animation: none; }
 }

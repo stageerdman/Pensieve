@@ -7,10 +7,20 @@
 // Ordering (top -> bottom = newest -> oldest), to match "on top I want the notes from
 // today, and below the older ones":
 //   Today, Yesterday, Last week, Last month, <recent calendar months> … <oldest>.
-// Within every bucket notes are descending by creation date (newest first), id as a
-// stable tie-break. The gallery opens scrolled to the top, i.e. on the most recent.
+// Within every bucket notes are descending by the chosen timestamp (newest first), id as
+// a stable tie-break. The gallery opens scrolled to the top, i.e. on the most recent.
+//
+// By default we bucket by creation date (`createdAt`). During Accio the gallery buckets by
+// `updatedAt` instead — "when I last worked with it" — so the most-recently-edited answers
+// rise to the top. The boundary test AND the within-bucket sort use the SAME field (`by`),
+// so a note never lands in a bucket it doesn't belong to.
 
 import type { NoteMeta } from "../types";
+
+/** Which timestamp drives bucketing + ordering: creation date, or last-edited. */
+export type BucketBy = "created" | "updated";
+
+const tsOf = (n: NoteMeta, by: BucketBy): number => (by === "updated" ? n.updatedAt : n.createdAt);
 
 const DAY = 86_400_000;
 
@@ -63,10 +73,10 @@ interface Bucket {
   order: number; // representative timestamp; buckets sort ascending by this
 }
 
-/** Which date bucket a memory falls into, by its creation date. */
-function bucketOf(note: NoteMeta, now: number): Bucket {
+/** Which date bucket a memory falls into, by the chosen timestamp. */
+function bucketOf(note: NoteMeta, now: number, by: BucketBy): Bucket {
   const today = startOfDay(now);
-  const ts = note.createdAt;
+  const ts = tsOf(note, by);
   if (ts >= today) return { key: "today", label: "Today", short: "Today", order: today };
   if (ts >= today - DAY)
     return { key: "yesterday", label: "Yesterday", short: "Yest.", order: today - DAY };
@@ -87,32 +97,41 @@ function bucketOf(note: NoteMeta, now: number): Bucket {
   };
 }
 
-/** Descending by creation date (newest first), id as a stable tie-break — so the output
- *  is identical regardless of the order list() happened to return. */
-function byCreatedDesc(a: NoteMeta, b: NoteMeta): number {
-  const r = b.createdAt - a.createdAt;
-  if (r !== 0) return r;
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+/** Descending by the chosen timestamp (newest first), id as a stable tie-break — so the
+ *  output is identical regardless of the order list() happened to return. */
+function byTsDesc(by: BucketBy) {
+  return (a: NoteMeta, b: NoteMeta): number => {
+    const r = tsOf(b, by) - tsOf(a, by);
+    if (r !== 0) return r;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  };
 }
 
 /**
- * Group the raw note list into ordered, non-empty date sections (oldest bucket first,
- * oldest note first within each). `now` is injectable for deterministic tests.
+ * Group the raw note list into ordered, non-empty date sections (newest bucket on top,
+ * newest note first within each). `now` is injectable for deterministic tests. `by` picks
+ * the timestamp that drives both the bucket boundary and the sort — "created" (the Home
+ * default) or "updated" (Accio: most-recently-worked-with on top).
  */
-export function bucketize(notes: NoteMeta[], now: number = Date.now()): GallerySection[] {
+export function bucketize(
+  notes: NoteMeta[],
+  now: number = Date.now(),
+  by: BucketBy = "created",
+): GallerySection[] {
   const buckets = new Map<string, { meta: Bucket; notes: NoteMeta[] }>();
   for (const n of notes) {
-    const b = bucketOf(n, now);
+    const b = bucketOf(n, now, by);
     const existing = buckets.get(b.key);
     if (existing) existing.notes.push(n);
     else buckets.set(b.key, { meta: b, notes: [n] });
   }
+  const cmp = byTsDesc(by);
   return [...buckets.values()]
     .sort((a, b) => b.meta.order - a.meta.order)
     .map(({ meta, notes }) => ({
       key: meta.key,
       label: meta.label,
       short: meta.short,
-      notes: [...notes].sort(byCreatedDesc),
+      notes: [...notes].sort(cmp),
     }));
 }
