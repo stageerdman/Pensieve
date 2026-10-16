@@ -1,10 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import {
   transcriptRefFor, transcriptPlainText, parseTranscript, syncAt, wordStart, flatWordIndex,
 } from "./transcript";
 import type { Transcript } from "./types";
+import sampleJson from "./_sampleDominik.dev.json";
 
 const t = (segments: Transcript["segments"]): Transcript => ({
   version: 1, media: "a.mp3", meta: {}, segments,
@@ -59,11 +58,7 @@ describe("segment-aware sync (multitrack overlap must not step backward)", () =>
 
 describe("real locked-schema sample parses (the transcription pipeline's output)", () => {
   it("parses the bundled 206-segment diarized call", () => {
-    const p = join(
-      process.cwd(),
-      "updates/2026-10-16 AUDIO-RECORDINGS - OPEN/prototypes/assets/transcript.json",
-    );
-    const parsed = parseTranscript(readFileSync(p, "utf8"));
+    const parsed = parseTranscript(JSON.stringify(sampleJson));
     expect(parsed).not.toBeNull();
     expect(parsed!.segments.length).toBe(206);
     expect(parsed!.meta.speakers).toContain("Klient");

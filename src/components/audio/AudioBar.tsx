@@ -27,6 +27,8 @@ export interface AudioBarProps {
   transcribingPct?: number;
   broken?: boolean;
   compact?: boolean;
+  /** Borderless variant docked atop a transcript view (the transcript icon is hidden there). */
+  dock?: boolean;
   /** Status line text below the bar (recording/saving) + its tone. */
   status?: { text: string; tone?: "accent" | "gold" } | null;
   onCreateTranscript?: () => void;
@@ -53,7 +55,7 @@ interface MenuItem {
 export function AudioBar(props: AudioBarProps) {
   const {
     src, peaksSrc, filename, durationHint, transcriptState = "absent", transcribingPct,
-    broken, compact, status,
+    broken, compact, dock, status,
     onCreateTranscript, onRegenerateTranscript, onOpenSplit, onOpenReader,
     onDownload, onReplace, onRemove, onLocate, leading,
   } = props;
@@ -135,7 +137,7 @@ export function AudioBar(props: AudioBarProps) {
 
   return (
     <div className="pensieve-audio-host">
-      <div className={"pensieve-audio-bar" + (c.playing ? " is-playing" : "") + (compact ? " is-compact" : "")}>
+      <div className={"pensieve-audio-bar" + (c.playing ? " is-playing" : "") + (compact ? " is-compact" : "") + (dock ? " is-dock" : "")}>
         {leading}
         <button
           type="button"
@@ -154,16 +156,18 @@ export function AudioBar(props: AudioBarProps) {
           <span className="tot">{fmt(dur)}</span>
         </span>
 
-        <button
-          type="button"
-          className={"pensieve-audio-iconbtn pensieve-audio-transcript is-" + transcriptState}
-          aria-label={transcriptLabel}
-          title={transcriptLabel}
-          disabled={transcriptState === "transcribing"}
-          onClick={() => hasTranscript && onOpenSplit?.()}
-        >
-          <TranscriptIcon size={16} />
-        </button>
+        {!dock && (
+          <button
+            type="button"
+            className={"pensieve-audio-iconbtn pensieve-audio-transcript is-" + transcriptState}
+            aria-label={transcriptLabel}
+            title={transcriptLabel}
+            disabled={transcriptState === "transcribing"}
+            onClick={() => hasTranscript && onOpenSplit?.()}
+          >
+            <TranscriptIcon size={16} />
+          </button>
+        )}
 
         <div className="pensieve-audio-menu-wrap" ref={menuRef}>
           <button

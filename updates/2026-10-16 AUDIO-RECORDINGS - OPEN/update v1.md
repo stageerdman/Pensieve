@@ -117,7 +117,18 @@ the owner picks, then we build.
   path, and bodies()-folding on the browser store — 809/809 pass; tsc clean.
   NB: the full index build (bodies()) picks up transcripts; when "Create transcript" writes a
   sidecar (P6) it must trigger a note reindex (the `.md` doesn't change) — wire that in P6.
-  → **CHECKPOINT before P5 (the visible split/reader views — owner's eyes matter most there).**
+- **2026-10-17 (P5 DONE — transcript views):** `TranscriptView` (word-synced reader body:
+  speaker turns, segment-aware highlight via incremental DOM class toggles so 2,390 words stay
+  smooth, click-word-to-seek, auto-scroll while playing, speakers by weight/tone). Two
+  presentations: **Split to Transcript** = `TranscriptSplit` resizable right pane (dock AudioBar
+  on top + TranscriptView), opened via the `transcriptController` pub/sub, mounted in `App.tsx`
+  body row, draggable divider (360px–70vw), Collapse (button + Esc) fully restores the centered
+  editor; **Dropdown Transcript** = inline expand below the bar inside `AudioBlock` (height-
+  adjustable grip, own collapse). Added a borderless `dock` AudioBar variant. **"Create
+  transcript" dev-seeds** the bundled real-call sample (`_sampleDominik.dev.json`, dynamic import
+  → code-split) so the UX is testable now; swap for whisper later (then delete the sample +
+  the dev seed). 809/809 pass; tsc clean; build OK.
+  → **NEXT: owner tests P5 live; then P6 — recording + gallery card + Accio hit; P7 device-verify + merge.**
 
 ### Agent recommendations to carry into P2
 - #1 gallery: **Option C** (waveform-card tile → opens canonical bar in a "Now playing" dock).

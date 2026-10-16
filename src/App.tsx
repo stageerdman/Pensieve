@@ -11,6 +11,7 @@ import { Clock, PanelRight, Plus, Trash } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
 import { MediaBackupWhisper } from "./components/MediaBackupWhisper";
 import { ImageLightbox } from "./components/media/ImageLightbox";
+import { TranscriptSplit } from "./components/audio/TranscriptSplit";
 import { SyncStatus } from "./components/SyncStatus";
 import { NotePreview } from "./features/gallery/NotePreview";
 import type { TimelineEntry } from "./lib/types";
@@ -389,6 +390,10 @@ export default function App() {
                   onSetCreatedAt={setCreatedAt}
                 />
               )}
+
+              {/* "Split to Transcript" — a resizable right pane opened from an audio bar's
+                  ⋯ / transcript icon (module pub/sub). Renders null until opened. */}
+              <TranscriptSplit />
             </>
           )}
         </div>
