@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Editor } from "./components/editor/Editor";
+import { useEditorPositionMemory, type EditorPosition } from "./components/editor/editorPosition";
 import { TimelinePanel } from "./components/TimelinePanel";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { OverflowMenu } from "./components/OverflowMenu";
 import { FlaskButton } from "./components/FlaskButton";
-import { TabBar } from "./components/TabBar";
+import { TabBar, HOME } from "./components/TabBar";
 import { IconButton } from "./components/IconButton";
 import { Clock, PanelRight, Plus, Trash } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
@@ -92,6 +93,22 @@ export default function App() {
     pruneWorkingSet: gallery.pruneWorkingSet,
   });
 
+  // Per-note "where I was writing" memory (scroll + caret). The Editor remounts on every
+  // tab switch, so this lives here to survive the remount. It's in-memory only: switching
+  // tabs restores your spot; closing the tab forgets it (so a reopen starts fresh).
+  const editorPos = useEditorPositionMemory();
+  const saveEditorPos = useCallback(
+    (noteId: string, pos: EditorPosition) => editorPos.set(noteId, pos),
+    [editorPos],
+  );
+  const closeTabAndForget = useCallback(
+    (id: string) => {
+      if (id !== HOME) editorPos.forget(id);
+      closeTab(id);
+    },
+    [editorPos, closeTab],
+  );
+
   // Live set of tags in use across notes — the source for tag whispering.
   const tagSuggestions = useMemo(
     () => Array.from(new Set(notes.flatMap((n) => n.tags ?? []))).sort(),
@@ -165,7 +182,7 @@ export default function App() {
       // ⌘W closes the current tab; on Home (nothing left to close) it puts Pensieve away
       // into the menu bar — the same hide-to-bar the red button triggers (Rust intercepts
       // CloseRequested and hides instead of quitting).
-      if (!onHome) closeTab(activeTab);
+      if (!onHome) closeTabAndForget(activeTab);
       else if (IS_TAURI)
         void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().close());
     },
@@ -216,7 +233,7 @@ export default function App() {
               active={activeTab}
               onHome={goHome}
               onSelect={selectTab}
-              onClose={closeTab}
+              onClose={closeTabAndForget}
             />
             {/* One tight group (gap-0.5) for every right-side control, so the sync rune
                 sits in the same box as the 3-dots menu and the panel toggle — the header's
@@ -333,6 +350,8 @@ export default function App() {
                         selfId={current.id}
                         notes={notes}
                         onOpenNote={(id) => void open(id)}
+                        savedPosition={editorPos.get(current.id)}
+                        onSavePosition={saveEditorPos}
                       />
                     )}
                   </div>

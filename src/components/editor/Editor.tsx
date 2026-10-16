@@ -16,7 +16,7 @@ import {
 import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core";
 import { AllSelection, TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { blocksToExtendedMd, extendedMdToBlocks } from "../../lib/md/extended";
 import { setNoteLinkOpen, setNoteLinkResolve } from "./noteLink";
 import { editorSchema } from "./editorSchema";
@@ -32,6 +32,8 @@ import { makeSlashMenu } from "./SlashMenu";
 import { useBlockMarquee } from "./useBlockMarquee";
 import { useBlockDrag } from "./useBlockDrag";
 import { FlaskFor } from "../Flask";
+import { findScrollParent } from "./dragScroll";
+import type { EditorPosition } from "./editorPosition";
 import type { NoteMeta } from "../../lib/types";
 
 // Two-level ⌘A: the first press selects the current block's text; the next selects
@@ -83,13 +85,57 @@ export function loadBlocksWithoutHistory(editor: LoadableEditor, blocks: unknown
   });
 }
 
+// The minimal slice of the editor restorePosition needs: the raw ProseMirror view
+// (to set the caret) and focus(). Kept loose so we don't fight BlockNote's generics.
+interface PositionableEditor {
+  prosemirrorView?: EditorView;
+  focus: () => void;
+}
+
+// Put the caret back where it was and the surface scrolled to where it was. The caret
+// goes first (focus() may nudge the view), then we force scrollTop last so it wins —
+// once now and once next frame, in case block/image layout settles after this tick.
+// Positions are clamped and the whole thing is best-effort: a doc that changed since
+// capture just lands the caret somewhere valid rather than throwing.
+function restorePosition(
+  editor: PositionableEditor,
+  scroller: HTMLElement | null,
+  pos: EditorPosition,
+  cancelled: () => boolean,
+): void {
+  const view = editor.prosemirrorView;
+  if (view) {
+    const size = view.state.doc.content.size;
+    const anchor = Math.max(0, Math.min(pos.anchor ?? 0, size));
+    const head = Math.max(0, Math.min(pos.head ?? anchor, size));
+    try {
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, anchor, head)));
+    } catch {
+      /* the saved offsets may no longer resolve to a text position — leave the default */
+    }
+    // Focus without letting the browser scroll the caret into view; we set scroll next.
+    view.dom.focus({ preventScroll: true });
+  } else {
+    editor.focus();
+  }
+  if (scroller) {
+    scroller.scrollTop = pos.scrollTop;
+    requestAnimationFrame(() => {
+      if (!cancelled() && scroller) scroller.scrollTop = pos.scrollTop;
+    });
+  }
+}
+
 // The writing surface — a Notion-like BLOCK editor (BlockNote). Blocks are
 // draggable, "/" opens the slash menu, and a selection bubble covers inline
 // styling, all out of the box. Content is Markdown in, Markdown out through our
 // extended standard (lib/md/extended) — the `.md` file stays the source of truth.
 //
 // The parent remounts this per note (key={note.id}), so markdown is loaded once
-// on mount and we never fight an incoming prop mid-edit.
+// on mount and we never fight an incoming prop mid-edit. Because of that remount, we
+// also save/restore *where you were writing* per note (scroll offset + caret) through
+// savedPosition/onSavePosition — so switching tabs lands you back where you left off
+// instead of at the default focus spot. See editorPosition.ts.
 
 interface EditorProps {
   markdown: string;
@@ -99,9 +145,21 @@ interface EditorProps {
   selfId: string; // the current note — excluded from the "@" menu (no self-links)
   notes: NoteMeta[]; // for the "@" note-link menu
   onOpenNote: (id: string) => void; // clicking a note link opens it
+  savedPosition?: EditorPosition | null; // where we were last writing in this note (if remembered)
+  onSavePosition?: (noteId: string, pos: EditorPosition) => void; // report the live position
 }
 
-export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, onOpenNote }: EditorProps) {
+export function Editor({
+  markdown,
+  onChange,
+  focusMode,
+  theme,
+  selfId,
+  notes,
+  onOpenNote,
+  savedPosition,
+  onSavePosition,
+}: EditorProps) {
   // `_tiptapOptions.extensions` is BlockNote's escape hatch to add raw TipTap/ProseMirror
   // extensions — here, the multi-row block-selection highlight (blockSelectionDecorations).
   const editor = useCreateBlockNote({
@@ -113,8 +171,25 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
   });
   const loading = useRef(true);
   const wrapRef = useRef<HTMLDivElement>(null);
+  // The surface the editor actually scrolls inside (App's <section>). Resolved once the
+  // editor is in the DOM; kept so we can read/restore its scrollTop without re-walking.
+  const scrollerRef = useRef<HTMLElement | null>(null);
   const notesRef = useRef(notes);
   notesRef.current = notes;
+
+  // Snapshot where we are right now (scroll + caret) into the parent's per-note memory.
+  // Called while editing (onChange), on scroll, and on blur — i.e. right before a tab
+  // switch — so the remembered position is always current. Never called on unmount, so
+  // closing a tab (which forgets the entry) is not undone by a stale final write.
+  const captureSave = useCallback(() => {
+    if (loading.current || !onSavePosition) return;
+    const sel = editor.prosemirrorView?.state.selection;
+    onSavePosition(selfId, {
+      scrollTop: scrollerRef.current?.scrollTop ?? 0,
+      anchor: sel?.anchor,
+      head: sel?.head,
+    });
+  }, [editor, selfId, onSavePosition]);
 
   // Notion-style marquee: drag in the blank margin to select multiple rows, then move
   // them together with the drag handle (useBlockMarquee sets the selection; BlockNote's
@@ -170,6 +245,8 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
 
   // Load the note's .md into blocks once, on mount. `loading` suppresses the
   // onChange that the programmatic replace would otherwise fire (no false dirty).
+  // Once blocks are in (the doc now has height), we either restore the remembered
+  // scroll + caret for this note, or — first visit / after a close — just focus.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -177,10 +254,13 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
       if (cancelled) return;
       loadBlocksWithoutHistory(editor as unknown as LoadableEditor, blocks);
       loading.current = false;
+      const scroller = scrollerRef.current ?? findScrollParent(wrapRef.current);
+      scrollerRef.current = scroller;
       try {
-        editor.focus();
+        if (savedPosition) restorePosition(editor, scroller, savedPosition, () => cancelled);
+        else editor.focus();
       } catch {
-        /* focus is best-effort */
+        /* restore/focus is best-effort */
       }
     })();
     return () => {
@@ -189,9 +269,28 @@ export function Editor({ markdown, onChange, focusMode, theme, selfId, notes, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Keep the remembered position current: as you scroll the surface, and when focus
+  // leaves the editor (the moment you click another tab). Resolve the scroller here
+  // too, since this synchronous mount effect runs before the async load above.
+  useEffect(() => {
+    const el = wrapRef.current;
+    const scroller = scrollerRef.current ?? findScrollParent(el);
+    scrollerRef.current = scroller;
+    if (!el) return;
+    const onScroll = () => captureSave();
+    const onLeave = () => captureSave();
+    scroller?.addEventListener("scroll", onScroll, { passive: true });
+    el.addEventListener("focusout", onLeave);
+    return () => {
+      scroller?.removeEventListener("scroll", onScroll);
+      el.removeEventListener("focusout", onLeave);
+    };
+  }, [captureSave]);
+
   const handleChange = async () => {
     if (loading.current) return;
     onChange(await blocksToExtendedMd(editor, editor.document));
+    captureSave();
   };
 
   return (
