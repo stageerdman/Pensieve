@@ -54,8 +54,10 @@ export interface Spell {
 /** Which form the ring is currently showing. Detailed is a depth level, not a root form. */
 export type SpellMenuForm = "general" | "conditional";
 
-/** The page context that decides the menu's entry form + its conditional roster. */
-export type PageContext = "home" | "note";
+/** The page context that decides the menu's entry form + its conditional roster.
+ *  "collection" = the full-screen photo board open on top of a memory (add a Photo to it; you
+ *  can't nest a gallery in a gallery, so no "Gallery" spell there). */
+export type PageContext = "home" | "note" | "collection";
 
 // ---- Dock (bottom control bar) ----
 

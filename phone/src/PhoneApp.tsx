@@ -159,6 +159,7 @@ export function PhoneApp() {
   const [count, setCount] = useState<string>(() => computeCount("", dataRef.current!.length, dataRef.current!.length));
   const [noteMounted, setNoteMounted] = useState(false); // the Memory page is in the DOM only while open/closing
   const [noteOpen, setNoteOpen] = useState(false); // drives the .open slide (set a frame after mount)
+  const [collectionOpen, setCollectionOpen] = useState(false); // the full-screen photo board is on top
   const [editingNote, setEditingNote] = useState(false);
   const [kbOpen, setKbOpen] = useState(false);
   const [micListening, setMicListening] = useState(false);
@@ -190,9 +191,10 @@ export function PhoneApp() {
   const syncStatus: SyncStatus = sync.state.status;
 
   const fisheye = useReelFisheye(reelRef, trackRef, glassRef);
-  // The Spell Menu is note-aware: with a memory open it opens in Conditional form, whose
-  // roster is led by "Picture" (see registry.conditionalSpells("note")). On home it's General.
-  const menu = useSpellMenu(noteMounted ? "note" : "home");
+  // The Spell Menu is context-aware: an open photo collection offers only "Photo" (add to that
+  // gallery); a memory offers "Photo" + "Gallery"; home opens General. The collection sits on top
+  // of the memory, so its context must win.
+  const menu = useSpellMenu(collectionOpen ? "collection" : noteMounted ? "note" : "home");
 
   const kb = useKeyboardInset(rootRef, {
     onUp: () => fns.current.onKbUp(),
@@ -594,6 +596,10 @@ export function PhoneApp() {
     menu.openMenu();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Track the photo collection's open state so the Spell Menu context switches to "collection"
+  // (only "Photo") while the board is up, and back to "note" (Photo + Gallery) when it closes.
+  useEffect(() => phoneCollection.subscribe((s) => setCollectionOpen(s.open)), []);
 
   // window resize → re-measure the reel (the wheel/keyboard own their own resize)
   useEffect(() => {

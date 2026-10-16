@@ -41,9 +41,9 @@ export interface SpellMenuApi extends SpellMenuState {
   closeWindow: () => void;
 }
 
-/** The form the menu opens in: a note opens in Conditional; everywhere else in General. */
+/** The form the menu opens in: a note or an open collection opens in Conditional; home in General. */
 function entryForm(context: PageContext): SpellMenuForm {
-  return context === "note" && hasConditional(context) ? "conditional" : "general";
+  return context !== "home" && hasConditional(context) ? "conditional" : "general";
 }
 
 export function useSpellMenu(context: PageContext): SpellMenuApi {

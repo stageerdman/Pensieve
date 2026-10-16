@@ -68,9 +68,14 @@ export function conditionalSpells(context: PageContext): Spell[] {
       { id: "thread", name: "Thread", icon: "thread" },
     ];
   }
-  // note / photo collection — two spells: "Photo" adds a photo to the open memory (or the open
-  // gallery); "Gallery" starts a fresh gallery block to fill (multi-pick). Go back lives in the
-  // bottom action bar next to the spell-menu button, not the ring.
+  // inside an open photo collection: ONLY "Photo" — it adds a photo to THAT gallery. No "Gallery"
+  // spell here: you can't nest a gallery inside a gallery.
+  if (context === "collection") {
+    return [{ id: "image", name: "Photo", icon: "image" }];
+  }
+  // a memory (note): two spells — "Photo" adds a photo to the memory (merging into an adjacent
+  // block if any); "Gallery" starts a fresh, separate gallery block to fill (multi-pick). Go back
+  // lives in the bottom action bar next to the spell-menu button, not the ring.
   return [
     { id: "image", name: "Photo", icon: "image" },
     { id: "gallery", name: "Gallery", icon: "gallery" },

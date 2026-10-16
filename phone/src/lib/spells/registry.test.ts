@@ -47,4 +47,11 @@ describe("registry — conditional (page-recommended) rosters", () => {
     expect(isScroll(note.length)).toBe(false); // a clean static ring
     expect(hasConditional("note")).toBe(true);
   });
+
+  it("an open collection offers ONLY Photo (no nesting a gallery in a gallery)", () => {
+    const coll = conditionalSpells("collection");
+    expect(coll.map((s) => s.id)).toEqual(["image"]);
+    expect(coll[0].name).toBe("Photo");
+    expect(hasConditional("collection")).toBe(true);
+  });
 });
