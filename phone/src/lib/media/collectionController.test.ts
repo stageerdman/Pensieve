@@ -39,3 +39,52 @@ describe("phoneCollection.reorder", () => {
     expect(onReorder).not.toHaveBeenCalled();
   });
 });
+
+describe("phoneCollection.editMode", () => {
+  it("opens clean (editMode false) and the Edit spell toggles it", () => {
+    phoneCollection.open(items(0, 1, 2), { editable: true });
+    expect(phoneCollection.get().editMode).toBe(false);
+    phoneCollection.toggleEditMode();
+    expect(phoneCollection.get().editMode).toBe(true);
+    phoneCollection.toggleEditMode();
+    expect(phoneCollection.get().editMode).toBe(false);
+    phoneCollection.close();
+  });
+
+  it("can't enter edit mode when the note doesn't permit edits", () => {
+    phoneCollection.open(items(0, 1, 2), { editable: false });
+    phoneCollection.toggleEditMode();
+    expect(phoneCollection.get().editMode).toBe(false);
+    phoneCollection.close();
+  });
+
+  it("exitEditMode leaves edit mode; reopening resets it to clean", () => {
+    phoneCollection.open(items(0, 1), { editable: true });
+    phoneCollection.toggleEditMode();
+    phoneCollection.exitEditMode();
+    expect(phoneCollection.get().editMode).toBe(false);
+    phoneCollection.close();
+    phoneCollection.open(items(0, 1, 2), { editable: true });
+    expect(phoneCollection.get().editMode).toBe(false); // never carries over
+    phoneCollection.close();
+  });
+});
+
+describe("phoneCollection.pullOut", () => {
+  it("fires onPullOut(index) and drops the photo from the view", () => {
+    const onPullOut = vi.fn();
+    phoneCollection.open(items(0, 1, 2), { editable: true, onPullOut });
+    phoneCollection.pullOut(1);
+    expect(onPullOut).toHaveBeenCalledWith(1);
+    expect(phoneCollection.get().items.map((i) => i.url)).toEqual(["u0", "u2"]);
+    phoneCollection.close();
+  });
+
+  it("closes the board when fewer than two photos remain (gallery collapsed)", () => {
+    const onPullOut = vi.fn();
+    phoneCollection.open(items(0, 1), { editable: true, onPullOut });
+    phoneCollection.pullOut(0);
+    expect(onPullOut).toHaveBeenCalledWith(0);
+    expect(phoneCollection.get().open).toBe(false);
+  });
+});

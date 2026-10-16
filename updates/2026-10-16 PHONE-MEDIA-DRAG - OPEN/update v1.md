@@ -33,19 +33,20 @@ the phone over LAN). Plan favours: ship the high-confidence, gesture-free parts 
 pull-out, the Edit spell), then the drag system with device logging + iteration. Final gesture
 decisions pending the UX report.
 
-## Roadmap (phases; commit+push each) — refined after UX + spell-system reports
-- [ ] **P0 — Research synthesis.** Fold the spell-system map + UX recommendation into concrete
-  phase specs; record decisions in wiki.md.
-- [ ] **P1 — Edit mode + "Edit" spell (gesture-free).** Board opens in view mode; Edit spell
-  toggles edit mode (× remove + pull-out visible, exit affordance). collectionController editMode.
-- [ ] **P2 — Pull-out to note (gesture-free).** onExtract(index): remove from gallery + insert an
-  image block right under the gallery in the note body; persist + serialize.
-- [ ] **P3 — Block drag in the note body.** Reorder image/gallery blocks; drop-onto-gallery merges.
-  iOS long-press/handle per UX; device logging.
-- [ ] **P4 — (If reorder-within-board still wanted) harden the board reorder**, or fold into P3's model.
-- [ ] **P5 — Verify (device), build, merge.**
+## Roadmap (phases; commit+push each) — finalized after UX + spell-system reports
+- [x] **P0 — Research synthesis.** Spell-system map + UX recommendation folded into wiki.md.
+  Decision: HANDLE-based drag (not long-press); pull-out = button; 3-zone hit-test; editMode flag.
+- [ ] **P1 — Edit spell + edit mode on the board (gesture-free, high-confidence).**
+  `editMode` flag (default false) separate from `editable`; "Edit" spell (board-scoped) toggles it
+  → lit "Done". View mode clean (tap = lightbox); edit mode shows ×. New `edit` icon + glyph.
+- [ ] **P2 — Pull-out button (gesture-free).** Edit-mode top-left accent button → `pullOut(index)`
+  → drops the photo from the gallery + inserts a `.ph-image` block right under the gallery; haptic.
+- [ ] **P3 — Board reorder via a HANDLE (replaces the buggy long-press).** Handle appears in edit
+  mode; pointerdown on it lifts instantly (reuse the ghost engine, delete the timer race). Device.
+- [ ] **P4 — Note-body block drag via a handle.** Reorder image/gallery blocks among text; 3-zone
+  merge-onto-gallery. New engine adapting the board's ghost mechanism. Device iteration (+ logging).
+- [ ] **P5 — Verify on device, build, merge.** Two-tap fallback in reserve if handle-drag is flaky.
 
 ## Status
-- Exploring the spell-menu/dock system + gathering UX design. Keyboard fix already done on the
-  sibling branch.
+- P0 done. Building P1 (Edit spell + edit mode). Keyboard fix already committed on this branch.
 </content>

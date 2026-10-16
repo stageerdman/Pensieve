@@ -20,6 +20,17 @@ const EDGE_PX = 72; // top/bottom auto-scroll band
 const EDGE_MAX_V = 14; // px/frame cap
 const LIFT_SCALE = 1.06;
 
+/** "Eject to note" glyph — a card with an up-arrow rising out of it. Paired with the × (delete) on
+ *  the opposite corner so pull-out (accent) reads distinctly from remove (quiet/danger). */
+function PullOutGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 14V4M8.5 7.5 12 4l3.5 3.5" />
+      <path d="M6 13v4a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-4" />
+    </svg>
+  );
+}
+
 export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
   const [s, setS] = useState<CollectionState>(phoneCollection.get());
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -218,7 +229,7 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
   // ── pointer handlers. pointerdown is per-tile (to learn `from`); move/up/cancel live on the
   // masonry (events bubble up pre-lift; retarget to it after capture) so one set handles both phases.
   const onTileDown = (i: number) => (e: React.PointerEvent) => {
-    if (!s.editable) return;
+    if (!s.editMode) return; // reorder only in edit mode (view mode = clean, tap opens the lightbox)
     if (e.pointerType === "mouse" && e.button !== 0) return;
     const tile = (e.currentTarget as HTMLElement).closest(".ph-collection-tile") as HTMLElement | null;
     if (!tile) return;
@@ -335,11 +346,15 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
         <span className="ph-collection-grabber" />
       </div>
       <div
-        className="ph-collection-masonry"
+        className={s.editMode ? "ph-collection-masonry editing" : "ph-collection-masonry"}
         ref={masonryRef}
         onPointerMove={onMasonryMove}
         onPointerUp={onMasonryUp}
         onPointerCancel={onMasonryCancel}
+        onClick={(e) => {
+          // A tap on the board background (not a tile) leaves edit mode — the calm way out.
+          if (s.editMode && e.target === e.currentTarget) phoneCollection.exitEditMode();
+        }}
       >
         {s.items.map((it, i) => (
           <div className="ph-collection-tile" data-index={i} key={itemKeys[i]}>
@@ -353,21 +368,34 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
                   rd.suppressClick = false;
                   return; // this click is the tail of a drag — don't open the lightbox
                 }
+                if (s.editMode) return; // editing: the corner buttons own the tile, no lightbox
                 phoneLightbox.open(s.items, i);
               }}
             />
             {it.caption ? <div className="ph-collection-caption">{it.caption}</div> : null}
-            {s.editable ? (
-              <button
-                className="ph-collection-remove"
-                aria-label="Remove photo"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  phoneCollection.remove(i);
-                }}
-              >
-                ×
-              </button>
+            {s.editMode ? (
+              <>
+                <button
+                  className="ph-collection-pullout"
+                  aria-label="Pull out to note"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    phoneCollection.pullOut(i);
+                  }}
+                >
+                  <PullOutGlyph />
+                </button>
+                <button
+                  className="ph-collection-remove"
+                  aria-label="Remove photo"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    phoneCollection.remove(i);
+                  }}
+                >
+                  ×
+                </button>
+              </>
             ) : null}
           </div>
         ))}

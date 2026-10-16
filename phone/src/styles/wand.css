@@ -1468,6 +1468,24 @@ body {
   align-items: center;
   justify-content: center;
 }
+/* Pull-out ("eject to note"): top-LEFT, accent-tinted — distinct corner + colour from the quiet
+   top-right × so extracting a photo is never mistaken for deleting it. Only shown in edit mode. */
+.ph-collection-pullout {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 999px;
+  background: hsl(var(--accent) / 0.92);
+  color: hsl(var(--surface));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 6px hsl(0 0% 0% / 0.35);
+}
 .ph-gallery-track {
   display: flex;
   gap: 8px;

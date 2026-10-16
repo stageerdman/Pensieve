@@ -68,10 +68,13 @@ export function conditionalSpells(context: PageContext): Spell[] {
       { id: "thread", name: "Thread", icon: "thread" },
     ];
   }
-  // inside an open photo collection: ONLY "Photo" — it adds a photo to THAT gallery. No "Gallery"
-  // spell here: you can't nest a gallery inside a gallery.
+  // inside an open photo collection: "Edit" toggles arrange/remove mode on the board; "Photo"
+  // adds a photo to THAT gallery. No "Gallery" spell here: you can't nest a gallery in a gallery.
   if (context === "collection") {
-    return [{ id: "image", name: "Photo", icon: "image" }];
+    return [
+      { id: "edit", name: "Edit", icon: "edit" },
+      { id: "image", name: "Photo", icon: "image" },
+    ];
   }
   // a memory (note): two spells — "Photo" adds a photo to the memory (merging into an adjacent
   // block if any); "Gallery" starts a fresh, separate gallery block to fill (multi-pick). Go back

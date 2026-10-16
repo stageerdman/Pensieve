@@ -23,6 +23,7 @@ export type IconName =
   | "thread"
   | "image"
   | "gallery"
+  | "edit"
   | "back";
 
 /** Sync's live status, mirrored from lib/wand/syncMachine so the dock/menu can badge it. */

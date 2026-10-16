@@ -198,6 +198,7 @@ function openCollection(el: HTMLElement, ctx: MediaCtx, noteBody: HTMLElement) {
       editable: true,
       onRemove: (index) => removeAt(el, index, ctx),
       onReorder: (from, to) => reorderAt(el, from, to, ctx),
+      onPullOut: (index) => pullOutAt(el, index, ctx),
       // The collection's "Photo" spell adds to THIS gallery (reuses saved refs), then returns
       // the refreshed resolved photos so the masonry updates in place.
       onAdd: async (images) => {
@@ -284,6 +285,20 @@ function reorderAt(el: HTMLElement, from: number, to: number, ctx: MediaCtx) {
   const [moved] = next.splice(from, 1);
   next.splice(to, 0, moved);
   setGalleryImages(el, next, ctx);
+}
+
+/** Pull the image at `index` OUT of the gallery into the note: it becomes a standalone image block
+ *  placed directly AFTER the gallery, and leaves the gallery. Insert the new block FIRST (while the
+ *  gallery element is still in place as the anchor), then drop it from the gallery — if that
+ *  collapses the gallery to a single image/empty, the pulled block still sits right after it. */
+function pullOutAt(el: HTMLElement, index: number, ctx: MediaCtx) {
+  const images = readGalleryImages(el);
+  if (index < 0 || index >= images.length) return;
+  const pulled = images[index];
+  const single = buildImageEl({ kind: "image", ref: pulled.ref, ...(pulled.caption ? { caption: pulled.caption } : {}) }, ctx);
+  el.after(single); // land it under the gallery
+  haptic(12);
+  setGalleryImages(el, images.filter((_, i) => i !== index), ctx); // drop from the gallery + persist
 }
 
 // ---- body render + serialize ----
