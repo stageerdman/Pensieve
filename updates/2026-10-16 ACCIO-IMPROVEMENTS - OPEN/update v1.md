@@ -62,6 +62,12 @@ the phone app already has its own Accio + recents.
   merge to `main`, rename folder `- CLOSED`.
 
 ## Status
-- Starting P1.
+- **P1 shipped** — openCount/lastOpenedAt/links/linkedByCount; markOpened + save read-merge;
+  recordOpen on deliberate opens; backlinks derived in useNotes. Tests green.
+- **P2 shipped** — bucketize(by); Gallery hides strip + recency-orders during Accio;
+  crossfade + scroll reset. Tests green.
+- **P3 shipped** — recents module; Suggestion.query; useSummon record/apply; Summon +
+  SuggestionList render recents first (prefix-fit). Tests green.
+- **P4 in progress** — full suite 776 green, tsc clean; running web + native builds, then merge.
 </content>
 </invoke>
