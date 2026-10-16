@@ -62,6 +62,61 @@ function blurActive() {
   (document.activeElement as HTMLElement | null)?.blur?.();
 }
 
+/** Wire a "tap to open" on a media block WITHOUT the tap raising the on-screen keyboard.
+ *
+ *  Why this is more than a click handler: the block is `contentEditable=false` inside the
+ *  contentEditable body. On iOS a tap that lands on it still focuses the body (places the caret
+ *  at the nearest editable spot) and pops the keyboard — and iOS drives that from the TOUCH
+ *  sequence, not the synthesized `mousedown`, so `mousedown.preventDefault()` alone doesn't stop
+ *  it. The fix: on a genuine tap (touch released without scrolling) we `preventDefault()` the
+ *  `touchend`, which suppresses BOTH the editable focus and the ghost click, then open ourselves.
+ *  A scroll (finger moved past the threshold) is left untouched so the page still scrolls when the
+ *  drag starts on a photo. Mouse/desktop falls through to `click`. */
+const TAP_SLOP_PX = 10;
+function wireMediaTap(el: HTMLElement, onTap: () => void) {
+  let sx = 0;
+  let sy = 0;
+  let moved = false;
+  let lastTouchTapAt = 0;
+
+  el.addEventListener("mousedown", (e) => e.preventDefault()); // mouse: don't focus the editable
+  el.addEventListener(
+    "touchstart",
+    (e) => {
+      moved = false;
+      const t = e.touches[0];
+      sx = t ? t.clientX : 0;
+      sy = t ? t.clientY : 0;
+    },
+    { passive: true },
+  );
+  el.addEventListener(
+    "touchmove",
+    (e) => {
+      const t = e.touches[0];
+      if (!t) return;
+      if (Math.abs(t.clientX - sx) > TAP_SLOP_PX || Math.abs(t.clientY - sy) > TAP_SLOP_PX) moved = true;
+    },
+    { passive: true },
+  );
+  el.addEventListener(
+    "touchend",
+    (e) => {
+      if (moved) return; // a scroll, not a tap — let the keyboard/scroll behave normally
+      if (e.cancelable) e.preventDefault(); // stop iOS focusing the editable + the ghost click
+      lastTouchTapAt = Date.now();
+      blurActive();
+      onTap();
+    },
+    { passive: false },
+  );
+  el.addEventListener("click", () => {
+    if (Date.now() - lastTouchTapAt < 700) return; // the touchend tap already handled this
+    blurActive();
+    onTap();
+  });
+}
+
 // ---- image loading ----
 
 function attachImg(img: HTMLImageElement, ref: string) {
@@ -109,12 +164,10 @@ function buildImageEl(block: Extract<NoteBlock, { kind: "image" }>, ctx: MediaCt
   }
   el.appendChild(fig);
 
-  // Tapping media must NOT raise the keyboard: preventDefault on mousedown stops the tap focusing
-  // the surrounding contentEditable (iOS honours this), and blurOnOpen dismisses it if a tap arrived
-  // mid-edit. The click still fires → the lightbox opens.
-  img.addEventListener("mousedown", (e) => e.preventDefault());
-  img.addEventListener("click", () => {
-    blurActive();
+  // Tap to open the lightbox — without the tap raising the keyboard (see wireMediaTap). Wired on
+  // the whole .ph-media wrapper so a tap on the caption or the block's padding is covered too, not
+  // just the <img>.
+  wireMediaTap(el, () => {
     const b = readBlock(el);
     if (b?.kind !== "image") return;
     void resolveAll([{ ref: b.ref, caption: b.caption }]).then((items) => phoneLightbox.open(items, 0));
@@ -130,13 +183,34 @@ function buildGalleryEl(block: Extract<NoteBlock, { kind: "gallery" }>, ctx: Med
   el.className = "ph-media ph-gallery";
   el.contentEditable = "false";
   writeBlock(el, block);
-  renderGallery(el, ctx, noteBody);
+  renderGallery(el);
+  // Tap the cover to open the full-screen board — without raising the keyboard. Wired on the
+  // stable wrapper ONCE (renderGallery rebuilds the cover on every mutation, so wiring there
+  // would stack duplicate listeners).
+  wireMediaTap(el, () => openCollection(el, ctx, noteBody));
   return el;
 }
 
+/** Open the full-screen Pinterest board for a gallery block (all photos, editable). */
+function openCollection(el: HTMLElement, ctx: MediaCtx, noteBody: HTMLElement) {
+  void resolveAll(readGalleryImages(el)).then((items) =>
+    phoneCollection.open(items, {
+      editable: true,
+      onRemove: (index) => removeAt(el, index, ctx),
+      onReorder: (from, to) => reorderAt(el, from, to, ctx),
+      // The collection's "Photo" spell adds to THIS gallery (reuses saved refs), then returns
+      // the refreshed resolved photos so the masonry updates in place.
+      onAdd: async (images) => {
+        mergeInto(el, images as MediaImage[], ctx, noteBody);
+        return resolveAll(readGalleryImages(el));
+      },
+    }),
+  );
+}
+
 /** (Re)build a gallery's visuals = a single composite COVER (a board thumbnail made of the first
- *  few photos). Tapping it opens the full-screen collection (all photos, vertical masonry). */
-function renderGallery(el: HTMLElement, ctx: MediaCtx, noteBody: HTMLElement) {
+ *  few photos). The tap-to-open is wired once on the wrapper in buildGalleryEl, not here. */
+function renderGallery(el: HTMLElement) {
   const block = readBlock(el);
   if (block?.kind !== "gallery") return;
   const images = block.images;
@@ -166,24 +240,6 @@ function renderGallery(el: HTMLElement, ctx: MediaCtx, noteBody: HTMLElement) {
     cover.appendChild(cell);
   }
 
-  // Opening the board must not raise the keyboard (same reasoning as the single image).
-  cover.addEventListener("mousedown", (e) => e.preventDefault());
-  cover.addEventListener("click", () => {
-    blurActive();
-    void resolveAll(readGalleryImages(el)).then((items) =>
-      phoneCollection.open(items, {
-        editable: true,
-        onRemove: (index) => removeAt(el, index, ctx, noteBody),
-        onReorder: (from, to) => reorderAt(el, from, to, ctx, noteBody),
-        // The collection's "Photo" spell adds to THIS gallery (reuses saved refs), then returns
-        // the refreshed resolved photos so the masonry updates in place.
-        onAdd: async (images) => {
-          mergeInto(el, images as MediaImage[], ctx, noteBody);
-          return resolveAll(readGalleryImages(el));
-        },
-      }),
-    );
-  });
   el.appendChild(cover);
 }
 
@@ -192,7 +248,7 @@ function readGalleryImages(el: HTMLElement): MediaImage[] {
   return b?.kind === "gallery" ? b.images : [];
 }
 
-function setGalleryImages(el: HTMLElement, images: MediaImage[], ctx: MediaCtx, noteBody: HTMLElement) {
+function setGalleryImages(el: HTMLElement, images: MediaImage[], ctx: MediaCtx) {
   const collapsed = collapseImages(images);
   if (!collapsed) {
     el.remove(); // nothing left
@@ -207,27 +263,27 @@ function setGalleryImages(el: HTMLElement, images: MediaImage[], ctx: MediaCtx, 
     return;
   }
   writeBlock(el, collapsed);
-  renderGallery(el, ctx, noteBody);
+  renderGallery(el);
   ctx.onChange();
 }
 
-function removeAt(el: HTMLElement, index: number, ctx: MediaCtx, noteBody: HTMLElement) {
+function removeAt(el: HTMLElement, index: number, ctx: MediaCtx) {
   const images = readGalleryImages(el);
   if (!images.length) return;
   const next = images.filter((_, i) => i !== index);
   haptic(8);
-  setGalleryImages(el, next, ctx, noteBody);
+  setGalleryImages(el, next, ctx);
 }
 
 /** Move the image at `from` to `to` (order-preserving splice) and persist. Mirrors removeAt —
  *  the collection view calls this after a drag-reorder; desktop reads the new gallery order. */
-function reorderAt(el: HTMLElement, from: number, to: number, ctx: MediaCtx, noteBody: HTMLElement) {
+function reorderAt(el: HTMLElement, from: number, to: number, ctx: MediaCtx) {
   const images = readGalleryImages(el);
   if (from === to || from < 0 || to < 0 || from >= images.length || to >= images.length) return;
   const next = images.slice();
   const [moved] = next.splice(from, 1);
   next.splice(to, 0, moved);
-  setGalleryImages(el, next, ctx, noteBody);
+  setGalleryImages(el, next, ctx);
 }
 
 // ---- body render + serialize ----
@@ -377,6 +433,6 @@ function mergeInto(mediaEl: HTMLElement, add: MediaImage[], ctx: MediaCtx, noteB
     return;
   }
   writeBlock(mediaEl, { kind: "gallery", images: merged });
-  renderGallery(mediaEl, ctx, noteBody);
+  renderGallery(mediaEl);
   ctx.onChange();
 }

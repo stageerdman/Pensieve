@@ -53,6 +53,40 @@ describe("mediaDom — render <-> serialize", () => {
   });
 });
 
+describe("mediaDom — tap must not raise the keyboard", () => {
+  // The keyboard pops because a tap on media focuses the surrounding contentEditable. The lever
+  // that stops it on iOS is preventDefault() on the touchend of a genuine tap; a scroll (finger
+  // moved) must be left alone so the page still scrolls when the drag starts on a photo.
+  const touch = (type: string, x: number, y: number, cancelable = false) => {
+    const ev = new Event(type, { bubbles: true, cancelable });
+    (ev as unknown as { touches: Array<{ clientX: number; clientY: number }> }).touches = [{ clientX: x, clientY: y }];
+    return ev;
+  };
+
+  function imageBlock(): HTMLElement {
+    const el = body();
+    renderNoteBody(el, "", "![](media/1/x.png)", ctx);
+    return el.querySelector<HTMLElement>(".ph-media.ph-image")!;
+  }
+
+  it("a still tap preventDefaults touchend (so iOS won't focus the editable)", () => {
+    const media = imageBlock();
+    media.dispatchEvent(touch("touchstart", 20, 20));
+    const end = touch("touchend", 21, 21, true);
+    media.dispatchEvent(end);
+    expect(end.defaultPrevented).toBe(true);
+  });
+
+  it("a scroll (finger moved past the slop) leaves touchend alone", () => {
+    const media = imageBlock();
+    media.dispatchEvent(touch("touchstart", 20, 20));
+    media.dispatchEvent(touch("touchmove", 20, 80)); // 60px → a scroll, not a tap
+    const end = touch("touchend", 20, 80, true);
+    media.dispatchEvent(end);
+    expect(end.defaultPrevented).toBe(false);
+  });
+});
+
 describe("mediaDom — insert", () => {
   it("one file → a single image block (plain markdown)", () => {
     const el = body();
