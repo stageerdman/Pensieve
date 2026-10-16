@@ -56,6 +56,12 @@ export function isMediaEl(node: Node | null): boolean {
   return !!node && node instanceof HTMLElement && node.classList.contains("ph-media");
 }
 
+/** Drop focus off the contentEditable body so iOS dismisses the keyboard (used when opening the
+ *  lightbox / collection from a tap on media that would otherwise re-focus the editable). */
+function blurActive() {
+  (document.activeElement as HTMLElement | null)?.blur?.();
+}
+
 // ---- image loading ----
 
 function attachImg(img: HTMLImageElement, ref: string) {
@@ -103,7 +109,12 @@ function buildImageEl(block: Extract<NoteBlock, { kind: "image" }>, ctx: MediaCt
   }
   el.appendChild(fig);
 
+  // Tapping media must NOT raise the keyboard: preventDefault on mousedown stops the tap focusing
+  // the surrounding contentEditable (iOS honours this), and blurOnOpen dismisses it if a tap arrived
+  // mid-edit. The click still fires → the lightbox opens.
+  img.addEventListener("mousedown", (e) => e.preventDefault());
   img.addEventListener("click", () => {
+    blurActive();
     const b = readBlock(el);
     if (b?.kind !== "image") return;
     void resolveAll([{ ref: b.ref, caption: b.caption }]).then((items) => phoneLightbox.open(items, 0));
@@ -155,7 +166,10 @@ function renderGallery(el: HTMLElement, ctx: MediaCtx, noteBody: HTMLElement) {
     cover.appendChild(cell);
   }
 
+  // Opening the board must not raise the keyboard (same reasoning as the single image).
+  cover.addEventListener("mousedown", (e) => e.preventDefault());
   cover.addEventListener("click", () => {
+    blurActive();
     void resolveAll(readGalleryImages(el)).then((items) =>
       phoneCollection.open(items, {
         editable: true,
