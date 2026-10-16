@@ -45,21 +45,27 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
   const readerRef = useRef<HTMLDivElement>(null);
 
   // Make the dropdown reader a SELECTABLE ISLAND. The audio block is a `content:"none"` void,
-  // so a mousedown anywhere in it makes ProseMirror node-select the whole block (which also
-  // cancels any text selection you were forming), and dragging that selected, draggable node
-  // DUPLICATES the audio. A React `onMouseDown` stopPropagation fires too late — ProseMirror
-  // listens natively on the editor root and has already run by then. So we stop the NATIVE
-  // mousedown/dragstart on the reader (stopPropagation only — no preventDefault, so the
-  // browser's own text-selection still happens). Scoped to the reader; the bar is untouched.
+  // so without help ProseMirror turns any mousedown in it into a NODE-SELECTION of the whole
+  // block — which cancels text selection and lets the gesture decay into a node drag that
+  // DUPLICATES the audio. Two things together fix it:
+  //   • `contentEditable={false}` on the reader (below) takes it out of PM's editable model,
+  //     so the browser does a plain, non-editable Range selection there (every built-in media
+  //     wrapper sets this);
+  //   • a NATIVE mousedown stopper so PM (which listens on the editor root in the BUBBLE
+  //     phase — verified) never sees the event and never node-selects. stopPropagation only,
+  //     no preventDefault, so the browser's own text-selection still starts. dragstart is
+  //     preventDefault'd outright so nothing originating in the reader can start a drag.
+  // A React `onMouseDown` can't do this — it fires after PM's native listener has already run.
   useEffect(() => {
     const el = readerRef.current;
     if (!readerOpen || !el) return;
-    const stop = (e: Event) => e.stopPropagation();
-    el.addEventListener("mousedown", stop);
-    el.addEventListener("dragstart", stop);
+    const stopDown = (e: Event) => e.stopPropagation();
+    const stopDrag = (e: Event) => { e.preventDefault(); e.stopPropagation(); };
+    el.addEventListener("mousedown", stopDown);
+    el.addEventListener("dragstart", stopDrag);
     return () => {
-      el.removeEventListener("mousedown", stop);
-      el.removeEventListener("dragstart", stop);
+      el.removeEventListener("mousedown", stopDown);
+      el.removeEventListener("dragstart", stopDrag);
     };
   }, [readerOpen]);
 
@@ -174,6 +180,8 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
           ref={readerRef}
           className="pensieve-audio-reader"
           style={{ height: readerH }}
+          contentEditable={false}
+          suppressContentEditableWarning
         >
           <div className="pensieve-audio-reader-head">
             <span>Transcript</span>
