@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pensieve · Inline audio bar in a note</title>
+  <link rel="stylesheet" href="_kit.css" />
+  <!-- file:// fallbacks: set window.__PEAKS__ / window.__TRANSCRIPT__ so the page
+       works on double-click with no server (mirrors 00-overview.html). -->
+  <script src="assets/peaks.js"></script>
+  <script src="assets/transcript.js"></script>
+  <style>
+    /* ───────── page scaffolding ONLY (not part of the kit) ───────── */
+    .page { max-width: 1040px; margin: 0 auto; padding: 48px 24px 140px; }
+    header.doc h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: -0.01em; }
+    header.doc p { color: hsl(var(--text-muted)); margin: 0; max-width: 64ch; }
+    header.doc .kbd { white-space: nowrap; }
+
+    section { margin-top: 44px; }
+    h2 { font-size: 18px; margin: 0 0 4px; }
+    .sub { color: hsl(var(--text-muted)); font-size: 14px; margin: 0 0 18px; max-width: 66ch; }
+
+    /* The writing surface — a BlockNote-like centered column. */
+    .note {
+      position: relative;
+      background: hsl(var(--surface));
+      border: 1px solid hsl(var(--border));
+      border-radius: 14px;
+      padding: 40px clamp(20px, 6%, 56px) 48px;
+    }
+    .note-col { max-width: 72ch; margin: 0 auto; }
+    .note-title { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
+    .note-date { font-size: 11px; color: hsl(var(--text-muted)); margin: 0 0 22px; font-variant-numeric: tabular-nums; }
+    .np { font-size: 16px; line-height: 1.75; margin: 0 0 16px; color: hsl(var(--text)); }
+    .np:last-child { margin-bottom: 0; }
+
+    /* MediaBlock wrapper: the bar breathes like an image block, caption below. */
+    .media-block { margin: 0.7em 0 1.1em; }
+    .media-cap {
+      margin: 6px 2px 0;
+      font-size: 12px;
+      line-height: 1.4;
+      color: hsl(var(--text-muted));
+    }
+    .media-cap.is-placeholder { color: hsl(var(--text-muted) / 0.55); font-style: italic; }
+
+    /* Per-state excerpt rows: label gutter + a mini note. */
+    .excerpts { display: flex; flex-direction: column; gap: 14px; }
+    .excerpt {
+      display: grid; grid-template-columns: 200px 1fr; gap: 24px; align-items: start;
+    }
+    .excerpt-side { position: sticky; top: 16px; }
+    .state-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.01em;
+      padding: 2px 9px; border-radius: 999px;
+      background: hsl(var(--surface-sunken)); border: 1px solid hsl(var(--border));
+      color: hsl(var(--text));
+    }
+    .state-chip .pip { width: 7px; height: 7px; border-radius: 50%; background: hsl(var(--text-muted) / 0.5); }
+    .state-chip.live .pip { background: hsl(var(--accent)); }
+    .state-chip.visual .pip { background: hsl(var(--text-muted) / 0.35); }
+    .state-note { font-size: 11px; color: hsl(var(--text-muted)); line-height: 1.55; margin-top: 8px; }
+    .state-note b { color: hsl(var(--text)); font-weight: 600; }
+    .tag-live { color: hsl(var(--accent)); font-weight: 600; }
+    .tag-static { color: hsl(var(--text-muted)); font-weight: 600; }
+
+    .mini-note { background: hsl(var(--surface)); border: 1px solid hsl(var(--border)); border-radius: 12px; padding: 22px 26px; }
+    .mini-note .np { font-size: 15px; margin-bottom: 10px; }
+    .mini-note .np.lead { margin-bottom: 0; }
+
+    /* Narrow column proof. */
+    .narrow-wrap { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 360px)); gap: 20px; }
+    .narrow-note { background: hsl(var(--surface)); border: 1px solid hsl(var(--border)); border-radius: 12px; padding: 22px 20px; }
+    .narrow-note .np { font-size: 15px; line-height: 1.7; }
+
+    .hint { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px; font-size: 11px; color: hsl(var(--text-muted)); }
+    .hint span { display: inline-flex; align-items: center; gap: 6px; }
+
+    /* ───────── transcript-icon / ⋯ hover tooltip (page-local) ───────── */
+    .has-tip { position: relative; }
+    .has-tip::after {
+      content: attr(data-tip);
+      position: absolute; bottom: calc(100% + 7px); left: 50%; transform: translateX(-50%) translateY(2px);
+      padding: 3px 7px; border-radius: calc(var(--radius) - 2px);
+      background: hsl(var(--surface-raised)); border: 1px solid hsl(var(--border));
+      color: hsl(var(--text)); font-size: 11px; line-height: 1.2; white-space: nowrap;
+      box-shadow: 0 6px 18px -8px hsl(0 0% 0% / 0.3);
+      opacity: 0; pointer-events: none; z-index: 30;
+      transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+    }
+    .has-tip:hover::after, .has-tip:focus-visible::after { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* tiny ephemeral toast when opening a transcript from this (inline) surface */
+    .toast {
+      position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(8px);
+      padding: 8px 14px; border-radius: 8px;
+      background: hsl(var(--surface-raised)); border: 1px solid hsl(var(--border));
+      color: hsl(var(--text)); font-size: 13px;
+      box-shadow: 0 12px 34px -12px hsl(0 0% 0% / 0.4);
+      opacity: 0; pointer-events: none; z-index: 60;
+      transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    .boot-error { border-color: hsl(var(--danger) / 0.5) !important; color: hsl(var(--text)); }
+
+    @media (max-width: 720px) {
+      .excerpt { grid-template-columns: 1fr; gap: 10px; }
+      .excerpt-side { position: static; }
+    }
+    /* Honor reduced motion: drop the pulses/auto-glow animation (spec §7). */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" aria-label="Toggle theme"></button>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <div class="page">
+    <header class="doc">
+      <h1>The inline audio bar — in a note</h1>
+      <p>The canonical surface. A recording is <b>media</b>: it sits in the writing flow exactly like an image block, with a caption slot beneath it. One calm bar, one accent, flat at rest, a faint halo only while it plays. Built on <span class="kbd">_kit.css</span> + <span class="kbd">_audio.js</span> against the real 19-minute call. Flip the theme (top-right).</p>
+    </header>
+
+    <!-- 1 · HERO: a real, fully interactive note ------------------------- -->
+    <section>
+      <h2>1 · A note with a recording</h2>
+      <p class="sub">Fully interactive. Press play (or focus the waveform and hit <span class="kbd">Space</span>), scrub by dragging, hover for the preview bubble, open the <b>⋯</b> menu. Starting it pauses every other bar on the page.</p>
+      <div class="note">
+        <div class="note-col">
+          <p class="note-title">Discovery call — Eliška</p>
+          <p class="note-date">Oct 15, 2026</p>
+          <p class="np">Recorded the whole call so I don't lose the nuance. The pricing objection comes up around the eight-minute mark — she's comparing us to their incumbent, not to doing nothing, which changes the follow-up entirely.</p>
+          <div class="media-block" data-hero></div>
+          <p class="np">Next step: send the recap and the one-pager by Thursday. Lead with the migration story, not the feature list — that's what moved her on the call.</p>
+        </div>
+      </div>
+      <div class="hint">
+        <span><span class="kbd">Space</span> play / pause</span>
+        <span><span class="kbd">←</span> <span class="kbd">→</span> seek ∓5s</span>
+        <span><span class="kbd">⌘←</span> <span class="kbd">⌘→</span> prev / next segment</span>
+        <span><span class="kbd">Home</span> / <span class="kbd">End</span> start / end</span>
+        <span><span class="kbd">Esc</span> close menu</span>
+      </div>
+    </section>
+
+    <!-- 2 · EVERY STATE, in situ ---------------------------------------- -->
+    <section>
+      <h2>2 · Every state, in the note</h2>
+      <p class="sub">Each state as a small excerpt so you see how the bar reads inside prose. <span class="tag-live">Live</span> bars play the real audio; <span class="tag-static">visual</span> bars freeze a moment so the look is always inspectable — the live bars reproduce those same looks as you drive them (play → halo, drag → scrubline).</p>
+      <div class="excerpts" id="excerpts"></div>
+    </section>
+
+    <!-- 3 · ⋯ MENU + tooltips ------------------------------------------- -->
+    <section>
+      <h2>3 · The ⋯ menu &amp; transcript tooltips</h2>
+      <p class="sub">Menu order: <b>Download recording</b>, then the transcript action (<b>Create transcript</b> when absent · <b>Open transcript</b> when present · disabled <b>Transcribing…</b> mid-run), then <b>Replace…</b> / <b>Remove</b> below a separator — matching the image MediaBlock menu. The transcript icon's tooltip reflects its state. Shown open below; hover the transcript icons to read their tooltips.</p>
+      <div class="note">
+        <div class="note-col">
+          <p class="np">Transcript present — the <b>⋯</b> offers <i>Open transcript</i>:</p>
+          <div class="media-block" data-menu="present"></div>
+          <p class="np" style="margin-top:26px">No transcript yet — the same menu offers <i>Create transcript</i> instead:</p>
+          <div class="media-block" data-menu="absent"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 · NARROWER COLUMN --------------------------------------------- -->
+    <section>
+      <h2>4 · A narrower column</h2>
+      <p class="sub">The bar is fluid: the waveform absorbs the width, the controls stay fixed, and below ~340px the time readout drops to current-only. Both bars here are live.</p>
+      <div class="narrow-wrap">
+        <div class="narrow-note">
+          <p class="np" style="font-weight:600; font-size:16px; margin-bottom:4px;">Voice memo</p>
+          <p class="note-date" style="margin-bottom:14px;">Oct 16, 2026</p>
+          <p class="np">Idea for the onboarding flow, captured on the walk.</p>
+          <div class="media-block" data-narrow="absent"></div>
+          <p class="np" style="margin-bottom:0;">Write this up properly tomorrow.</p>
+        </div>
+        <div class="narrow-note">
+          <p class="np" style="font-weight:600; font-size:16px; margin-bottom:4px;">Standup</p>
+          <p class="note-date" style="margin-bottom:14px;">Oct 16, 2026</p>
+          <p class="np">Full transcript attached — jump to the blockers section.</p>
+          <div class="media-block" data-narrow="present"></div>
+          <p class="np" style="margin-bottom:0;">Decisions logged in the project doc.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <p class="sub" style="margin-top:28px">All playback runs through <span class="kbd">Pensieve.Audio</span> — one shared registry enforces one-plays-at-a-time, the waveform/scrub/time/format/sync are reused, not re-implemented. Tokens, sizes and motion all come from <span class="kbd">_kit.css</span>.</p>
+    </section>
+  </div>
+
+  <script src="_audio.js"></script>
+  <script>
+    const A = Pensieve.Audio;
+    A.theme.init();
+    const SRC = "assets/audio.mp3";
+
+    /* page-local glyphs the kit set doesn't carry (menu extras + recorder stop) */
+    const GLYPH = {
+      replace: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11a7 7 0 0 1 12-4.9L19 9"/><path d="M19 4.5V9h-4.5"/><path d="M20 13a7 7 0 0 1-12 4.9L5 15"/><path d="M5 19.5V15h4.5"/></svg>',
+      trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v5M14 11v5"/><path d="M6.5 7l.8 12.2A1 1 0 0 0 8.3 20h7.4a1 1 0 0 0 1-.8L17.5 7"/><path d="M9 7V4.5h6V7"/></svg>',
+      stop: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2.5"/></svg>',
+    };
+
+    function toast(msg) {
+      const t = document.getElementById("toast");
+      t.textContent = msg; t.classList.add("show");
+      clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 1900);
+    }
+
+    /* ────────────────────────────────────────────────────────────────────
+       buildBar — ports 00-overview's composition and extends it for the
+       inline-note surface: caption slot, per-state visuals, keyboard+ARIA,
+       the full ⋯ menu (incl. Replace…/Remove), and state tooltips.
+
+       opts: {
+         live:bool,                       wire the real controller (else static)
+         transcript:"present|absent|transcribing",
+         state:"idle|playing|scrubbing|recording|saving|broken",
+         progress:0..1,                   static playhead position
+         scrubFrac:0..1,                  static scrubbing preview position
+         caption:string|null, captionPlaceholder:bool,
+         filename:string,                 for broken state
+         duration:number, controller, transcriptData, menuOpen:bool
+       }
+    ──────────────────────────────────────────────────────────────────── */
+    function buildBar(host, peaks, opts) {
+      opts = opts || {};
+      const state = opts.state || "idle";
+      const bar = document.createElement("div");
+      bar.className = "audio-bar";
+      bar.setAttribute("role", "group");
+      bar.setAttribute("aria-label", "Audio recording" + (opts.caption ? ": " + opts.caption : ""));
+
+      /* ── broken: danger border + filename + Locate…, no transcript icon ── */
+      if (state === "broken") {
+        bar.classList.add("is-broken");
+        bar.innerHTML =
+          '<span class="audio-iconbtn audio-transcript is-absent" aria-hidden="true">' + A.icon("waveform") + '</span>' +
+          '<div class="audio-broken">' + A.icon("locate") +
+          '<span>Recording missing <span class="name">' + (opts.filename || "voice-2026-10-15.mp3") + '</span></span>' +
+          '<button class="audio-broken-locate">Locate…</button></div>';
+        host.appendChild(bar);
+        bar.querySelector(".audio-broken-locate").addEventListener("click", () => toast("Locate the moved file on disk…"));
+        addCaption(host, opts);
+        return { bar };
+      }
+
+      /* ── play / pause (recorder → stop glyph) ── */
+      const play = document.createElement("button");
+      play.className = "audio-play";
+      if (state === "recording") {
+        play.setAttribute("aria-label", "Stop recording");
+        play.innerHTML = GLYPH.stop;
+      } else {
+        const isPlayingVisual = state === "playing";
+        play.setAttribute("aria-label", isPlayingVisual ? "Pause" : "Play");
+        play.innerHTML = A.icon(isPlayingVisual ? "pause" : "play");
+      }
+
+      /* ── waveform + scrub surface (role=slider when live) ── */
+      const wave = document.createElement("div");
+      wave.className = "audio-wave" + (state === "scrubbing" ? " is-scrubbing" : "");
+      wave.innerHTML = '<canvas></canvas><div class="audio-scrubline"></div><div class="audio-scrubtime"></div>';
+      const canvas = wave.querySelector("canvas");
+
+      /* ── time readout ── */
+      const time = document.createElement("span");
+      time.className = "audio-time";
+      const showTime = state !== "recording";   // during recording total is unknown
+
+      /* ── transcript icon with state tooltip ── */
+      const tr = document.createElement("button");
+      const trState = opts.transcript || "absent";
+      tr.className = "audio-iconbtn audio-transcript has-tip is-" + trState;
+      tr.innerHTML = A.icon("transcript");
+      const trLabel = trState === "present" ? "Open transcript"
+                    : trState === "transcribing" ? "Transcribing…"
+                    : "No transcript yet";
+      tr.setAttribute("aria-label", trLabel);
+      tr.setAttribute("data-tip", trLabel);
+      if (trState === "transcribing") tr.setAttribute("aria-disabled", "true");
+
+      /* ── ⋯ menu button ── */
+      const moreWrap = document.createElement("div");
+      moreWrap.style.position = "relative"; moreWrap.style.flex = "0 0 auto";
+      const more = document.createElement("button");
+      more.className = "audio-iconbtn has-tip"; more.setAttribute("aria-label", "More actions");
+      more.setAttribute("aria-haspopup", "menu"); more.setAttribute("data-tip", "More");
+      more.innerHTML = A.icon("more");
+      moreWrap.appendChild(more);
+
+      bar.append(play, wave);
+      if (showTime) bar.append(time);
+      bar.append(tr, moreWrap);
+      host.appendChild(bar);
+
+      /* ── caption slot (MediaBlock-style) ── */
+      addCaption(host, opts);
+
+      /* ── quiet status line (recording / saving / transcribing) ── */
+      let statusEl = null, statusText = null;
+      if (state === "recording" || state === "saving" || trState === "transcribing") {
+        statusEl = document.createElement("div");
+        statusEl.className = "audio-status" + (state === "saving" ? " is-saving" : "");
+        statusEl.style.margin = "7px 2px 0";
+        statusEl.setAttribute("role", "status");
+        statusEl.innerHTML = '<span class="dot"></span><span class="txt"></span>';
+        host.insertBefore(statusEl, host.querySelector(".media-cap"));   // status above caption
+        statusText = statusEl.querySelector(".txt");
+        statusText.textContent =
+          state === "recording" ? "Recording · 0:00" :
+          state === "saving" ? "Saving recording…" : "Transcribing… 40%";
+      }
+
+      /* ── waveform renderer ── */
+      const wf = A.Waveform(canvas, peaks);
+
+      /* ────────────── STATIC (visual) bars ────────────── */
+      if (!opts.live) {
+        const dur = opts.duration || 0;
+        const prog = opts.progress || 0;
+        if (state === "playing") bar.classList.add("is-playing");
+        if (showTime) {
+          time.innerHTML = '<span class="cur">' + A.fmt(dur * prog) + '</span><span class="sep">/</span>' + A.fmt(dur);
+        }
+        requestAnimationFrame(() => wf.render(prog));
+
+        if (state === "scrubbing") {
+          // pin the preview scrubline + bubble at scrubFrac (preview ≠ playhead)
+          const f = opts.scrubFrac != null ? opts.scrubFrac : 0.62;
+          requestAnimationFrame(() => {
+            const w = wave.getBoundingClientRect().width;
+            const line = wave.querySelector(".audio-scrubline");
+            const bub = wave.querySelector(".audio-scrubtime");
+            line.style.left = (f * w) + "px";
+            bub.style.left = (f * w) + "px";
+            bub.textContent = A.fmt(dur * f);
+          });
+        }
+
+        // recording: fill the waveform as it "listens" + tick the timer
+        if (state === "recording") {
+          let secs = 0, p = 0.0;
+          const iv = setInterval(() => {
+            if (!document.body.contains(bar)) { clearInterval(iv); return; }
+            secs += 1; p = Math.min(0.98, p + 0.012);
+            wf.render(p);
+            const m = Math.floor(secs / 60), s = String(secs % 60).padStart(2, "0");
+            if (statusText) statusText.textContent = "Recording · " + m + ":" + s;
+          }, 1000);
+          play.addEventListener("click", () => { clearInterval(iv); toast("Recording stopped — saving…"); });
+        }
+
+        wireMenu();           // ⋯ still works on static bars
+        if (opts.menuOpen) openMenu(false);
+        wireTranscriptClick();
+        return { bar, wf };
+      }
+
+      /* ────────────── LIVE bars (real controller) ────────────── */
+      const ctrl = opts.controller || A.controller(SRC);
+      if (opts.duration) ctrl.setFallbackDuration(opts.duration);
+      const S = opts.transcriptData ? A.sync(opts.transcriptData) : null;
+      const segStarts = S ? S.segments.map(s => s.start) : null;
+
+      // waveform is the slider (keyboard-seekable)
+      wave.setAttribute("role", "slider");
+      wave.setAttribute("tabindex", "0");
+      wave.setAttribute("aria-label", "Seek");
+      wave.setAttribute("aria-valuemin", "0");
+
+      const render = () => wf.render(ctrl.duration() ? ctrl.time() / ctrl.duration() : 0);
+      const paintTime = () => {
+        const narrow = bar.offsetWidth && bar.offsetWidth < 340;
+        time.innerHTML = narrow
+          ? '<span class="cur">' + A.fmt(ctrl.time()) + '</span>'
+          : '<span class="cur">' + A.fmt(ctrl.time()) + '</span><span class="sep">/</span>' + A.fmt(ctrl.duration());
+        wave.setAttribute("aria-valuemax", String(Math.floor(ctrl.duration() || 0)));
+        wave.setAttribute("aria-valuenow", String(Math.floor(ctrl.time())));
+        wave.setAttribute("aria-valuetext", A.fmt(ctrl.time()) + " of " + A.fmt(ctrl.duration()));
+      };
+      paintTime(); requestAnimationFrame(render);
+
+      play.addEventListener("click", () => ctrl.toggle());
+      ctrl.on("play", () => { bar.classList.add("is-playing"); play.innerHTML = A.icon("pause"); play.setAttribute("aria-label", "Pause"); });
+      ctrl.on("pause", () => { bar.classList.remove("is-playing"); play.innerHTML = A.icon("play"); play.setAttribute("aria-label", "Play"); });
+      ctrl.on("time", () => { render(); paintTime(); });
+      ctrl.on("ready", paintTime);
+      ctrl.on("seek", () => { render(); paintTime(); });
+
+      A.bindScrub(wave, wf, {
+        onSeek: (f) => ctrl.seekFrac(f),
+        onPreview: () => {},
+        previewTime: (f) => A.fmt((ctrl.duration() || 0) * f),
+      });
+
+      // keyboard per spec §3 / §7
+      wave.addEventListener("keydown", (e) => {
+        const d = ctrl.duration() || 0, t = ctrl.time();
+        if (e.key === " " || e.key === "Enter") { e.preventDefault(); ctrl.toggle(); }
+        else if (e.key === "ArrowRight" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); jumpSeg(+1); }
+        else if (e.key === "ArrowLeft" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); jumpSeg(-1); }
+        else if (e.key === "ArrowRight") { e.preventDefault(); ctrl.seek(Math.min(d, t + 5)); }
+        else if (e.key === "ArrowLeft") { e.preventDefault(); ctrl.seek(Math.max(0, t - 5)); }
+        else if (e.key === "Home") { e.preventDefault(); ctrl.seek(0); }
+        else if (e.key === "End") { e.preventDefault(); ctrl.seek(d); }
+      });
+      function jumpSeg(dir) {
+        if (!segStarts) return;
+        const t = ctrl.time() + (dir > 0 ? 0.25 : -0.25);
+        let target = dir > 0 ? (segStarts.find(s => s > t)) : null;
+        if (dir < 0) { for (let i = segStarts.length - 1; i >= 0; i--) { if (segStarts[i] < t) { target = segStarts[i]; break; } } }
+        if (target != null) ctrl.seek(target);
+      }
+
+      // recompute current-only time on resize (narrow columns)
+      if (window.ResizeObserver) new ResizeObserver(() => paintTime()).observe(bar);
+
+      wireMenu();
+      if (opts.menuOpen) openMenu(false);
+      wireTranscriptClick();
+      return { ctrl, wf, bar };
+
+      /* ── transcript icon behaviour ── */
+      function wireTranscriptClick() {
+        tr.addEventListener("click", () => {
+          if (trState === "present") toast("→ Opens the transcript (split view)");
+          else if (trState === "transcribing") { /* no-op, the pulse communicates */ }
+          else toast("Create a transcript from the ⋯ menu");
+        });
+      }
+
+      /* ── ⋯ menu (popover) ── */
+      function wireMenu() {
+        more.addEventListener("click", (e) => { e.stopPropagation(); document.querySelector(".audio-menu") ? closeMenus() : openMenu(); });
+      }
+      function openMenu(autofocus) {
+        closeMenus();
+        const backdrop = document.createElement("div"); backdrop.className = "audio-menu-backdrop";
+        const menu = document.createElement("div"); menu.className = "audio-menu"; menu.setAttribute("role", "menu");
+        menu.style.top = "34px"; menu.style.right = "0";
+        const trAction =
+          trState === "present" ? '<button role="menuitem">' + A.icon("transcript") + 'Open transcript</button>'
+          : trState === "transcribing" ? '<button role="menuitem" disabled>' + A.icon("transcript") + 'Transcribing…</button>'
+          : '<button role="menuitem">' + A.icon("transcript") + 'Create transcript</button>';
+        menu.innerHTML =
+          '<button role="menuitem">' + A.icon("download") + 'Download recording</button>' +
+          trAction +
+          '<div class="audio-menu-sep" role="separator"></div>' +
+          '<button role="menuitem">' + GLYPH.replace + 'Replace…</button>' +
+          '<button role="menuitem">' + GLYPH.trash + 'Remove</button>';
+        moreWrap.appendChild(backdrop); moreWrap.appendChild(menu);
+        more.setAttribute("aria-expanded", "true");
+        backdrop.addEventListener("click", closeMenus);
+
+        const items = Array.from(menu.querySelectorAll('button[role="menuitem"]:not([disabled])'));
+        items.forEach((b) => {
+          b.addEventListener("click", () => { toast(b.textContent.trim()); closeMenus(); more.focus(); });
+        });
+        if (autofocus !== false && items[0]) items[0].focus();
+        menu.addEventListener("keydown", (e) => {
+          const i = items.indexOf(document.activeElement);
+          if (e.key === "ArrowDown") { e.preventDefault(); items[Math.min(items.length - 1, i + 1)].focus(); }
+          else if (e.key === "ArrowUp") { e.preventDefault(); items[Math.max(0, i - 1)].focus(); }
+          else if (e.key === "Home") { e.preventDefault(); items[0].focus(); }
+          else if (e.key === "End") { e.preventDefault(); items[items.length - 1].focus(); }
+          else if (e.key === "Escape") { e.preventDefault(); closeMenus(); more.focus(); }
+        });
+      }
+    }
+
+    function closeMenus() {
+      document.querySelectorAll(".audio-menu, .audio-menu-backdrop").forEach((n) => n.remove());
+      document.querySelectorAll('[aria-haspopup="menu"][aria-expanded="true"]').forEach((b) => b.removeAttribute("aria-expanded"));
+    }
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMenus(); });
+
+    function addCaption(host, opts) {
+      if (opts.caption == null && !opts.captionPlaceholder) return;
+      const cap = document.createElement("div");
+      cap.className = "media-cap" + (opts.captionPlaceholder ? " is-placeholder" : "");
+      cap.textContent = opts.captionPlaceholder ? "Add a caption…" : opts.caption;
+      host.appendChild(cap);
+    }
+
+    /* ────────────────────────── boot ────────────────────────── */
+    A.loadAssets().then(({ peaks, transcript }) => {
+      const DUR = transcript.meta.durationSec;
+
+      // 1 · hero — live, transcript present, with caption + segment jumping
+      buildBar(document.querySelector("[data-hero]"), peaks, {
+        live: true, transcript: "present", duration: DUR, transcriptData: transcript,
+        caption: "Discovery call with Eliška · 19:03",
+      });
+
+      // 2 · every state, in situ
+      const EX = [
+        {
+          chip: "Idle · no transcript", kind: "live",
+          note: "The resting state most recordings live in. Transcript icon is a faint ghost; <b>Create transcript</b> lives in the ⋯ menu. Absence is healthy, not an error.",
+          lead: "Quick voice note before I forget the framing:",
+          opts: { live: true, transcript: "absent", duration: DUR, captionPlaceholder: true },
+        },
+        {
+          chip: "Playing · accent halo", kind: "visual",
+          note: "The one permitted lift: a faint accent halo on the bar and play button. Play fill + played waveform are the only accent. <span class='tag-live'>Live on the bars above/below</span> — press play.",
+          lead: "Listening back to the opening minute:",
+          opts: { transcript: "present", state: "playing", progress: 0.34, duration: DUR, caption: "Discovery call with Eliška · 19:03" },
+        },
+        {
+          chip: "Scrubbing", kind: "visual",
+          note: "Dragging the waveform: the scrubline + mono time bubble pin to the cursor as a <b>preview</b> (note it sits ahead of the playhead), cursor turns grabbing. Live when you drag any bar.",
+          lead: "Hunting for the pricing objection:",
+          opts: { transcript: "present", state: "scrubbing", progress: 0.34, scrubFrac: 0.62, duration: DUR },
+        },
+        {
+          chip: "Transcribing", kind: "visual",
+          note: "Background work, non-blocking. Transcript icon pulses quietly (1.6s); a calm status line shows percent with an accent dot. The ⋯ item is disabled. No spinner, no modal.",
+          lead: "Kicked off the transcript, kept writing:",
+          opts: { transcript: "transcribing", duration: DUR },
+        },
+        {
+          chip: "Transcript ready", kind: "live",
+          note: "Icon turns accent and opens the transcript (split view on desktop). The signal is the colour-of-state, not a new hue. Hover it for the tooltip; click to see where it leads.",
+          lead: "Transcript's done — jump straight to a moment:",
+          opts: { live: true, transcript: "present", duration: DUR, transcriptData: transcript, caption: "Discovery call with Eliška · 19:03" },
+        },
+        {
+          chip: "Recording", kind: "visual",
+          note: "The bar <b>is</b> the live recorder: waveform fills left-to-right as it listens, status ticks <i>Recording · m:ss</i> with an accent dot. Primary control is Stop.",
+          lead: "Capturing a thought on the walk:",
+          opts: { transcript: "absent", state: "recording", duration: DUR },
+        },
+        {
+          chip: "Saving · just recorded", kind: "visual",
+          note: "Right after capture: bytes writing to disk. <b>Gold</b> status dot (the working / sync rune), and the bar is already playable.",
+          lead: "Just stopped — it's saving:",
+          opts: { transcript: "absent", state: "saving", progress: 0.0, duration: DUR, caption: "New recording · 0:42" },
+        },
+        {
+          chip: "Broken · missing file", kind: "visual",
+          note: "Honest and specific. The filename (mono) is shown with a <b>Locate…</b> action — never a silent empty box. Danger border + 5% wash; the transcript icon is hidden.",
+          lead: "This one lost its file in a sync hiccup:",
+          opts: { state: "broken", filename: "voice-2026-10-11-0934.mp3" },
+        },
+      ];
+
+      const host = document.getElementById("excerpts");
+      EX.forEach((row) => {
+        const ex = document.createElement("div"); ex.className = "excerpt";
+        const side = document.createElement("div"); side.className = "excerpt-side";
+        side.innerHTML =
+          '<span class="state-chip ' + row.kind + '"><span class="pip"></span>' + row.chip + '</span>' +
+          '<div class="state-note">' + row.note + '</div>';
+        const mini = document.createElement("div"); mini.className = "mini-note";
+        mini.innerHTML = '<p class="np lead">' + row.lead + '</p>';
+        const block = document.createElement("div"); block.className = "media-block";
+        mini.appendChild(block);
+        ex.append(side, mini); host.appendChild(ex);
+        buildBar(block, peaks, row.opts);
+      });
+
+      // 3 · ⋯ menu open + tooltips
+      buildBar(document.querySelector('[data-menu="present"]'), peaks, {
+        live: true, transcript: "present", duration: DUR, transcriptData: transcript,
+        caption: "Discovery call with Eliška · 19:03", menuOpen: true,
+      });
+      buildBar(document.querySelector('[data-menu="absent"]'), peaks, {
+        live: true, transcript: "absent", duration: DUR, captionPlaceholder: true,
+      });
+
+      // 4 · narrow column — live
+      buildBar(document.querySelector('[data-narrow="absent"]'), peaks, {
+        live: true, transcript: "absent", duration: DUR,
+      });
+      buildBar(document.querySelector('[data-narrow="present"]'), peaks, {
+        live: true, transcript: "present", duration: DUR, transcriptData: transcript,
+      });
+    }).catch((err) => {
+      document.querySelector(".page").insertAdjacentHTML("afterbegin",
+        '<div class="card boot-error">' + err.message + '</div>');
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pensieve · Accio — transcript hits</title>
+  <link rel="stylesheet" href="_kit.css" />
+  <!-- file:// fallbacks: set window.__PEAKS__ / window.__TRANSCRIPT__ so the page
+       works on double-click with no server (mirrors 00-overview.html). -->
+  <script src="assets/peaks.js"></script>
+  <script src="assets/transcript.js"></script>
+  <style>
+    /* ── page-only scaffolding (NOT the kit) ─────────────────────────────── */
+    .wrap { max-width: 760px; margin: 0 auto; padding: 56px 24px 160px; }
+    header.doc h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: -0.01em; }
+    header.doc p { color: hsl(var(--text-muted)); margin: 0; max-width: 62ch; font-size: 14px; line-height: 1.6; }
+
+    /* The Accio input ring — ported from SummonBar.tsx (rounded-full pill,
+       surface-sunken, accent halo on focus). */
+    .accio-bar {
+      display: flex; align-items: center; gap: 12px;
+      border: 1px solid hsl(var(--border));
+      background: hsl(var(--surface-sunken));
+      border-radius: 999px;
+      padding: 10px 18px;
+      transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+    }
+    .accio-bar.is-focused {
+      border-color: hsl(var(--accent) / 0.5);
+      box-shadow: 0 0 0 1px hsl(var(--accent) / 0.25), 0 0 34px -8px hsl(var(--accent-glow) / 0.6);
+    }
+    .accio-sigil { flex: 0 0 auto; width: 18px; height: 18px; color: hsl(var(--text-muted)); transition: color var(--dur) var(--ease); transform-origin: center; }
+    .accio-bar.is-focused .accio-sigil { color: hsl(var(--accent)); animation: accio-spin 9s linear infinite; }
+    @keyframes accio-spin { to { transform: rotate(360deg); } }
+    .accio-input {
+      flex: 1 1 auto; min-width: 0;
+      border: none; background: transparent; outline: none;
+      font-family: var(--font-sans); font-size: 16px; color: hsl(var(--text));
+    }
+    .accio-input::placeholder { color: hsl(var(--text-muted)); }
+    .accio-count { flex: 0 0 auto; font-size: 11px; color: hsl(var(--text-muted)); font-variant-numeric: tabular-nums; user-select: none; }
+
+    /* Result panel — ported from SuggestionList.tsx (rounded-xl, raised, soft shadow). */
+    .accio-panel {
+      margin-top: 10px;
+      border: 1px solid hsl(var(--border));
+      background: hsl(var(--surface-raised));
+      border-radius: 14px;
+      box-shadow: 0 10px 30px -12px hsl(0 0% 0% / 0.3);
+      overflow: hidden;
+    }
+    .accio-group-head { padding: 10px 16px 2px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: hsl(var(--text-muted) / 0.7); }
+
+    .hint-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 12px 12px; }
+    .hint-chip {
+      font-size: 12px; padding: 4px 11px;
+      border: 1px solid hsl(var(--border)); border-radius: 999px;
+      background: hsl(var(--surface)); color: hsl(var(--text-muted));
+      cursor: pointer; transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+    }
+    .hint-chip:hover { border-color: hsl(var(--accent) / 0.5); color: hsl(var(--text)); }
+    .hint-chip .t-mono { color: hsl(var(--text)); }
+
+    /* A single result row. */
+    .res { padding: 12px 16px; border-top: 1px solid hsl(var(--border)); }
+    .res:first-child { border-top: none; }
+    .res.is-sel { background: hsl(var(--accent) / 0.07); }
+    .res-head { display: flex; align-items: baseline; gap: 10px; }
+    .res-title { font-size: 15px; font-weight: 600; color: hsl(var(--text)); min-width: 0; }
+    .res-meta { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+    .res-date { font-size: 11px; color: hsl(var(--text-muted)); font-variant-numeric: tabular-nums; }
+    .res-tag { font-size: 11px; color: hsl(var(--text-muted)); }
+    /* Body snippet — a plain, quiet line. The ONLY thing marking a normal hit. */
+    .res-snippet { margin-top: 4px; font-size: 13px; line-height: 1.6; color: hsl(var(--text-muted)); }
+
+    /* ── Transcript-match affordance — quiet, icon + muted text, NO 2nd hue ── */
+    .tr-afford { display: flex; align-items: center; gap: 7px; margin-top: 10px; font-size: 11px; color: hsl(var(--text-muted)); }
+    .tr-afford svg { width: 14px; height: 14px; color: hsl(var(--text-muted)); flex: 0 0 auto; }
+    .tr-afford .n { font-variant-numeric: tabular-nums; }
+
+    /* The jumpable snippet lines. */
+    .tr-jumps { margin-top: 6px; display: flex; flex-direction: column; gap: 2px; }
+    .tr-jump {
+      display: grid; grid-template-columns: 3.4rem 1fr auto; align-items: baseline; gap: 10px;
+      width: 100%; text-align: left;
+      padding: 5px 8px; border: none; background: transparent; border-radius: var(--radius);
+      cursor: pointer; color: hsl(var(--text));
+      transition: background var(--dur-fast) var(--ease);
+    }
+    .tr-jump:hover { background: hsl(var(--accent) / 0.1); }
+    .tr-jump.is-sel { background: hsl(var(--accent) / 0.12); }
+    .tr-jump.is-playing { background: hsl(var(--accent) / 0.14); }
+    .tr-time { font-family: var(--font-mono); font-size: 12px; font-variant-numeric: tabular-nums; color: hsl(var(--text-muted)); letter-spacing: -0.02em; }
+    .tr-jump.is-playing .tr-time { color: hsl(var(--accent)); }
+    .tr-text { font-size: 13px; line-height: 1.55; color: hsl(var(--text)); min-width: 0; }
+    .tr-spk { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: hsl(var(--text-muted) / 0.7); margin-right: 6px; }
+    .tr-go { font-family: var(--font-mono); font-size: 11px; color: hsl(var(--text-muted) / 0); transition: color var(--dur-fast) var(--ease); white-space: nowrap; }
+    .tr-jump:hover .tr-go, .tr-jump.is-sel .tr-go { color: hsl(var(--text-muted)); }
+    .tr-more { margin-top: 2px; padding: 4px 8px; font-size: 11px; color: hsl(var(--text-muted)); background: none; border: none; cursor: pointer; text-align: left; border-radius: var(--radius); }
+    .tr-more:hover { background: hsl(var(--accent) / 0.08); color: hsl(var(--text)); }
+
+    /* The search highlight — the active-word accent treatment at low alpha
+       (spec §5). Same single accent as everywhere; identical in both hit kinds. */
+    mark.hl { background: hsl(var(--accent) / 0.22); color: hsl(var(--text)); border-radius: 3px; padding: 0 1px; box-shadow: 0 0 0 1px hsl(var(--accent) / 0.25); }
+    :root[data-theme="dark"] mark.hl, .dark mark.hl { background: hsl(var(--accent) / 0.28); color: hsl(var(--surface)); box-shadow: none; }
+
+    .empty { padding: 18px 16px; font-size: 13px; color: hsl(var(--text-muted)); }
+
+    /* Docked mini-player (the tangible "jump to moment" destination). */
+    .dock {
+      position: sticky; bottom: 0;
+      margin-top: 14px;
+      border: 1px solid hsl(var(--border));
+      background: hsl(var(--surface-raised) / 0.92);
+      backdrop-filter: saturate(1.1) blur(8px);
+      border-radius: 12px; padding: 10px 12px;
+      box-shadow: 0 10px 30px -12px hsl(0 0% 0% / 0.3);
+    }
+    .dock-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; color: hsl(var(--text-muted)); }
+    .dock-head svg { width: 14px; height: 14px; color: hsl(var(--accent)); flex: 0 0 auto; }
+    .dock-head .title { color: hsl(var(--text)); font-weight: 600; }
+    .dock-head .at { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+    .dock-close { margin-left: auto; width: 24px; height: 24px; display: grid; place-items: center; border: none; background: none; color: hsl(var(--text-muted)); cursor: pointer; border-radius: var(--radius); font-size: 15px; }
+    .dock-close:hover { background: hsl(var(--accent) / 0.12); color: hsl(var(--text)); }
+
+    .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 11px; color: hsl(var(--text-muted)); margin-top: 20px; }
+    .legend b { color: hsl(var(--text)); font-weight: 600; }
+    .khint { margin-top: 10px; font-size: 11px; color: hsl(var(--text-muted)); }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" aria-label="Toggle theme"></button>
+
+  <div class="wrap">
+    <header class="doc">
+      <h1>Accio — when a hit comes from a recording</h1>
+      <p>A note can match because of words <em>spoken</em> in its audio. Type a real word
+      from the call — <span class="t-mono">problém</span>, <span class="t-mono">partnerku</span>,
+      <span class="t-mono">kouč</span>, <span class="t-mono">dotazník</span>,
+      <span class="t-mono">čas</span>, <span class="t-mono">divadlo</span>. The transcript hit shows
+      a quiet "in recording" mark, the spoken snippet with a timecode, and each line
+      jumps straight to that moment. A plain text note is shown alongside for contrast.
+      <span class="kbd">↑</span><span class="kbd">↓</span> move · <span class="kbd">Enter</span> open · <span class="kbd">Esc</span> clear.</p>
+    </header>
+
+    <div style="position:relative; margin-top:28px;">
+      <div class="accio-bar" id="bar">
+        <span class="accio-sigil" id="sigil"></span>
+        <input class="accio-input" id="input" type="text" spellcheck="false" autocomplete="off"
+               placeholder="Accio a memory…   ⌘A" aria-label="Search" />
+        <span class="accio-count" id="count"></span>
+      </div>
+      <div id="panel"></div>
+    </div>
+
+    <div id="dockHost"></div>
+
+    <div class="legend">
+      <span><b>Normal hit</b> — title/body match, plain snippet, no glyph.</span>
+      <span><b>Transcript hit</b> — ∿ "in recording · N matches", timecoded jump lines.</span>
+      <span><b>One accent</b> — the mark is accent-at-low-alpha; the recording cue is icon + muted text, never a 2nd hue.</span>
+    </div>
+    <div class="khint">The jump is real: clicking a line (or <span class="kbd">Enter</span> on it) seeks <span class="t-mono">audio.mp3</span> to that second and plays — in the app this opens the transcript split view at that word.</div>
+  </div>
+
+  <script src="_audio.js"></script>
+  <script>
+    const A = Pensieve.Audio;
+    A.theme.init();
+    // re-render sigil-safe: theme toggle lives in kit; our sigil is separate.
+    const SRC = "assets/audio.mp3";
+
+    // Sigil glyph (ported from components/icons.tsx → Sigil): concentric rings + ticks.
+    document.getElementById("sigil").innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">' +
+      '<circle cx="12" cy="12" r="9" opacity="0.5"/><circle cx="12" cy="12" r="4.5"/>' +
+      '<path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>';
+
+    /* ── diacritic-insensitive matching (so "problem" finds "problém") ─────── */
+    const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+    // Wrap whole words that contain the term (avoids fragile offset-mapping across
+    // diacritic normalization) — the house highlight is word-level anyway.
+    function hiWords(words, term) {
+      return words.map((w) => (norm(w).includes(term) ? '<mark class="hl">' + esc(w) + "</mark>" : esc(w))).join(" ");
+    }
+
+    /* ── body snippet: window of words around the first hit, ellipsed ──────── */
+    function bodySnippet(body, term) {
+      const words = body.split(/\s+/);
+      const hit = words.findIndex((w) => norm(w).includes(term));
+      if (hit < 0) return null;
+      const R = 9, a = Math.max(0, hit - R), b = Math.min(words.length, hit + R + 1);
+      const count = words.filter((w) => norm(w).includes(term)).length;
+      const html = (a > 0 ? "… " : "") + hiWords(words.slice(a, b), term) + (b < words.length ? " …" : "");
+      return { html, count };
+    }
+
+    /* ── transcript matches: every spoken word containing the term, with its
+         timecode + a few words of context on each side ─────────────────────── */
+    function transcriptMatches(segments, term) {
+      const out = [];
+      segments.forEach((seg) => {
+        const ws = seg.words || [];
+        ws.forEach((w, wi) => {
+          if (!norm(w.w).includes(term)) return;
+          const R = 6, a = Math.max(0, wi - R), b = Math.min(ws.length, wi + R + 1);
+          const ctx = ws.slice(a, b).map((x) => x.w);
+          out.push({
+            time: w.s,
+            speaker: seg.speaker,
+            html: (a > 0 ? "… " : "") + hiWords(ctx, term) + (b < ws.length ? " …" : ""),
+          });
+        });
+      });
+      return out;
+    }
+
+    /* ── boot: load the real call, then wire the search ────────────────────── */
+    A.loadAssets().then(({ peaks, transcript }) => {
+      const DUR = transcript.meta.durationSec;
+      const segments = transcript.segments;
+
+      // Shared controller — one playhead for the whole page (spec §4).
+      const ctrl = A.controller(SRC);
+      ctrl.setFallbackDuration(DUR);
+
+      // ── mock note corpus. Note n1 carries the real recording + transcript.
+      //    The others are plain text, with Czech words planted so ONE query
+      //    (e.g. "problém") lights up both a recording hit and a text hit. ──
+      const NOTES = [
+        {
+          id: "n1", title: "Discovery call — Eliška", tags: ["#sales"], date: "15 Oct", order: 5,
+          body: "Recorded the whole call. Pricing objection lands near the eight-minute mark — revisit before the follow-up. Send the recap Thursday.",
+          recording: true,
+        },
+        {
+          id: "n2", title: "Pricing objections — playbook", tags: ["#sales"], date: "12 Oct", order: 4,
+          body: "The most common problém clients raise is budget timing, not value. Reframe cost as cost-of-inaction and anchor to the dotazník answers before quoting a number.",
+        },
+        {
+          id: "n3", title: "Koučovací otázky", tags: ["#method"], date: "3 Oct", order: 3,
+          body: "A short library to open a session. What is the real cíl behind the goal? What would change if the problém simply disappeared tomorrow?",
+        },
+        {
+          id: "n4", title: "Deník — 15. října", tags: ["#journal"], date: "15 Oct", order: 2,
+          body: "Večer na divadle, pak dlouho přemýšlel. Partnerku zatím nemám, ale mám na to čas. Zítra brzy vstávat.",
+        },
+      ];
+
+      // Build each note's matches for a query, returns a scored result or null.
+      function evaluate(note, term) {
+        const titleMatch = norm(note.title).includes(term);
+        const tagMatch = note.tags.some((t) => norm(t).includes(term));
+        const bs = bodySnippet(note.body, term);
+        const trs = note.recording ? transcriptMatches(segments, term) : [];
+        if (!titleMatch && !tagMatch && !bs && trs.length === 0) return null;
+        // Rank: title > tag > (body + transcript folded into the searchable body),
+        // tie-break by match volume then recency. A recording with many spoken
+        // hits can out-rank a thin text note — transcript is real body weight.
+        const score =
+          (titleMatch ? 1000 : 0) + (tagMatch ? 100 : 0) +
+          (bs ? bs.count : 0) + trs.length + note.order * 0.01;
+        return { note, titleMatch, tagMatch, bs, trs, score };
+      }
+
+      // ── DOM refs + ephemeral UI state ──
+      const bar = document.getElementById("bar");
+      const input = document.getElementById("input");
+      const count = document.getElementById("count");
+      const panel = document.getElementById("panel");
+      const dockHost = document.getElementById("dockHost");
+
+      let nav = [];        // flat navigable items: {type:'note'|'jump', ...}
+      let sel = 0;         // highlighted nav index
+      let expanded = {};   // noteId -> show all transcript jumps
+      let playingKey = null; // "noteId@time" currently playing from a jump
+
+      const HINTS = ["problém", "partnerku", "kouč", "dotazník", "čas", "divadlo"];
+
+      function render() {
+        const q = input.value.trim();
+        const term = norm(q);
+        panel.innerHTML = "";
+        nav = [];
+
+        // Empty query → the quiet "try these" affordance (like Summon recents).
+        if (term === "") {
+          count.textContent = "";
+          const p = document.createElement("div"); p.className = "accio-panel";
+          p.innerHTML = '<div class="accio-group-head">Try a spoken word</div>';
+          const chips = document.createElement("div"); chips.className = "hint-chips";
+          HINTS.forEach((h) => {
+            const c = document.createElement("button"); c.className = "hint-chip";
+            c.innerHTML = '<span class="t-mono">' + h + "</span>";
+            c.addEventListener("click", () => { input.value = h; sel = 0; render(); input.focus(); });
+            chips.appendChild(c);
+          });
+          p.appendChild(chips);
+          panel.appendChild(p);
+          return;
+        }
+
+        const results = NOTES.map((n) => evaluate(n, term)).filter(Boolean).sort((a, b) => b.score - a.score);
+        count.textContent = results.length + " / " + NOTES.length;
+
+        const p = document.createElement("div"); p.className = "accio-panel";
+        if (results.length === 0) {
+          p.innerHTML = '<div class="empty">No memory matches “' + esc(q) + '”.</div>';
+          panel.appendChild(p);
+          return;
+        }
+
+        results.forEach((r) => {
+          const row = document.createElement("div"); row.className = "res";
+          row.dataset.navType = "note"; row.dataset.noteId = r.note.id;
+          nav.push({ type: "note", noteId: r.note.id });
+          const myNavIndex = nav.length - 1;
+
+          // head: title (+highlight) · tags · date
+          const head = document.createElement("div"); head.className = "res-head";
+          const title = document.createElement("div"); title.className = "res-title";
+          title.innerHTML = r.titleMatch ? hiWords(r.note.title.split(/\s+/), term) : esc(r.note.title);
+          const meta = document.createElement("div"); meta.className = "res-meta";
+          meta.innerHTML =
+            r.note.tags.map((t) => '<span class="res-tag">' + (norm(t).includes(term) ? '<mark class="hl">' + esc(t) + "</mark>" : esc(t)) + "</span>").join("") +
+            '<span class="res-date">' + r.note.date + "</span>";
+          head.append(title, meta);
+          row.appendChild(head);
+
+          // body snippet (the plain, quiet line — a NORMAL hit shows only this)
+          if (r.bs) {
+            const sn = document.createElement("div"); sn.className = "res-snippet";
+            sn.innerHTML = r.bs.html;
+            row.appendChild(sn);
+          }
+
+          // transcript affordance + jump lines (the DISTINCT recording hit)
+          if (r.trs.length) {
+            const aff = document.createElement("div"); aff.className = "tr-afford";
+            aff.innerHTML = A.icon("waveform") +
+              '<span>in recording · <span class="n">' + r.trs.length + "</span> match" + (r.trs.length === 1 ? "" : "es") + "</span>";
+            row.appendChild(aff);
+
+            const jumps = document.createElement("div"); jumps.className = "tr-jumps";
+            const showAll = !!expanded[r.note.id];
+            const shown = showAll ? r.trs : r.trs.slice(0, 3);
+            shown.forEach((m) => {
+              const key = r.note.id + "@" + m.time;
+              const j = document.createElement("button"); j.className = "tr-jump" + (playingKey === key ? " is-playing" : "");
+              j.dataset.navType = "jump"; j.dataset.key = key;
+              j.innerHTML =
+                '<span class="tr-time">' + A.fmt(m.time) + "</span>" +
+                '<span class="tr-text"><span class="tr-spk">' + m.speaker + "</span>" + m.html + "</span>" +
+                '<span class="tr-go">→ open at ' + A.fmt(m.time) + "</span>";
+              j.addEventListener("click", () => jumpTo(r.note, m.time, key));
+              jumps.appendChild(j);
+              nav.push({ type: "jump", note: r.note, time: m.time, key });
+            });
+            row.appendChild(jumps);
+
+            if (r.trs.length > 3) {
+              const more = document.createElement("button"); more.className = "tr-more";
+              more.textContent = showAll ? "Show fewer" : "+ " + (r.trs.length - 3) + " more moment" + (r.trs.length - 3 === 1 ? "" : "s");
+              more.addEventListener("click", () => { expanded[r.note.id] = !showAll; render(); });
+              row.appendChild(more);
+            }
+          }
+
+          // whole-row click = open the note (first moment if it's a recording)
+          head.style.cursor = "pointer";
+          head.addEventListener("click", () => { sel = myNavIndex; openNav(); });
+          panel.appendChild(row);
+        });
+
+        applySel();
+      }
+
+      function applySel() {
+        // paint the selected navigable item
+        const rows = panel.querySelectorAll(".res");
+        rows.forEach((el) => el.classList.remove("is-sel"));
+        const jumpsEls = panel.querySelectorAll(".tr-jump");
+        jumpsEls.forEach((el) => el.classList.remove("is-sel"));
+        const item = nav[sel];
+        if (!item) return;
+        if (item.type === "note") {
+          const el = panel.querySelector('.res[data-note-id="' + item.noteId + '"]');
+          if (el) { el.classList.add("is-sel"); el.scrollIntoView({ block: "nearest" }); }
+        } else {
+          const el = panel.querySelector('.tr-jump[data-key="' + CSS.escape(item.key) + '"]');
+          if (el) { el.classList.add("is-sel"); el.scrollIntoView({ block: "nearest" }); }
+        }
+      }
+
+      function openNav() {
+        const item = nav[sel];
+        if (!item) return;
+        if (item.type === "jump") { jumpTo(item.note, item.time, item.key); return; }
+        // note row: a recording opens at its first spoken match; else "open note"
+        const r = NOTES.find((n) => n.id === item.noteId);
+        const term = norm(input.value.trim());
+        if (r && r.recording) {
+          const trs = transcriptMatches(segments, term);
+          if (trs.length) { jumpTo(r, trs[0].time, r.id + "@" + trs[0].time); return; }
+        }
+        flashOpen(r ? r.title : "");
+      }
+
+      // ── the tangible jump: seek the real audio + play, show the dock, mark line ──
+      function jumpTo(note, time, key) {
+        playingKey = key;
+        ctrl.seek(time);
+        ctrl.play();
+        buildDock(note, time);
+        // re-mark the playing line without a full rebuild of the panel
+        panel.querySelectorAll(".tr-jump").forEach((el) => el.classList.toggle("is-playing", el.dataset.key === key));
+      }
+
+      function flashOpen(title) {
+        dockHost.innerHTML =
+          '<div class="dock"><div class="dock-head">' + A.icon("transcript") +
+          '<span class="title">' + esc(title) + "</span><span>— would open this note</span>" +
+          '<button class="dock-close" aria-label="Dismiss">×</button></div></div>';
+        dockHost.querySelector(".dock-close").addEventListener("click", () => { dockHost.innerHTML = ""; });
+      }
+
+      // ── docked compact player: the "→ opens transcript split at mm:ss" target.
+      //    Reuses the kit .audio-bar (compact) + the shared engine (waveform,
+      //    scrub, fmt) — same bar as everywhere, only .is-compact toggled. ──
+      let dockWf = null, dockPaint = null;
+      function buildDock(note, time) {
+        dockHost.innerHTML = "";
+        const dock = document.createElement("div"); dock.className = "dock";
+        const headEl = document.createElement("div"); headEl.className = "dock-head";
+        headEl.innerHTML = A.icon("transcript") +
+          '<span class="title">' + esc(note.title) + "</span>" +
+          '<span>· transcript open at <span class="at">' + A.fmt(time) + "</span> →</span>" +
+          '<button class="dock-close" aria-label="Close player">×</button>';
+        dock.appendChild(headEl);
+
+        const bar = document.createElement("div"); bar.className = "audio-bar is-compact";
+        const play = document.createElement("button"); play.className = "audio-play is-sm"; play.setAttribute("aria-label", "Pause"); play.innerHTML = A.icon("pause");
+        const wave = document.createElement("div"); wave.className = "audio-wave";
+        wave.innerHTML = '<canvas></canvas><div class="audio-scrubline"></div><div class="audio-scrubtime"></div>';
+        const timeEl = document.createElement("span"); timeEl.className = "audio-time";
+        const tr = document.createElement("button"); tr.className = "audio-iconbtn audio-transcript is-present"; tr.innerHTML = A.icon("transcript"); tr.setAttribute("aria-label", "Open transcript");
+        bar.append(play, wave, timeEl, tr);
+        dock.appendChild(bar);
+        dockHost.appendChild(dock);
+
+        const canvas = wave.querySelector("canvas");
+        const wf = A.Waveform(canvas, peaks); dockWf = wf;
+        const renderWave = () => wf.render(ctrl.duration() ? ctrl.time() / ctrl.duration() : 0);
+        const paint = () => { timeEl.innerHTML = '<span class="cur">' + A.fmt(ctrl.time()) + '</span><span class="sep">/</span>' + A.fmt(ctrl.duration()); };
+        dockPaint = () => { renderWave(); paint(); if (bar) bar.classList.toggle("is-playing", ctrl.playing()); play.innerHTML = ctrl.playing() ? A.icon("pause") : A.icon("play"); };
+        paint(); renderWave(); bar.classList.toggle("is-playing", ctrl.playing());
+
+        play.addEventListener("click", () => ctrl.toggle());
+        A.bindScrub(wave, wf, { onSeek: (f) => ctrl.seekFrac(f), onPreview: () => {}, previewTime: (f) => A.fmt((ctrl.duration() || 0) * f) });
+        headEl.querySelector(".dock-close").addEventListener("click", () => {
+          ctrl.pause(); dockHost.innerHTML = ""; dockWf = null; dockPaint = null;
+          playingKey = null;
+          panel.querySelectorAll(".tr-jump").forEach((el) => el.classList.remove("is-playing"));
+        });
+      }
+
+      // keep the dock + playing-line markers in sync with the single controller
+      ctrl.on("time", () => { if (dockPaint) dockPaint(); });
+      ctrl.on("seek", () => { if (dockPaint) dockPaint(); });
+      ctrl.on("play", () => { if (dockPaint) dockPaint(); });
+      ctrl.on("pause", () => { if (dockPaint) dockPaint(); });
+
+      // ── keyboard model (Summon-ish): ↑/↓ move · Enter open · Esc clear ──
+      input.addEventListener("focus", () => bar.classList.add("is-focused"));
+      input.addEventListener("blur", () => bar.classList.remove("is-focused"));
+      input.addEventListener("input", () => { sel = 0; expanded = {}; render(); });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowDown") { if (nav.length) { e.preventDefault(); sel = Math.min(nav.length - 1, sel + 1); applySel(); } }
+        else if (e.key === "ArrowUp") { if (nav.length) { e.preventDefault(); sel = Math.max(0, sel - 1); applySel(); } }
+        else if (e.key === "Enter") { e.preventDefault(); openNav(); }
+        else if (e.key === "Escape") { e.preventDefault(); if (input.value !== "") { input.value = ""; sel = 0; render(); } else input.blur(); }
+      });
+      // ⌘A focuses the bar (matches the Accio shortcut hint in the placeholder)
+      window.addEventListener("keydown", (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a" && document.activeElement !== input) {
+          e.preventDefault(); input.focus(); input.select();
+        }
+      });
+
+      // open with a term pre-filled so the transcript hit is visible immediately
+      input.value = "problém";
+      render();
+      input.focus();
+    }).catch((err) => {
+      document.querySelector(".wrap").insertAdjacentHTML("afterbegin",
+        '<div class="card" style="border-color:hsl(var(--danger)/.5)">' + err.message + "</div>");
+    });
+  </script>
+</body>
+</html>

@@ -126,3 +126,34 @@ Font sans = system UI stack; mono = JetBrains Mono / ui-monospace. radius base 6
 ## Lessons (append as we learn)
 - (P0) Older docs claim SQLite + whisper.cpp binding; neither exists. Trust the code, not the
   prose — search is in-memory, transcription is unbuilt.
+- (P1) **Word-sync must be segment-aware, not flat.** A flat word-level binary search assumes
+  globally monotonic word start times. With `diarization:"multitrack"` the two speakers' words
+  overlap (9/205 segments here, up to 1.5s), so flat search steps backward at seams and
+  mis-highlights. Correct model: binary-search the **sorted segment starts**, then the word
+  within the segment, mapping (seg,word)→flat offset. Verified 0 backward events over a full
+  0.1s sweep. Carry into the real `TranscriptView`.
+- (P1) **"One bar everywhere" vs the justified gallery strip.** A bar has no aspect ratio, so
+  it can't be a justified image tile. Resolution (prototype 03, Option C): the *tile* is a
+  thumbnail per medium (images show a cropped tile, audio shows a waveform card) while the
+  *player* stays the one canonical bar, relocated to a dock on open. Don't force a 56px control
+  into a 220px row cell.
+- (P1) **One-accent forces non-colour signals.** Recording/stop is accent (not red); transcript
+  search hits are marked by a ∿ glyph + muted text + timecodes (not a tinted row); speakers are
+  weight/tone. Colour stays reserved — state (gold/danger) is signal, never a 2nd accent.
+- (P1) **Peek never auto-plays.** On the Basin, hovering is for recognition; audio opens paused
+  with a quiet "Space to play". Note the `Space` collision: Basin uses it to pin a peek,
+  design-spec gives it to a focused bar — decide a clear two-tier owner before building.
+
+## Prototype kit (P1 deliverables — reuse when building the real components)
+- `_kit.css` — tokens (light + `[data-theme="dark"]`/`.dark`) + the full audio component system
+  (bar, play, waveform, time, icon buttons + transcript states, ⋯ menu, status line, broken,
+  transcript dock/turn/word, split view, theme toggle). The visual source of truth.
+- `_audio.js` — `Pensieve.Audio`: `loadAssets`, `fmt`, `controller(src)` (one-plays-at-a-time
+  registry), `Waveform(canvas,peaks,opts)` (HiDPI, resamples to fit width), `bindScrub`,
+  `sync(transcript)`, `theme`, `icon`. Behaviour source of truth. Missing icons noted: replace,
+  trash, recorder-stop (promote to ICONS). No tooltip primitive yet (01 added a page-local one).
+- `design-spec.md` — the binding contract (anatomy table, state machine, interaction, token map,
+  motion, a11y, transcript + split-view spec). P3+ components must match it.
+- `prototypes/index.html` — entry page linking all 7 prototypes + the owner decisions.
+- Prototypes run under `file://` via `assets/peaks.js` + `assets/transcript.js` global-wrapper
+  fallbacks (Chrome blocks `fetch()` of local JSON; `<audio src>` playback is fine).

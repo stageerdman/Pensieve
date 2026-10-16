@@ -79,12 +79,31 @@ the owner picks, then we build.
   merge to main; rename folder CLOSED.
 
 ## Live status
-- **2026-10-16:** P0 done. P1 launching: UX lead first (design language + kit), then 6
-  per-surface prototype agents. Assets ready: `prototypes/assets/audio.mp3` (real 19-min call,
-  gitignored) + `transcript.json` (206 segments / 2,390 word-timings / 2 speakers).
+- **2026-10-16 (P0 done):** research grounded; assets ready (`audio.mp3` gitignored +
+  `transcript.json` 206 seg / 2,390 words / 2 speakers + baked `peaks.json`).
+- **2026-10-16 (P1 DONE — awaiting owner judging):** UX lead shipped the design language +
+  shared kit (`_kit.css`) + engine (`_audio.js`) + `design-spec.md` contract + `00-overview.html`.
+  Six per-surface prototypes built, all live against the real call, all open by double-click:
+  `01-inline-bar`, `02-capture`, `03-in-gallery`, `04-transcript-split`, `05-accio-hit`,
+  `06-home-flask`, tied together by `prototypes/index.html` (the entry point to judge).
+  → **NEXT: owner opens `prototypes/index.html`, judges, answers the 5 decisions → P2 locks it.**
+
+### Agent recommendations to carry into P2
+- #1 gallery: **Option C** (waveform-card tile → opens canonical bar in a "Now playing" dock).
+- #2 transcript: **split on desktop**, full overlay only when narrow / phone.
+- #3 capture: **inline bar** is the recorder (one component). Open: does recording ship now?
+- #4 speakers: **weight/tone**, optional faint border-rail (no 2nd hue).
+- #5 polished/raw: **show polished**, raw a later dock toggle.
+- Smaller: record/stop control is **accent not red** (owner may override); Basin `Space`
+  pins-peek vs plays-bar needs an owner; Accio ranks transcript hits at body-tier.
+
+### Engine correctness note (fix at build time / P3)
+The reference word-sync (`00-overview.html` `buildTranscript` flat word binary-search) assumes
+globally monotonic word starts. This recording is `diarization:"multitrack"` — 9/205 segments
+overlap (speakers over each other), so flat search mis-highlights at ~2 seams. `04-transcript-
+split.html` already fixes it via **segment-aware** sync (`sync().at()` → seg,word → flat offset;
+verified 0 backward events over a 0.1s sweep). **Fold this into `_audio.js` when building.**
 
 ## Decisions / open questions for the owner (at P1 judging)
-- Audio-in-gallery treatment (full-width bar band vs compact tile vs pulled-out) — prototype C.
-- Split View: resizable pane vs full overlay; does it replace the Details/Timeline dock or
-  coexist — prototype D.
-- Does "create transcript" / recording ship in this update or wait for the transcription step.
+See "Agent recommendations" above — the 5 numbered decisions + smaller calls, each made
+tangible by a prototype (index.html links them). P2 cannot start until these are answered.

@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pensieve · Audio design language</title>
+  <link rel="stylesheet" href="_kit.css" />
+  <!-- file:// fallbacks: these set window.__PEAKS__ / window.__TRANSCRIPT__ so the
+       page works on double-click with no server. -->
+  <script src="assets/peaks.js"></script>
+  <script src="assets/transcript.js"></script>
+  <style>
+    /* page-only layout (NOT part of the kit — demo scaffolding) */
+    .wrap { max-width: 920px; margin: 0 auto; padding: 48px 24px 120px; }
+    header.doc h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: -0.01em; }
+    header.doc p { color: hsl(var(--text-muted)); margin: 0; max-width: 60ch; }
+    section { margin-top: 48px; }
+    h2 { font-size: 18px; margin: 0 0 4px; }
+    .sub { color: hsl(var(--text-muted)); font-size: 14px; margin: 0 0 20px; max-width: 64ch; }
+    .spec { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    .row { display: grid; grid-template-columns: 180px 1fr; gap: 20px; align-items: start; padding: 16px; border: 1px solid hsl(var(--border)); border-radius: 10px; background: hsl(var(--surface)); }
+    .row .label { font-size: 12px; color: hsl(var(--text)); font-weight: 600; }
+    .row .note { font-size: 11px; color: hsl(var(--text-muted)); margin-top: 4px; line-height: 1.5; }
+    .row .demo { min-width: 0; }
+    .note-editor { max-width: 640px; }
+    .np { font-size: 16px; line-height: 1.7; margin: 0 0 14px; }
+    .np.h { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+    .anat { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 11px; color: hsl(var(--text-muted)); margin-top: 10px; }
+    .anat b { color: hsl(var(--text)); font-weight: 600; }
+    .widths { display: grid; gap: 14px; }
+    .w-narrow { max-width: 320px; } .w-mid { max-width: 480px; } .w-full { max-width: 100%; }
+    .splitwrap { height: 440px; border: 1px solid hsl(var(--border)); border-radius: 10px; overflow: hidden; }
+    .ed-pad { padding: 28px 32px; }
+    .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:11px; color:hsl(var(--text-muted)); margin-top:8px; }
+    .swatch { display:inline-flex; align-items:center; gap:6px; }
+    .sw { width:14px; height:14px; border-radius:3px; display:inline-block; }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" aria-label="Toggle theme"></button>
+
+  <div class="wrap">
+    <header class="doc">
+      <h1>Audio recordings — the design language</h1>
+      <p>One calm horizontal player bar, everywhere audio lives. Played against the real 19-minute call. Flip the theme (top-right). Each block notes the <b>anatomy</b>, the token used, and the motion. This is the foundation every surface agent builds on — see <span class="kbd">design-spec.md</span>.</p>
+    </header>
+
+    <!-- ANATOMY ------------------------------------------------------------ -->
+    <section>
+      <h2>1 · The bar — anatomy</h2>
+      <p class="sub">Left→right: <b>play</b> · <b>waveform</b> (scrub + progress) · <b>time</b> · <b>transcript icon</b> · <b>⋯ menu</b>. Height 56px, radius 10 (rounded-lg), surface-sunken fill, 1px border. The play button is the only accent-filled element on the bar.</p>
+      <div class="card"><div id="anatBar"></div></div>
+      <div class="anat">
+        <span><b>play</b> 36px, radius 6, accent fill</span>
+        <span><b>waveform</b> flex, 32px tall, 2px bars / 1px gap</span>
+        <span><b>time</b> mono 12px, tabular</span>
+        <span><b>transcript</b> 28px ghost, accent when present</span>
+        <span><b>⋯</b> 28px ghost</span>
+        <span>gap 12px · pad 8/12</span>
+      </div>
+      <div class="legend">
+        <span class="swatch"><i class="sw" style="background:hsl(var(--accent))"></i> played (accent)</span>
+        <span class="swatch"><i class="sw" style="background:hsl(var(--accent-glow))"></i> playhead (accent-glow)</span>
+        <span class="swatch"><i class="sw" style="background:hsl(var(--text-muted) / 0.35)"></i> unplayed (text-muted / .35)</span>
+      </div>
+    </section>
+
+    <!-- STATES ------------------------------------------------------------- -->
+    <section>
+      <h2>2 · The full state machine</h2>
+      <p class="sub">Every state is quiet and honest — background work never blocks. Absence of a transcript is healthy, not an error.</p>
+      <div class="spec" id="states"></div>
+    </section>
+
+    <!-- WIDTHS ------------------------------------------------------------- -->
+    <section>
+      <h2>3 · Responsive widths</h2>
+      <p class="sub">The bar is fluid: the waveform absorbs the width, controls stay fixed. Below ~360px the time readout drops to current-only; the compact variant (gallery tile / search hit) trims height to 44px.</p>
+      <div class="widths">
+        <div class="w-narrow"><div id="wN"></div></div>
+        <div class="w-mid"><div id="wM"></div></div>
+        <div class="w-full"><div id="wF"></div></div>
+      </div>
+    </section>
+
+    <!-- INLINE IN A NOTE --------------------------------------------------- -->
+    <section>
+      <h2>4 · Inline in a note</h2>
+      <p class="sub">Audio is media. It sits in the writing flow exactly like an image MediaBlock — left-aligned, breathing room above/below, never shouting.</p>
+      <div class="card note-editor ed-pad">
+        <p class="np h">Discovery call — Eliška</p>
+        <p class="np">Recorded the whole call. The pricing objection comes up around the eight-minute mark — worth revisiting before the follow-up.</p>
+        <div id="inlineBar"></div>
+        <p class="np" style="margin-top:14px">Next step: send the recap and the one-pager by Thursday.</p>
+      </div>
+    </section>
+
+    <!-- TRANSCRIPT READING ------------------------------------------------- -->
+    <section>
+      <h2>5 · Transcript reading — docked player + word highlight</h2>
+      <p class="sub">Player docked on top (sticky, Spotify-like). Words highlight one-by-one as audio plays; click any word to seek there. Press play and watch. Speakers are grouped and told apart by weight/tone — never a second colour.</p>
+      <div class="card" style="padding:0; height:420px; overflow:hidden;">
+        <div class="transcript" id="transcriptMini"></div>
+      </div>
+    </section>
+
+    <!-- SPLIT VIEW --------------------------------------------------------- -->
+    <section>
+      <h2>6 · Desktop split view</h2>
+      <p class="sub">Opening a transcript on the computer splits the surface: the note editor on the left, the transcript (text + docked player) on the right. Drag the divider to rebalance. This is the destination the transcript icon opens to.</p>
+      <div class="splitwrap">
+        <div class="split" id="split">
+          <div class="split-left ed-pad">
+            <p class="np h">Discovery call — Eliška</p>
+            <p class="np">Recorded the whole call. The pricing objection comes up around the eight-minute mark.</p>
+            <div id="splitInlineBar"></div>
+            <p class="np" style="margin-top:14px">Next step: send the recap and the one-pager by Thursday. The transcript on the right scrolls and highlights in lockstep with playback — jump to a word to replay that moment.</p>
+          </div>
+          <div class="split-divider" id="divider" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize panes"></div>
+          <div class="split-right">
+            <div class="transcript" id="transcriptSplit"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <p class="sub" style="margin-top:24px">All playback is governed by one shared controller — starting any bar pauses every other on the page. Try it: start the inline bar, then the split view. Tokens, sizes and motion all come from <span class="kbd">_kit.css</span> + <span class="kbd">_audio.js</span>.</p>
+    </section>
+  </div>
+
+  <script src="_audio.js"></script>
+  <script>
+    const A = Pensieve.Audio;
+    A.theme.init();
+    const SRC = "assets/audio.mp3";
+
+    /* ── A reusable bar builder (the agents will port this pattern to React).
+       opts: { compact, transcript: "present"|"absent"|"transcribing",
+               state: "idle"|"recording"|"saving"|"broken", controller, sync } ── */
+    function buildBar(host, peaks, opts) {
+      opts = opts || {};
+      const bar = document.createElement("div");
+      bar.className = "audio-bar" + (opts.compact ? " is-compact" : "");
+
+      if (opts.state === "broken") {
+        bar.classList.add("is-broken");
+        bar.innerHTML =
+          '<span class="audio-iconbtn audio-transcript is-absent" aria-hidden="true">' + A.icon("waveform") + '</span>' +
+          '<div class="audio-broken">' + A.icon("locate") +
+          '<span>Recording missing <span class="name">voice-2026-10-15.mp3</span></span>' +
+          '<button class="audio-broken-locate">Locate…</button></div>';
+        host.appendChild(bar);
+        return;
+      }
+
+      // play control
+      const play = document.createElement("button");
+      play.className = "audio-play" + (opts.compact ? " is-sm" : "");
+      play.setAttribute("aria-label", "Play");
+      play.innerHTML = A.icon("play");
+
+      // waveform
+      const wave = document.createElement("div");
+      wave.className = "audio-wave";
+      wave.innerHTML = '<canvas></canvas><div class="audio-scrubline"></div><div class="audio-scrubtime"></div>';
+      const canvas = wave.querySelector("canvas");
+
+      // time
+      const time = document.createElement("span");
+      time.className = "audio-time";
+
+      // transcript icon
+      const tr = document.createElement("button");
+      tr.className = "audio-iconbtn audio-transcript is-" + (opts.transcript || "absent");
+      tr.innerHTML = A.icon("transcript");
+      tr.setAttribute("aria-label",
+        opts.transcript === "present" ? "Open transcript" :
+        opts.transcript === "transcribing" ? "Transcribing…" : "No transcript yet");
+
+      // ⋯ menu
+      const moreWrap = document.createElement("div");
+      moreWrap.style.position = "relative"; moreWrap.style.flex = "0 0 auto";
+      const more = document.createElement("button");
+      more.className = "audio-iconbtn"; more.setAttribute("aria-label", "More"); more.setAttribute("aria-haspopup", "menu");
+      more.innerHTML = A.icon("more");
+      moreWrap.appendChild(more);
+
+      bar.append(play, wave, time, tr, moreWrap);
+      host.appendChild(bar);
+
+      // recording / saving => quiet status under the bar
+      if (opts.state === "recording" || opts.state === "saving" || opts.transcript === "transcribing") {
+        const status = document.createElement("div");
+        status.className = "audio-status" + (opts.state === "saving" ? " is-saving" : "");
+        status.style.margin = "6px 2px 0";
+        status.innerHTML = '<span class="dot"></span><span></span>';
+        host.appendChild(status);
+        status.querySelector("span:last-child").textContent =
+          opts.state === "recording" ? "Recording · 0:12" :
+          opts.state === "saving" ? "Saving recording…" : "Transcribing… 40%";
+      }
+
+      // wire the engine
+      const ctrl = opts.controller || A.controller(SRC);
+      if (opts.duration) ctrl.setFallbackDuration(opts.duration);
+      const wf = A.Waveform(canvas, peaks);
+      const render = () => wf.render(ctrl.duration() ? ctrl.time() / ctrl.duration() : 0);
+      const paint = () => { time.innerHTML = '<span class="cur">' + A.fmt(ctrl.time()) + '</span><span class="sep">/</span>' + A.fmt(ctrl.duration()); };
+      paint(); render();
+
+      play.addEventListener("click", () => ctrl.toggle());
+      ctrl.on("play", () => { bar.classList.add("is-playing"); play.innerHTML = A.icon("pause"); play.setAttribute("aria-label", "Pause"); });
+      ctrl.on("pause", () => { bar.classList.remove("is-playing"); play.innerHTML = A.icon("play"); play.setAttribute("aria-label", "Play"); });
+      ctrl.on("time", () => { render(); paint(); });
+      ctrl.on("ready", () => paint());
+
+      A.bindScrub(wave, wf, {
+        onSeek: (f) => ctrl.seekFrac(f),
+        onPreview: () => {},
+        previewTime: (f) => A.fmt((ctrl.duration() || 0) * f),
+      });
+
+      // ⋯ menu
+      more.addEventListener("click", () => {
+        if (document.querySelector(".audio-menu")) { closeMenu(); return; }
+        const backdrop = document.createElement("div"); backdrop.className = "audio-menu-backdrop";
+        const menu = document.createElement("div"); menu.className = "audio-menu"; menu.setAttribute("role", "menu");
+        menu.style.top = "34px"; menu.style.right = "0";
+        const hasTr = opts.transcript === "present";
+        menu.innerHTML =
+          '<button role="menuitem">' + A.icon("download") + 'Download recording</button>' +
+          (hasTr
+            ? '<button role="menuitem">' + A.icon("transcript") + 'Open transcript</button>'
+            : '<button role="menuitem">' + A.icon("transcript") + (opts.transcript === "transcribing" ? 'Transcribing…' : 'Create transcript') + '</button>');
+        if (opts.transcript === "transcribing") menu.querySelector("button:last-child").setAttribute("disabled", "");
+        moreWrap.appendChild(backdrop); moreWrap.appendChild(menu);
+        more.setAttribute("aria-expanded", "true");
+        backdrop.addEventListener("click", closeMenu);
+        function closeMenu() { menu.remove(); backdrop.remove(); more.removeAttribute("aria-expanded"); }
+        window._closeMenu = closeMenu;
+      });
+      function closeMenu() { const m = document.querySelector(".audio-menu"); const b = document.querySelector(".audio-menu-backdrop"); if (m) m.remove(); if (b) b.remove(); more.removeAttribute("aria-expanded"); }
+
+      return { ctrl, wf, bar };
+    }
+
+    /* ── build the transcript reading experience ───────────────────────── */
+    function buildTranscript(host, peaks, transcript, ctrl) {
+      const S = A.sync(transcript);
+      const dock = document.createElement("div"); dock.className = "transcript-dock";
+      const barHost = document.createElement("div"); dock.appendChild(barHost);
+      const meta = document.createElement("div"); meta.className = "transcript-dock-meta";
+      meta.innerHTML = '<span class="chip">' + (S.meta ? S.meta.speakers.length : 2) + ' speakers</span>' +
+                       '<span class="chip">' + (S.meta ? S.meta.language.toUpperCase() : "CS") + '</span>' +
+                       '<span class="chip">' + (S.meta && S.meta.polished ? "polished" : "raw") + '</span>' +
+                       '<span>click a word to jump</span>';
+      dock.appendChild(meta);
+
+      const body = document.createElement("div"); body.className = "transcript-body";
+      const speakers = (S.meta && S.meta.speakers) || [];
+      const wordEls = [];           // flat list parallel to S.flatWords
+      S.segments.forEach((seg, si) => {
+        const turn = document.createElement("div");
+        const spk = Math.max(0, speakers.indexOf(seg.speaker));
+        turn.className = "turn spk-" + (spk % 2);
+        turn.dataset.seg = si;
+        const gutter = document.createElement("div"); gutter.className = "turn-gutter";
+        gutter.innerHTML = '<div class="turn-speaker">' + seg.speaker + '</div><span class="turn-time">' + A.fmt(seg.start) + '</span>';
+        const text = document.createElement("div"); text.className = "turn-text";
+        (seg.words || []).forEach((w, wi) => {
+          const el = document.createElement("span"); el.className = "word"; el.textContent = w.w;
+          el.addEventListener("click", () => ctrl.seek(S.wordTime(si, wi) + 0.001));
+          text.appendChild(el); text.appendChild(document.createTextNode(" "));
+          wordEls.push({ el, si, wi, s: w.s });
+        });
+        turn.append(gutter, text);
+        body.appendChild(turn);
+      });
+
+      host.append(dock, body);
+      buildBar(barHost, peaks, { transcript: "present", controller: ctrl });
+
+      // live word highlight + auto-scroll + active turn
+      let activeIdx = -1, activeTurn = null;
+      function tick() {
+        const t = ctrl.time();
+        // find active word (last word with s <= t)
+        let lo = 0, hi = wordEls.length - 1, idx = -1;
+        while (lo <= hi) { const m = (lo + hi) >> 1; if (wordEls[m].s <= t) { idx = m; lo = m + 1; } else hi = m - 1; }
+        if (idx === activeIdx) return;
+        wordEls.forEach((we, i) => {
+          we.el.classList.toggle("is-active", i === idx);
+          we.el.classList.toggle("is-read", i < idx);
+        });
+        activeIdx = idx;
+        const cur = wordEls[idx];
+        if (cur) {
+          const turn = cur.el.closest(".turn");
+          if (turn !== activeTurn) { if (activeTurn) activeTurn.classList.remove("is-active"); turn.classList.add("is-active"); activeTurn = turn; }
+          if (ctrl.playing()) cur.el.scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+      }
+      ctrl.on("time", tick);
+      ctrl.on("seek", tick);
+      return S;
+    }
+
+    /* ── boot ──────────────────────────────────────────────────────────── */
+    A.loadAssets().then(({ peaks, transcript }) => {
+      const DUR = transcript.meta.durationSec;
+
+      // 1 anatomy
+      buildBar(document.getElementById("anatBar"), peaks, { transcript: "present", duration: DUR });
+
+      // 2 states
+      const states = [
+        ["Ready · no transcript", "The resting state most recordings live in. Transcript icon is a faint ghost; <b>Create transcript</b> lives in the ⋯ menu. Absence is healthy.", { transcript: "absent", duration: DUR }],
+        ["Transcribing", "Background work. The transcript icon pulses quietly (1.6s) and a calm status line shows progress — no spinner, no block.", { transcript: "transcribing", duration: DUR }],
+        ["Transcript ready", "Transcript icon turns accent and opens the split view. The signal is the colour-of-state, not a new hue.", { transcript: "present", duration: DUR }],
+        ["Just recorded · saving", "Right after capture: bytes writing to disk. Gold status dot (sync/working rune), still fully playable.", { transcript: "absent", state: "saving", duration: DUR }],
+        ["Recording", "Live capture. The bar is the in-progress recorder; waveform fills as it listens; status shows elapsed time.", { transcript: "absent", state: "recording", duration: DUR }],
+        ["Broken · missing file", "Honest, specific. The reference is shown and a Locate… action offered — never a silent empty box.", { state: "broken" }],
+      ];
+      const sc = document.getElementById("states");
+      states.forEach(([label, note, opts]) => {
+        const row = document.createElement("div"); row.className = "row";
+        const meta = document.createElement("div");
+        meta.innerHTML = '<div class="label">' + label + '</div><div class="note">' + note + '</div>';
+        const demo = document.createElement("div"); demo.className = "demo";
+        row.append(meta, demo); sc.appendChild(row);
+        buildBar(demo, peaks, opts);
+      });
+
+      // 3 widths
+      buildBar(document.getElementById("wN"), peaks, { transcript: "present", compact: true, duration: DUR });
+      buildBar(document.getElementById("wM"), peaks, { transcript: "present", duration: DUR });
+      buildBar(document.getElementById("wF"), peaks, { transcript: "present", duration: DUR });
+
+      // 4 inline (its own controller)
+      buildBar(document.getElementById("inlineBar"), peaks, { transcript: "present", duration: DUR });
+
+      // 5 transcript mini (its own controller)
+      buildTranscript(document.getElementById("transcriptMini"), peaks, transcript, A.controller(SRC));
+
+      // 6 split view — ONE controller shared by the left inline bar + right transcript
+      const splitCtrl = A.controller(SRC); splitCtrl.setFallbackDuration(DUR);
+      buildBar(document.getElementById("splitInlineBar"), peaks, { transcript: "present", controller: splitCtrl });
+      buildTranscript(document.getElementById("transcriptSplit"), peaks, transcript, splitCtrl);
+
+      // divider drag
+      const split = document.getElementById("split"), divider = document.getElementById("divider");
+      let drag = false;
+      divider.addEventListener("mousedown", (e) => { drag = true; divider.classList.add("is-dragging"); e.preventDefault(); });
+      window.addEventListener("mousemove", (e) => {
+        if (!drag) return;
+        const r = split.getBoundingClientRect();
+        const right = Math.max(24, Math.min(70, ((r.right - e.clientX) / r.width) * 100));
+        split.style.setProperty("--split-right", right + "%");
+      });
+      window.addEventListener("mouseup", () => { drag = false; divider.classList.remove("is-dragging"); });
+      divider.addEventListener("keydown", (e) => {
+        const cur = parseFloat(getComputedStyle(split).getPropertyValue("--split-right")) || 40;
+        if (e.key === "ArrowLeft") split.style.setProperty("--split-right", Math.min(70, cur + 4) + "%");
+        if (e.key === "ArrowRight") split.style.setProperty("--split-right", Math.max(24, cur - 4) + "%");
+      });
+    }).catch((err) => {
+      document.querySelector(".wrap").insertAdjacentHTML("afterbegin",
+        '<div class="card" style="border-color:hsl(var(--danger)/.5)">' + err.message + '</div>');
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pensieve · Audio in a gallery</title>
+  <link rel="stylesheet" href="_kit.css" />
+  <!-- file:// fallbacks: set window.__PEAKS__ / window.__TRANSCRIPT__ so the page
+       works on double-click with no server (mirrors 00-overview.html). -->
+  <script src="assets/peaks.js"></script>
+  <script src="assets/transcript.js"></script>
+  <style>
+    /* ───────── page scaffolding (NOT part of the kit) ───────── */
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 44px 24px 140px; }
+    header.doc h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: -0.01em; }
+    header.doc p  { color: hsl(var(--text-muted)); margin: 0; max-width: 70ch; }
+
+    /* recommendation banner */
+    .rec {
+      margin: 24px 0 8px; padding: 18px 20px;
+      border: 1px solid hsl(var(--accent) / 0.4);
+      background: hsl(var(--accent) / 0.06);
+      border-radius: 12px;
+    }
+    .rec h2 { font-size: 15px; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
+    .rec .pick { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+      color: hsl(var(--surface)); background: hsl(var(--accent)); padding: 2px 8px; border-radius: 999px; }
+    .rec p { margin: 0; font-size: 14px; color: hsl(var(--text)); max-width: 80ch; line-height: 1.6; }
+    .rec p + p { margin-top: 8px; color: hsl(var(--text-muted)); }
+
+    /* shared row-height control */
+    .controls {
+      position: sticky; top: 0; z-index: 30;
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      margin: 28px 0 8px; padding: 12px 16px;
+      background: hsl(var(--surface) / 0.9); backdrop-filter: saturate(1.1) blur(8px);
+      border: 1px solid hsl(var(--border)); border-radius: 10px;
+    }
+    .controls .lab { font-size: 12px; font-weight: 600; }
+    .controls input[type=range] { flex: 1 1 220px; accent-color: hsl(var(--accent)); max-width: 360px; }
+    .controls .val { font-family: var(--font-mono); font-size: 12px; color: hsl(var(--text)); min-width: 56px; }
+    .controls .hint { font-size: 11px; color: hsl(var(--text-muted)); }
+
+    section { margin-top: 44px; }
+    .opt-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+    .opt-head .tag { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: hsl(var(--accent));
+      border: 1px solid hsl(var(--accent) / 0.4); border-radius: 6px; padding: 1px 7px; }
+    .opt-head h2 { font-size: 18px; margin: 0; }
+    .opt-head .winner { margin-left: auto; font-size: 11px; font-weight: 700; color: hsl(var(--surface));
+      background: hsl(var(--accent)); padding: 2px 9px; border-radius: 999px; }
+    .sub { color: hsl(var(--text-muted)); font-size: 14px; margin: 0 0 14px; max-width: 76ch; line-height: 1.55; }
+
+    /* pros / cons chips */
+    .procon { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 16px; }
+    @media (max-width: 720px) { .procon { grid-template-columns: 1fr; } }
+    .procon ul { margin: 0; padding: 12px 14px 12px 30px; border-radius: 10px; font-size: 13px; line-height: 1.55; }
+    .procon .pro { background: hsl(var(--success) / 0.08); border: 1px solid hsl(var(--success) / 0.28); }
+    .procon .con { background: hsl(var(--danger) / 0.06);  border: 1px solid hsl(var(--danger) / 0.28); }
+    .procon li { margin: 2px 0; }
+    .procon .h { display: block; margin: -2px 0 6px -14px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; list-style: none; }
+    .procon .pro .h { color: hsl(var(--success)); }
+    .procon .con .h { color: hsl(var(--danger)); }
+
+    /* ───────── the gallery frame ───────── */
+    .gallery {
+      --row-h: 220px; --gap: 4px;
+      border: 1px solid hsl(var(--border)); border-radius: 12px;
+      background: hsl(var(--surface)); padding: 12px;
+    }
+    /* a single justified horizontal strip (the real desktop model) */
+    .strip {
+      display: flex; gap: var(--gap);
+      overflow-x: auto; overflow-y: hidden;
+      padding-bottom: 6px;             /* room for the scrollbar */
+      scrollbar-width: thin;
+    }
+    .strip::-webkit-scrollbar { height: 8px; }
+    .strip::-webkit-scrollbar-thumb { background: hsl(var(--text-muted) / 0.3); border-radius: 999px; }
+
+    /* an image tile: height = shared row height, width = aspect × height (set in JS) */
+    .tile {
+      flex: 0 0 auto; height: var(--row-h);
+      border-radius: 8px; overflow: hidden; position: relative;
+      background-size: cover; background-position: center;   /* object-fit: cover */
+    }
+    .tile .cap {
+      position: absolute; left: 8px; bottom: 8px;
+      font-size: 11px; font-weight: 600; color: #fff;
+      text-shadow: 0 1px 4px rgba(0,0,0,.5);
+      background: rgba(0,0,0,.2); padding: 1px 7px; border-radius: 999px; backdrop-filter: blur(2px);
+    }
+
+    /* ── Option A: the audio sits as a sunken cell, compact bar centered ── */
+    .audio-cell {
+      flex: 0 0 auto; height: var(--row-h); width: 384px;
+      display: flex; flex-direction: column; justify-content: center; gap: 8px;
+      padding: 12px 14px;
+      background: hsl(var(--surface-sunken));
+      border: 1px solid hsl(var(--border));
+      border-radius: 8px;
+    }
+    .audio-cell .cell-title { font-size: 12px; font-weight: 600; color: hsl(var(--text)); }
+    .audio-cell .cell-title .ic { color: hsl(var(--text-muted)); display: inline-flex; vertical-align: -3px; margin-right: 5px; }
+    .audio-cell .cell-title .ic svg { width: 15px; height: 15px; }
+    .audio-cell .empty-note { font-size: 10px; color: hsl(var(--text-muted) / 0.8); font-style: italic; }
+
+    /* ── Option B: the full-width band + its image strips ── */
+    .band { padding: 10px 2px; }
+    .band .audio-bar { max-width: 760px; margin: 0 auto; }
+    .band-label { font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: hsl(var(--text-muted)); margin: 0 0 6px 2px; }
+    .b-strip + .band, .band + .b-strip { margin-top: 10px; }
+
+    /* ── Option C: the waveform card tile ── */
+    .wave-card {
+      flex: 0 0 auto; height: var(--row-h);
+      display: flex; flex-direction: column; justify-content: space-between;
+      padding: 12px 14px; cursor: pointer;
+      background: hsl(var(--surface-sunken));
+      border: 1px solid hsl(var(--border));
+      border-radius: 8px;
+      transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+    }
+    .wave-card:hover { border-color: hsl(var(--accent) / 0.5); }
+    .wave-card.is-selected { border-color: hsl(var(--accent) / 0.55); background: hsl(var(--accent) / 0.06); }
+    .wave-card .wc-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .wave-card .wc-glyph { flex: 0 0 auto; display: grid; place-items: center; width: 30px; height: 30px;
+      border-radius: 6px; background: hsl(var(--accent)); color: hsl(var(--surface)); }
+    .wave-card.is-selected .wc-glyph { box-shadow: 0 0 18px -4px hsl(var(--accent-glow) / 0.6); }
+    .wave-card .wc-glyph svg { width: 17px; height: 17px; }
+    .wave-card .wc-title { font-size: 12px; font-weight: 600; color: hsl(var(--text)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .wave-card .wc-mini { flex: 1 1 auto; min-height: 0; margin: 10px 0; }
+    .wave-card .wc-mini canvas { display: block; width: 100%; height: 100%; }
+    .wave-card .wc-foot { display: flex; align-items: center; justify-content: space-between; }
+    .wave-card .wc-dur { font-family: var(--font-mono); font-size: 11px; color: hsl(var(--text-muted)); }
+    .wave-card .wc-hint { font-size: 10px; color: hsl(var(--text-muted) / 0.85); }
+
+    /* C's player dock — the canonical bar at its NATURAL height, below the strip */
+    .player-dock {
+      margin-top: 12px; padding: 12px;
+      border: 1px solid hsl(var(--border)); border-radius: 10px;
+      background: hsl(var(--surface-sunken) / 0.5);
+    }
+    .player-dock .dock-title { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: hsl(var(--text-muted)); margin: 0 0 8px 2px; }
+    .player-dock.is-empty .audio-bar { opacity: 0.5; }
+    .player-dock .empty-msg { font-size: 12px; color: hsl(var(--text-muted)); font-style: italic; }
+
+    .tension { margin-top: 48px; padding: 18px 20px; border: 1px solid hsl(var(--border)); border-radius: 12px; background: hsl(var(--surface-sunken) / 0.5); }
+    .tension h2 { font-size: 15px; margin: 0 0 8px; }
+    .tension p { font-size: 13px; color: hsl(var(--text-muted)); margin: 0 0 8px; line-height: 1.6; max-width: 82ch; }
+    .tension b { color: hsl(var(--text)); }
+    .err { border-color: hsl(var(--danger) / 0.5) !important; }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" aria-label="Toggle theme"></button>
+
+  <div class="wrap">
+    <header class="doc">
+      <h1>Audio inside a gallery — desktop</h1>
+      <p>The gallery is a <b>justified horizontal strip</b>: you drag a container height, that becomes the shared row height, and every image tile's width = its aspect ratio × that height. An audio recording has <b>no aspect ratio</b> — a 56px control does not want to be 220px tall next to photos. Three ways to resolve it, below. Drag the height slider to feel each one react. Everything plays the real 19-minute call; one bar plays at a time across the whole page.</p>
+    </header>
+
+    <!-- RECOMMENDATION ---------------------------------------------------- -->
+    <div class="rec">
+      <h2><span class="pick">Recommendation</span> Option C — waveform card tile → canonical bar in a dock</h2>
+      <p>Give audio a fixed <b>tile aspect ratio</b> so it rides the justified strip exactly like a photo — it scales with the height slider, never leaves an empty box, and the strip stays one clean horizontal scroll. Clicking a card loads the recording into a slim player <b>dock below the strip</b>, where the real <code>.audio-bar</code> renders at its natural height and plays. This is the only option that honours the aspect-ratio mechanic <em>and</em> keeps "one bar everywhere" intact — the player you get is the canonical bar, just relocated out of the strip where height can't distort it.</p>
+      <p>Pick <b>B</b> instead if recordings are rare and should always be immediately playable and prominent (it keeps the natural bar but chops the strip into sections). <b>A</b> is the literal reading of spec §1 ("compact bar in a gallery tile") but wastes vertical space and looks empty at tall row heights — see for yourself with the slider.</p>
+    </div>
+
+    <!-- SHARED HEIGHT CONTROL --------------------------------------------- -->
+    <div class="controls">
+      <span class="lab">Row height</span>
+      <input id="rowh" type="range" min="120" max="300" step="4" value="220" aria-label="Gallery row height" />
+      <span class="val" id="rowhVal">220px</span>
+      <span class="hint">← drag to resize every gallery below at once (this is the real interaction: dragging the container height)</span>
+    </div>
+
+    <!-- OPTION A ---------------------------------------------------------- -->
+    <section>
+      <div class="opt-head">
+        <span class="tag">A</span>
+        <h2>Compact bar tile — plays in place</h2>
+      </div>
+      <p class="sub">The recording becomes a fixed-width <code>surface-sunken</code> cell at the shared row height, with the <code>.is-compact</code> bar centred inside. Plays inline, no extra click. This is the literal "one bar in a gallery" from spec §1.</p>
+      <div class="procon">
+        <ul class="pro"><span class="h">Pros</span>
+          <li>Plays immediately, right where it sits — zero extra steps.</li>
+          <li>Literally the canonical compact bar; nothing new to learn.</li>
+          <li>Transcript icon + ⋯ menu are present on the tile.</li>
+        </ul>
+        <ul class="con"><span class="h">Cons</span>
+          <li><b>Empty at tall heights</b> — drag the slider up and watch the bar float in a sea of blank cell.</li>
+          <li>Audio has no aspect ratio, so the cell width is arbitrary — it doesn't obey the justification math like real tiles do.</li>
+          <li>A fixed-width block interrupts the rhythm of aspect-sized photos.</li>
+        </ul>
+      </div>
+      <div class="gallery" id="galA"><div class="strip" id="stripA"></div></div>
+    </section>
+
+    <!-- OPTION B ---------------------------------------------------------- -->
+    <section>
+      <div class="opt-head">
+        <span class="tag">B</span>
+        <h2>Full-width band — breaks out of the strip</h2>
+      </div>
+      <p class="sub">Audio refuses the strip entirely. Image runs scroll horizontally as justified strips; each recording drops into its own full-width band between them, keeping the bar's natural 56px height.</p>
+      <div class="procon">
+        <ul class="pro"><span class="h">Pros</span>
+          <li>The bar is never distorted — exact natural height, full width, reads beautifully.</li>
+          <li>Plays in place; room for the transcript icon, status line, everything.</li>
+          <li>Immediately legible — audio can't be mistaken for a thumbnail.</li>
+        </ul>
+        <ul class="con"><span class="h">Cons</span>
+          <li><b>Chops the gallery</b> into stacked sections — no single horizontal scroll.</li>
+          <li>Interleaved capture order (photo, memo, photo, memo…) makes many band breaks.</li>
+          <li>Heavyweight for a 5-second voice memo sitting among 30 photos.</li>
+        </ul>
+      </div>
+      <div class="gallery" id="galB"></div>
+    </section>
+
+    <!-- OPTION C ---------------------------------------------------------- -->
+    <section>
+      <div class="opt-head">
+        <span class="tag">C</span>
+        <h2>Waveform card → canonical bar in a dock</h2>
+        <span class="winner">Recommended</span>
+      </div>
+      <p class="sub">Audio rides the strip as a waveform <b>card tile</b> with a fixed aspect ratio, so it sizes with the row height exactly like a photo and never looks empty. A ∿ glyph, title, mini-waveform and duration read it instantly as sound. Click a card and the real bar appears in the <b>dock below</b> at its natural height, and plays — the strip stays pristine, the bar stays canonical.</p>
+      <div class="procon">
+        <ul class="pro"><span class="h">Pros</span>
+          <li><b>Obeys the justification math</b> — a tile with an aspect, scales with the slider, never empty.</li>
+          <li>One clean horizontal scroll; audio and photos read as one family of tiles.</li>
+          <li>The player is the canonical bar at natural height — "one bar everywhere" preserved, just relocated out of the strip.</li>
+          <li>The dock is the obvious home for the transcript / split-view affordance.</li>
+        </ul>
+        <ul class="con"><span class="h">Cons</span>
+          <li>One click to play (not inline) — a trade for strip cleanliness.</li>
+          <li>Introduces a second representation (card vs bar) the user must connect.</li>
+          <li>The mini-waveform is decorative at small tile sizes.</li>
+        </ul>
+      </div>
+      <div class="gallery" id="galC"><div class="strip" id="stripC"></div></div>
+      <div class="player-dock is-empty" id="dockC">
+        <p class="dock-title">Now playing</p>
+        <div id="dockBarC"></div>
+      </div>
+    </section>
+
+    <!-- SPEC TENSION ------------------------------------------------------ -->
+    <div class="tension">
+      <h2>Spec tension worth flagging</h2>
+      <p><b>Rule §1 "one bar, everywhere" vs the justified aspect-ratio strip.</b> §1 says a gallery shows the same <code>.audio-bar</code> with only <code>.is-compact</code> toggled — which is literally <b>Option A</b>. But a bar is a fixed-height control; the strip sizes every tile by <em>aspect × row-height</em>. A bar has no aspect, so it either floats in an over-tall cell (A's emptiness) or must leave the strip (B / C).</p>
+      <p><b>How C resolves it without breaking §1:</b> the <em>tile</em> is a card (a thumbnail, like an image's thumbnail — images don't show their bar in the strip either, they show a cropped tile). The <em>player</em> that opens is still the one true <code>.audio-bar</code>. So "one bar everywhere" holds at the player level; the strip just gets a consistent thumbnail per medium. If the owner reads §1 strictly as "the bar itself must live in the tile," that points to A and we accept the empty-space cost.</p>
+      <p><b>Open decision for the owner:</b> is a gallery recording a <em>thumbnail that opens</em> (C, my pick) or a <em>bar that plays in place</em> (A)? This prototype makes the height-driven trade-off visible — drag the slider on A vs C.</p>
+    </div>
+  </div>
+
+  <script src="_audio.js"></script>
+  <script>
+    const A = Pensieve.Audio;
+    A.theme.init();
+    const SRC = "assets/audio.mp3";
+
+    /* ── placeholder "photos": aspect ratio + a muted gradient + a caption.
+       (CSS gradients stand in for real images — object-fit: cover is simulated
+       by background-size: cover on the tile.) ─────────────────────────────── */
+    function grad(h1, h2) {
+      return "linear-gradient(135deg, hsl(" + h1 + " 42% 62%), hsl(" + h2 + " 46% 44%))";
+    }
+    const PHOTOS = [
+      { a: 1.50, g: grad(210, 232), cap: "Whiteboard" },
+      { a: 0.72, g: grad(24, 8),    cap: "Sketch" },
+      { a: 1.78, g: grad(158, 180), cap: "Screenshot" },
+      { a: 1.00, g: grad(276, 300), cap: "Polaroid" },
+      { a: 1.33, g: grad(96, 128),  cap: "Garden" },
+      { a: 0.80, g: grad(40, 20),   cap: "Receipt" },
+      { a: 1.62, g: grad(196, 216), cap: "Map" },
+      { a: 1.20, g: grad(330, 350), cap: "Ticket" },
+    ];
+    /* recordings in the gallery (all share the real file; distinct titles). */
+    const RECS = [
+      { title: "Discovery call — Eliška", dur: "19:04" },
+      { title: "Voice memo — follow-up", dur: "19:04" },
+    ];
+
+    function photoTile(p) {
+      const t = document.createElement("div");
+      t.className = "tile"; t.dataset.aspect = p.a;
+      t.style.background = p.g;
+      t.innerHTML = '<span class="cap">' + p.cap + '</span>';
+      return t;
+    }
+
+    /* keep every gallery's tiles so the slider can re-layout widths from height */
+    const galleries = [];   // { el, tiles:[{node, aspect}] }
+    function registerTile(galId, node, aspect) {
+      let g = galleries.find((x) => x.id === galId);
+      if (!g) { g = { id: galId, tiles: [] }; galleries.push(g); }
+      g.tiles.push({ node, aspect });
+    }
+    function layoutAll(H) {
+      document.querySelectorAll(".gallery").forEach((el) => el.style.setProperty("--row-h", H + "px"));
+      galleries.forEach((g) => g.tiles.forEach((t) => {
+        if (t.aspect) t.node.style.width = Math.round(t.aspect * H) + "px";
+      }));
+    }
+
+    /* ── a compact bar (ported from 00-overview buildBar, trimmed) ───────── */
+    function buildBar(host, peaks, opts) {
+      opts = opts || {};
+      const bar = document.createElement("div");
+      bar.className = "audio-bar" + (opts.compact ? " is-compact" : "");
+
+      const play = document.createElement("button");
+      play.className = "audio-play" + (opts.compact ? " is-sm" : "");
+      play.setAttribute("aria-label", "Play");
+      play.innerHTML = A.icon("play");
+
+      const wave = document.createElement("div");
+      wave.className = "audio-wave";
+      wave.innerHTML = '<canvas></canvas><div class="audio-scrubline"></div><div class="audio-scrubtime"></div>';
+      const canvas = wave.querySelector("canvas");
+
+      const time = document.createElement("span");
+      time.className = "audio-time";
+
+      const tr = document.createElement("button");
+      tr.className = "audio-iconbtn audio-transcript is-" + (opts.transcript || "present");
+      tr.innerHTML = A.icon("transcript");
+      tr.setAttribute("aria-label", opts.transcript === "absent" ? "No transcript yet" : "Open transcript");
+
+      const moreWrap = document.createElement("div");
+      moreWrap.style.position = "relative"; moreWrap.style.flex = "0 0 auto";
+      const more = document.createElement("button");
+      more.className = "audio-iconbtn"; more.setAttribute("aria-label", "More"); more.setAttribute("aria-haspopup", "menu");
+      more.innerHTML = A.icon("more");
+      moreWrap.appendChild(more);
+
+      bar.append(play, wave, time, tr, moreWrap);
+      host.appendChild(bar);
+
+      const ctrl = opts.controller || A.controller(SRC);
+      if (opts.duration) ctrl.setFallbackDuration(opts.duration);
+      const wf = A.Waveform(canvas, peaks);
+      const render = () => wf.render(ctrl.duration() ? ctrl.time() / ctrl.duration() : 0);
+      const paint = () => { time.innerHTML = '<span class="cur">' + A.fmt(ctrl.time()) + '</span><span class="sep">/</span>' + A.fmt(ctrl.duration()); };
+      paint(); render();
+
+      play.addEventListener("click", () => ctrl.toggle());
+      const offP  = ctrl.on("play",  () => { bar.classList.add("is-playing");    play.innerHTML = A.icon("pause"); play.setAttribute("aria-label", "Pause"); });
+      const offPa = ctrl.on("pause", () => { bar.classList.remove("is-playing"); play.innerHTML = A.icon("play");  play.setAttribute("aria-label", "Play"); });
+      ctrl.on("time", () => { render(); paint(); });
+      ctrl.on("ready", paint);
+      ctrl.on("seek", render);
+
+      A.bindScrub(wave, wf, {
+        onSeek: (f) => ctrl.seekFrac(f),
+        onPreview: () => {},
+        previewTime: (f) => A.fmt((ctrl.duration() || 0) * f),
+      });
+
+      more.addEventListener("click", () => {
+        if (moreWrap.querySelector(".audio-menu")) { close(); return; }
+        const backdrop = document.createElement("div"); backdrop.className = "audio-menu-backdrop";
+        const menu = document.createElement("div"); menu.className = "audio-menu"; menu.setAttribute("role", "menu");
+        menu.style.top = "34px"; menu.style.right = "0";
+        menu.innerHTML =
+          '<button role="menuitem">' + A.icon("download") + 'Download recording</button>' +
+          '<button role="menuitem">' + A.icon("transcript") + 'Open transcript</button>';
+        moreWrap.append(backdrop, menu);
+        more.setAttribute("aria-expanded", "true");
+        backdrop.addEventListener("click", close);
+        function close() { menu.remove(); backdrop.remove(); more.removeAttribute("aria-expanded"); }
+      });
+
+      return { ctrl, wf, bar, setPlaying: null, destroy: () => { offP(); offPa(); } };
+    }
+
+    /* ── boot ─────────────────────────────────────────────────────────── */
+    A.loadAssets().then(({ peaks, transcript }) => {
+      const DUR = transcript.meta.durationSec;
+
+      /* ===== OPTION A — single strip, audio = compact-bar cell =========== */
+      const stripA = document.getElementById("stripA");
+      const seqA = ["p0", "p1", "a0", "p2", "p3", "a1", "p4", "p6"];
+      seqA.forEach((tok) => {
+        if (tok[0] === "p") {
+          const p = PHOTOS[+tok.slice(1)]; const node = photoTile(p);
+          stripA.appendChild(node); registerTile("galA", node, p.a);
+        } else {
+          const rec = RECS[+tok.slice(1)];
+          const cell = document.createElement("div"); cell.className = "audio-cell";
+          cell.innerHTML =
+            '<div class="cell-title"><span class="ic">' + A.icon("waveform") + '</span>' + rec.title + '</div>' +
+            '<div class="bar-host"></div>' +
+            '<div class="empty-note">↕ note how tall-row space goes empty around the 44px bar</div>';
+          stripA.appendChild(cell); registerTile("galA", cell, null);
+          buildBar(cell.querySelector(".bar-host"), peaks, { compact: true, duration: DUR });
+        }
+      });
+
+      /* ===== OPTION B — stacked: image strips + full-width bands ========== */
+      const galB = document.getElementById("galB");
+      const seqB = [["p0","p1","p2"], "a0", ["p3","p4","p7"], "a1", ["p6","p1","p2"]];
+      seqB.forEach((chunk) => {
+        if (Array.isArray(chunk)) {
+          const strip = document.createElement("div"); strip.className = "strip b-strip";
+          chunk.forEach((tok) => { const p = PHOTOS[+tok.slice(1)]; const node = photoTile(p); strip.appendChild(node); registerTile("galB", node, p.a); });
+          galB.appendChild(strip);
+        } else {
+          const rec = RECS[+chunk.slice(1)];
+          const band = document.createElement("div"); band.className = "band";
+          band.innerHTML = '<p class="band-label">' + rec.title + '</p><div class="bar-host"></div>';
+          galB.appendChild(band);
+          buildBar(band.querySelector(".bar-host"), peaks, { duration: DUR });
+        }
+      });
+
+      /* ===== OPTION C — strip of tiles (audio = waveform card) + dock ===== */
+      const stripC = document.getElementById("stripC");
+      const dockC = document.getElementById("dockC");
+      const dockBarHost = document.getElementById("dockBarC");
+      const CARD_ASPECT = 1.55;             // audio rides the strip like a ~3:2 photo
+      let dockBuilt = null, selectedCard = null;
+
+      // one controller per recording, so one-plays-at-a-time still holds
+      const recCtrls = RECS.map(() => { const c = A.controller(SRC); c.setFallbackDuration(DUR); return c; });
+
+      const seqC = ["p0", "p1", "a0", "p2", "p3", "a1", "p4", "p6"];
+      seqC.forEach((tok) => {
+        if (tok[0] === "p") {
+          const p = PHOTOS[+tok.slice(1)]; const node = photoTile(p);
+          stripC.appendChild(node); registerTile("galC", node, p.a);
+        } else {
+          const ri = +tok.slice(1); const rec = RECS[ri];
+          const card = document.createElement("div");
+          card.className = "wave-card"; card.dataset.aspect = CARD_ASPECT; card.setAttribute("role", "button"); card.tabIndex = 0;
+          card.innerHTML =
+            '<div class="wc-top"><span class="wc-glyph">' + A.icon("waveform") + '</span><span class="wc-title">' + rec.title + '</span></div>' +
+            '<div class="wc-mini"><canvas></canvas></div>' +
+            '<div class="wc-foot"><span class="wc-dur">' + rec.dur + '</span><span class="wc-hint">click to play ›</span></div>';
+          stripC.appendChild(card); registerTile("galC", card, CARD_ASPECT);
+          // static mini waveform preview (non-interactive, muted)
+          const mini = A.Waveform(card.querySelector("canvas"), peaks);
+          const ctrl = recCtrls[ri];
+          // keep the card's mini wave in sync with its own playback progress
+          ctrl.on("time", () => mini.render(ctrl.duration() ? ctrl.time() / ctrl.duration() : 0));
+          ctrl.on("seek", () => mini.render(ctrl.duration() ? ctrl.time() / ctrl.duration() : 0));
+          ctrl.on("play",  () => card.classList.add("is-selected"));
+          const open = () => selectCard(ri, card);
+          card.addEventListener("click", open);
+          card.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } });
+        }
+      });
+
+      function selectCard(ri, card) {
+        if (selectedCard && selectedCard !== card) selectedCard.classList.remove("is-selected");
+        selectedCard = card; card.classList.add("is-selected");
+        dockC.classList.remove("is-empty");
+        dockBarHost.innerHTML = "";
+        if (dockBuilt) dockBuilt.destroy();
+        dockBuilt = buildBar(dockBarHost, peaks, { controller: recCtrls[ri], duration: DUR, transcript: "present" });
+        recCtrls[ri].play();
+      }
+      // empty-state placeholder in the dock until a card is clicked
+      dockBarHost.innerHTML = '<span class="empty-msg">Click a recording card above to load it here.</span>';
+
+      /* ===== shared row-height slider ===================================== */
+      const rowh = document.getElementById("rowh"), rowhVal = document.getElementById("rowhVal");
+      function apply() { const H = +rowh.value; rowhVal.textContent = H + "px"; layoutAll(H); }
+      rowh.addEventListener("input", apply);
+      apply();
+    }).catch((err) => {
+      document.querySelector(".wrap").insertAdjacentHTML("afterbegin",
+        '<div class="rec err">' + err.message + '</div>');
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pensieve · Audio on the Basin (flask cards + peek)</title>
+  <link rel="stylesheet" href="_kit.css" />
+  <!-- file:// fallbacks: set window.__PEAKS__ / window.__TRANSCRIPT__ so the page
+       works on a plain double-click with no server (mirrors 00-overview.html). -->
+  <script src="assets/peaks.js"></script>
+  <script src="assets/transcript.js"></script>
+  <style>
+    /* ──────────────────────────────────────────────────────────────────────
+       PAGE SCAFFOLDING (not part of the kit). The Basin re-creates the real
+       home surface: src/features/gallery/Gallery.tsx + FlaskCard.tsx +
+       PreviewPortal.tsx. Flask-liquid colours are CONTENT identity (the
+       category palette), like a photo's colours — NOT a second audio accent.
+       The audio UI chrome stays strictly one-accent per design-spec.md.
+       ────────────────────────────────────────────────────────────────────── */
+
+    /* Content-identity palette for flask liquid (mirrors the category palette;
+       calm, desaturated, legible in both themes). */
+    :root {
+      --cat-teal:   172 42% 42%;
+      --cat-violet: 262 44% 58%;
+      --cat-amber:  38 68% 50%;
+      --cat-rose:   342 52% 57%;
+      --cat-blue:   212 56% 52%;
+      --cat-green:  150 38% 44%;
+      --cat-slate:  220 16% 52%;
+    }
+    :root[data-theme="dark"] {
+      --cat-teal:   172 44% 56%;
+      --cat-violet: 262 56% 72%;
+      --cat-amber:  38 78% 62%;
+      --cat-rose:   342 62% 70%;
+      --cat-blue:   212 66% 66%;
+      --cat-green:  150 44% 58%;
+      --cat-slate:  220 18% 64%;
+    }
+
+    .page { max-width: 1120px; margin: 0 auto; padding: 28px 24px 120px; }
+
+    header.doc { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+    header.doc h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: -0.01em; }
+    header.doc p { color: hsl(var(--text-muted)); margin: 0; max-width: 64ch; font-size: 14px; line-height: 1.5; }
+
+    /* Cue-variant toggle (prototype control). */
+    .cue-toggle { display: inline-flex; border: 1px solid hsl(var(--border)); border-radius: var(--radius); overflow: hidden; flex: 0 0 auto; }
+    .cue-toggle button {
+      padding: 6px 12px; font-size: 12px; border: none; background: hsl(var(--surface));
+      color: hsl(var(--text-muted)); cursor: pointer; white-space: nowrap;
+      transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+    }
+    .cue-toggle button + button { border-left: 1px solid hsl(var(--border)); }
+    .cue-toggle button[aria-pressed="true"] { background: hsl(var(--accent) / 0.12); color: hsl(var(--text)); }
+    .cue-toggle button:hover { color: hsl(var(--text)); }
+    .ctl-label { font-size: 11px; color: hsl(var(--text-muted)); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 6px; }
+
+    /* ── The Basin: date rail (80px) + bordered group, matching Gallery.tsx ── */
+    .basin { position: relative; margin-top: 28px; }
+    .basin.is-peeking .basin-grid { /* background recedes under the portal */ }
+    .water-bg { transition: filter var(--dur-slow) var(--ease); }
+    .basin.is-peeking .water-bg { filter: url(#memory-ripple); }
+
+    .group { display: grid; grid-template-columns: 80px minmax(0,1fr); column-gap: 0; row-gap: 0; }
+    .group + .group { margin-top: 40px; }
+    .rail { position: relative; padding-top: 4px; }
+    .rail span {
+      position: sticky; top: 8px; display: block; text-align: right; padding-right: 12px;
+      font-size: 11px; font-weight: 500; letter-spacing: 0.02em; color: hsl(var(--text-muted)); white-space: nowrap;
+    }
+    .group-body { border-left: 1px solid hsl(var(--border)); padding-left: 20px; }
+    .fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(188px, 220px)); justify-content: start; gap: 16px 16px; }
+
+    /* ── Flask card (mirror of FlaskCard.tsx) ─────────────────────────────── */
+    .fcard {
+      position: relative; display: flex; flex-direction: column; width: 100%;
+      padding: 12px; border: none; border-radius: var(--radius); text-align: left;
+      background: transparent; color: inherit; cursor: pointer;
+      transition: background var(--dur-fast) var(--ease);
+    }
+    .fcard:hover { background: hsl(var(--surface-raised)); }
+    .flaskbox { display: flex; height: 84px; align-items: center; justify-content: center; }
+    .flaskbox svg { display: block; }
+
+    .ftitle-row { display: flex; gap: 6px; align-items: flex-start; margin-top: 8px; }
+    .cat-dots { display: inline-flex; margin-top: 5px; flex: 0 0 auto; }
+    .cat-dots i { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+    .cat-dots i + i { margin-left: -2px; }
+    .ftitle { min-width: 0; flex: 1 1 auto; font-size: 14px; font-weight: 500; color: hsl(var(--text));
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
+
+    .fexcerpt { margin-top: 4px; font-size: 14px; line-height: 1.35; color: hsl(var(--text-muted));
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    /* When the excerpt is a transcript's first line (audio-only note), a faint
+       leading glyph marks its provenance — calm, not a second colour. */
+    .fexcerpt.from-transcript { display: flex; gap: 5px; }
+    .fexcerpt.from-transcript .tx-glyph { flex: 0 0 auto; margin-top: 1px; color: hsl(var(--text-muted) / 0.7); }
+    .fexcerpt.from-transcript .tx-glyph svg { width: 12px; height: 12px; display: block; }
+    .fexcerpt.from-transcript .tx-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-style: italic; }
+
+    .fmeta { margin-top: 6px; display: flex; align-items: center; gap: 6px; min-width: 0;
+      font-size: 11px; color: hsl(var(--text-muted)); }
+    .tag { max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      background: hsl(var(--surface-raised)); border-radius: 999px; padding: 0 7px; line-height: 18px; }
+    .fcard:hover .tag { background: hsl(var(--surface)); }
+    .ftime { flex: 0 0 auto; white-space: nowrap; }
+
+    /* ── RECOGNITION CUE — Variant B: inline duration chip (in the meta row) ──
+       Reuses the tag-chip shape; the only addition is a tiny ∿ glyph + a MONO
+       duration. No colour — the glyph + mono digits do the work. */
+    .audio-chip {
+      display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto;
+      background: hsl(var(--surface-raised)); border-radius: 999px; padding: 0 7px; line-height: 18px;
+      font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+      color: hsl(var(--text-muted));
+    }
+    .fcard:hover .audio-chip { background: hsl(var(--surface)); }
+    .audio-chip svg { width: 11px; height: 11px; display: block; }
+
+    /* ── RECOGNITION CUE — Variant A: corner waveform glyph ───────────────────
+       A tiny ∿ in the top-right corner (where the working-set bookmark lives),
+       ghost-muted. Conveys only "this memory holds audio". */
+    .corner-audio { position: absolute; right: 8px; top: 8px; color: hsl(var(--text-muted) / 0.75); }
+    .corner-audio svg { width: 15px; height: 15px; display: block; }
+
+    .bookmark { position: absolute; right: 8px; top: 8px; color: hsl(var(--text-muted) / 0.7); }
+    .bookmark svg { width: 13px; height: 13px; display: block; }
+
+    /* ── PreviewPortal (mirror of PreviewPortal.tsx) ──────────────────────── */
+    .focus-backdrop { position: fixed; inset: 0; z-index: 30; pointer-events: none;
+      -webkit-mask-image: radial-gradient(130% 110% at 50% 50%, transparent 38%, #000 78%);
+              mask-image: radial-gradient(130% 110% at 50% 50%, transparent 38%, #000 78%); }
+    .focus-backdrop-fx { position: absolute; inset: 0; backdrop-filter: blur(5px) saturate(0.92);
+      background: hsl(var(--surface) / 0.35); }
+    :root[data-theme="dark"] .focus-backdrop-fx { background: hsl(222 30% 6% / 0.5); }
+
+    .portal-layer { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 24px; pointer-events: none; }
+    .portal {
+      position: relative; display: flex; flex-direction: column; overflow: hidden;
+      max-height: 82vh; width: min(720px, 86vw);
+      border: 1px solid hsl(var(--border) / 0.7); border-radius: 18px;
+      background: hsl(var(--surface) / 0.94);
+      box-shadow: 0 40px 120px -24px rgba(0,0,0,0.55);
+      backdrop-filter: blur(3px) saturate(1.2);
+      pointer-events: auto;
+      animation: portal-in var(--dur-slow) var(--ease);
+    }
+    @keyframes portal-in { from { opacity: 0; transform: translateY(8px) scale(0.985); } to { opacity: 1; transform: none; } }
+    /* Outer halo — the sanctioned magic lives OUTSIDE the memory, never a wash on text. */
+    .portal-halo { position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
+      box-shadow: 0 0 0 1px hsl(var(--accent) / 0.08), 0 0 60px -10px hsl(var(--accent-glow) / 0.22); }
+    .portal-body { position: relative; z-index: 2; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 30px 34px 34px; }
+    .portal-body::-webkit-scrollbar { width: 0; }
+
+    .nv-title { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 14px; color: hsl(var(--text)); }
+    .nv-p { font-size: 16px; line-height: 1.7; margin: 0 0 14px; color: hsl(var(--text)); }
+    .nv-p.muted { color: hsl(var(--text-muted)); }
+
+    /* The "no autoplay" affordance — a quiet, honest line, never a banner. */
+    .peek-audio-wrap { margin: 18px 0; }
+    .peek-hint { margin-top: 8px; display: flex; align-items: center; gap: 7px; font-size: 12px; color: hsl(var(--text-muted)); }
+    .peek-hint.is-hidden { opacity: 0; pointer-events: none; }
+
+    /* ── Annotations panel ────────────────────────────────────────────────── */
+    .notes { margin-top: 48px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+    .note-card { border: 1px solid hsl(var(--border)); border-radius: 10px; padding: 16px 18px; background: hsl(var(--surface)); }
+    .note-card h3 { margin: 0 0 8px; font-size: 13px; letter-spacing: 0.01em; }
+    .note-card p { margin: 0 0 8px; font-size: 13px; line-height: 1.55; color: hsl(var(--text-muted)); }
+    .note-card p:last-child { margin-bottom: 0; }
+    .note-card .rec { color: hsl(var(--text)); font-weight: 500; }
+    .note-card b { color: hsl(var(--text)); font-weight: 600; }
+    .divider-note { font-size: 11px; color: hsl(var(--text-muted)); margin-top: 10px; }
+
+    .hintbar { margin-top: 14px; font-size: 12px; color: hsl(var(--text-muted)); }
+    .hintbar .kbd { margin: 0 2px; }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" aria-label="Toggle theme"></button>
+
+  <!-- ripple filter for the receding background (ported from Gallery.tsx) -->
+  <svg aria-hidden style="position:fixed; width:0; height:0;">
+    <filter id="memory-ripple" x="-12%" y="-12%" width="124%" height="124%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.0045 0.006" numOctaves="1" seed="4" result="noise">
+        <animate attributeName="baseFrequency" dur="28s" values="0.0045 0.006;0.006 0.0045;0.0045 0.006" repeatCount="indefinite" />
+      </feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" xChannelSelector="R" yChannelSelector="G" scale="9" />
+    </filter>
+  </svg>
+
+  <div class="page">
+    <header class="doc">
+      <div>
+        <h1>Audio on the Basin — recognition &amp; peek</h1>
+        <p>Home is a field of flask cards. A card must whisper <b>"there's a recording in here"</b> at a glance — without a thumbnail and without a second accent. Hovering a card peeks the full memory; an audio note's peek shows the real player bar, which <b>never auto-plays</b>. Hover a flask to peek; flip the theme (top-right). The call peeks against the real 19-minute recording.</p>
+      </div>
+      <div>
+        <div class="ctl-label">Recognition cue</div>
+        <div class="cue-toggle" id="cueToggle" role="group" aria-label="Recognition cue variant">
+          <button data-cue="chip" aria-pressed="true">Duration chip</button>
+          <button data-cue="glyph" aria-pressed="false">Corner glyph</button>
+          <button data-cue="both" aria-pressed="false">Both</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="basin" id="basin">
+      <div class="water-bg" id="waterBg">
+        <!-- groups injected -->
+      </div>
+    </div>
+
+    <div class="hintbar">
+      In the peek: <span class="kbd">Space</span> plays / pauses the recording · <span class="kbd">Esc</span> closes · hover another flask to swap. One recording plays at a time.
+    </div>
+
+    <!-- ANNOTATIONS -->
+    <div class="notes">
+      <div class="note-card">
+        <h3>Recognition cue — two variants</h3>
+        <p><b>A · Corner glyph</b> — a tiny ∿ where the bookmark sits. Says only "has audio." Lightest touch; survives when the meta row is hidden or the card is tiny.</p>
+        <p><b>B · Duration chip</b> — <span style="font-family:var(--font-mono)">∿ 19:03</span> in the existing meta row, reusing the tag-chip shape. Says "has audio <i>and</i> roughly how long" — "the 19-min call" vs "the 30-sec memo" is real recognition.</p>
+        <p class="rec">Recommendation: <b>Duration chip (B)</b>. It carries more recognition per pixel, reuses a pattern already on the card, and the mono digits sit calmly in the meta line. Keep the corner glyph (A) only as the fallback for density modes where the meta row is suppressed. Avoid "Both" as the default — it double-signals.</p>
+      </div>
+      <div class="note-card">
+        <h3>Peek playback — no autoplay</h3>
+        <p>Hovering is for <b>recognition</b>, not consumption. Auto-playing a 19-minute call the instant a flask is peeked is aggressive, noisy, and collides the moment two cards are brushed past.</p>
+        <p>So the peeked bar opens <b>paused</b> with a quiet affordance: <span class="kbd">Space</span> to play (or click ▶). The waveform + mono duration already tell the story at a glance; sound is opt-in.</p>
+        <p class="rec">Decision: <b>peek never auto-plays</b>; it offers a calm, keyboard-first play affordance.</p>
+      </div>
+      <div class="note-card">
+        <h3>Voice-memo (audio-only) on a flask</h3>
+        <p>A note with no typed text still needs an excerpt to be recognisable. When a transcript exists, the flask borrows its <b>first line</b> — shown in a faint italic with a small ∿ marking its provenance (see "shower idea" and "that rattle").</p>
+        <p>The flask fill stays low (little text written) so audio-only memos read as light, quick vessels — honest to what they are.</p>
+      </div>
+      <div class="note-card">
+        <h3>Spec tension to resolve</h3>
+        <p><b>Space is overloaded.</b> On the Basin, <span class="kbd">Space</span> pins the peek (Gallery.tsx); on the audio bar, design-spec §3 gives <span class="kbd">Space</span> to play. They don't actually collide — the card owns Space until a peek is pinned, then the <i>bar</i> owns Space once focused — but the two-tier model needs a deliberate call so it never feels ambiguous.</p>
+        <p>Second: the real hover-peek is <b>inert</b> (pointer-events-none); only a pinned peek is interactive. So "play on peek" strictly means "play on <i>pinned</i> peek." This proto makes the hover peek interactive to demo playback; flag which tier gets the play affordance.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="_audio.js"></script>
+  <script>
+    const A = Pensieve.Audio;
+    A.theme.init();
+    const SRC = "assets/audio.mp3";
+
+    /* ── flask glyph (simplified port of src/components/Flask.tsx) ─────────── */
+    const SHAPES = {
+      "round-bottom": { d: "M10 3 C10 10 10 11 8.5 12.5 C4.5 16 3 20 5 24 C7 27.5 9.5 28 12 28 C14.5 28 17 27.5 19 24 C21 20 19.5 16 15.5 12.5 C14 11 14 10 14 3 Z" },
+      erlenmeyer:     { d: "M9.5 3 L9.5 10 L4 25 C3.6 26.2 4.2 27 5.4 27 L18.6 27 C19.8 27 20.4 26.2 20 25 L14.5 10 L14.5 3 Z" },
+      vial:           { d: "M8 3 L8 23.5 C8 27 9.5 28 12 28 C14.5 28 16 27 16 23.5 L16 3 Z" },
+      "potion-bottle":{ d: "M9.5 3 L9.5 7 C9.5 9 5 9.5 5 13 L5 25 C5 27 6 27.5 7.5 27.5 L16.5 27.5 C18 27.5 19 27 19 25 L19 13 C19 9.5 14.5 9 14.5 7 L14.5 3 Z" },
+      teardrop:       { d: "M12 3 C12 3 6.5 11 5.5 16 C4.5 21.5 8 27 12 27 C16 27 19.5 21.5 18.5 16 C17.5 11 12 3 12 3 Z" },
+      beaker:         { d: "M5 7 L19 7 L19 25 C19 27 18 27.5 16 27.5 L8 27.5 C6 27.5 5 27 5 25 Z", noCork: true },
+    };
+    // fill: 0..1 liquid fraction; the surface Y rides from ~26 (empty) to ~7 (brim).
+    function flaskSVG(shape, color, fill, size) {
+      const S = SHAPES[shape] || SHAPES["round-bottom"];
+      const uid = "fl" + Math.random().toString(36).slice(2, 8);
+      const surfaceY = 26 - (26 - 7) * Math.max(0, Math.min(1, fill));
+      const liquid = `hsl(var(--cat-${color}))`;
+      return `
+        <svg width="${size}" height="${size * 30 / 24}" viewBox="0 0 24 30" fill="none"
+             style="color: hsl(var(--text-muted) / 0.85);" aria-hidden="true">
+          <defs>
+            <clipPath id="${uid}c"><path d="${S.d}" /></clipPath>
+            <radialGradient id="${uid}g" cx="50%" cy="62%" r="55%">
+              <stop offset="0%" stop-color="${liquid}" stop-opacity="0.35" />
+              <stop offset="100%" stop-color="${liquid}" stop-opacity="0" />
+            </radialGradient>
+          </defs>
+          <!-- glow (radial, cheap) -->
+          <ellipse cx="12" cy="18" rx="13" ry="14" fill="url(#${uid}g)" />
+          <!-- liquid, clipped to the glass -->
+          <g clip-path="url(#${uid}c)">
+            <rect x="0" y="${surfaceY}" width="24" height="${30 - surfaceY}" fill="${liquid}" fill-opacity="0.62" />
+            <ellipse cx="12" cy="${surfaceY}" rx="9" ry="1.1" fill="${liquid}" fill-opacity="0.85" />
+          </g>
+          <!-- glass outline -->
+          <path d="${S.d}" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linejoin="round" />
+          <!-- glass highlight -->
+          <path d="M9.2 ${S.noCork ? 9 : 5} C7.9 11 7.3 15 7.8 19" stroke="hsl(0 0% 100% / 0.45)" stroke-width="1.1" stroke-linecap="round" fill="none" />
+          ${S.noCork ? "" : '<rect x="9" y="1.2" width="6" height="3" rx="1" fill="currentColor" fill-opacity="0.85" />'}
+        </svg>`;
+    }
+
+    /* ── waveform glyph for the recognition cues (∿) ───────────────────────── */
+    const WAVE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M4 10v4"/><path d="M8 7v10"/><path d="M12 4v16"/><path d="M16 8v8"/><path d="M20 10v4"/></svg>';
+    const BOOKMARK = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 4h12a1 1 0 0 1 1 1v15l-7-4-7 4V5a1 1 0 0 1 1-1Z"/></svg>';
+
+    /* ── mock Basin data ───────────────────────────────────────────────────
+       audio: { dur:"m:ss", transcript:bool } | null.  audioOnly: excerpt is the
+       transcript's first line. body: paragraphs rendered in the peek. ───────── */
+    const GROUPS = [
+      { label: "This week", notes: [
+        { id:"call", title:"Discovery call — Eliška", shape:"round-bottom", color:"blue", fill:0.72,
+          cats:["blue"], tags:["sales","q4"], time:"2d ago",
+          excerpt:"Recorded the whole call. The pricing objection comes up around the eight-minute mark — worth revisiting before the follow-up.",
+          audio:{ dur:"19:03", transcript:true },
+          body:["Recorded the whole call. The pricing objection comes up around the eight-minute mark — worth revisiting before the follow-up.",
+                "Next step: send the recap and the one-pager by Thursday."] },
+
+        { id:"memo", title:"Shower idea — capture-on-listen", shape:"vial", color:"teal", fill:0.16,
+          cats:["teal"], tags:["product"], time:"3d ago",
+          excerpt:"What if the capture bar just listened the moment you opened it, and you could throw a thought at it before it even…",
+          audioOnly:true, audio:{ dur:"1:52", transcript:true },
+          body:[] },
+
+        { id:"standup", title:"Standup notes — Tue", shape:"erlenmeyer", color:"slate", fill:0.44,
+          cats:["slate","amber"], tags:["team"], time:"3d ago",
+          excerpt:"Shipped the drag reorder. Blocked on the OneDrive token refresh — Petr is picking it up today.",
+          audio:null,
+          body:["Shipped the drag reorder. Blocked on the OneDrive token refresh — Petr is picking it up today.",
+                "Demo on Friday; keep the scope to capture + peek."] },
+
+        { id:"therapy", title:"Thursday reflection", shape:"teardrop", color:"violet", fill:0.58,
+          cats:["violet"], tags:["journal","self"], time:"4d ago",
+          excerpt:"Talked through the thing with my father again. The pattern is clearer now — I retreat the moment I feel judged.",
+          audio:{ dur:"42:17", transcript:true },
+          body:["Talked through the thing with my father again. The pattern is clearer now — I retreat the moment I feel judged, and then I call it 'being busy.'",
+                "Homework: notice it once this week without fixing it."] },
+      ]},
+      { label: "September", notes: [
+        { id:"krumlov", title:"Weekend in Český Krumlov", shape:"potion-bottle", color:"green", fill:0.5,
+          cats:["green"], tags:["travel"], time:"Sep 21",
+          excerpt:"The river loop at dawn, nobody around. The light on the castle wall — come back in autumn with the good camera.",
+          audio:null,
+          body:["The river loop at dawn, nobody around. The light on the castle wall — come back in autumn with the good camera."] },
+
+        { id:"deepwork", title:"Deep Work — notes", shape:"beaker", color:"amber", fill:0.66,
+          cats:["amber"], tags:["reading"], time:"Sep 18",
+          excerpt:"Depth is a competitive advantage precisely because it's rare. Schedule it like a meeting you can't move.",
+          audio:null,
+          body:["Depth is a competitive advantage precisely because it's rare. Schedule it like a meeting you can't move."] },
+
+        { id:"car", title:"That rattle — front left", shape:"vial", color:"rose", fill:0.12,
+          cats:["rose"], tags:["house"], time:"Sep 15",
+          excerpt:"There it is — the rattle when I turn left over a bump. Recording it for the mechanic before it disappears again.",
+          audioOnly:true, audio:{ dur:"0:37", transcript:true },
+          body:[] },
+
+        { id:"q3", title:"Q3 planning", shape:"erlenmeyer", color:"blue", fill:0.8,
+          cats:["blue","violet"], tags:["planning"], time:"Sep 8",
+          excerpt:"Three bets, not nine. Audio capture is bet one — it's the thing only we will do calmly.",
+          audio:null,
+          body:["Three bets, not nine. Audio capture is bet one — it's the thing only we will do calmly."] },
+      ]},
+    ];
+
+    /* ── render the Basin ──────────────────────────────────────────────────── */
+    let CUE = "chip";
+    const waterBg = document.getElementById("waterBg");
+
+    function renderBasin() {
+      waterBg.innerHTML = "";
+      GROUPS.forEach((g) => {
+        const group = document.createElement("div"); group.className = "group";
+        const rail = document.createElement("div"); rail.className = "rail";
+        rail.innerHTML = `<span>${g.label}</span>`;
+        const bodyWrap = document.createElement("div"); bodyWrap.className = "group-body";
+        const grid = document.createElement("div"); grid.className = "fgrid";
+        g.notes.forEach((n) => grid.appendChild(renderCard(n)));
+        bodyWrap.appendChild(grid);
+        group.append(rail, bodyWrap);
+        waterBg.appendChild(group);
+      });
+    }
+
+    function renderCard(n) {
+      const card = document.createElement("button");
+      card.className = "fcard"; card.type = "button"; card.dataset.id = n.id;
+      card.setAttribute("aria-label", n.title + (n.audio ? `, holds a ${n.audio.dur} recording` : ""));
+
+      const hasAudio = !!n.audio;
+      const showGlyph = hasAudio && (CUE === "glyph" || CUE === "both");
+      const showChip  = hasAudio && (CUE === "chip"  || CUE === "both");
+
+      // corner: audio glyph (variant A) takes the bookmark slot when shown.
+      const corner = showGlyph
+        ? `<span class="corner-audio" title="Holds audio">${WAVE}</span>`
+        : "";
+
+      const dots = (n.cats || []).slice(0, 2)
+        .map((c) => `<i style="background: hsl(var(--cat-${c}))"></i>`).join("");
+
+      const excerpt = n.audioOnly
+        ? `<span class="fexcerpt from-transcript"><span class="tx-glyph">${WAVE}</span><span class="tx-text">${n.excerpt}</span></span>`
+        : `<span class="fexcerpt">${n.excerpt}</span>`;
+
+      const chip = showChip
+        ? `<span class="audio-chip">${WAVE}<span>${n.audio.dur}</span></span>` : "";
+      const tags = (n.tags || []).slice(0, 2).map((t) => `<span class="tag">${t}</span>`).join("");
+
+      card.innerHTML = `
+        ${corner}
+        <span class="flaskbox">${flaskSVG(n.shape, n.color, n.fill, 64)}</span>
+        <span class="ftitle-row">
+          ${dots ? `<span class="cat-dots">${dots}</span>` : ""}
+          <span class="ftitle">${n.title}</span>
+        </span>
+        ${excerpt}
+        <span class="fmeta">${chip}${tags}<span class="ftime">${n.time}</span></span>`;
+
+      card.addEventListener("pointerenter", () => openPeek(n, card));
+      card.addEventListener("click", (e) => { e.preventDefault(); openPeek(n, card); });
+      return card;
+    }
+
+    /* ── PreviewPortal peek ─────────────────────────────────────────────────
+       NO AUTOPLAY. One controller per open peek, destroyed on close/swap, so
+       Pensieve.Audio's one-plays-at-a-time holds and nothing lingers. ──────── */
+    const basin = document.getElementById("basin");
+    let peek = null;           // { id, el, ctrl, cleanup }
+    let PEAKS = null;
+
+    function closePeek() {
+      if (!peek) return;
+      if (peek.ctrl) { peek.ctrl.pause(); peek.ctrl.destroy && peek.ctrl.destroy(); }
+      peek.el.remove();
+      peek = null;
+      basin.classList.remove("is-peeking");
+      document.querySelector(".focus-backdrop")?.remove();
+    }
+
+    function openPeek(n, cardEl) {
+      if (peek && peek.id === n.id) return;   // already peeking this one
+      closePeek();
+      basin.classList.add("is-peeking");
+
+      const backdrop = document.createElement("div");
+      backdrop.className = "focus-backdrop";
+      backdrop.innerHTML = '<div class="focus-backdrop-fx"></div>';
+      document.body.appendChild(backdrop);
+
+      const layer = document.createElement("div"); layer.className = "portal-layer";
+      const portal = document.createElement("div"); portal.className = "portal"; portal.setAttribute("role", "region");
+      portal.setAttribute("aria-label", "Preview: " + n.title);
+      portal.innerHTML = '<span class="portal-halo" aria-hidden="true"></span>';
+      const body = document.createElement("div"); body.className = "portal-body";
+      portal.appendChild(body);
+      layer.appendChild(portal);
+      document.body.appendChild(layer);
+
+      // the memory content
+      const h = document.createElement("h2"); h.className = "nv-title"; h.textContent = n.title;
+      body.appendChild(h);
+
+      let ctrl = null;
+      // audio-only: the recording IS the note — bar first, then the transcript's
+      // first line as the body text (mirrors the flask excerpt).
+      if (n.audioOnly) {
+        ctrl = mountPeekBar(body, n);
+        const p = document.createElement("p"); p.className = "nv-p muted";
+        p.style.fontStyle = "italic";
+        p.textContent = "“" + n.excerpt + "”";
+        body.appendChild(p);
+        const prov = document.createElement("p"); prov.className = "nv-p muted"; prov.style.fontSize = "12px";
+        prov.textContent = "Transcript · first line shown as the memory's excerpt.";
+        body.appendChild(prov);
+      } else {
+        (n.body || []).forEach((para, i) => {
+          const p = document.createElement("p"); p.className = "nv-p"; p.textContent = para;
+          body.appendChild(p);
+          if (i === 0 && n.audio) ctrl = mountPeekBar(body, n);  // bar sits in the writing flow
+        });
+      }
+
+      // The backdrop stays pointer-events:none (CSS) so flasks remain live behind
+      // the portal — hovering another flask SWAPS the peek, exactly like the real
+      // Gallery. Clicking anywhere outside the portal closes it (handler below).
+      peek = { id: n.id, el: layer, backdrop, ctrl };
+    }
+
+    // build the real kit bar inside the peek, PAUSED, with a quiet play affordance.
+    function mountPeekBar(host, n) {
+      const wrap = document.createElement("div"); wrap.className = "peek-audio-wrap";
+      const barHost = document.createElement("div");
+      wrap.appendChild(barHost);
+      const hint = document.createElement("div"); hint.className = "peek-hint";
+      hint.innerHTML = '<span class="kbd">Space</span><span>to play — peeking never starts sound on its own</span>';
+      wrap.appendChild(hint);
+      host.appendChild(wrap);
+
+      const built = buildBar(barHost, PEAKS, {
+        transcript: n.audio.transcript ? "present" : "absent",
+        duration: 1143.85,
+      });
+      // hide the hint once it has played at least once
+      built.ctrl.on("play", () => hint.classList.add("is-hidden"));
+      return built.ctrl;
+    }
+
+    /* ── buildBar — ported from 00-overview.html (the reference composition) ─ */
+    function buildBar(host, peaks, opts) {
+      opts = opts || {};
+      const bar = document.createElement("div");
+      bar.className = "audio-bar" + (opts.compact ? " is-compact" : "");
+
+      const play = document.createElement("button");
+      play.className = "audio-play" + (opts.compact ? " is-sm" : "");
+      play.setAttribute("aria-label", "Play"); play.innerHTML = A.icon("play");
+
+      const wave = document.createElement("div"); wave.className = "audio-wave";
+      wave.innerHTML = '<canvas></canvas><div class="audio-scrubline"></div><div class="audio-scrubtime"></div>';
+      const canvas = wave.querySelector("canvas");
+
+      const time = document.createElement("span"); time.className = "audio-time";
+
+      const tr = document.createElement("button");
+      tr.className = "audio-iconbtn audio-transcript is-" + (opts.transcript || "absent");
+      tr.innerHTML = A.icon("transcript");
+      tr.setAttribute("aria-label", opts.transcript === "present" ? "Open transcript" : "No transcript yet");
+
+      const moreWrap = document.createElement("div"); moreWrap.style.position = "relative"; moreWrap.style.flex = "0 0 auto";
+      const more = document.createElement("button");
+      more.className = "audio-iconbtn"; more.setAttribute("aria-label", "More"); more.setAttribute("aria-haspopup", "menu");
+      more.innerHTML = A.icon("more"); moreWrap.appendChild(more);
+
+      bar.append(play, wave, time, tr, moreWrap);
+      host.appendChild(bar);
+
+      const ctrl = opts.controller || A.controller(SRC);
+      if (opts.duration) ctrl.setFallbackDuration(opts.duration);
+      const wf = A.Waveform(canvas, peaks);
+      const render = () => wf.render(ctrl.duration() ? ctrl.time() / ctrl.duration() : 0);
+      const paint = () => { time.innerHTML = '<span class="cur">' + A.fmt(ctrl.time()) + '</span><span class="sep">/</span>' + A.fmt(ctrl.duration()); };
+      paint(); render();
+
+      play.addEventListener("click", () => ctrl.toggle());
+      ctrl.on("play",  () => { bar.classList.add("is-playing"); play.innerHTML = A.icon("pause"); play.setAttribute("aria-label", "Pause"); });
+      ctrl.on("pause", () => { bar.classList.remove("is-playing"); play.innerHTML = A.icon("play"); play.setAttribute("aria-label", "Play"); });
+      ctrl.on("time",  () => { render(); paint(); });
+      ctrl.on("ready", () => paint());
+
+      A.bindScrub(wave, wf, {
+        onSeek: (f) => ctrl.seekFrac(f), onPreview: () => {},
+        previewTime: (f) => A.fmt((ctrl.duration() || 0) * f),
+      });
+
+      more.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (moreWrap.querySelector(".audio-menu")) { closeMenu(); return; }
+        const bd = document.createElement("div"); bd.className = "audio-menu-backdrop";
+        const menu = document.createElement("div"); menu.className = "audio-menu"; menu.setAttribute("role", "menu");
+        menu.style.top = "34px"; menu.style.right = "0";
+        const hasTr = opts.transcript === "present";
+        menu.innerHTML =
+          '<button role="menuitem">' + A.icon("download") + 'Download recording</button>' +
+          '<button role="menuitem">' + A.icon("transcript") + (hasTr ? 'Open transcript' : 'Create transcript') + '</button>';
+        moreWrap.append(bd, menu); more.setAttribute("aria-expanded", "true");
+        bd.addEventListener("click", (ev) => { ev.stopPropagation(); closeMenu(); });
+        function closeMenu() { menu.remove(); bd.remove(); more.removeAttribute("aria-expanded"); }
+      });
+
+      return { ctrl, wf, bar };
+    }
+
+    /* ── click outside the portal (but not on a flask) closes the peek ──────── */
+    window.addEventListener("pointerdown", (e) => {
+      if (!peek) return;
+      if (e.target.closest(".portal")) return;   // interacting with the memory
+      if (e.target.closest(".fcard")) return;     // a flask click → openPeek swaps
+      closePeek();
+    });
+
+    /* ── global keys for the peek ───────────────────────────────────────────── */
+    window.addEventListener("keydown", (e) => {
+      if (!peek) return;
+      if (e.key === "Escape") { closePeek(); }
+      else if (e.key === " " && peek.ctrl) {
+        // Space plays/pauses the peeked recording. Preventing scroll is the honest
+        // behaviour while a peek with audio is open.
+        e.preventDefault();
+        peek.ctrl.toggle();
+      }
+    });
+
+    /* ── cue toggle ──────────────────────────────────────────────────────────── */
+    document.getElementById("cueToggle").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-cue]"); if (!btn) return;
+      CUE = btn.dataset.cue;
+      [...e.currentTarget.querySelectorAll("button")].forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+      renderBasin();
+    });
+
+    /* ── boot ──────────────────────────────────────────────────────────────── */
+    A.loadAssets().then(({ peaks }) => {
+      PEAKS = peaks;
+      renderBasin();
+    }).catch((err) => {
+      document.querySelector(".page").insertAdjacentHTML("afterbegin",
+        '<div class="note-card" style="border-color:hsl(var(--danger)/.5); margin-bottom:16px">' + err.message + '</div>');
+      renderBasin();
+    });
+  </script>
+</body>
+</html>

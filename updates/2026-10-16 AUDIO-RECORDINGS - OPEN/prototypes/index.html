@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pensieve · Audio recordings — prototypes</title>
+<link rel="stylesheet" href="_kit.css" />
+<style>
+  /* Page-local layout only — all colour/type/radius comes from _kit.css tokens. */
+  body { max-width: 1040px; margin: 0 auto; padding: 48px 24px 96px; }
+  .lede { color: hsl(var(--text-muted)); font-size: 14px; max-width: 64ch; line-height: 1.6; }
+  h1 { font-size: 28px; letter-spacing: -0.02em; margin: 0 0 8px; }
+  h2 { font-size: 18px; margin: 48px 0 4px; letter-spacing: -0.01em; }
+  .sub { color: hsl(var(--text-muted)); font-size: 12px; margin: 0 0 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .card {
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 18px; border: 1px solid hsl(var(--border)); border-radius: var(--radius-lg, 10px);
+    background: hsl(var(--surface-sunken)); text-decoration: none; color: inherit;
+    transition: border-color 180ms var(--ease, ease), background 180ms var(--ease, ease);
+  }
+  .card:hover { border-color: hsl(var(--accent) / 0.5); background: hsl(var(--surface-raised)); }
+  .card:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
+  .card .row { display: flex; align-items: baseline; gap: 10px; }
+  .num { font-family: var(--font-mono); font-size: 11px; color: hsl(var(--accent)); font-weight: 600; }
+  .card h3 { font-size: 15px; margin: 0; }
+  .card p { font-size: 13px; color: hsl(var(--text-muted)); line-height: 1.5; margin: 0; }
+  .try { font-size: 12px; color: hsl(var(--text)); }
+  .try b { color: hsl(var(--accent)); font-weight: 600; }
+  .badge {
+    align-self: flex-start; font-size: 11px; font-family: var(--font-mono);
+    padding: 2px 8px; border-radius: 999px; border: 1px solid hsl(var(--border));
+    color: hsl(var(--text-muted)); background: hsl(var(--surface));
+  }
+  .badge.rec { color: hsl(var(--accent)); border-color: hsl(var(--accent) / 0.4); }
+  .decisions { margin-top: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .decision {
+    padding: 16px 18px; border: 1px solid hsl(var(--border)); border-left: 3px solid hsl(var(--accent) / 0.6);
+    border-radius: var(--radius-lg, 10px); background: hsl(var(--surface-sunken));
+  }
+  .decision h4 { margin: 0 0 4px; font-size: 14px; }
+  .decision p { margin: 0; font-size: 13px; color: hsl(var(--text-muted)); line-height: 1.55; }
+  .decision .lean { color: hsl(var(--text)); }
+  .decision .lean b { color: hsl(var(--accent)); }
+  .note { margin-top: 10px; font-size: 12px; color: hsl(var(--text-muted)); }
+  code { font-family: var(--font-mono); font-size: 0.92em; background: hsl(var(--surface-raised)); padding: 1px 5px; border-radius: 4px; }
+  .foot { margin-top: 56px; font-size: 12px; color: hsl(var(--text-muted)); border-top: 1px solid hsl(var(--border)); padding-top: 16px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<button class="theme-toggle" data-theme-toggle aria-label="Toggle light / dark">◐</button>
+
+<h1>Audio recordings — design prototypes</h1>
+<p class="lede">
+  The design exploration for making audio a first-class medium in Pensieve (desktop first).
+  Every prototype is <b>live</b> against the real 19-minute diarized sales call and its real
+  transcript (206 segments, 2,390 word-timings, 2 speakers). One shared design language
+  (<code>_kit.css</code>) and one shared playback/sync engine (<code>_audio.js</code>) run
+  underneath them all. <b>Open each by double-click.</b> Use the ◐ toggle (top-right) to check
+  light &amp; dark. Click words in the transcript to seek; only one recording plays at a time.
+</p>
+
+<h2>Start here</h2>
+<p class="sub">The design language, every state, and the core ideas on one annotated sheet.</p>
+<div class="grid">
+  <a class="card" href="00-overview.html">
+    <div class="row"><span class="num">00</span><h3>Design language overview</h3></div>
+    <p>The whole audio system on one page: bar anatomy, all states, waveform treatment, the transcript reader, and the split-view idea — annotated.</p>
+    <span class="try try">Try: <b>play a bar</b>, scrub, then read the mini transcript as it highlights.</span>
+  </a>
+</div>
+
+<h2>The six surfaces</h2>
+<p class="sub">One focused prototype per place audio is seen or touched.</p>
+<div class="grid">
+
+  <a class="card" href="01-inline-bar.html">
+    <div class="row"><span class="num">01</span><h3>Inline bar in a note</h3></div>
+    <p>The canonical player bar living inside the writing column — all 8 states, the ⋯ menu, and narrow-width behaviour.</p>
+    <span class="try">Try: <b>play the hero bar</b>, open the ⋯ menu, scan the state sequence.</span>
+  </a>
+
+  <a class="card" href="02-capture.html">
+    <div class="row"><span class="num">02</span><h3>Record &amp; capture</h3></div>
+    <p>Slash-menu → live recorder (waveform fills) → “Saving…” (gold) → the settled, playable bar.</p>
+    <span class="try">Try: <b>step through</b> the 4 stages (or Auto-play), then play the settled bar.</span>
+    <span class="badge">Decision #3: capture entry point</span>
+  </a>
+
+  <a class="card" href="03-in-gallery.html">
+    <div class="row"><span class="num">03</span><h3>Audio in a gallery</h3></div>
+    <p>The hard one: a horizontal bar among aspect-ratio image tiles. Three options, side by side, with a live row-height slider.</p>
+    <span class="try">Try: <b>drag the row-height slider</b>; play audio in each option.</span>
+    <span class="badge rec">Decision #1 · recommends Option C</span>
+  </a>
+
+  <a class="card" href="04-transcript-split.html">
+    <div class="row"><span class="num">04</span><h3>Transcript Split View</h3></div>
+    <p>The showcase: editor left, transcript right, player docked on top, words highlighting as it plays. Draggable divider; one playhead, two faces.</p>
+    <span class="try">Try: <b>click a word</b> to jump; press play and watch it track; drag the divider.</span>
+    <span class="badge rec">Decisions #2 #4 #5 (variants inside)</span>
+  </a>
+
+  <a class="card" href="05-accio-hit.html">
+    <div class="row"><span class="num">05</span><h3>Accio search hit</h3></div>
+    <p>Spoken words become searchable. Transcript hits show as timecoded jump-lines, distinct from plain text hits — no second colour.</p>
+    <span class="try">Try: search <b>problém</b>, <b>partnerku</b>, <b>kouč</b>; click a timecoded line to jump.</span>
+  </a>
+
+  <a class="card" href="06-home-flask.html">
+    <div class="row"><span class="num">06</span><h3>Home / flask recognition</h3></div>
+    <p>How an audio note is recognised at a glance on the Basin, and how the hover peek plays (it never auto-plays).</p>
+    <span class="try">Try: <b>hover a flask</b> with audio; toggle the two recognition cues.</span>
+  </a>
+</div>
+
+<h2>Decisions for you</h2>
+<p class="sub">The prototypes make each of these tangible — pick, and I lock the design (P2) before any app code.</p>
+<div class="decisions">
+  <div class="decision">
+    <h4>#1 · Audio inside a gallery</h4>
+    <p>A bar has no aspect ratio, so it fights the justified image strip. See prototype 03.</p>
+    <p class="lean">Lean: <b>Option C</b> — a waveform-card tile that opens the canonical bar in a “Now playing” dock. Obeys the tile math and keeps “one bar everywhere.”</p>
+  </div>
+  <div class="decision">
+    <h4>#2 · Transcript: Split View vs full overlay</h4>
+    <p>Desktop default is the resizable split (new to the shell). Narrow windows fall back to a full overlay. See prototype 04.</p>
+    <p class="lean">Lean: <b>split on desktop</b>, overlay only when too narrow / on phone.</p>
+  </div>
+  <div class="decision">
+    <h4>#3 · How recording starts</h4>
+    <p>Capture starts <i>as</i> an inline bar in the note, vs a dedicated recorder that drops a bar on stop. See prototype 02.</p>
+    <p class="lean">Lean: <b>inline bar</b> (one component, in-flow). And: does recording / “Create transcript” ship in <i>this</i> update, or wait for the transcription step?</p>
+  </div>
+  <div class="decision">
+    <h4>#4 · Showing two speakers</h4>
+    <p>Diarization by weight/tone only (protects one-accent), vs an optional faint left speaker-rail (border weight, no new hue). Toggle inside prototype 04.</p>
+    <p class="lean">Lean: <b>weight/tone</b>, rail optional.</p>
+  </div>
+  <div class="decision">
+    <h4>#5 · Polished vs raw transcript</h4>
+    <p>The schema carries <code>polished: true</code>. Always show polished, or offer a raw/polished toggle in the dock? Toggle inside prototype 04.</p>
+    <p class="lean">Lean: <b>show polished</b>, raw as a later toggle.</p>
+  </div>
+  <div class="decision">
+    <h4>Smaller calls I’ll fold in</h4>
+    <p>Record/stop control is <b>accent, not red</b> (one-accent rule) — override if you want the familiar red. On the Basin, <code>Space</code> both pins a peek and plays a focused bar — needs a clear owner. Accio ranks transcript hits at body-tier so rich recordings surface.</p>
+  </div>
+</div>
+
+<div class="foot">
+  Underneath: the transcript sidecar schema is locked (<code>media/&lt;note&gt;/&lt;media&gt;.mp3.transcript.json</code>, word + segment timings + speakers) so the upcoming transcription step has a fixed target. Search folds transcript text into the note’s body index (no SQLite). Engine note: the reference word-sync uses a flat binary search that mis-highlights where diarized speakers overlap — prototype 04 fixes it via segment-aware sync; that fix gets folded into the engine at build time.
+</div>
+
+<script>
+  // Minimal theme toggle (mirrors the kit convention) so index works standalone.
+  (function () {
+    var root = document.documentElement;
+    var btn = document.querySelector('[data-theme-toggle]');
+    var saved = null; try { saved = localStorage.getItem('pensieve-theme'); } catch (e) {}
+    if (saved) root.setAttribute('data-theme', saved);
+    btn && btn.addEventListener('click', function () {
+      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('pensieve-theme', next); } catch (e) {}
+    });
+  })();
+</script>
+</body>
+</html>
