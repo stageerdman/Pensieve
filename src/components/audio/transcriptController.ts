@@ -6,9 +6,11 @@
 import type { Transcript } from "../../lib/transcripts/types";
 
 export interface TranscriptOpenReq {
-  /** The audio's loadable src — the shared controller key, so the pane + the inline bar
-   *  drive ONE playhead. */
+  /** The audio's loadable src. */
   src: string;
+  /** Shared-controller key (the opening block's id) so the pane + that block's inline bar
+   *  drive ONE playhead — while a duplicate block on the same file stays independent. */
+  playerKey?: string;
   transcript: Transcript;
   title?: string;
 }

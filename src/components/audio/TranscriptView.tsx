@@ -15,11 +15,14 @@ import type { Transcript } from "../../lib/transcripts/types";
 
 interface Props {
   src: string;
+  /** Shared-controller key (the owning block's id) so this view drives the SAME playhead as
+   *  its inline bar. Defaults to `src`. */
+  playerKey?: string;
   transcript: Transcript;
   className?: string;
 }
 
-export function TranscriptView({ src, transcript, className }: Props) {
+export function TranscriptView({ src, playerKey, transcript, className }: Props) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const wordRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const turnRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -43,8 +46,9 @@ export function TranscriptView({ src, transcript, className }: Props) {
     return { flatBase: base, speakerTone: order };
   }, [transcript]);
 
+  const key = playerKey ?? src;
   useEffect(() => {
-    const c = getController(src);
+    const c = getController(key, src);
     cRef.current = c;
     const apply = () => {
       const p = syncAt(transcript, c.currentTime);
@@ -85,9 +89,9 @@ export function TranscriptView({ src, transcript, className }: Props) {
       offT();
       offS();
       cRef.current = null;
-      releaseController(src);
+      releaseController(key);
     };
-  }, [src, transcript]);
+  }, [key, src, transcript]);
 
   return (
     <div className={"pensieve-transcript-body" + (className ? " " + className : "")} ref={bodyRef}>

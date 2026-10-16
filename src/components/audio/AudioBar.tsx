@@ -17,6 +17,10 @@ export type TranscriptState = "absent" | "transcribing" | "present";
 export interface AudioBarProps {
   /** Loadable url (Tauri asset / blob / external). */
   src: string;
+  /** Shared-controller key — the owning block's id, so the bar + its transcript faces drive
+   *  ONE playhead while a duplicate block (same `src`, different id) stays independent.
+   *  Defaults to `src` for simple callers. */
+  playerKey?: string;
   /** Url used to compute the waveform peaks (usually === src). */
   peaksSrc?: string;
   /** Shown in Download + the broken state; also the download filename. */
@@ -54,7 +58,7 @@ interface MenuItem {
 
 export function AudioBar(props: AudioBarProps) {
   const {
-    src, peaksSrc, filename, durationHint, transcriptState = "absent", transcribingPct,
+    src, playerKey, peaksSrc, filename, durationHint, transcriptState = "absent", transcribingPct,
     broken, compact, dock, status,
     onCreateTranscript, onRegenerateTranscript, onOpenSplit, onOpenReader,
     onDownload, onReplace, onRemove, onLocate, leading,
@@ -64,7 +68,8 @@ export function AudioBar(props: AudioBarProps) {
   const tick = () => setTick((t) => t + 1);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const controllerRef = useRef(broken ? null : getController(src));
+  const key = playerKey ?? src;
+  const controllerRef = useRef(broken ? null : getController(key, src));
 
   useEffect(() => {
     if (broken) return;
@@ -75,10 +80,10 @@ export function AudioBar(props: AudioBarProps) {
     ];
     return () => {
       offs.forEach((off) => off());
-      releaseController(src);
+      releaseController(key);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src, broken]);
+  }, [key, src, broken]);
 
   useEffect(() => {
     if (!menuOpen) return;

@@ -1,8 +1,12 @@
-// The shared playback engine. One HTMLAudioElement per source, kept in a module-level
+// The shared playback engine. One HTMLAudioElement per KEY, kept in a module-level
 // registry so that:
-//   • several bars pointing at the same recording (e.g. an inline bar + a docked player in
-//     a transcript view) share ONE playhead — two faces, one controller;
+//   • the several faces of ONE recording (an inline bar + its docked player in a transcript
+//     view + its dropdown reader) share ONE playhead — two faces, one controller;
 //   • starting ANY recording pauses every other one on the page (one-plays-at-a-time).
+// The registry is keyed by a caller-supplied KEY (the owning block's id), NOT by the raw
+// url — otherwise two SEPARATE audio blocks that happen to reference the same file (e.g. a
+// duplicated block) would collide onto one playhead and scrub each other. `src` is just the
+// loadable url handed to the <audio> element.
 // Framework-free (plain events) so React, and later the phone app, just subscribe.
 
 export type AudioEvent = "time" | "play" | "pause" | "seek" | "ended" | "durationchange";
@@ -44,6 +48,8 @@ function pauseOthers(keep: Impl) {
 }
 
 function create(src: string): Impl {
+  // `src` here is the loadable url (what the element plays / what `.src` reports); the
+  // registry key under which this controller is stored is a separate caller concern.
   const el = new Audio();
   el.preload = "metadata";
   el.src = src;
@@ -100,25 +106,28 @@ function create(src: string): Impl {
   return c;
 }
 
-/** Get (or create) the shared controller for a source url. Ref-counted via `release`. */
-export function getController(src: string): AudioController {
-  let c = registry.get(src);
-  if (!c) registry.set(src, (c = create(src)));
+/** Get (or create) the shared controller stored under `key`, playing `src`. All the faces
+ *  of one recording pass the SAME key (the owning block's id) so they share a playhead;
+ *  distinct blocks pass distinct keys so they stay independent even on the same file.
+ *  `src` defaults to `key` for simple single-face callers/tests. Ref-counted via `release`. */
+export function getController(key: string, src: string = key): AudioController {
+  let c = registry.get(key);
+  if (!c) registry.set(key, (c = create(src)));
   c._refs++;
   return c;
 }
 
-/** Drop a reference obtained from getController. When the last holder releases, the
- *  element is paused, torn down, and removed from the registry. */
-export function releaseController(src: string): void {
-  const c = registry.get(src);
+/** Drop a reference obtained from getController (by the same `key`). When the last holder
+ *  releases, the element is paused, torn down, and removed from the registry. */
+export function releaseController(key: string): void {
+  const c = registry.get(key);
   if (!c) return;
   c._refs--;
   if (c._refs <= 0) {
     c._el.pause();
     c._el.removeAttribute("src");
     c._el.load();
-    registry.delete(src);
+    registry.delete(key);
   }
 }
 

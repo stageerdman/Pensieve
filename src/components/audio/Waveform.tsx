@@ -35,6 +35,10 @@ export function Waveform({ controller, peaksSrc, peaks: explicit, compact, label
     () => explicit ?? (peaksSrc ? cachedPeaks(peaksSrc) : undefined) ?? placeholderPeaks(peaksSrc ?? controller.src),
   );
   const [hoverFrac, setHoverFrac] = useState<number | null>(null);
+  // True only between a pointerdown that LANDED on this waveform and its release. Without it,
+  // a drag that merely passes over the bar (e.g. a block-selection marquee sweeping across
+  // several audio rows) has buttons===1 and would scrub the playhead — hijacking the marquee.
+  const scrubbing = useRef(false);
 
   // Lazily compute real peaks (best-effort) and swap them in when ready.
   useEffect(() => {
@@ -131,14 +135,19 @@ export function Waveform({ controller, peaksSrc, peaks: explicit, compact, label
       aria-valuenow={Math.round(controller.currentTime)}
       tabIndex={0}
       onPointerDown={(e) => {
+        if (e.button !== 0) return; // left-button only — don't hijack a right/middle click
+        scrubbing.current = true;
         (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
         controller.seekFrac(fracFromEvent(e));
       }}
       onPointerMove={(e) => {
         const f = fracFromEvent(e);
         setHoverFrac(f);
-        if (e.buttons === 1) controller.seekFrac(f);
+        if (scrubbing.current && e.buttons === 1) controller.seekFrac(f);
       }}
+      onPointerUp={() => (scrubbing.current = false)}
+      onPointerCancel={() => (scrubbing.current = false)}
+      onLostPointerCapture={() => (scrubbing.current = false)}
       onPointerLeave={() => setHoverFrac(null)}
       onKeyDown={(e) => {
         if (e.key === "ArrowLeft") controller.seek(controller.currentTime - 5);

@@ -468,15 +468,19 @@ body.pensieve-resizing * {
 }
 /* Our media blocks show selection as an outline on the IMAGE FRAME only (above). Suppress
    BlockNote's built-in node-selection overlay (a blue tint + inset ring drawn on the ::after of
-   the block-content's child — i.e. across the WHOLE row) for image/imageGroup blocks only, so
-   selecting an image doesn't light up the entire line. Higher specificity + !important beats
-   BlockNote's rule; we neutralise the paint (keep the pseudo so no layout shifts). */
+   the block-content's child — i.e. across the WHOLE row) for image/imageGroup/audio blocks only,
+   so selecting one doesn't light up the entire line (audio: the row went blue the instant you
+   clicked the dropdown transcript, which fought text selection). Higher specificity + !important
+   beats BlockNote's rule; we neutralise the paint (keep the pseudo so no layout shifts). */
 .bn-block-content[data-content-type="image"].ProseMirror-selectednode > *::after,
 .bn-block-content[data-content-type="imageGroup"].ProseMirror-selectednode > *::after,
+.bn-block-content[data-content-type="audio"].ProseMirror-selectednode > *::after,
 .ProseMirror-selectednode > .bn-block-content[data-content-type="image"] > *::after,
 .ProseMirror-selectednode > .bn-block-content[data-content-type="imageGroup"] > *::after,
+.ProseMirror-selectednode > .bn-block-content[data-content-type="audio"] > *::after,
 .bn-block-content[data-content-type="image"] .ProseMirror-selectednode::after,
-.bn-block-content[data-content-type="imageGroup"] .ProseMirror-selectednode::after {
+.bn-block-content[data-content-type="imageGroup"] .ProseMirror-selectednode::after,
+.bn-block-content[data-content-type="audio"] .ProseMirror-selectednode::after {
   background: transparent !important;
   box-shadow: none !important;
 }

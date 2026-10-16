@@ -42,6 +42,26 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
   const [readerOpen, setReaderOpen] = useState(false);
   const [readerH, setReaderH] = useState(300);
   const readerDrag = useRef<{ y: number; h: number } | null>(null);
+  const readerRef = useRef<HTMLDivElement>(null);
+
+  // Make the dropdown reader a SELECTABLE ISLAND. The audio block is a `content:"none"` void,
+  // so a mousedown anywhere in it makes ProseMirror node-select the whole block (which also
+  // cancels any text selection you were forming), and dragging that selected, draggable node
+  // DUPLICATES the audio. A React `onMouseDown` stopPropagation fires too late — ProseMirror
+  // listens natively on the editor root and has already run by then. So we stop the NATIVE
+  // mousedown/dragstart on the reader (stopPropagation only — no preventDefault, so the
+  // browser's own text-selection still happens). Scoped to the reader; the bar is untouched.
+  useEffect(() => {
+    const el = readerRef.current;
+    if (!readerOpen || !el) return;
+    const stop = (e: Event) => e.stopPropagation();
+    el.addEventListener("mousedown", stop);
+    el.addEventListener("dragstart", stop);
+    return () => {
+      el.removeEventListener("mousedown", stop);
+      el.removeEventListener("dragstart", stop);
+    };
+  }, [readerOpen]);
 
   // Load the sidecar transcript (if present) → drives the icon state + the views.
   useEffect(() => {
@@ -84,7 +104,8 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
 
   const openSplit = () => {
     // No filename in the header — just the caption if the owner wrote one, else "Transcript".
-    if (transcript) transcriptPane.open({ src: url, transcript, title: caption || undefined });
+    // playerKey = block.id so the split pane shares THIS block's playhead (not a sibling copy).
+    if (transcript) transcriptPane.open({ src: url, playerKey: block.id, transcript, title: caption || undefined });
   };
   const openReader = () => { if (transcript) setReaderOpen(true); };
 
@@ -130,6 +151,7 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
     <div className="pensieve-audio-blockwrap" data-broken={broken || undefined}>
       <AudioBar
         src={url}
+        playerKey={block.id}
         filename={filename}
         broken={broken}
         transcriptState={tState}
@@ -144,14 +166,14 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
       {caption && !broken && <div className="pensieve-audio-caption">{caption}</div>}
 
       {/* Inline "Dropdown Transcript" reader — expands the transcript below the bar, in place.
-          onMouseDown stopPropagation makes it a SELECTABLE ISLAND: without it ProseMirror
-          grabs the mousedown and node-selects the whole (void) audio block instead of letting
-          you select/copy the transcript text. */}
+          It's a SELECTABLE ISLAND: the native mousedown/dragstart stoppers wired up above
+          (see readerRef effect) keep ProseMirror from node-selecting the void block so you can
+          select/copy the transcript text and can't accidentally drag-duplicate the audio. */}
       {readerOpen && transcript && (
         <div
+          ref={readerRef}
           className="pensieve-audio-reader"
           style={{ height: readerH }}
-          onMouseDown={(e) => e.stopPropagation()}
         >
           <div className="pensieve-audio-reader-head">
             <span>Transcript</span>
@@ -163,7 +185,7 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
               </svg>
             </button>
           </div>
-          <TranscriptView src={url} transcript={transcript} className="pensieve-audio-reader-body" />
+          <TranscriptView src={url} playerKey={block.id} transcript={transcript} className="pensieve-audio-reader-body" />
           <div
             className="pensieve-audio-reader-grip"
             role="separator"

@@ -1,6 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { fmt } from "./time";
 import { resamplePeaks, placeholderPeaks } from "./peaks";
+import { getController, releaseController } from "./controller";
+
+// jsdom doesn't implement these media methods; the controller calls them on teardown.
+HTMLMediaElement.prototype.load = vi.fn();
+HTMLMediaElement.prototype.pause = vi.fn();
 
 describe("audio time fmt", () => {
   it("formats m:ss and pads seconds", () => {
@@ -41,5 +46,33 @@ describe("waveform peaks resample", () => {
     expect(Math.max(...a)).toBeLessThanOrEqual(1);
     // different key → different shape
     expect(placeholderPeaks("media/n/y.mp3", 50)).not.toEqual(a);
+  });
+});
+
+describe("audio controller registry (key vs src)", () => {
+  it("shares ONE controller for the same key (the block's several faces)", () => {
+    const a = getController("block-1", "media/n/x.mp3");
+    const b = getController("block-1", "media/n/x.mp3");
+    expect(b).toBe(a); // two faces, one playhead
+    expect(a.src).toBe("media/n/x.mp3");
+    releaseController("block-1");
+    releaseController("block-1");
+  });
+
+  it("keeps DISTINCT controllers for distinct keys on the SAME src (a duplicated block)", () => {
+    // The whole point of the fix: two blocks referencing one file must not scrub each other.
+    const a = getController("block-A", "media/n/same.mp3");
+    const b = getController("block-B", "media/n/same.mp3");
+    expect(b).not.toBe(a);
+    expect(a.src).toBe("media/n/same.mp3");
+    expect(b.src).toBe("media/n/same.mp3");
+    releaseController("block-A");
+    releaseController("block-B");
+  });
+
+  it("defaults src to key for simple single-face callers", () => {
+    const c = getController("media/n/solo.mp3");
+    expect(c.src).toBe("media/n/solo.mp3");
+    releaseController("media/n/solo.mp3");
   });
 });
