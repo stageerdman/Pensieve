@@ -52,7 +52,7 @@ decisions pending the UX report.
   reorder via a handle). **P4 shipped** (note-body block drag: grip handle → reorder among blocks,
   3-zone merge onto a gallery/image). All on branch `fix/phone-media-keyboard-drag`; phone suite
   **148 green**, phone build OK. commitMove unit-tested; the gestures are device-verified.
-- **P5 — DEVICE verification.** All drag/handle gestures need the owner to test on the phone over
-  LAN (jsdom can't drive touch/layout). If a handle-drag is flaky on device, the two-tap "pick up →
-  tap to drop" fallback is in reserve (same hit-zones). Then merge the branch to main.
+- **P5 — DEVICE verification: DONE.** Owner confirmed on-device 2026-10-16: "dragging works great."
+  All four asks + the keyboard fix verified. Merged to `main`; branch pruned. Update CLOSED.
+  (Two-tap fallback never needed — the grip handle + instant-lift was enough.)
 </content>
