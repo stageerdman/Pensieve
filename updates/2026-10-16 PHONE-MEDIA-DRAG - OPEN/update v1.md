@@ -48,5 +48,11 @@ decisions pending the UX report.
 - [ ] **P5 — Verify on device, build, merge.** Two-tap fallback in reserve if handle-drag is flaky.
 
 ## Status
-- P0 done. Building P1 (Edit spell + edit mode). Keyboard fix already committed on this branch.
+- P0 done. **P1+P2 shipped** (Edit spell + edit mode; pull-out to note). **P3 shipped** (board
+  reorder via a handle, replacing the flaky long-press). All on branch
+  `fix/phone-media-keyboard-drag`; phone suite 144 green, phone build OK.
+- **Checkpoint before P4**: P1–P3 + the keyboard fix need DEVICE verification (owner tests over
+  LAN). P4 (note-body block drag) reuses P3's handle+ghost pattern, so validating the board
+  handle-drag on-device first de-risks P4. Two-tap fallback in reserve if continuous drag is flaky.
+- Next: build P4 (note-body block reorder + drag-into-gallery) after device feedback on the foundation.
 </content>
