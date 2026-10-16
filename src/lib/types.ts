@@ -30,6 +30,18 @@ export interface NoteMeta {
   pinned?: boolean; // user-pinned to the top of the sidebar
   excerpt?: string; // Markdown-stripped first ~140 chars of the body, for previews
   chars?: number; // non-space content char count (drives the flask fill level)
+  // --- Engagement signals (for future search ranking; not shown in the UI yet) ---
+  // How many times this memory has been deliberately opened. A running tally kept in the
+  // fast-list sidecar (never in .md frontmatter) so it survives saves and never touches
+  // updatedAt — exactly like `pinned`.
+  openCount?: number;
+  lastOpenedAt?: number; // when it was last deliberately opened
+  // The ids this note links to (surfaced from frontmatter so backlinks are computable
+  // without loading every body). The .md frontmatter stays the source of truth.
+  links?: string[];
+  // How many OTHER memories link to this one. Derived live from every note's `links`
+  // (see useNotes) — not persisted, so it is always correct and needs no migration.
+  linkedByCount?: number;
 }
 
 export interface Note extends NoteMeta {
@@ -83,6 +95,9 @@ export interface Store {
   // Pin/unpin without touching the body or updatedAt — pinning is not an edit, so
   // it must not reorder a list sorted by update time.
   setPinned(id: string, pinned: boolean): Promise<void>;
+  // Record one deliberate open: bump openCount and stamp lastOpenedAt in the sidecar,
+  // without touching the body or updatedAt (opening is not an edit).
+  markOpened(id: string): Promise<void>;
   loadTimeline(id: string): Promise<TimelineEntry[]>;
   // Append one session's entry. The adapter prunes the stored history to the most
   // recent edit-days (see timeline.pruneToRecentDays) so it can never grow unbounded.

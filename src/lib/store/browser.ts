@@ -57,6 +57,9 @@ export class BrowserStore implements Store {
         tags: n.tags,
         icon: n.icon,
         pinned: n.pinned,
+        openCount: n.openCount ?? 0,
+        lastOpenedAt: n.lastOpenedAt,
+        links: n.links,
         excerpt: excerptFromMarkdown(n.markdown),
         chars: contentCharCount(n.markdown),
       });
@@ -81,10 +84,16 @@ export class BrowserStore implements Store {
   }
 
   async save(note: Note): Promise<void> {
+    // Preserve engagement signals from the stored copy: markOpened writes them straight to
+    // storage out-of-band, so the in-memory note may hold a stale openCount — read-merge so
+    // a save never rolls the tally back (mirrors the Tauri sidecar behaviour).
+    const prev = readNote(note.id);
     const updated: Note = {
       ...note,
       title: titleFromMarkdown(note.markdown),
       updatedAt: Date.now(),
+      openCount: prev?.openCount ?? note.openCount,
+      lastOpenedAt: prev?.lastOpenedAt ?? note.lastOpenedAt,
     };
     localStorage.setItem(NOTE_PREFIX + note.id, JSON.stringify(updated));
     log.debug("store", "save", { id: note.id, title: updated.title });
@@ -121,6 +130,19 @@ export class BrowserStore implements Store {
     // Write pinned straight to storage — not via save() — so updatedAt is untouched.
     localStorage.setItem(NOTE_PREFIX + id, JSON.stringify({ ...note, pinned }));
     log.debug("store", "pin", { id, pinned });
+  }
+
+  async markOpened(id: string): Promise<void> {
+    const note = readNote(id);
+    if (!note) return;
+    // Write straight to storage — not via save() — so updatedAt stays untouched; opening
+    // a memory is not an edit and must not reorder an update-sorted view.
+    const openCount = (note.openCount ?? 0) + 1;
+    localStorage.setItem(
+      NOTE_PREFIX + id,
+      JSON.stringify({ ...note, openCount, lastOpenedAt: Date.now() }),
+    );
+    log.debug("store", "open", { id, openCount });
   }
 
   async loadTimeline(id: string): Promise<TimelineEntry[]> {

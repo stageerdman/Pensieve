@@ -59,6 +59,37 @@ describe("BrowserStore", () => {
     expect(after?.updatedAt).toBe(before); // pinning is not an edit
   });
 
+  it("markOpened bumps openCount + lastOpenedAt without changing updatedAt", async () => {
+    const n = await store.create();
+    await store.save({ ...n, markdown: "# Note" });
+    const before = (await store.load(n.id))!.updatedAt;
+    await tick();
+    await store.markOpened(n.id);
+    await store.markOpened(n.id);
+    const [meta] = await store.list();
+    expect(meta.openCount).toBe(2);
+    expect(meta.lastOpenedAt).toBeGreaterThan(0);
+    expect(meta.updatedAt).toBe(before); // opening is not an edit
+  });
+
+  it("a note save preserves the open tally (never rolls it back)", async () => {
+    const n = await store.create();
+    await store.save({ ...n, markdown: "# Note" }); // in-memory note has no openCount
+    await store.markOpened(n.id); // openCount -> 1, out-of-band
+    // Saving the stale in-memory note (openCount undefined) must not wipe the tally.
+    await store.save({ ...n, markdown: "# Note edited" });
+    const [meta] = await store.list();
+    expect(meta.openCount).toBe(1);
+  });
+
+  it("surfaces each note's own links in the list (source for backlink counts)", async () => {
+    const a = await store.create();
+    const b = await store.create();
+    await store.save({ ...a, markdown: "# A", links: [b.id] });
+    const metaA = (await store.list()).find((m) => m.id === a.id)!;
+    expect(metaA.links).toEqual([b.id]);
+  });
+
   it("removes notes and their timeline", async () => {
     const n = await store.create();
     await store.appendTimeline(n.id, { ts: 1, wordDelta: 5, created: true });

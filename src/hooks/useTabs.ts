@@ -14,9 +14,11 @@ interface UseTabsParams<N extends { id: string }> {
   create: () => Promise<{ id: string } | null | undefined>;
   /** Drop working-set ids no longer backed by a live note. */
   pruneWorkingSet: (live: Set<string>) => void;
+  /** Record a deliberate open (flask click / tab select) for the engagement tally. */
+  recordOpen: (id: string) => void | Promise<void>;
 }
 
-export function useTabs<N extends { id: string }>({ notes, open, create, pruneWorkingSet }: UseTabsParams<N>) {
+export function useTabs<N extends { id: string }>({ notes, open, create, pruneWorkingSet, recordOpen }: UseTabsParams<N>) {
   const [tabIds, setTabIds] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<ActiveTab>(HOME);
   const onHome = activeTab === HOME;
@@ -48,9 +50,10 @@ export function useTabs<N extends { id: string }>({ notes, open, create, pruneWo
       if (!background) {
         setActiveTab(id);
         void open(id);
+        void recordOpen(id);
       }
     },
-    [open],
+    [open, recordOpen],
   );
 
   const goHome = useCallback(() => setActiveTab(HOME), []);
@@ -67,8 +70,9 @@ export function useTabs<N extends { id: string }>({ notes, open, create, pruneWo
     (id: string) => {
       setActiveTab(id);
       void open(id);
+      void recordOpen(id);
     },
-    [open],
+    [open, recordOpen],
   );
 
   const closeTab = useCallback(

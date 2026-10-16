@@ -50,6 +50,10 @@ interface Meta {
   // Pin state lives in the fast-list sidecar so setPinned can toggle it without
   // rewriting the .md. (The preview excerpt is computed live in list(), not stored.)
   pinned?: boolean;
+  // Engagement signals — sidecar-only (never .md), bumped by markOpened and preserved
+  // across saves. See NoteMeta.openCount.
+  openCount?: number;
+  lastOpenedAt?: number;
 }
 
 function newId(): string {
@@ -85,6 +89,9 @@ export class TauriStore implements Store {
         tags: m.tags ?? [],
         icon: parsed?.fields.icon,
         pinned: m.pinned ?? false,
+        openCount: m.openCount ?? 0,
+        lastOpenedAt: m.lastOpenedAt,
+        links: parsed?.fields.links ?? [],
         excerpt,
         chars,
       });
@@ -131,6 +138,11 @@ export class TauriStore implements Store {
   }
 
   async save(note: Note): Promise<void> {
+    // Preserve sidecar-only engagement signals (openCount/lastOpenedAt): they are bumped
+    // out-of-band by markOpened and are NOT carried on the note, so read the prior sidecar
+    // and carry them forward — a save must never clobber the running open tally.
+    const prevRaw = await readText(metaPath(note.id));
+    const prev = prevRaw ? (JSON.parse(prevRaw) as Meta) : null;
     const meta: Meta = {
       title: titleFromMarkdown(note.markdown),
       createdAt: note.createdAt,
@@ -139,6 +151,8 @@ export class TauriStore implements Store {
       categories: note.categories,
       tags: note.tags,
       pinned: note.pinned,
+      openCount: prev?.openCount,
+      lastOpenedAt: prev?.lastOpenedAt,
     };
     const file = composeFrontmatter(
       { categories: note.categories, tags: note.tags, links: note.links, icon: note.icon },
@@ -183,6 +197,17 @@ export class TauriStore implements Store {
     const m = JSON.parse(raw) as Meta;
     await writeText(metaPath(id), JSON.stringify({ ...m, pinned }));
     log.debug("store", "pin", { id, pinned });
+  }
+
+  async markOpened(id: string): Promise<void> {
+    // Bump the open tally in the sidecar only — leave the .md and updatedAt untouched so
+    // opening a memory never reorders an update-sorted view.
+    const raw = await readText(metaPath(id));
+    if (!raw) return;
+    const m = JSON.parse(raw) as Meta;
+    const openCount = (m.openCount ?? 0) + 1;
+    await writeText(metaPath(id), JSON.stringify({ ...m, openCount, lastOpenedAt: Date.now() }));
+    log.debug("store", "open", { id, openCount });
   }
 
   async loadTimeline(id: string): Promise<TimelineEntry[]> {

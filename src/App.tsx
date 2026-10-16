@@ -35,7 +35,7 @@ import { useSync } from "./hooks/useSync";
 const IS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 export default function App() {
-  const { notes, current, status, loadEpoch, open, create, remove, change, updateMeta, togglePin, setCreatedAt, restoreVersion, refresh } =
+  const { notes, current, status, loadEpoch, open, create, remove, change, updateMeta, togglePin, setCreatedAt, restoreVersion, refresh, recordOpen } =
     useNotes();
   // A sync that pulled remote changes refreshes the list; if the open note was one
   // of them, reload it into the editor so on-screen content matches disk.
@@ -91,6 +91,7 @@ export default function App() {
     open,
     create,
     pruneWorkingSet: gallery.pruneWorkingSet,
+    recordOpen,
   });
 
   // Per-note "where I was writing" memory (scroll + caret). The Editor remounts on every

@@ -99,4 +99,36 @@ describe("useNotes (integration)", () => {
     const saved = await store.load(id);
     expect(saved?.markdown).toBe("version one body");
   });
+
+  it("derives linkedByCount — how many other memories link to each note", async () => {
+    const store = getStore();
+    // Seed: B and C both link to A; A links to nothing. So A has 2 backlinks, B/C have 0.
+    const a = await store.create();
+    const b = await store.create();
+    const c = await store.create();
+    await store.save({ ...b, markdown: "# B", links: [a.id] });
+    await store.save({ ...c, markdown: "# C", links: [a.id] });
+
+    const { result } = renderHook(() => useNotes());
+    await waitFor(() => expect(result.current.notes).toHaveLength(3));
+
+    const byId = new Map(result.current.notes.map((n) => [n.id, n]));
+    expect(byId.get(a.id)!.linkedByCount).toBe(2);
+    expect(byId.get(b.id)!.linkedByCount).toBe(0);
+    expect(byId.get(c.id)!.linkedByCount).toBe(0);
+  });
+
+  it("recordOpen bumps a note's openCount in the live list", async () => {
+    const store = getStore();
+    const a = await store.create();
+    await store.save({ ...a, markdown: "# A" });
+
+    const { result } = renderHook(() => useNotes());
+    await waitFor(() => expect(result.current.notes).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.recordOpen(a.id);
+    });
+    expect(result.current.notes.find((n) => n.id === a.id)!.openCount).toBe(1);
+  });
 });

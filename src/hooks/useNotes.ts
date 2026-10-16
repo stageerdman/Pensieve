@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Note, NoteFields, NoteMeta } from "../lib/types";
 import { getStore } from "../lib/store";
 import { wordCount } from "../lib/text";
@@ -229,6 +229,32 @@ export function useNotes() {
     [store, refresh],
   );
 
+  // Record one deliberate open (a flask click / tab select — NOT the initial auto-open or
+  // a sync reload). Bumps the persisted open tally and patches the in-memory list so the
+  // signal is live without a full disk re-list. openCount lives only in the sidecar, so a
+  // later save won't clobber this.
+  const recordOpen = useCallback(
+    async (id: string) => {
+      await store.markOpened(id);
+      const ts = Date.now();
+      setNotes((ns) =>
+        ns.map((n) =>
+          n.id === id ? { ...n, openCount: (n.openCount ?? 0) + 1, lastOpenedAt: ts } : n,
+        ),
+      );
+    },
+    [store],
+  );
+
+  // Backlink signal: how many OTHER memories link to each note. Derived live from every
+  // note's own `links` (the frontmatter is the truth), so it's always correct and needs no
+  // migration. Attached as a NoteMeta property for the future search-ranking layer.
+  const notesWithBacklinks = useMemo(() => {
+    const back = new Map<string, number>();
+    for (const n of notes) for (const id of n.links ?? []) back.set(id, (back.get(id) ?? 0) + 1);
+    return notes.map((n) => ({ ...n, linkedByCount: back.get(n.id) ?? 0 }));
+  }, [notes]);
+
   // Initial load: list notes and open the most recent (or create the first).
   useEffect(() => {
     (async () => {
@@ -249,5 +275,5 @@ export function useNotes() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [flushSave, closeSession]);
 
-  return { notes, current, status, loadEpoch, open, create, remove, change, updateMeta, togglePin, setCreatedAt, restoreVersion, refresh };
+  return { notes: notesWithBacklinks, current, status, loadEpoch, open, create, remove, change, updateMeta, togglePin, setCreatedAt, restoreVersion, refresh, recordOpen };
 }
