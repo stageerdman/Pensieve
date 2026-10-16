@@ -14,6 +14,47 @@ the full seam for it: the sidecar schema, loading, rendering, sync, and search. 
 is **UX-led**: the hard part is the design. We produce judgeable `.html` prototypes first,
 the owner picks, then we build.
 
+## ▶ RESUME HERE (for the next session / new AI) — updated 2026-10-17
+**Branch:** `update/audio-recordings` (pushed to origin; branched off `main`). **Not yet merged.**
+**Design is LOCKED** by the owner (see the ⚑ block at the top of `prototypes/design-spec.md` —
+that file is the binding build contract). Prototypes to see the intended UX:
+`prototypes/index.html` (opens the 7 interactive `.html`, run against the real call).
+
+**Done & pushed:** P0 research · P1 UX (7 prototypes) · P2 locked design + refinements ·
+**P3** inline AudioBlock (play/wave/scrub/time/⋯ menu, `/audio` slash, `pensieve:audio` fence) ·
+**P4** transcript sidecar load/save + Accio search folding · **P5** transcript views
+(Split pane + inline Dropdown reader, segment-aware word-sync) + P5.1 polish.
+**Tests: 809/809 pass · `tsc` clean · web build OK. Native `tauri:build` NOT yet run (that's P7).**
+
+**NEXT = P6** then P7 (see roadmap below). In P6, also wire **auto-reindex-on-create** (writing a
+transcript sidecar doesn't change the `.md`, so the search index must be told to refold — today
+it only refolds on a full `bodies()` rebuild).
+
+**How to test what's built (browser dev is enough):** `npm run dev` → http://localhost:5173 →
+in a note type `/audio` → **Choose an audio file…** → pick
+`updates/2026-10-16 AUDIO-RECORDINGS - OPEN/prototypes/assets/audio.mp3` (the real 19-min call) →
+bar plays/scrubs. Then **⋯ → Create transcript** (DEV-seeds the bundled real transcript) → the
+transcript icon turns accent → **transcript icon / ⋯ "Split to Transcript"** opens the right pane
+(play → words highlight, click a word to seek, drag divider, Collapse/Esc); **⋯ "Dropdown
+Transcript"** expands the reader inline (drag grip to resize, drag-select to copy). Search a spoken
+word in Accio (e.g. `problém`, `partnerku`) → the note matches on transcript text.
+
+**CURRENTLY TESTING:** P5 transcript views. Owner said "almost good"; P5.1 just shipped three fixes
+(drop `.mp3` from split header · transcript⇄Note-Details mutually exclusive · Dropdown reader text
+now selectable). **Awaiting owner re-confirmation of P5 before P6.**
+
+**DEV PLACEHOLDER to delete when the whisper engine lands:** "Create transcript" seeds
+`src/lib/transcripts/_sampleDominik.dev.json` (the real call, matches the test mp3; wrong for any
+other audio). Replace the `createTranscript` seed in `AudioBlock.tsx` with the real engine call
+(same `Transcript` schema) and delete the sample json.
+
+**Key files:** engine `src/lib/audio/{time,peaks,controller}.ts`; player `src/components/audio/
+{AudioBar,Waveform,TranscriptView,TranscriptSplit,transcriptController,icons}.tsx` + `audio.css`;
+block `src/components/editor/media/{AudioBlock,insertAudio}.tsx`; md `src/lib/md/audio.ts`
+(wired in `extended.ts` + `image.ts` resolve pass); transcripts `src/lib/transcripts/*`;
+store methods in `src/lib/store/{tauri,browser}.ts`; schema `editorSchema.ts`; slash `Editor.tsx`.
+**Known minor:** split pane stays attached to one note across note-switches (tidy later).
+
 ## What already exists (grounded — see wiki.md for cites)
 - **Editor blocks** are custom BlockNote specs (`createReactBlockSpec(...)()`) registered in
   `src/components/editor/editorSchema.ts`; media round-trips to `.md` via our own fences
@@ -56,27 +97,31 @@ the owner picks, then we build.
   and the split view can actually be judged.
 
 ## Roadmap (phased)
-- **P0 — Recon & scaffold.** ✅ Codebase mapped (editor/gallery, search/index, shell/surfaces);
-  test `.mov`→`.mp3`; real transcript parsed to the locked JSON schema; update folder up.
-- **P1 — UX exploration (CURRENT).** UX/UI lead defines the overall audio+transcript design
-  language + a shared prototype kit; then one focused agent per surface, each shipping an
-  interactive `.html`. Surfaces: (A) inline bar + states, (B) record/capture, (C) audio in
-  gallery, (D) transcript Split View, (E) Accio hit, (F) home/flask recognition. → owner judges.
-- **P2 — Lock the design.** Fold owner feedback; freeze dimensions, states, interaction,
-  playback model, split-view behavior. Define `TranscriptView` + `AudioBlock` component APIs.
-- **P3 — Audio block (inline).** `AudioBlock.tsx` + `lib/md/audio.ts` (`pensieve:audio` fence)
-  + `kind:"audio"` + MIME→ext + slash item. Renders in Editor, NotePreview, time-travel.
-  Playback controller (one-plays-at-a-time). Tests: md round-trip, byte-compat guard.
-- **P4 — Transcript sidecar + loading.** `lib/transcripts/` (type + load/save via
-  `read_text`/`write_text`), resolve on ref. Search: extend `bodies()` + `useSearchIndex`.
-  Tests: load, search includes transcript, missing-sidecar = graceful.
-- **P5 — Transcript Split View.** Resizable split pane in the shell; `TranscriptView`
-  (player on top, word highlight synced, click-word-to-seek, speakers). Open from inline bar
-  via the pub/sub seam.
-- **P6 — Audio in gallery + ⋯ menu + capture.** Per locked design. Download, create-transcript
-  (stub → wired when transcription lands).
-- **P7 — Verify on device + merge.** `npm run build` → `tauri:build`; confirm on the native app;
-  merge to main; rename folder CLOSED.
+- **P0 — Recon & scaffold.** ✅ DONE.
+- **P1 — UX exploration.** ✅ DONE — 7 interactive prototypes (`prototypes/`), owner-judged.
+- **P2 — Lock the design.** ✅ DONE — `prototypes/design-spec.md` ⚑ block is the contract.
+- **P3 — Audio block (inline).** ✅ DONE — `AudioBlock.tsx` + `lib/md/audio.ts` fence + `/audio`
+  slash + playback controller (one-plays-at-a-time) + full-width fix. Tests green.
+- **P4 — Transcript sidecar + search.** ✅ DONE — `lib/transcripts/*`, store load/save,
+  `bodies()` folds transcript text into Accio. Segment-aware sync. Tests green.
+- **P5 — Transcript views.** ✅ DONE (+P5.1 polish) — `TranscriptView`, `TranscriptSplit`
+  (resizable pane) + inline Dropdown reader, word-sync, click-to-seek. **← owner testing now.**
+- **P6 — Recording + gallery card + Accio hit + reindex.** ◻ NEXT.
+  - **Recording:** `/audio` → live recorder bar (MediaRecorder; waveform fills; Recording·m:ss;
+    stop → Saving (gold) → settled bar). Reuse `saveAudioFile`. Per prototype `02-capture.html`.
+  - **Gallery waveform card:** audio inside the justified gallery as the improved self-contained
+    waveform card (controls under the waveform, scales with row height, transcript→split). Per
+    `03-in-gallery.html`. Touches `ImageGroupBlock`/gallery model to allow an audio entry kind.
+  - **Accio transcript-hit affordance:** show transcript matches as ∿ + timecoded jump-lines
+    that open the split at that word. Per `05-accio-hit.html`. Touches `features/summon` +
+    `lib/search` (carry which audio ref + timecode a body match came from).
+  - **Auto-reindex-on-create:** when `createTranscript` writes a sidecar, trigger the search
+    index to refold that note (today only a full `bodies()` rebuild picks it up).
+  - **Home/flask recognition** (`06-home-flask.html`): duration chip on FlaskCard; transcript
+    text contributes to flask fill. (Lower priority — can slip to a follow-up.)
+- **P7 — Verify on device + merge.** `npm run build` → **`npm run tauri:build`** (NOT run yet);
+  confirm on the native `.app` (per memory `merge-and-build-each-change`); merge to `main`;
+  rename folder `- OPEN` → `- CLOSED`. Replace the DEV transcript seed if whisper has landed.
 
 ## Live status
 - **2026-10-16 (P0 done):** research grounded; assets ready (`audio.mp3` gitignored +
