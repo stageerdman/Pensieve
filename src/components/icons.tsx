@@ -36,6 +36,20 @@ export const MoreHorizontal = (p: IconProps) =>
     p,
   );
 
+// Waveform — audio recordings (the `/audio` slash item).
+export const AudioLines = (p: IconProps) =>
+  svg(
+    <>
+      <path d="M2 10v4" />
+      <path d="M6 6v12" />
+      <path d="M10 3v18" />
+      <path d="M14 8v8" />
+      <path d="M18 5v14" />
+      <path d="M22 10v4" />
+    </>,
+    p,
+  );
+
 // Six-dot grip — the drag handle in the editor gutter (Notion-style).
 export const GripVertical = (p: IconProps) =>
   svg(

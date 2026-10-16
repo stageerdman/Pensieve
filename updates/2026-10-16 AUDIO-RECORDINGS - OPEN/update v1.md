@@ -95,7 +95,19 @@ the owner picks, then we build.
   the meta chips + "click a word" hint, drops the transcript button, adds a **Collapse split
   view** button + better close. Scope confirmed: **recording ships now**; transcription engine
   is the only stubbed piece (UI trigger present).
-  → **NEXT: confirm refined prototypes, then P3 build (AudioBlock + inline bar).**
+- **2026-10-17 (P3 DONE — inline AudioBlock):** built the standalone audio element + wired it
+  into the editor. New: pure engine `src/lib/audio/` (`time` fmt, `peaks` resample + best-effort
+  Web-Audio compute + deterministic placeholder, `controller` registry with one-plays-at-a-time
+  + shared-playhead ref-counting); presentational `src/components/audio/` (`AudioBar`, `Waveform`
+  canvas/HiDPI/scrub, `icons`, `audio.css`); BlockNote adapter `AudioBlock.tsx` (empty→file-picker,
+  saving, loaded, broken states + ⋯ menu per locked spec) mounting the bar; md bridge
+  `lib/md/audio.ts` (`pensieve:audio` fence) wired into `extended.ts` + the resolve pass in
+  `image.ts`; `audio` registered in `editorSchema.ts`; `/audio` slash item + `AudioLines` icon;
+  `insertAudio.ts` (audio MIME→ext + saveAudioFile). Tests: audio `.md` round-trip (real editor)
+  + time/peaks units — 798/798 pass; `tsc` clean; web bundle builds. Transcript icon = "absent"
+  for now (presence/open wire in P4/P5); transcription engine stays a stub.
+  → **NEXT: P4 — transcript sidecar load + fold into Accio search; then P5 split/reader; P6
+  recording + gallery card; device-verify + merge.**
 
 ### Agent recommendations to carry into P2
 - #1 gallery: **Option C** (waveform-card tile → opens canonical bar in a "Now playing" dock).

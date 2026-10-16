@@ -26,7 +26,7 @@ import { setMediaNoteId } from "./media/mediaContext";
 import { makeUploadFile } from "./media/insertImage";
 import { insertImagesSmart, type GroupEditor } from "./media/insertGroup";
 import { mediaToast } from "./media/mediaToast";
-import { Image as ImageIcon, Images as ImagesIcon } from "../icons";
+import { Image as ImageIcon, Images as ImagesIcon, AudioLines as AudioIcon } from "../icons";
 import { GutterHandle } from "./GutterHandle";
 import { makeSlashMenu } from "./SlashMenu";
 import { useBlockMarquee } from "./useBlockMarquee";
@@ -376,6 +376,16 @@ export function Editor({
                   // Insert an EMPTY gallery placeholder (multi-image picker on click).
                   onItemClick: () =>
                     insertOrUpdateBlockForSlashMenu(editor, { type: "imageGroup", props: { images: "[]" } } as never),
+                },
+                {
+                  title: "Audio",
+                  aliases: ["audio", "voice", "recording", "sound", "mic", "record"],
+                  group: "Media",
+                  icon: <AudioIcon size={18} />,
+                  subtext: "A voice recording or audio file",
+                  // Insert an EMPTY audio block — a placeholder to choose a file (recording = P4).
+                  onItemClick: () =>
+                    insertOrUpdateBlockForSlashMenu(editor, { type: "audio", props: {} } as never),
                 },
               ],
               query,

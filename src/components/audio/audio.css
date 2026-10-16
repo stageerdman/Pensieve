@@ -1,0 +1,225 @@
+/* Audio element styles — the standalone, portable player (decoupled from BlockNote).
+   Consumes the app's design tokens from src/styles/tokens.css (so light/dark + the
+   one-accent rule come for free); defines only audio-local sizing vars here.
+   Class prefix `pensieve-audio-` mirrors the `pensieve-media-` family. */
+
+.pensieve-audio-host {
+  --audio-bar-h: 56px;
+  --audio-bar-h-compact: 44px;
+  --audio-play: 36px;
+  --audio-play-sm: 28px;
+  --audio-icon-btn: 28px;
+  width: 100%;
+}
+
+/* ── the bar ──────────────────────────────────────────────────────────────── */
+.pensieve-audio-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: var(--audio-bar-h);
+  padding: 8px 12px;
+  background: hsl(var(--surface-sunken));
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;
+  color: hsl(var(--text));
+  transition: border-color 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    box-shadow 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.pensieve-audio-bar.is-compact {
+  min-height: var(--audio-bar-h-compact);
+  gap: 8px;
+  padding: 6px 10px;
+}
+/* Playing: the one permitted lift — a faint accent halo, never a drop-shadow. */
+.pensieve-audio-bar.is-playing {
+  border-color: hsl(var(--accent) / 0.45);
+  box-shadow: 0 0 0 1px hsl(var(--accent) / 0.12), 0 0 24px -6px hsl(var(--accent-glow) / 0.35);
+}
+.pensieve-audio-bar.is-broken {
+  border-color: hsl(var(--danger) / 0.45);
+  background: hsl(var(--danger) / 0.05);
+  color: hsl(var(--text-muted));
+  font-size: 12px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+/* ── play / pause — the single accent-FILLED element ──────────────────────── */
+.pensieve-audio-play {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: var(--audio-play);
+  height: var(--audio-play);
+  border: none;
+  border-radius: 6px;
+  background: hsl(var(--accent));
+  color: hsl(var(--surface));
+  cursor: pointer;
+  transition: background 120ms ease, transform 120ms ease, box-shadow 180ms ease;
+}
+.pensieve-audio-play.is-sm { width: var(--audio-play-sm); height: var(--audio-play-sm); border-radius: 4px; }
+.pensieve-audio-play:hover { background: hsl(var(--accent-glow)); }
+.pensieve-audio-play:active { transform: scale(0.94); }
+.is-playing .pensieve-audio-play { box-shadow: 0 0 20px -4px hsl(var(--accent-glow) / 0.6); }
+
+/* ── waveform ─────────────────────────────────────────────────────────────── */
+.pensieve-audio-wave {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 32px;
+  cursor: pointer;
+  touch-action: none;
+  outline: none;
+}
+.pensieve-audio-wave.is-compact { height: 24px; }
+.pensieve-audio-wave:focus-visible { box-shadow: 0 0 0 2px hsl(var(--accent) / 0.5); border-radius: 4px; }
+.pensieve-audio-canvas { display: block; width: 100%; height: 100%; }
+
+/* ── time readout (mono, tabular) ─────────────────────────────────────────── */
+.pensieve-audio-time {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--text-muted));
+  white-space: nowrap;
+}
+.pensieve-audio-time .cur { color: hsl(var(--text)); }
+.pensieve-audio-time .sep { margin: 0 3px; opacity: 0.6; }
+
+/* ── icon buttons (transcript, ⋯) ─────────────────────────────────────────── */
+.pensieve-audio-iconbtn {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: var(--audio-icon-btn);
+  height: var(--audio-icon-btn);
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: hsl(var(--text-muted));
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.pensieve-audio-iconbtn:hover { background: hsl(var(--accent) / 0.12); color: hsl(var(--text)); }
+.pensieve-audio-iconbtn:focus-visible { box-shadow: 0 0 0 2px hsl(var(--accent) / 0.5); }
+.pensieve-audio-iconbtn:disabled { cursor: default; }
+
+.pensieve-audio-transcript.is-present { color: hsl(var(--accent)); }
+.pensieve-audio-transcript.is-absent { color: hsl(var(--text-muted) / 0.55); }
+.pensieve-audio-transcript.is-transcribing { color: hsl(var(--text-muted)); animation: pensieve-audio-pulse 1.6s ease-in-out infinite; }
+@keyframes pensieve-audio-pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+/* ── ⋯ menu popover ───────────────────────────────────────────────────────── */
+.pensieve-audio-menu-wrap { position: relative; flex: 0 0 auto; }
+.pensieve-audio-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 190px;
+  padding: 4px;
+  background: hsl(var(--surface-raised));
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;
+  box-shadow: 0 8px 28px -8px hsl(var(--text) / 0.25);
+}
+.pensieve-audio-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: hsl(var(--text));
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  line-height: 1.2;
+}
+.pensieve-audio-menu-item svg { flex: 0 0 auto; color: hsl(var(--text-muted)); }
+.pensieve-audio-menu-item:hover:not(:disabled) { background: hsl(var(--accent) / 0.12); }
+.pensieve-audio-menu-item:disabled { color: hsl(var(--text-muted)); cursor: default; }
+.pensieve-audio-menu-item.is-danger:hover { background: hsl(var(--danger) / 0.12); color: hsl(var(--danger)); }
+.pensieve-audio-menu-item.is-danger:hover svg { color: hsl(var(--danger)); }
+.pensieve-audio-menu-sep { height: 1px; margin: 4px 2px; background: hsl(var(--border)); }
+
+/* ── quiet status line (recording/saving/transcribing) ───────────────────── */
+.pensieve-audio-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 6px 2px 0;
+  font-size: 12px;
+  color: hsl(var(--text-muted));
+}
+.pensieve-audio-status .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: hsl(var(--accent));
+  animation: pensieve-audio-pulse 1.6s ease-in-out infinite;
+}
+.pensieve-audio-status.is-gold .dot { background: hsl(var(--gold)); }
+
+/* ── broken state inner ───────────────────────────────────────────────────── */
+.pensieve-audio-broken-glyph { flex: 0 0 auto; display: grid; place-items: center; color: hsl(var(--text-muted)); }
+.pensieve-audio-broken-text {
+  flex: 1 1 auto; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pensieve-audio-filename { font-family: var(--font-mono); color: hsl(var(--text)); }
+.pensieve-audio-locate {
+  flex: 0 0 auto;
+  margin-left: auto;
+  white-space: nowrap;
+  padding: 3px 9px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface));
+  color: hsl(var(--text));
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.pensieve-audio-locate:hover { border-color: hsl(var(--accent) / 0.5); }
+
+/* ── block wrapper + caption + empty placeholder (editor-mounted) ─────────── */
+.pensieve-audio-blockwrap { margin: 0.4em 0; }
+.pensieve-audio-caption {
+  margin-top: 4px;
+  font-size: 12px;
+  color: hsl(var(--text-muted));
+}
+.pensieve-audio-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 14px;
+  border: 1px dashed hsl(var(--border));
+  border-radius: 10px;
+  background: hsl(var(--surface-sunken));
+  color: hsl(var(--text-muted));
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+.pensieve-audio-empty:hover { border-color: hsl(var(--accent) / 0.5); color: hsl(var(--text)); }
+.pensieve-audio-empty.is-saving { cursor: default; }
+.pensieve-audio-empty-glyph {
+  display: grid; place-items: center;
+  width: 28px; height: 28px; border-radius: 6px;
+  background: hsl(var(--accent) / 0.12); color: hsl(var(--accent));
+  font-size: 15px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pensieve-audio-transcript.is-transcribing,
+  .pensieve-audio-status .dot { animation: none; }
+}

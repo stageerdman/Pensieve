@@ -2,6 +2,7 @@ import { BlockNoteSchema, defaultBlockSpecs, defaultInlineContentSpecs } from "@
 import { NoteLink } from "./noteLink";
 import { ImageBlock } from "./media/ImageBlock";
 import { ImageGroupBlock } from "./media/ImageGroupBlock";
+import { AudioBlock } from "./media/AudioBlock";
 
 // The shared BlockNote schema: the default blocks/styles plus our custom "noteLink"
 // inline content and our custom "image" block (both round-tripped through
@@ -10,6 +11,6 @@ import { ImageGroupBlock } from "./media/ImageGroupBlock";
 // both the writing surface (Editor) and the read-only gallery preview (NotePreview), so
 // a note renders identically in both.
 export const editorSchema = BlockNoteSchema.create({
-  blockSpecs: { ...defaultBlockSpecs, image: ImageBlock, imageGroup: ImageGroupBlock },
+  blockSpecs: { ...defaultBlockSpecs, image: ImageBlock, imageGroup: ImageGroupBlock, audio: AudioBlock },
   inlineContentSpecs: { ...defaultInlineContentSpecs, noteLink: NoteLink },
 });

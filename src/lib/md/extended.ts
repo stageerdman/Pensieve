@@ -129,6 +129,7 @@ export function mapBlocks(blocks: Block[], fn: (items: Inline[]) => Inline[]): B
 
 import { encodeImageBlock, isImageBlock, reconstructImageFence, resolveImageUrls } from "./image";
 import { encodeImageGroupBlock, isImageGroupBlock, reconstructGalleryFence } from "./gallery";
+import { encodeAudioBlock, isAudioBlock, reconstructAudioFence } from "./audio";
 
 const LIST_TYPES = new Set(["bulletListItem", "numberedListItem", "checkListItem"]);
 
@@ -185,6 +186,10 @@ async function encodeStructure(editor: MdEditor, blocks: Block[]): Promise<Block
     } else if (isImageGroupBlock(b)) {
       // The ordered group → a pensieve:gallery fence (see lib/md/gallery).
       out.push(encodeImageGroupBlock(b));
+    } else if (isAudioBlock(b)) {
+      // url → ref, carried on a pensieve:audio fence (see lib/md/audio). The transcript
+      // is a separate sidecar, deliberately NOT written into the .md.
+      out.push(encodeAudioBlock(b));
     } else if (b.type === "toggleListItem") {
       const summary = await inlineToMd(editor, b.content);
       const body = children.length ? (await blocksToExtendedMd(editor, children)).replace(/\n+$/, "") : "";
@@ -216,6 +221,11 @@ async function reconstructStructure(editor: MdEditor, blocks: Block[]): Promise<
     const gallery = reconstructGalleryFence(b);
     if (gallery) {
       out.push(gallery);
+      continue;
+    }
+    const audio = reconstructAudioFence(b);
+    if (audio) {
+      out.push(audio);
       continue;
     }
     const lang = langOf(b);
