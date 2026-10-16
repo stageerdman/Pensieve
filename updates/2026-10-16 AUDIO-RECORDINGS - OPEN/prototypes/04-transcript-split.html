@@ -18,23 +18,28 @@
     body { overflow: hidden; }
     .app { display: flex; flex-direction: column; height: 100vh; min-height: 0; }
 
-    /* Smoothly animate the right pane open/close by registering --split-right so
-       grid-template-columns can interpolate (note slides left, pane in). */
-    @property --split-right { syntax: "<length-percentage>"; inherits: true; initial-value: 40%; }
-    @property --split-div   { syntax: "<length>"; inherits: true; initial-value: 6px; }
-
+    /* Split = a plain CSS grid when open. We DON'T animate the grid itself (that
+       interpolation was the lag); collapsing tears the grid DOWN to a single
+       centered editor column (.is-single), and the pane slides away on transform
+       + opacity only (cheap, GPU-composited, ~180ms). */
     .split {
+      position: relative;                 /* anchors the pane while it slides out */
       flex: 1 1 auto;
-      grid-template-columns: 1fr var(--split-div, 6px) var(--split-right, 40%);
-      transition: grid-template-columns var(--dur-slow) var(--ease);
+      grid-template-columns: 1fr 6px var(--split-right, 40%);
     }
-    .split.is-closed { --split-div: 0px; --split-right: 0%; }
-    .split.is-closed .split-divider { opacity: 0; pointer-events: none; }
-    /* The pane "comes in from the right": its contents slide + fade with the grid. */
-    .split-right { transition: opacity var(--dur-slow) var(--ease); }
-    .split-right .transcript { transition: transform var(--dur-slow) var(--ease); }
-    .split.is-closed .split-right { opacity: 0; }
-    .split.is-closed .split-right .transcript { transform: translateX(24px); }
+    .split.is-single { display: block; }                         /* grid torn down → normal note */
+    .split.is-single > .split-left { height: 100%; }             /* fill + own-scroll in block mode */
+    .split.is-single > .split-divider { display: none; }
+    .split.is-single > .split-right:not(.is-anim) { display: none; }
+
+    /* Pane slide — ONLY transform + opacity animate. For the slide the pane is
+       popped out of flow (absolute, pinned to the split's right edge). */
+    .split-right.is-anim {
+      position: absolute; top: 0; right: 0; bottom: 0; z-index: 5;
+      transition: transform var(--dur) var(--ease), opacity var(--dur) var(--ease);
+      will-change: transform, opacity;
+    }
+    .split-right.is-out { transform: translateX(100%); opacity: 0; }
 
     /* The note editor column (left) — a realistic writing surface. */
     .ed { max-width: 640px; margin: 0 auto; padding: 56px 40px 30vh; }
@@ -54,21 +59,6 @@
     .split-right { display: flex; }
     .split-right .transcript { flex: 1 1 auto; }
 
-    /* When closed, the note widens and a real "reopen" button sits where the
-       pane used to be — a discoverable control, not just a line of hint text. */
-    .reopen-hint {
-      display: none; align-items: center; gap: 8px;
-      margin: 14px 0 0; padding: 7px 12px 7px 10px;
-      font-size: 12px; font-weight: 600; color: hsl(var(--text));
-      background: hsl(var(--surface-sunken)); border: 1px solid hsl(var(--border));
-      border-radius: var(--radius); cursor: pointer;
-      transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
-    }
-    .reopen-hint:hover { border-color: hsl(var(--accent) / 0.5); background: hsl(var(--accent) / 0.06); }
-    .reopen-hint:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
-    .reopen-hint svg { width: 16px; height: 16px; display: block; color: hsl(var(--accent)); }
-    .split.is-closed .reopen-hint { display: inline-flex; }
-
     /* ── Collapse-split control — lives in the docked player (top of the pane).
        Reuses the kit .audio-iconbtn; a touch more presence than a ghost icon so
        the "get out of the split" action is obvious and discoverable. ────────── */
@@ -76,35 +66,55 @@
     .dock-collapse:hover { background: hsl(var(--accent) / 0.12); color: hsl(var(--text)); }
     .dock-collapse:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
 
-    /* ── Focused "reader" presentation (locked #5) — the SAME .transcript
-       component shown as a full-area overlay: player docked on top, transcript
-       below. Opened deliberately from ⋯ "Open transcript — reader", and also the
-       graceful fallback when the window is too narrow for a split. ──────────── */
-    .overlay {
-      position: fixed; inset: 0; z-index: 40;
-      display: none; flex-direction: column;
-      background: hsl(var(--surface));
-      opacity: 0; transition: opacity var(--dur-slow) var(--ease);
+    /* ════ Reader presentation (locked #5) — NOT an overlay / not a new view.
+       The transcript expands INLINE, directly below the inline player bar,
+       growing the note block's height IN PLACE. Height-adjustable (drag the
+       bottom grip); its own collapse control. Reuses the same .transcript body
+       + word-sync — the inline bar above stays put and IS the player, so the
+       transcript's own docked player is hidden here. ──────────────────────── */
+    .reader {
+      display: none; overflow: hidden;
+      margin: 12px 0 6px;
+      border: 1px solid hsl(var(--border)); border-radius: var(--radius);
+      background: hsl(var(--surface-sunken));
     }
-    .overlay.is-shown { display: flex; opacity: 1; }
-    .overlay .transcript { flex: 1 1 auto; min-height: 0; }
-    /* The reader overlay carries its own quiet "back to split" control and an
-       honest label; no fixed note pill needed. */
-    .overlay-back {
-      position: absolute; top: 12px; right: 16px; z-index: 41;
+    .reader.is-open { display: block; }
+    .reader.is-animating { transition: height var(--dur) var(--ease); }
+    .reader-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 5px 6px 5px 12px;
+      border-bottom: 1px solid hsl(var(--border));
     }
-    .overlay-label {
-      position: absolute; top: 14px; left: 16px; z-index: 41;
-      font-size: 11px; color: hsl(var(--text-muted)); letter-spacing: 0.02em;
+    .reader-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+      color: hsl(var(--text-muted));
     }
-    .overlay-back-btn {
-      background: hsl(var(--surface-raised)); border: 1px solid hsl(var(--border));
+    .reader-close { color: hsl(var(--text-muted)); }
+    .reader-close:hover { background: hsl(var(--accent) / 0.12); color: hsl(var(--text)); }
+    .reader-close:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
+    /* The height-adjustable stage that the .transcript node fills (it is
+       height:100% in the kit, so its body scrolls inside this fixed height). */
+    .reader-stage { height: var(--reader-h, 340px); min-height: 0; }
+    .reader .transcript { background: transparent; }
+    .reader .transcript-dock { display: none; }   /* inline bar above is the player */
+    .reader .transcript-body { padding-bottom: 24px; }
+    /* Height grip — drag (or ↑/↓) to set how much vertical room the transcript takes. */
+    .reader-resize {
+      height: 15px; cursor: ns-resize;
+      display: grid; place-items: center;
+      border-top: 1px solid hsl(var(--border));
+      background: hsl(var(--surface-raised));
     }
-    .overlay-back-btn:hover { background: hsl(var(--accent) / 0.12); border-color: hsl(var(--accent) / 0.5); }
-    .overlay-back-btn:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
+    .reader-resize::after {
+      content: ""; width: 34px; height: 3px; border-radius: 999px;
+      background: hsl(var(--text-muted) / 0.4);
+      transition: background var(--dur-fast) var(--ease);
+    }
+    .reader-resize:hover::after, .reader-resize.is-dragging::after { background: hsl(var(--accent) / 0.75); }
+    .reader-resize:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: -2px; }
 
     @media (prefers-reduced-motion: reduce) {
-      .split, .split-right, .split-right .transcript, .overlay { transition: none; }
+      .split-right.is-anim, .reader.is-animating { transition: none; }
       .transcript-body { scroll-behavior: auto; }
     }
   </style>
@@ -124,10 +134,19 @@
           <p>The recording sits inline, like any other media block — I can keep writing around it. Opening the transcript splits this view so the text lives alongside my notes.</p>
 
           <div class="inline-audio" id="inlineBar"></div>
-          <button class="reopen-hint" id="reopenBtn" type="button">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6-6 6 6 6"/><path d="m10 6-6 6 6 6"/></svg>
-            Reopen transcript
-          </button>
+
+          <!-- READER (locked #5): the transcript expands inline here, right below
+               the bar, growing this block's height in place. The #transcript node
+               relocates into #readerStage; a grip resizes it; its own ⌃ collapses. -->
+          <div class="reader" id="reader">
+            <div class="reader-head">
+              <span class="reader-label">Transcript</span>
+              <button class="audio-iconbtn reader-close" id="readerClose" type="button" aria-label="Collapse transcript" title="Collapse transcript"></button>
+            </div>
+            <div class="reader-stage" id="readerStage"></div>
+            <div class="reader-resize" id="readerResize" role="separator" aria-orientation="horizontal"
+                 tabindex="0" aria-label="Resize transcript height (use Up and Down arrows)"></div>
+          </div>
 
           <blockquote>"We don't need more dashboards. We need the thing to just tell us what changed." — around the eight-minute mark.</blockquote>
           <p>Next step: send the recap and the one-pager by Thursday. The transcript on the right scrolls and highlights in lockstep with playback — click any word to replay that exact moment, even while paused.</p>
@@ -146,13 +165,6 @@
     </div>
   </div>
 
-  <!-- Focused "reader" presentation (locked #5): the full-area overlay the one
-       .transcript node relocates into. Opened from ⋯ "Open transcript — reader",
-       and the graceful fallback when the window is too narrow for a split. -->
-  <div class="overlay" id="overlay">
-    <span class="overlay-label">Reader</span>
-  </div>
-
   <script src="_audio.js"></script>
   <script>
     const A = Pensieve.Audio;
@@ -160,24 +172,13 @@
     const SRC = "assets/audio.mp3";
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    // No "collapse" glyph in the kit's ICONS — add one in the same stroke style:
-    // a double-chevron pointing right = "send this pane away / collapse the split".
+    // Glyphs not in the kit's ICONS, added in the same stroke style:
+    // double-chevron right = "send this pane away / collapse the split"…
     const COLLAPSE_ICON =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 6 6 6-6 6"/><path d="m14 6 6 6-6 6"/></svg>';
-    // mirror image — "bring the pane back / return to split" (used in the reader).
-    const COLLAPSE_ICON_LEFT =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 6-6 6 6 6"/><path d="m10 6-6 6 6 6"/></svg>';
-
-    // small helper: a kit .audio-iconbtn with a raw SVG glyph + label + handler.
-    function buildIconBtn(svg, label, onClick) {
-      const b = document.createElement("button");
-      b.className = "audio-iconbtn";
-      b.innerHTML = svg;
-      b.setAttribute("aria-label", label);
-      b.setAttribute("title", label);
-      if (onClick) b.addEventListener("click", onClick);
-      return b;
-    }
+    // …and a chevron-up = "fold the inline reader back up / collapse it".
+    const CHEVRON_UP =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>';
 
     /* ── Bar builder — ported from 00-overview.html buildBar().
        opts: { compact, transcript, controller, duration,
@@ -401,37 +402,95 @@
       const DUR = transcript.meta.durationSec;
       const split = document.getElementById("split");
       const splitRight = document.getElementById("splitRight");
-      const overlay = document.getElementById("overlay");
       const transcriptHost = document.getElementById("transcript");
+      const reader = document.getElementById("reader");
+      const readerStage = document.getElementById("readerStage");
 
       // ONE controller shared by the left inline bar AND the right docked player.
       const ctrl = A.controller(SRC);
       ctrl.setFallbackDuration(DUR);
 
-      // open/close the split; remember the last width so reopening restores it.
-      let lastRight = 40;
-      function openSplit() {
-        if (readerMode && !isNarrow()) exitReader();   // reader → split
-        if (!split.classList.contains("is-closed")) return;
-        split.style.setProperty("--split-right", lastRight + "%");
-        split.classList.remove("is-closed");
-        inline.transcriptBtn.setAttribute("aria-label", "Close transcript");
+      /* ── presentation state ──────────────────────────────────────────────
+         ONE transcript node, relocated between the split's right pane and the
+         inline reader. Split = default (resizable right pane); reader = inline
+         expand under the bar. They are mutually exclusive. */
+      let lastRight = 40;          // remembered split width (%)
+      let splitCollapsed = false;  // split torn down to a single centered column?
+      let readerOpen = false;      // inline reader expanded?
+      let readerH = 340;           // reader stage height (px), user-adjustable
+
+      // one-shot transitionend helper (callers skip it when reduceMotion).
+      function onEnd(el, prop, cb) {
+        function h(e) { if (e.target === el && e.propertyName === prop) { el.removeEventListener("transitionend", h); cb(); } }
+        el.addEventListener("transitionend", h);
       }
+      function setSplitLabel() { inline.transcriptBtn.setAttribute("aria-label", splitCollapsed ? "Open transcript" : "Close transcript"); }
+
+      /* SPLIT. Collapse tears the grid DOWN to a single centered editor column
+         (.is-single) — a full restore, not an emptied pane — while the pane
+         slides away on transform/opacity only (snappy ~180ms, no grid interp). */
       function closeSplit() {
-        const cur = parseFloat(getComputedStyle(split).getPropertyValue("--split-right"));
-        if (cur) lastRight = cur;
-        split.classList.add("is-closed");
-        inline.transcriptBtn.setAttribute("aria-label", "Open transcript");
-        ctrl.pause();
+        if (splitCollapsed) return;
+        splitCollapsed = true; setSplitLabel(); ctrl.pause();
+        if (reduceMotion) { split.classList.add("is-single"); return; }
+        splitRight.style.width = splitRight.offsetWidth + "px";
+        splitRight.classList.add("is-anim");          // pop out of flow, pinned to the right edge
+        void splitRight.offsetWidth;                  // flush the absolute position
+        split.classList.add("is-single");             // editor reflows to centered (one cheap reflow)
+        requestAnimationFrame(() => splitRight.classList.add("is-out"));   // slide + fade off
+        onEnd(splitRight, "transform", () => { splitRight.classList.remove("is-anim", "is-out"); splitRight.style.width = ""; });
       }
-      function toggleSplit() { split.classList.contains("is-closed") ? openSplit() : closeSplit(); }
+      function openSplit() {
+        if (readerOpen) {                              // leaving the reader → fold it, return the node
+          readerOpen = false;
+          reader.classList.remove("is-open", "is-animating"); reader.style.height = "";
+          splitRight.appendChild(transcriptHost);
+        }
+        if (!splitCollapsed) { setSplitLabel(); return; }
+        splitCollapsed = false; setSplitLabel();
+        split.style.setProperty("--split-right", lastRight + "%");
+        if (reduceMotion) { split.classList.remove("is-single"); return; }
+        splitRight.style.width = Math.round(split.clientWidth * lastRight / 100) + "px";
+        splitRight.classList.add("is-anim", "is-out"); // absolute, parked off-screen right
+        void splitRight.offsetWidth;
+        split.classList.remove("is-single");           // grid back; the third track reserves the width
+        requestAnimationFrame(() => splitRight.classList.remove("is-out"));  // slide in
+        onEnd(splitRight, "transform", () => { splitRight.classList.remove("is-anim"); splitRight.style.width = ""; });
+      }
+      function toggleSplit() { if (readerOpen) { openSplit(); return; } splitCollapsed ? openSplit() : closeSplit(); }
 
-      // the two reader presentations (locked #5), offered from the ⋯ menu.
-      function showSplit() { enterReaderMode(false); openSplit(); }
-      function showReader() { enterReaderMode(true); }
+      /* READER — inline expand directly below the bar (NOT an overlay). Moves the
+         one transcript node into #readerStage and grows the block height in place;
+         the transcript's own docked player is hidden (CSS) so the bar above is it. */
+      function showReader() {
+        if (readerOpen) return;
+        split.classList.add("is-single"); splitCollapsed = true; setSplitLabel();   // park the split (instant)
+        splitRight.classList.remove("is-anim", "is-out"); splitRight.style.width = "";
+        readerStage.appendChild(transcriptHost);       // relocate the live node (listeners intact)
+        readerOpen = true;
+        reader.classList.add("is-open");
+        reader.style.setProperty("--reader-h", readerH + "px");
+        if (reduceMotion) return;
+        const full = reader.offsetHeight;              // natural height now it is shown
+        reader.classList.add("is-animating");
+        reader.style.height = "0px"; void reader.offsetHeight;
+        reader.style.height = full + "px";             // grow in place
+        onEnd(reader, "height", () => { reader.classList.remove("is-animating"); reader.style.height = ""; });  // → auto so resizing works
+      }
+      function closeReader() {
+        if (!readerOpen) return;
+        readerOpen = false;
+        const finish = () => { reader.classList.remove("is-open", "is-animating"); reader.style.height = ""; splitRight.appendChild(transcriptHost); };
+        if (reduceMotion) { finish(); return; }
+        reader.classList.add("is-animating");
+        reader.style.height = reader.offsetHeight + "px"; void reader.offsetHeight;
+        reader.style.height = "0px";
+        onEnd(reader, "height", finish);
+      }
+      function showSplit() { openSplit(); }
 
-      // left inline bar — transcript glyph opens/closes the split; ⋯ offers both
-      // presentations (split view = default, reader = focused overlay).
+      // left inline bar — transcript glyph opens/closes the split (the default);
+      // ⋯ offers BOTH presentations: split view and the inline reader.
       const inline = buildBar(document.getElementById("inlineBar"), peaks, {
         transcript: "present", controller: ctrl, onTranscript: toggleSplit,
         transcriptLabel: "Close transcript",
@@ -442,8 +501,8 @@
         ],
       });
 
-      // right transcript — docked player carries the Collapse button; its ⋯ can
-      // switch to the reader or collapse the split.
+      // right transcript (split pane) — docked player carries the Collapse button;
+      // its ⋯ can switch to the inline reader or collapse the split.
       const T = buildTranscript(transcriptHost, peaks, transcript, ctrl, {
         onCollapse: closeSplit,
         menuItems: [
@@ -454,10 +513,16 @@
         ],
       });
 
+      // reader's own collapse control (the ⌃ in its header)
+      const readerClose = document.getElementById("readerClose");
+      readerClose.innerHTML = CHEVRON_UP;
+      readerClose.addEventListener("click", closeReader);
+
       /* ── divider drag + keyboard ─────────────────────────────────────────── */
       const divider = document.getElementById("divider");
       function setRight(pct) {
         pct = Math.max(24, Math.min(70, pct));
+        lastRight = pct;                               // remember for the next reopen
         split.style.setProperty("--split-right", pct + "%");
         divider.setAttribute("aria-valuenow", String(Math.round(pct)));
       }
@@ -475,53 +540,28 @@
         else if (e.key === "ArrowRight") { e.preventDefault(); setRight(cur - 4); }
       });
 
-      /* ── Focused "reader" presentation (locked #5). The SAME single
-         .transcript node relocates between the split-right pane and the full
-         overlay (shared controller, listeners intact). It is a deliberate choice
-         from ⋯ "Open transcript — reader"; it is ALSO the graceful fallback when
-         the window is too narrow (< SPLIT_MIN) to hold a usable split. ──────── */
-      const SPLIT_MIN = 760;
-      let readerMode = false, forcedReader = false;
-      function isNarrow() { return window.innerWidth < SPLIT_MIN; }
+      /* ── reader height grip — drag (or ↑/↓) to set how much vertical space the
+         transcript takes. Adjusts the stage height (--reader-h); the block grows
+         in place because the reader height is auto once it has finished opening. */
+      const readerResize = document.getElementById("readerResize");
+      function clampH(h) { return Math.max(140, Math.min(Math.round(window.innerHeight * 0.7), h)); }
+      function setReaderH(h) { readerH = clampH(h); reader.style.setProperty("--reader-h", readerH + "px"); }
+      let rdrag = false, startY = 0, startH = 0;
+      readerResize.addEventListener("mousedown", (e) => { rdrag = true; startY = e.clientY; startH = readerStage.offsetHeight; readerResize.classList.add("is-dragging"); document.body.style.cursor = "ns-resize"; e.preventDefault(); });
+      window.addEventListener("mousemove", (e) => { if (!rdrag) return; setReaderH(startH + (e.clientY - startY)); });
+      window.addEventListener("mouseup", () => { if (!rdrag) return; rdrag = false; readerResize.classList.remove("is-dragging"); document.body.style.cursor = ""; });
+      readerResize.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowUp") { e.preventDefault(); setReaderH(readerH - 24); }
+        else if (e.key === "ArrowDown") { e.preventDefault(); setReaderH(readerH + 24); }
+      });
 
-      // a quiet "back to split" control inside the reader overlay
-      const overlayBack = buildIconBtn(COLLAPSE_ICON_LEFT, "Back to split view", () => showSplit());
-      overlayBack.classList.add("overlay-back-btn");
-      const backWrap = document.createElement("div"); backWrap.className = "overlay-back";
-      backWrap.appendChild(overlayBack);
-      overlay.appendChild(backWrap);
-
-      function applyReader(on) {
-        if (on === readerMode) return;
-        readerMode = on;
-        if (on) {
-          overlay.appendChild(transcriptHost);     // move the live node in
-          overlay.classList.add("is-shown");
-          split.style.visibility = "hidden";
-        } else {
-          splitRight.appendChild(transcriptHost);   // move it back
-          overlay.classList.remove("is-shown");
-          split.style.visibility = "";
-        }
-        overlayBack.style.display = isNarrow() ? "none" : "";   // no split to go back to when narrow
-      }
-      function enterReaderMode(on) { forcedReader = on; evalWidth(); }
-      function exitReader() { forcedReader = false; evalWidth(); }
-      function evalWidth() { applyReader(forcedReader || isNarrow()); }
-      window.addEventListener("resize", evalWidth);
-      evalWidth();
-
-      /* ── reopen button (shown where the pane was, when collapsed) ─────────── */
-      document.getElementById("reopenBtn").addEventListener("click", () => { showSplit(); inline.transcriptBtn && inline.transcriptBtn.focus(); });
-
-      /* ── Esc — the discoverable "get out" key. In the reader it returns to the
-         split; in an open split it collapses the pane. Ignored while a ⋯ menu is
-         open (that menu owns Esc). ─────────────────────────────────────────── */
+      /* ── Esc — the "get out" key. In the reader it folds the reader up; in an
+         open split it collapses the pane. Ignored while a ⋯ menu is open. ───── */
       document.addEventListener("keydown", (e) => {
         if (e.key !== "Escape") return;
         if (document.querySelector(".audio-menu")) return;   // menu's own Esc wins
-        if (readerMode) { if (!isNarrow()) { e.preventDefault(); showSplit(); } return; }
-        if (!split.classList.contains("is-closed")) { e.preventDefault(); closeSplit(); }
+        if (readerOpen) { e.preventDefault(); closeReader(); return; }
+        if (!splitCollapsed) { e.preventDefault(); closeSplit(); }
       });
     }).catch((err) => {
       document.body.insertAdjacentHTML("afterbegin",

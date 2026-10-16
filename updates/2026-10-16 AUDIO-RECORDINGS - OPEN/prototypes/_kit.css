@@ -270,7 +270,7 @@ button { font-family: inherit; color: inherit; }
   color: hsl(var(--text-muted));
   font-size: 12px;
 }
-.audio-broken > svg { flex: 0 0 auto; }        /* the locate glyph keeps its size */
+.audio-broken > svg { flex: 0 0 auto; width: 16px; height: 16px; }  /* MUST size it: engine glyphs have no intrinsic w/h → default 300×150 balloons the bar + hides Locate */
 /* The message span is the shrinkable one: it truncates with an ellipsis. */
 .audio-broken-text {
   min-width: 0;                 /* allow the flex item to shrink below content */

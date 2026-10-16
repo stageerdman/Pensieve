@@ -8,9 +8,17 @@
 >    Recording and broken/missing must NOT be taller — normalize them.
 > 4. **Transcript generation is ALWAYS offered** in ⋯: `Create transcript` when none;
 >    `Regenerate transcript` (re-run, newer model) when one already exists.
-> 5. **Two reader presentations, both from ⋯:** `Open transcript — split view` (**default**;
->    the transcript icon click also opens this) and `Open transcript — reader` (a focused
->    full overlay: player docked on top, transcript below). Keep BOTH.
+> 5. **Two transcript presentations, both from ⋯:**
+>    - `Open transcript — split view` (**default**; transcript-icon click opens this): the
+>      resizable right pane (editor left, transcript right). **Collapse must FULLY restore the
+>      single centered editor** (max-w column back to center) — not leave an empty split column.
+>      Keep it snappy (no lag). Reopen is via the player's own transcript buttons / ⋯ — there is
+>      **NO separate "Reopen transcript" button**.
+>    - `Open transcript — reader`: **NOT a new view or overlay.** The transcript text expands
+>      **inline, directly below the player bar**, growing the block's height **in place** (stay
+>      in the note). It is **height-adjustable** (user can drag how much space it takes) and has
+>      its **own collapse control** to close it back down. Same `.transcript` body + word-sync;
+>      the bar stays put above it.
 > 6. **⋯ menu order (final):** Download recording · Open transcript — split view* ·
 >    Open transcript — reader* · Create transcript / Regenerate transcript** · —(sep)— ·
 >    Replace… · Remove.  *shown only when a transcript exists. **label depends on existence.
