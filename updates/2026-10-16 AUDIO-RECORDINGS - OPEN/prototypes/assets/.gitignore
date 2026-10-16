@@ -1,0 +1,6 @@
+# Heavy local test media — do not commit (19MB sales-call recording).
+# transcript.json IS committed (small, drives the sync demo).
+*.mp3
+*.mov
+*.m4a
+*.wav
