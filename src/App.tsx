@@ -12,6 +12,7 @@ import { StatusWhisper } from "./components/StatusWhisper";
 import { MediaBackupWhisper } from "./components/MediaBackupWhisper";
 import { ImageLightbox } from "./components/media/ImageLightbox";
 import { TranscriptSplit } from "./components/audio/TranscriptSplit";
+import { transcriptPane } from "./components/audio/transcriptController";
 import { SyncStatus } from "./components/SyncStatus";
 import { NotePreview } from "./features/gallery/NotePreview";
 import type { TimelineEntry } from "./lib/types";
@@ -121,15 +122,28 @@ export default function App() {
   // meaningful with a note open, so they are no-ops on Home.
   const toggleTimeline = useCallback(() => {
     if (onHome || !current) return;
+    transcriptPane.close(); // one right panel at a time: a dock and the transcript are exclusive
     setTimelineOpen((v) => !v);
     setDetailsOpen(false);
   }, [onHome, current]);
 
   const toggleDetails = useCallback(() => {
     if (onHome || !current) return;
+    transcriptPane.close();
     setDetailsOpen((v) => !v);
     setTimelineOpen(false);
   }, [onHome, current]);
+
+  // The transcript split and the Timeline/Details docks share the one right-panel slot —
+  // opening a transcript closes whichever dock was open (and vice-versa, above).
+  useEffect(() => {
+    return transcriptPane.subscribe((req) => {
+      if (req) {
+        setTimelineOpen(false);
+        setDetailsOpen(false);
+      }
+    });
+  }, []);
 
   // Leave time travel when switching notes, or when the Timeline is closed (otherwise
   // you'd be stuck looking at a read-only past version with no way back).

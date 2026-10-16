@@ -238,6 +238,8 @@
   overflow-y: auto;
   padding: 16px 14px 40vh;
   scroll-behavior: smooth;
+  user-select: text; /* selectable/copyable — incl. inside the void audio block (dropdown) */
+  -webkit-user-select: text;
 }
 .pensieve-turn {
   display: grid;

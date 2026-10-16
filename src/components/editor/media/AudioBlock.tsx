@@ -83,7 +83,8 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
   };
 
   const openSplit = () => {
-    if (transcript) transcriptPane.open({ src: url, transcript, title: caption || audioFilename(url) });
+    // No filename in the header — just the caption if the owner wrote one, else "Transcript".
+    if (transcript) transcriptPane.open({ src: url, transcript, title: caption || undefined });
   };
   const openReader = () => { if (transcript) setReaderOpen(true); };
 
@@ -142,9 +143,16 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
       />
       {caption && !broken && <div className="pensieve-audio-caption">{caption}</div>}
 
-      {/* Inline "Dropdown Transcript" reader — expands the transcript below the bar, in place. */}
+      {/* Inline "Dropdown Transcript" reader — expands the transcript below the bar, in place.
+          onMouseDown stopPropagation makes it a SELECTABLE ISLAND: without it ProseMirror
+          grabs the mousedown and node-selects the whole (void) audio block instead of letting
+          you select/copy the transcript text. */}
       {readerOpen && transcript && (
-        <div className="pensieve-audio-reader" style={{ height: readerH }}>
+        <div
+          className="pensieve-audio-reader"
+          style={{ height: readerH }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           <div className="pensieve-audio-reader-head">
             <span>Transcript</span>
             <button type="button" className="pensieve-audio-iconbtn" aria-label="Collapse transcript"
