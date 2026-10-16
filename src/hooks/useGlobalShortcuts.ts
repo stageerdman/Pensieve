@@ -31,7 +31,9 @@ export function useGlobalShortcuts(actions: GlobalShortcutActions): void {
         return;
       }
       const k = e.key.toLowerCase();
-      if (k === "n") {
+      if (k === "n" && !e.shiftKey) {
+        // Plain ⌘N makes a note in-app. ⌘⇧N is the native global hotkey (handled by the
+        // Rust shell → useNativeCommands), so we leave it alone here to avoid double-create.
         e.preventDefault();
         a.newNote();
       } else if (k === "w") {

@@ -21,6 +21,7 @@ import { contentCharCount } from "./lib/text";
 import { useNotes } from "./hooks/useNotes";
 import { useTabs } from "./hooks/useTabs";
 import { useGlobalShortcuts } from "./hooks/useGlobalShortcuts";
+import { useNativeCommands } from "./hooks/useNativeCommands";
 import { useGallery } from "./hooks/useGallery";
 import { useTheme } from "./hooks/useTheme";
 import { useFullscreen } from "./hooks/useFullscreen";
@@ -161,7 +162,12 @@ export default function App() {
   useGlobalShortcuts({
     newNote: () => void newNote(),
     closeActiveTab: () => {
+      // ⌘W closes the current tab; on Home (nothing left to close) it puts Pensieve away
+      // into the menu bar — the same hide-to-bar the red button triggers (Rust intercepts
+      // CloseRequested and hides instead of quitting).
       if (!onHome) closeTab(activeTab);
+      else if (IS_TAURI)
+        void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().close());
     },
     togglePinCurrent: () => {
       if (!onHome && current) void togglePin(current.id);
@@ -182,6 +188,12 @@ export default function App() {
       setDetailsOpen(false);
       setFocusMode(false);
     },
+  });
+
+  // Menu-bar icon + global ⌘⇧N / ⌘⇧A (native shell) → the same new-note / Accio actions.
+  useNativeCommands({
+    newNote: () => void newNote(),
+    summon: summonSearch,
   });
 
   const showChrome = !focusMode;

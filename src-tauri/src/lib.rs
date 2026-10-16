@@ -8,9 +8,37 @@ use base64::Engine;
 use std::fs;
 use std::path::PathBuf;
 use tauri::menu::{Menu, SubmenuBuilder};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 
 mod sync;
+
+// Flip between a normal app (dock icon + the Appearance menu) and a pure menu-bar
+// "accessory" (no dock icon, no app menu) depending on whether a window is on screen.
+#[cfg(target_os = "macos")]
+fn set_policy(app: &AppHandle, visible: bool) {
+    let policy = if visible {
+        tauri::ActivationPolicy::Regular
+    } else {
+        tauri::ActivationPolicy::Accessory
+    };
+    let _ = app.set_activation_policy(policy);
+}
+#[cfg(not(target_os = "macos"))]
+fn set_policy(_app: &AppHandle, _visible: bool) {}
+
+// Bring the main window to the front (switching Pensieve back to a normal, dock-visible
+// app), then optionally tell the webview what to do once it's there (`new-note` / `summon`).
+// The intent rides the same emit→listen bridge as the theme/font-scale menu.
+fn reveal(app: &AppHandle, intent: Option<&str>) {
+    set_policy(app, true);
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
+    if let Some(event) = intent {
+        let _ = app.emit(event, ());
+    }
+}
 
 fn vault_root(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
@@ -123,7 +151,15 @@ fn build_menu(handle: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default();
+    // The global-shortcut plugin must be registered before `app.global_shortcut()` is
+    // used in setup. Desktop-only.
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
+    }
+    builder
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -132,7 +168,76 @@ pub fn run() {
                         .build(),
                 )?;
             }
+
+            // A manual launch (Spotlight / Finder / dock) is an explicit "open Pensieve",
+            // so show the window (it's created hidden via `visible: false`). Closing it
+            // later (red button / ⌘W) is what hides Pensieve back into the menu bar.
+            reveal(app.handle(), None);
+
+            // Tray icon + global shortcuts are desktop-only (the future iPhone app is
+            // capture-only and builds without them).
+            #[cfg(desktop)]
+            {
+                use tauri::menu::{MenuBuilder, MenuItem};
+                use tauri::tray::TrayIconBuilder;
+
+                // The status-bar icon and its menu (New memory / Accio / — / Quit).
+                // Clicking the icon drops the menu; each item reveals the window and emits
+                // its intent, except Quit which is the only real exit.
+                let new_item = MenuItem::with_id(app, "tray-new", "New memory", true, None::<&str>)?;
+                let accio_item = MenuItem::with_id(app, "tray-accio", "Accio", true, None::<&str>)?;
+                let quit_item = MenuItem::with_id(app, "tray-quit", "Quit Pensieve", true, None::<&str>)?;
+                let tray_menu = MenuBuilder::new(app)
+                    .item(&new_item)
+                    .item(&accio_item)
+                    .separator()
+                    .item(&quit_item)
+                    .build()?;
+                // The menu-bar glyph is the inner sigil only (no tile) as a monochrome
+                // *template* image — macOS tints it white on the dark bar / black on light,
+                // so it sits with the other system icons. Source: icons/tray.png.
+                let _tray = TrayIconBuilder::with_id("pensieve-tray")
+                    .icon(tauri::include_image!("icons/tray.png"))
+                    .icon_as_template(true)
+                    .tooltip("Pensieve")
+                    .menu(&tray_menu)
+                    .show_menu_on_left_click(true)
+                    .on_menu_event(|app, event| match event.id().as_ref() {
+                        "tray-new" => reveal(app, Some("new-note")),
+                        "tray-accio" => reveal(app, Some("summon")),
+                        "tray-quit" => app.exit(0),
+                        _ => {}
+                    })
+                    .build(app)?;
+
+                // Global hotkeys (fire even when Pensieve isn't focused):
+                //   ⌘⇧N → new memory,  ⌘⇧A → Accio. Both reveal the window + emit intent.
+                use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+                let new_sc = Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyN);
+                let accio_sc = Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyA);
+                let gs = app.global_shortcut();
+                gs.on_shortcut(new_sc, |app, _sc, event| {
+                    if event.state() == ShortcutState::Pressed {
+                        reveal(app, Some("new-note"));
+                    }
+                })?;
+                gs.on_shortcut(accio_sc, |app, _sc, event| {
+                    if event.state() == ShortcutState::Pressed {
+                        reveal(app, Some("summon"));
+                    }
+                })?;
+            }
+
             Ok(())
+        })
+        // Close (red button / ⌘W) hides to the menu bar instead of quitting; only the
+        // tray's Quit exits. Dropping the last visible window flips back to accessory.
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+                set_policy(window.app_handle(), false);
+            }
         })
         .menu(build_menu)
         .on_menu_event(|app, event| {
@@ -162,8 +267,16 @@ pub fn run() {
             sync::port_available,
             sync::http_request
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|_app, _event| {
+            // Clicking Pensieve's dock icon or relaunching it via Spotlight/Finder while it's
+            // already running (window hidden in the bar) fires Reopen — bring the window back.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = _event {
+                reveal(_app, None);
+            }
+        });
 }
 
 #[cfg(test)]
