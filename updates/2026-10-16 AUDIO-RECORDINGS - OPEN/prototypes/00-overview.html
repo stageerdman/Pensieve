@@ -107,7 +107,7 @@
     <!-- SPLIT VIEW --------------------------------------------------------- -->
     <section>
       <h2>6 · Desktop split view</h2>
-      <p class="sub">A transcript opens in <b>two presentations</b>, both from the ⋯ menu: this <b>split view</b> — the <b>default</b>, which the transcript-icon click also opens — with the note editor on the left and the transcript (text + docked player) on the right, drag the divider to rebalance; and <b>Open transcript — reader</b>, a focused full overlay (player docked on top, transcript below) for distraction-free reading.</p>
+      <p class="sub">A transcript opens in <b>two presentations</b>, both from the ⋯ menu: <b>Split to Transcript</b> — the <b>default</b>, which the transcript-icon click also opens — this split view, with the note editor on the left and the transcript (text + docked player) on the right, drag the divider to rebalance; and <b>Dropdown Transcript</b>, an inline reader that drops down below the bar (player on top, transcript below) for a quick read in place.</p>
       <div class="splitwrap">
         <div class="split" id="split">
           <div class="split-left ed-pad">
@@ -135,10 +135,14 @@
     A.theme.init();
     const SRC = "assets/audio.mp3";
 
-    /* page-local glyphs the kit set doesn't carry (menu extras) */
+    /* page-local glyphs the kit set doesn't carry (menu extras). width/height
+       are set explicitly AND the menu CSS sizes them — an unsized SVG defaults
+       to 300×150 (the broken-bar lesson). */
     const GLYPH = {
-      splitView: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M13 4v16"/></svg>',
-      reader: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4"/><path d="M20 9V5a1 1 0 0 0-1-1h-4"/><path d="M4 15v4a1 1 0 0 0 1 1h4"/><path d="M20 15v4a1 1 0 0 1-1 1h-4"/></svg>',
+      // Vertical split (two side-by-side panes ▮▮) → "Split to Transcript" (default).
+      vsplit: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></svg>',
+      // Horizontal split (stacked top/bottom rows) → "Dropdown Transcript" (inline reader).
+      hsplit: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18"/></svg>',
       regenerate: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v4h-4"/></svg>',
       replace: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11a7 7 0 0 1 12-4.9L19 9"/><path d="M19 4.5V9h-4.5"/><path d="M20 13a7 7 0 0 1-12 4.9L5 15"/><path d="M5 19.5V15h4.5"/></svg>',
       trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v5M14 11v5"/><path d="M6.5 7l.8 12.2A1 1 0 0 0 8.3 20h7.4a1 1 0 0 0 1-.8L17.5 7"/><path d="M9 7V4.5h6V7"/></svg>',
@@ -236,14 +240,14 @@
         const backdrop = document.createElement("div"); backdrop.className = "audio-menu-backdrop";
         const menu = document.createElement("div"); menu.className = "audio-menu"; menu.setAttribute("role", "menu");
         menu.style.top = "34px"; menu.style.right = "0";
-        /* Locked ⋯ order (decisions #4/#5/#6): Download · Open split* · Open reader* ·
-           Create/Regenerate · —sep— · Replace… · Remove. (*only when a transcript
-           exists.) Transcript generation is ALWAYS offered. */
+        /* Locked ⋯ order (decisions #4/#5/#6): Download · Split to Transcript* ·
+           Dropdown Transcript* · Create/Regenerate · —sep— · Replace… · Remove.
+           (*only when a transcript exists.) Transcript generation is ALWAYS offered. */
         const present = opts.transcript === "present";
         const transcribing = opts.transcript === "transcribing";
         const openItems = present
-          ? '<button role="menuitem">' + GLYPH.splitView + 'Open transcript — split view</button>' +
-            '<button role="menuitem">' + GLYPH.reader + 'Open transcript — reader</button>'
+          ? '<button role="menuitem">' + GLYPH.vsplit + 'Split to Transcript</button>' +
+            '<button role="menuitem">' + GLYPH.hsplit + 'Dropdown Transcript</button>'
           : '';
         const genItem = transcribing
           ? '<button role="menuitem" disabled>' + A.icon("transcript") + 'Transcribing…</button>'
@@ -337,7 +341,7 @@
       const states = [
         ["Ready · no transcript", "The resting state most recordings live in. Transcript icon is a faint ghost; <b>Create transcript</b> lives in the ⋯ menu — transcript generation is always available. Absence is healthy.", { transcript: "absent", duration: DUR }],
         ["Transcribing", "Background work. The transcript icon pulses quietly (1.6s) and a calm status line shows progress — no spinner, no block.", { transcript: "transcribing", duration: DUR }],
-        ["Transcript ready", "Transcript icon turns accent and opens the <b>split view</b> by default; the ⋯ menu also offers a focused <b>reader</b> overlay and <b>Regenerate transcript</b>. The signal is the colour-of-state, not a new hue.", { transcript: "present", duration: DUR }],
+        ["Transcript ready", "Transcript icon turns accent and runs <b>Split to Transcript</b> by default; the ⋯ menu also offers <b>Dropdown Transcript</b> (an inline reader) and <b>Regenerate transcript</b>. The signal is the colour-of-state, not a new hue.", { transcript: "present", duration: DUR }],
         ["Just recorded · saving", "Right after capture: bytes writing to disk. Gold status dot (sync/working rune), still fully playable.", { transcript: "absent", state: "saving", duration: DUR }],
         ["Recording", "Live capture. The bar is the in-progress recorder; waveform fills as it listens; status shows elapsed time.", { transcript: "absent", state: "recording", duration: DUR }],
         ["Broken · missing file", "Honest, specific. The reference is shown and a Locate… action offered — never a silent empty box.", { state: "broken" }],

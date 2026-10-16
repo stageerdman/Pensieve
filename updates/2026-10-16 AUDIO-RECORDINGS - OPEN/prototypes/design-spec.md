@@ -8,20 +8,32 @@
 >    Recording and broken/missing must NOT be taller — normalize them.
 > 4. **Transcript generation is ALWAYS offered** in ⋯: `Create transcript` when none;
 >    `Regenerate transcript` (re-run, newer model) when one already exists.
-> 5. **Two transcript presentations, both from ⋯:**
->    - `Open transcript — split view` (**default**; transcript-icon click opens this): the
->      resizable right pane (editor left, transcript right). **Collapse must FULLY restore the
+> 5. **Two transcript presentations, both from ⋯** (final labels + icons):
+>    - **`Split to Transcript`** — icon = **vertical split** (two side-by-side panes ▮▮)
+>      (**default**; transcript-icon click opens this): the resizable right pane (editor left,
+>      transcript right). **Collapse must FULLY restore the
 >      single centered editor** (max-w column back to center) — not leave an empty split column.
 >      Keep it snappy (no lag). Reopen is via the player's own transcript buttons / ⋯ — there is
 >      **NO separate "Reopen transcript" button**.
->    - `Open transcript — reader`: **NOT a new view or overlay.** The transcript text expands
+>    - **`Dropdown Transcript`** — icon = **horizontal split** (two stacked rows ▭/▭):
+>      **NOT a new view or overlay.** The transcript text expands
 >      **inline, directly below the player bar**, growing the block's height **in place** (stay
 >      in the note). It is **height-adjustable** (user can drag how much space it takes) and has
 >      its **own collapse control** to close it back down. Same `.transcript` body + word-sync;
 >      the bar stays put above it.
-> 6. **⋯ menu order (final):** Download recording · Open transcript — split view* ·
->    Open transcript — reader* · Create transcript / Regenerate transcript** · —(sep)— ·
->    Replace… · Remove.  *shown only when a transcript exists. **label depends on existence.
+> 6. **⋯ menu order (final):** Download recording · Split to Transcript* (vertical-split icon) ·
+>    Dropdown Transcript* (horizontal-split icon) · Create transcript / Regenerate transcript** ·
+>    —(sep)— · Replace… · Remove.  *shown only when a transcript exists. **label depends on existence.
+> 13. **Standalone reusable element (iPhone + Desktop) — via the REPO CONVENTION (owner choice).**
+>     The audio player is built **standalone/self-contained** (pure engine `src/lib/audio/*`:
+>     controller, peaks/waveform, time, segment-aware sync — kept DOM/BlockNote-free; the player
+>     bar + transcript view are presentational components in `src/components/audio/`, decoupled
+>     from BlockNote; the desktop `AudioBlock` is a thin adapter mounting them). We do NOT add a
+>     `shared/` root or `@shared` alias. Reuse follows the established pattern (STRUCTURE.md:
+>     decouple-and-duplicate, like the `.md` media format): built in `src/` now; when the iPhone
+>     capture app is built, the element is **ported into `phone/` and locked with a lockstep guard
+>     test** (cf. `sharedFormat.guard.test.tsx`). Keep the engine clean + the contract explicit so
+>     that port is mechanical, not a rewrite.
 > 7. **Split view chrome:** REMOVE the meta chip line (speakers / language / polished) and
 >    the "· click a word to jump" hint — they don't exist in our UI. In the split, DROP the
 >    transcript toggle button; ADD a dedicated **Collapse split view** button. Make the

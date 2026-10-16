@@ -179,6 +179,14 @@
     // …and a chevron-up = "fold the inline reader back up / collapse it".
     const CHEVRON_UP =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>';
+    // Vertical split (two side-by-side panes ▮▮) → "Split to Transcript" (right pane).
+    // width/height set explicitly (and the menu CSS sizes svgs to 15px) so an
+    // unsized SVG never balloons to 300×150 (the broken-bar lesson).
+    const VSPLIT_ICON =
+      '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></svg>';
+    // Horizontal split (stacked top/bottom rows) → "Dropdown Transcript" (inline reader).
+    const HSPLIT_ICON =
+      '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18"/></svg>';
 
     /* ── Bar builder — ported from 00-overview.html buildBar().
        opts: { compact, transcript, controller, duration,
@@ -496,8 +504,8 @@
         transcriptLabel: "Close transcript",
         menuItems: [
           { icon: "download", label: "Download recording" },
-          { icon: "transcript", label: "Open transcript — split view", onClick: showSplit },
-          { icon: "transcript", label: "Open transcript — reader", onClick: showReader },
+          { svg: VSPLIT_ICON, label: "Split to Transcript", onClick: showSplit },
+          { svg: HSPLIT_ICON, label: "Dropdown Transcript", onClick: showReader },
         ],
       });
 
@@ -507,7 +515,7 @@
         onCollapse: closeSplit,
         menuItems: [
           { icon: "download", label: "Download recording" },
-          { icon: "transcript", label: "Open transcript — reader", onClick: showReader },
+          { svg: HSPLIT_ICON, label: "Dropdown Transcript", onClick: showReader },
           { sep: true },
           { svg: COLLAPSE_ICON, label: "Collapse split view", onClick: closeSplit },
         ],
