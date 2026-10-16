@@ -106,8 +106,18 @@ the owner picks, then we build.
   `insertAudio.ts` (audio MIME→ext + saveAudioFile). Tests: audio `.md` round-trip (real editor)
   + time/peaks units — 798/798 pass; `tsc` clean; web bundle builds. Transcript icon = "absent"
   for now (presence/open wire in P4/P5); transcription engine stays a stub.
-  → **NEXT: P4 — transcript sidecar load + fold into Accio search; then P5 split/reader; P6
-  recording + gallery card; device-verify + merge.**
+- **2026-10-17 (P4 DONE — transcript sidecar + search):** `src/lib/transcripts/` — the locked
+  `Transcript` type, `transcriptRefFor` (`<audioRef>.transcript.json`), `transcriptPlainText`,
+  `parseTranscript`, and the **segment-aware** `syncAt`/`wordStart`/`flatWordIndex` (binary-search
+  sorted segment starts then word-within — the multitrack-overlap fix). Store gained
+  `loadTranscript`/`saveTranscript` (Tauri: read/write_text sidecar; Browser: localStorage), and
+  `bodies()` in BOTH adapters now folds each referenced recording's transcript text into the
+  note's search corpus → spoken words are findable in Accio (transcripts stay sidecars, never in
+  the `.md`). Tests: sync monotonic over the real 206-seg call (0 backward events), parse/plaintext/
+  path, and bodies()-folding on the browser store — 809/809 pass; tsc clean.
+  NB: the full index build (bodies()) picks up transcripts; when "Create transcript" writes a
+  sidecar (P6) it must trigger a note reindex (the `.md` doesn't change) — wire that in P6.
+  → **CHECKPOINT before P5 (the visible split/reader views — owner's eyes matter most there).**
 
 ### Agent recommendations to carry into P2
 - #1 gallery: **Option C** (waveform-card tile → opens canonical bar in a "Now playing" dock).

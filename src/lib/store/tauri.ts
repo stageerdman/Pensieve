@@ -13,6 +13,9 @@ import { parseFrontmatter, composeFrontmatter } from "../md/frontmatter";
 import { pruneToRecentDays } from "../timeline";
 import { log } from "../logger";
 import { newMediaId, mediaRef, bytesToBase64 } from "../media";
+import { extractMediaRefs } from "../media/ref";
+import { transcriptRefFor, transcriptPlainText, parseTranscript } from "../transcripts/transcript";
+import type { Transcript } from "../transcripts/types";
 
 const readText = (rel: string) => invoke<string | null>("read_text", { rel });
 const writeText = (rel: string, contents: string) =>
@@ -108,10 +111,26 @@ export class TauriStore implements Store {
       const file = await readText(notePath(id));
       if (!file) continue;
       const { body } = parseFrontmatter(file);
-      out.push({ id, text: plainTextFromMarkdown(body) });
+      let text = plainTextFromMarkdown(body);
+      // Fold any referenced recordings' transcript text into the note's search corpus so
+      // spoken words are findable in Accio (transcripts are sidecars, not in the .md).
+      for (const ref of extractMediaRefs(body)) {
+        const t = await this.loadTranscript(ref);
+        if (t) text += " " + transcriptPlainText(t);
+      }
+      out.push({ id, text });
     }
     log.debug("search", "bodies.read", { count: out.length });
     return out;
+  }
+
+  async loadTranscript(audioRef: string): Promise<Transcript | null> {
+    const raw = await readText(transcriptRefFor(audioRef));
+    return raw ? parseTranscript(raw) : null;
+  }
+
+  async saveTranscript(audioRef: string, transcript: Transcript): Promise<void> {
+    await writeText(transcriptRefFor(audioRef), JSON.stringify(transcript));
   }
 
   async load(id: string): Promise<Note | null> {

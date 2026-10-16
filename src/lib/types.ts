@@ -5,6 +5,7 @@
 
 import type { NoteIcon } from "./flasks/icon";
 export type { NoteIcon } from "./flasks/icon";
+import type { Transcript } from "./transcripts/types";
 
 /** A category is referenced by NAME in frontmatter — that string is the truth.
  *  The available categories and their colours are defined separately; see
@@ -122,4 +123,11 @@ export interface Store {
   // update — version/timeline snapshots may still reference it. Use only for explicit
   // deletions (e.g. deleting a whole note, or a deliberate replace).
   removeMedia(ref: string): Promise<void>;
+
+  // --- Transcripts (sidecars keyed off an audio ref) --------------------------------
+  // A transcript lives beside its audio at `<audioRef>.transcript.json` — NOT in the .md.
+  // Loaded when the audio is referenced; its text is folded into the search corpus
+  // (bodies()) so spoken words are findable in Accio.
+  loadTranscript(audioRef: string): Promise<Transcript | null>;
+  saveTranscript(audioRef: string, transcript: Transcript): Promise<void>;
 }

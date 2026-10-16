@@ -8,10 +8,14 @@ import { titleFromMarkdown, excerptFromMarkdown, contentCharCount, plainTextFrom
 import { pruneToRecentDays } from "../timeline";
 import { log } from "../logger";
 import { newMediaId, mediaRef } from "../media";
+import { extractMediaRefs } from "../media/ref";
+import { transcriptRefFor, transcriptPlainText, parseTranscript } from "../transcripts/transcript";
+import type { Transcript } from "../transcripts/types";
 import { createIdbMediaStore, type MediaBlobStore } from "./idb";
 
 const NOTE_PREFIX = "pensieve:note:";
 const TIMELINE_PREFIX = "pensieve:timeline:";
+const TRANSCRIPT_PREFIX = "pensieve:transcript:";
 
 function newId(): string {
   return (
@@ -74,7 +78,13 @@ export class BrowserStore implements Store {
       const key = localStorage.key(i);
       if (!key || !key.startsWith(NOTE_PREFIX)) continue;
       const n = readNote(key.slice(NOTE_PREFIX.length))!;
-      out.push({ id: n.id, text: plainTextFromMarkdown(n.markdown) });
+      let text = plainTextFromMarkdown(n.markdown);
+      // Fold referenced recordings' transcript text into the search corpus (sidecars).
+      for (const ref of extractMediaRefs(n.markdown)) {
+        const t = await this.loadTranscript(ref);
+        if (t) text += " " + transcriptPlainText(t);
+      }
+      out.push({ id: n.id, text });
     }
     return out;
   }
@@ -188,5 +198,14 @@ export class BrowserStore implements Store {
   async removeMedia(ref: string): Promise<void> {
     await this.media.delete(ref);
     log.info("media", "remove", { ref });
+  }
+
+  async loadTranscript(audioRef: string): Promise<Transcript | null> {
+    const raw = localStorage.getItem(TRANSCRIPT_PREFIX + transcriptRefFor(audioRef));
+    return raw ? parseTranscript(raw) : null;
+  }
+
+  async saveTranscript(audioRef: string, transcript: Transcript): Promise<void> {
+    localStorage.setItem(TRANSCRIPT_PREFIX + transcriptRefFor(audioRef), JSON.stringify(transcript));
   }
 }
