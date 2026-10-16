@@ -62,6 +62,21 @@ function blurActive() {
   (document.activeElement as HTMLElement | null)?.blur?.();
 }
 
+/** A six-dot grip handle appended to every media block: the drag handle for reordering the block
+ *  within the note (see installBlockDrag). Pressing the grip = drag; touching the photo = open. */
+function appendGrip(el: HTMLElement) {
+  const grip = document.createElement("div");
+  grip.className = "ph-grip";
+  grip.contentEditable = "false";
+  grip.setAttribute("aria-label", "Drag to move");
+  grip.innerHTML =
+    '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">' +
+    '<circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/>' +
+    '<circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>' +
+    '<circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg>';
+  el.appendChild(grip);
+}
+
 /** Wire a "tap to open" on a media block WITHOUT the tap raising the on-screen keyboard.
  *
  *  Why this is more than a click handler: the block is `contentEditable=false` inside the
@@ -172,6 +187,7 @@ function buildImageEl(block: Extract<NoteBlock, { kind: "image" }>, ctx: MediaCt
     if (b?.kind !== "image") return;
     void resolveAll([{ ref: b.ref, caption: b.caption }]).then((items) => phoneLightbox.open(items, 0));
   });
+  appendGrip(el);
   void ctx; // image block has no in-place mutation (remove/caption handled at gallery level)
   return el;
 }
@@ -242,6 +258,7 @@ function renderGallery(el: HTMLElement) {
   }
 
   el.appendChild(cover);
+  appendGrip(el); // re-added after every rebuild (innerHTML was cleared above)
 }
 
 function readGalleryImages(el: HTMLElement): MediaImage[] {
@@ -323,6 +340,7 @@ export function renderNoteBody(noteBody: HTMLElement, title: string, content: st
     noteBody.appendChild(buildBlockEl(block, ctx, noteBody));
   }
   ensureTrailingTextRow(noteBody);
+  installBlockDrag(noteBody, ctx); // once per body; handlers survive this rebuild
 }
 
 /** Notion-style: if the note's last block is media, append an empty editable text row so the
@@ -450,4 +468,174 @@ function mergeInto(mediaEl: HTMLElement, add: MediaImage[], ctx: MediaCtx, noteB
   writeBlock(mediaEl, { kind: "gallery", images: merged });
   renderGallery(mediaEl);
   ctx.onChange();
+}
+
+// ---- block drag (reorder a media block in the note; drop onto a gallery/image to merge) ----
+
+function readImagesOf(el: HTMLElement): MediaImage[] {
+  const b = readBlock(el);
+  if (b?.kind === "image") return [{ ref: b.ref, ...(b.caption ? { caption: b.caption } : {}) }];
+  if (b?.kind === "gallery") return b.images;
+  return [];
+}
+
+/** Commit a block drag: REORDER (move the DOM node before/after the target top-level block) or
+ *  MERGE (fold the dragged image into the target media block — image→gallery adds, image→image
+ *  promotes to a gallery — then drop the now-empty dragged block). serializeNoteBody reads child
+ *  order + payloads, so a DOM move / mergeInto + onChange is all that persists. */
+export function commitMove(el: HTMLElement, target: HTMLElement, mode: "before" | "after" | "merge", ctx: MediaCtx, noteBody: HTMLElement) {
+  if (el === target) return;
+  if (mode === "merge") {
+    const imgs = readImagesOf(el);
+    if (!imgs.length) return;
+    mergeInto(target, imgs, ctx, noteBody);
+    el.remove();
+    ctx.onChange();
+    return;
+  }
+  if (mode === "before") noteBody.insertBefore(el, target);
+  else noteBody.insertBefore(el, target.nextSibling);
+  ensureTrailingTextRow(noteBody);
+  ctx.onChange();
+}
+
+/** Wire note-body block dragging ONCE (handlers survive innerHTML rebuilds; `ctx` is a stable ref
+ *  object so a first-install closure always calls the latest onChange). The drag is started from a
+ *  block's grip (appendGrip) and lifts instantly — same ghost-clone engine as the gallery board
+ *  (pointer-capture on the scroller, elementFromPoint hit-test under a pointer-events:none ghost,
+ *  edge auto-scroll), no long-press timer. 3-zone hit-test: top/bottom half → reorder in the gap;
+ *  middle of a media block (while dragging an image) → merge. */
+export function installBlockDrag(noteBody: HTMLElement, ctx: MediaCtx) {
+  if (noteBody.dataset.blockDrag === "1") return;
+  noteBody.dataset.blockDrag = "1";
+  const scroller = (noteBody.closest(".note-surface") as HTMLElement | null) ?? noteBody;
+
+  let st: {
+    el: HTMLElement;
+    ghost: HTMLElement;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    lastX: number;
+    lastY: number;
+    target: HTMLElement | null;
+    mode: "before" | "after" | "merge" | null;
+    raf: number;
+  } | null = null;
+
+  const clearMarks = () =>
+    noteBody
+      .querySelectorAll(".drop-before,.drop-after,.drop-merge")
+      .forEach((n) => n.classList.remove("drop-before", "drop-after", "drop-merge"));
+
+  // The top-level note block under a viewport point (walk up to a direct child of the body).
+  const topBlockAt = (x: number, y: number): HTMLElement | null => {
+    let n = document.elementFromPoint(x, y) as HTMLElement | null;
+    while (n && n.parentElement !== noteBody) n = n.parentElement;
+    return n && n.parentElement === noteBody ? n : null;
+  };
+
+  const hitTest = (x: number, y: number) => {
+    if (!st) return;
+    clearMarks();
+    st.target = null;
+    st.mode = null;
+    const block = topBlockAt(x, y);
+    if (!block || block === st.el) return;
+    const r = block.getBoundingClientRect();
+    const rel = r.height ? (y - r.top) / r.height : 0.5;
+    const draggingImage = readBlock(st.el)?.kind === "image";
+    // Middle of a media block while dragging an image → MERGE into it.
+    if (draggingImage && isMediaEl(block) && rel > 0.3 && rel < 0.7) {
+      block.classList.add("drop-merge");
+      st.target = block;
+      st.mode = "merge";
+      return;
+    }
+    // Else REORDER: top half = drop before, bottom half = drop after. Never before the H1 title.
+    const before = rel < 0.5 && block.tagName !== "H1";
+    block.classList.add(before ? "drop-before" : "drop-after");
+    st.target = block;
+    st.mode = before ? "before" : "after";
+  };
+
+  const EDGE = 64;
+  const VMAX = 12;
+  const edgeStep = () => {
+    if (!st) return;
+    const r = scroller.getBoundingClientRect();
+    const y = st.lastY;
+    let v = 0;
+    if (y < r.top + EDGE) v = -VMAX * (1 - (y - r.top) / EDGE);
+    else if (y > r.bottom - EDGE) v = VMAX * (1 - (r.bottom - y) / EDGE);
+    if (v !== 0) {
+      scroller.scrollTop += v;
+      hitTest(st.lastX, st.lastY); // re-resolve the target as content scrolls under a still finger
+    }
+    st.raf = requestAnimationFrame(edgeStep);
+  };
+
+  const begin = (el: HTMLElement, e: PointerEvent) => {
+    const r = el.getBoundingClientRect();
+    const ghost = el.cloneNode(true) as HTMLElement;
+    ghost.classList.add("ph-block-ghost");
+    ghost.querySelectorAll(".ph-grip").forEach((g) => g.remove());
+    ghost.style.left = `${r.left}px`;
+    ghost.style.top = `${r.top}px`;
+    ghost.style.width = `${r.width}px`;
+    ghost.style.height = `${r.height}px`;
+    document.body.appendChild(ghost);
+    el.classList.add("ph-dragging");
+    scroller.classList.add("ph-reordering");
+    st = { el, ghost, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY, target: null, mode: null, raf: 0 };
+    try {
+      scroller.setPointerCapture(e.pointerId);
+    } catch {
+      /* capture may be unavailable */
+    }
+    haptic(14);
+    st.raf = requestAnimationFrame(edgeStep);
+  };
+
+  const end = (commit: boolean) => {
+    if (!st) return;
+    const s = st;
+    st = null;
+    if (s.raf) cancelAnimationFrame(s.raf);
+    try {
+      scroller.releasePointerCapture(s.pointerId);
+    } catch {
+      /* already released */
+    }
+    s.ghost.remove();
+    s.el.classList.remove("ph-dragging");
+    scroller.classList.remove("ph-reordering");
+    clearMarks();
+    if (commit && s.target && s.mode) commitMove(s.el, s.target, s.mode, ctx, noteBody);
+  };
+
+  noteBody.addEventListener("pointerdown", (e) => {
+    const grip = (e.target as HTMLElement).closest?.(".ph-grip") as HTMLElement | null;
+    if (!grip) return;
+    const el = grip.closest(".ph-media") as HTMLElement | null;
+    if (!el) return;
+    e.preventDefault();
+    e.stopPropagation(); // the grip owns this gesture — no caret / selection / scroll
+    begin(el, e);
+  });
+  scroller.addEventListener("pointermove", (e) => {
+    if (!st || e.pointerId !== st.pointerId) return;
+    e.preventDefault();
+    st.lastX = e.clientX;
+    st.lastY = e.clientY;
+    const dx = e.clientX - st.startX;
+    const dy = e.clientY - st.startY;
+    st.ghost.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.02)`;
+    hitTest(e.clientX, e.clientY);
+  });
+  scroller.addEventListener("pointerup", () => end(true));
+  scroller.addEventListener("pointercancel", () => end(false));
+  // iOS: React/passive listeners can't block scroll — a stable non-passive guard preventDefaults
+  // native panning only while a block is actually lifted.
+  scroller.addEventListener("touchmove", (e) => { if (st) e.preventDefault(); }, { passive: false });
 }
