@@ -1,12 +1,22 @@
 // Small pure text helpers — shared so title/slug/word-count logic lives in one place.
 
-/** The note title is the first non-empty line, with leading markdown heading marks
- *  stripped. Falls back to "Untitled". */
+/** The note title is the first non-empty line of PROSE, with leading markdown heading
+ *  marks stripped. Media is not a title: fenced blocks (our `pensieve:audio`/`image`/
+ *  `gallery` fences and any code) are skipped whole, as are bare image lines — so a
+ *  recording-only or image-only note falls back to "Untitled" instead of showing the fence
+ *  marker or the media file path. Mirrors excerptFromMarkdown's fence handling. */
 export function titleFromMarkdown(md: string): string {
+  let inFence = false;
   for (const raw of md.split("\n")) {
-    const line = raw.trim();
-    if (!line) continue;
-    return line.replace(/^#{1,6}\s*/, "").trim() || "Untitled";
+    const line = raw.replace(/​/g, "").trim(); // drop blank-line placeholders (ZWSP)
+    if (/^(```|~~~)/.test(line)) {
+      inFence = !inFence; // enter/leave a fenced block (incl. our media fences) — never a title
+      continue;
+    }
+    if (inFence || !line) continue;
+    if (/^!\[[^\]]*\]\([^)]*\)$/.test(line)) continue; // a lone image is not a title
+    const t = line.replace(/^#{1,6}\s*/, "").trim();
+    if (t) return t;
   }
   return "Untitled";
 }
