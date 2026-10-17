@@ -221,6 +221,19 @@ store methods in `src/lib/store/{tauri,browser}.ts`; schema `editorSchema.ts`; s
   metadata; re-fires on a second jump). 837 pass; tsc clean; build OK.
   **Remaining: P6.3 gallery waveform card (the big one — touches the editor gallery block /
   ImageGroupBlock model) · P6.5 home/flask (lower priority). Then P7.**
+- **2026-10-17 (voice memo = no title):** a title-less note (voice memo / media-only) now has
+  NO title anywhere it's browsed — titleFromMarkdown returns "" (skips fenced blocks + lone
+  image lines), gallery card & tabs omit the title (just the flask), reference labels
+  (note-links / @-menu) keep an "Untitled" handle since a link needs something to point at.
+- **2026-10-17 (P6.3 DONE — gallery waveform card):** audio rides the editor's justified image
+  strip as a compact `WaveformCard` (waveform over play·time·transcript controls; fixed aspect
+  1.85; scales with the row-height drag like a photo; plays in place; transcript → split only).
+  `GalleryAudioTile` is the editor adapter (loads the sidecar, opens the split). Model: `GalleryImage`
+  gains optional `kind:'audio'`; the fence carries audio lines with an `audio:` sigil (additive —
+  legacy image fences unchanged). Geometry: audio = a FIXED aspect in the justify input, zero
+  packer change. Insert: the gallery drop filter + '+' input accept `audio/*`; persistTiles
+  dispatches `saveAudioFile` vs `saveImageFile` by MIME. 841 pass; tsc clean; build OK.
+  **ALL P6 build features done except P6.5 (home/flask duration chip — lower priority). Then P7.**
 
 ### Agent recommendations to carry into P2
 - #1 gallery: **Option C** (waveform-card tile → opens canonical bar in a "Now playing" dock).
