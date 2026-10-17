@@ -14,25 +14,26 @@ the full seam for it: the sidecar schema, loading, rendering, sync, and search. 
 is **UX-led**: the hard part is the design. We produce judgeable `.html` prototypes first,
 the owner picks, then we build.
 
-## ▶ RESUME HERE (for the next session / new AI) — updated 2026-10-17 (SAVE BEFORE RESTART)
-**Branch:** `update/audio-recordings` — ALL work pushed to origin, tree CLEAN. HEAD = `d564100`.
+## ▶ RESUME HERE (for the next session / new AI) — updated 2026-10-17 (drag bug CLOSED)
+**Branch:** `update/audio-recordings` — ALL work pushed to origin, tree CLEAN. HEAD = `P6.3i`.
 Branched off `main`, **not yet merged**. **Design LOCKED** (⚑ block atop `prototypes/design-spec.md`).
-**816→842 tests pass · `tsc` clean · web build OK. Native `tauri:build` NOT run yet (P7).**
+**845 tests pass · `tsc` clean · web build OK. Native `tauri:build` NOT run yet (P7).**
 
-### ░ ONE THING TO TEST FIRST ON BOOT — the open bug (drag mp3 → gallery)
-`npm run dev` → open DevTools **Console**, filter `media:` → create/open a gallery (`/gallery`,
-add an image via **+**), then **drag an mp3 from Finder onto the gallery**. Report what logs:
-- want: `media:gallery.dropListeners.attached {root:"ProseMirror"}` (wired), then on drop
-  `media:gallery.nativeDrop {accepted:1}` + a dashed ring appears → **then it works**.
-- if the drop logs `media:drop.received` / `media:insertSmart` instead → it landed OUTSIDE the
-  gallery (editor-wide handler) — widen the hit-test.
-- if **NOTHING** logs on drag → the editor-root capture listener still isn't catching it.
-The latest fix (`d564100`) attaches dragover/drop to the gallery's `.ProseMirror` root in the
-CAPTURE phase (ancestor of where BlockNote listens) + hit-tests the cursor against the gallery.
-**This is UNVERIFIED by the owner** — it's the thing to confirm first. See "OPEN BUG" below for
-everything tried.
+### ✅ The "open bug" is FIXED (owner-confirmed 2026-10-17) — and it was mis-framed
+It was NEVER the Finder→gallery file drop (that always worked). The real bug: dragging an
+**existing audio ROW** (a standalone `audio` block) by its ⠿ gutter handle **onto a gallery to
+merge it in** did nothing. Root cause was two missing audio cases, not any drag-event plumbing:
+- `useBlockDrag.ts` `isMediaType` excluded `"audio"` → `draggedMedia` false → no merge affordance.
+- `insertGroup.ts` `imagesOfMediaBlock` returned nothing for `audio` → merge found nothing to merge.
+Fix (`P6.3h`): audio counts as media (draggable-to-merge AND a merge target); a dragged audio row
+contributes a `kind:"audio"` tile reusing its saved url. Dropping an image onto a recording builds
+a gallery too (symmetric). Tests in `insertGroup.test.ts` lock it in. Hunt diagnostics cleaned up
+(`P6.3i`). **The elaborate capture-listener drag-plumbing saga below was chasing the WRONG bug —
+kept only as history; the `.ProseMirror`-root file-drop path in `useGalleryDrop.ts` is fine as-is.**
 
 ### What WORKS (owner-confirmed, browser dev):
+- **Drag an audio row onto a gallery** (⠿ handle) → merges in as a waveform tile; image→recording
+  builds a gallery too. (The fix above.)
 - `/audio` → **Record** (live recorder: Stop/pause/elapsed/waveform) → Saving → playable bar.
   Also `/audio` → *choose a file*. (Native mic needs the macOS entitlement — verify in P7.)
 - Transcript: **⋯ → Create transcript** (DEV-seeds the bundled real call) → transcript icon accent
@@ -45,7 +46,7 @@ everything tried.
 - Voice-memo notes have **no title** anywhere (not "Untitled").
 - Dragging an audio bar/card body no longer duplicates it (only the 6-dots gutter handle moves it).
 
-### ⚠ OPEN BUG — dragging an mp3 ONTO a gallery (the ONLY thing not working)
+### ⚠ HISTORICAL (RESOLVED — this chased the wrong bug; see "✅ FIXED" above) — Finder-drop saga
 **Symptom:** dragging an mp3 from Finder onto a gallery gives NO "drop here" affordance (only
 BlockNote's between-row positions), and historically NO `media:` log fired during the drag.
 Uploading the SAME mp3 via the + button works and persists. Images drag in fine.
@@ -76,10 +77,10 @@ drop-cursor overlay instead of the gallery (→ hit-test by rect instead of elem
 reliable fallback UX if drag stays unwinnable: drag an mp3 → a STANDALONE audio block (already wired
 for open-space single-audio), then merge into the gallery; the + button already covers adding audio.
 
-### CLEANUP owed once the drag bug is closed:
-Demote/remove the diagnostic logs added for this hunt: `media:drop.received`, `media:insertSmart`,
-`media:group.persist.start/ok`, `media:gallery.encode.audio`, `media:gallery.reconstruct.audio`,
-`media:gallery.nativeDrop`, `media:gallery.dropListeners.attached` (keep as `debug` or delete).
+### CLEANUP — DONE (`P6.3i`):
+Hunt diagnostics cleared: removed `gallery.encode.audio`/`gallery.reconstruct.audio`/
+`gallery.dropListeners.attached`; demoted to `debug` `drop.received`/`insertSmart`/
+`group.persist.start|ok`/`gallery.nativeDrop`. Kept at info: `group.create|promote|merge|merge-rows`.
 
 ### Gallery is now DECOMPOSED (owner asked "a file per element"), under `src/components/editor/media/gallery/`:
 `Gallery.tsx` (orchestrator) → `GalleryRow.tsx` → `GalleryTile.tsx` → `GalleryImageElement.tsx` /
