@@ -44,17 +44,13 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
   const readerDrag = useRef<{ y: number; h: number } | null>(null);
   const readerRef = useRef<HTMLDivElement>(null);
 
-  // Make the dropdown reader a SELECTABLE ISLAND. The audio block is a `content:"none"` void,
-  // so without help ProseMirror turns any mousedown in it into a NODE-SELECTION of the whole
-  // block — which cancels text selection and lets the gesture decay into a node drag that
-  // DUPLICATES the audio. Two things together fix it:
-  //   • `contentEditable={false}` on the reader (below) takes it out of PM's editable model,
-  //     so the browser does a plain, non-editable Range selection there (every built-in media
-  //     wrapper sets this);
-  //   • a NATIVE mousedown stopper so PM (which listens on the editor root in the BUBBLE
-  //     phase — verified) never sees the event and never node-selects. stopPropagation only,
-  //     no preventDefault, so the browser's own text-selection still starts. dragstart is
-  //     preventDefault'd outright so nothing originating in the reader can start a drag.
+  // Keep ProseMirror's hands off the dropdown reader. The audio block is a `content:"none"`
+  // atom, so a mousedown in it would make PM NODE-SELECT the whole block — cancelling any
+  // text selection and letting the gesture decay into a node drag that DUPLICATES the audio.
+  // A NATIVE mousedown stopper prevents that: PM listens on the editor root in the BUBBLE
+  // phase (verified), so a bubble-phase listener on the reader beats it. stopPropagation only
+  // (no preventDefault) so the browser's own selection in the read-only editable island below
+  // still starts; dragstart is preventDefault'd outright so nothing here can start a drag.
   // A React `onMouseDown` can't do this — it fires after PM's native listener has already run.
   useEffect(() => {
     const el = readerRef.current;
@@ -172,16 +168,19 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
       {caption && !broken && <div className="pensieve-audio-caption">{caption}</div>}
 
       {/* Inline "Dropdown Transcript" reader — expands the transcript below the bar, in place.
-          It's a SELECTABLE ISLAND: the native mousedown/dragstart stoppers wired up above
-          (see readerRef effect) keep ProseMirror from node-selecting the void block so you can
-          select/copy the transcript text and can't accidentally drag-duplicate the audio. */}
+          Selecting/copying its text is the whole point, but ProseMirror renders this audio
+          block as a `content:"none"` ATOM and forces its nodeview `contentEditable=false`,
+          which makes the browser treat the region as one unselectable unit. So the TEXT body
+          is wrapped in a READ-ONLY editable island (contentEditable + input blocked): that
+          restores char-level selection + ⌘C, while onBeforeInput/paste/cut/drop keep it
+          uneditable. PM already ignores selection mutations inside an atom nodeview, so it
+          won't fight the native selection; the readerRef effect's mousedown stopper keeps PM
+          from node-selecting, and dragstart is cancelled so the audio can't be dragged. */}
       {readerOpen && transcript && (
         <div
           ref={readerRef}
           className="pensieve-audio-reader"
           style={{ height: readerH }}
-          contentEditable={false}
-          suppressContentEditableWarning
         >
           <div className="pensieve-audio-reader-head">
             <span>Transcript</span>
@@ -193,7 +192,17 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
               </svg>
             </button>
           </div>
-          <TranscriptView src={url} playerKey={block.id} transcript={transcript} className="pensieve-audio-reader-body" />
+          <div
+            className="pensieve-audio-reader-selectable"
+            contentEditable
+            suppressContentEditableWarning
+            onBeforeInput={(e) => e.preventDefault()}
+            onPaste={(e) => e.preventDefault()}
+            onCut={(e) => e.preventDefault()}
+            onDrop={(e) => e.preventDefault()}
+          >
+            <TranscriptView src={url} playerKey={block.id} transcript={transcript} className="pensieve-audio-reader-body" />
+          </div>
           <div
             className="pensieve-audio-reader-grip"
             role="separator"
