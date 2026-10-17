@@ -117,7 +117,7 @@ store methods in `src/lib/store/{tauri,browser}.ts`; schema `editorSchema.ts`; s
   `bodies()` folds transcript text into Accio. Segment-aware sync. Tests green.
 - **P5 — Transcript views.** ✅ DONE (+P5.1 polish) — `TranscriptView`, `TranscriptSplit`
   (resizable pane) + inline Dropdown reader, word-sync, click-to-seek. **← owner testing now.**
-- **P6 — Recording + gallery card + Accio hit + reindex.** ◻ NEXT.
+- **P6 — Recording + gallery card + Accio hit + reindex.** ◧ IN PROGRESS (reindex + recording done).
   - **Recording:** `/audio` → live recorder bar (MediaRecorder; waveform fills; Recording·m:ss;
     stop → Saving (gold) → settled bar). Reuse `saveAudioFile`. Per prototype `02-capture.html`.
   - **Gallery waveform card:** audio inside the justified gallery as the improved self-contained
@@ -185,6 +185,26 @@ store methods in `src/lib/store/{tauri,browser}.ts`; schema `editorSchema.ts`; s
   → code-split) so the UX is testable now; swap for whisper later (then delete the sample +
   the dev seed). 809/809 pass; tsc clean; build OK.
   → **NEXT: owner tests P5 live; then P6 — recording + gallery card + Accio hit; P7 device-verify + merge.**
+- **2026-10-17 (P6.1 DONE — auto-reindex-on-create):** `buildSearchBody(markdown, loadTranscript)`
+  is now the ONE definition of a note's searchable text (markdown + folded transcript sidecars);
+  both `Store.bodies()` adapters + the single-note reindex use it (also fixed a latent bug: the
+  incremental edit path indexed bare markdown, dropping transcript words). New
+  `reindexController` pub/sub (mirrors transcriptController): `createTranscript` →
+  `reindex.request(noteId)` after the sidecar write → `useSearchIndex` refolds just that note
+  (no-op until the index is built — the cold build folds everything). Tests: buildSearchBody
+  fold/multi-ref, reindexController pub/sub. 822 pass.
+- **2026-10-17 (P6.2 DONE — live recording):** the recorder IS the inline bar. `/audio` empty
+  block → **Record** (primary) + *choose a file* (secondary, owner's call — reversible). Record
+  drops `RecordingBar` in place: accent Stop square, live waveform, elapsed clock, optional
+  pause, "Recording · m:ss"; stop → Saving → settles into the playable bar. New: DOM-free
+  `src/lib/audio/recorder.ts` (getUserMedia + MediaRecorder + AnalyserNode; unit-tested
+  `RecordingClock` pause math; MIME picker Opus/WebM→mp4/aac), shared
+  `src/lib/audio/waveformPaint.ts` (the one bar painter — Waveform refactored onto it, kills
+  the duplicate draw loop), `RecordingBar.tsx`. `saveAudioFile` already took a Blob; fixed
+  `audioExtForFile` to strip MediaRecorder's `;codecs=` suffix. 831 pass; tsc clean; build OK.
+  **Native mic (WKWebView) needs the macOS entitlement — verify in P7. Browser dev works now.**
+  **Remaining P6: gallery waveform card (P6.3) · Accio transcript-hit jump-lines (P6.4) ·
+  home/flask (P6.5, lower priority).**
 
 ### Agent recommendations to carry into P2
 - #1 gallery: **Option C** (waveform-card tile → opens canonical bar in a "Now playing" dock).

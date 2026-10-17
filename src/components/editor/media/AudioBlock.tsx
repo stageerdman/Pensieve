@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createReactBlockSpec } from "@blocknote/react";
 import { AudioBar, type TranscriptState } from "../../audio/AudioBar";
 import { RecordingBar } from "../../audio/RecordingBar";
@@ -69,6 +69,22 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
     };
   }, [readerOpen]);
 
+  // The audio block must be draggable ONLY by the gutter 6-dots handle — never by grabbing
+  // the bar/recorder body. The block is a `content:"none"` atom, so grabbing it node-selects
+  // the block and ProseMirror then drags that node, dropping a DUPLICATE. Cancel dragstart
+  // on the block body (native, so it beats PM's editor-root handler) — the gutter handle
+  // lives OUTSIDE this subtree, so it keeps working. Applied to every state via a callback
+  // ref (each render branch mounts its own blockwrap).
+  const noDragCleanup = useRef<(() => void) | null>(null);
+  const blockwrapRef = useCallback((el: HTMLDivElement | null) => {
+    noDragCleanup.current?.();
+    noDragCleanup.current = null;
+    if (!el) return;
+    const stop = (e: Event) => { e.preventDefault(); e.stopPropagation(); };
+    el.addEventListener("dragstart", stop);
+    noDragCleanup.current = () => el.removeEventListener("dragstart", stop);
+  }, []);
+
   // Load the sidecar transcript (if present) → drives the icon state + the views.
   useEffect(() => {
     if (!ref) return;
@@ -135,7 +151,7 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
   // ── recording: the bar IS the live recorder (born in place from /audio) ──
   if (!url && recording) {
     return (
-      <div className="pensieve-audio-blockwrap">
+      <div className="pensieve-audio-blockwrap" ref={blockwrapRef}>
         <RecordingBar onStop={(blob) => void save(blob)} onCancel={() => setRecording(false)} />
       </div>
     );
@@ -144,7 +160,7 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
   // ── empty (new block): Record (primary) or choose a file ──
   if (!url && status !== "saving") {
     return (
-      <div className="pensieve-audio-blockwrap">
+      <div className="pensieve-audio-blockwrap" ref={blockwrapRef}>
         <div className="pensieve-audio-empty">
           <button type="button" className="pensieve-audio-empty-rec" onClick={() => setRecording(true)}>
             <MicIcon size={15} /><span>Record</span>
@@ -162,7 +178,7 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
 
   if (status === "saving") {
     return (
-      <div className="pensieve-audio-blockwrap">
+      <div className="pensieve-audio-blockwrap" ref={blockwrapRef}>
         <div className="pensieve-audio-empty is-saving">
           <span className="pensieve-audio-empty-glyph">♪</span><span>Saving recording…</span>
         </div>
@@ -174,7 +190,7 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
   const filename = audioFilename(url);
 
   return (
-    <div className="pensieve-audio-blockwrap" data-broken={broken || undefined}>
+    <div className="pensieve-audio-blockwrap" ref={blockwrapRef} data-broken={broken || undefined}>
       <AudioBar
         src={url}
         playerKey={block.id}
