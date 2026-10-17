@@ -14,30 +14,86 @@ the full seam for it: the sidecar schema, loading, rendering, sync, and search. 
 is **UX-led**: the hard part is the design. We produce judgeable `.html` prototypes first,
 the owner picks, then we build.
 
-## ▶ RESUME HERE (for the next session / new AI) — updated 2026-10-17
-**Branch:** `update/audio-recordings` (pushed to origin; branched off `main`). **Not yet merged.**
-**Design is LOCKED** by the owner (see the ⚑ block at the top of `prototypes/design-spec.md` —
-that file is the binding build contract). Prototypes to see the intended UX:
-`prototypes/index.html` (opens the 7 interactive `.html`, run against the real call).
+## ▶ RESUME HERE (for the next session / new AI) — updated 2026-10-17 (SAVE BEFORE RESTART)
+**Branch:** `update/audio-recordings` — ALL work pushed to origin, tree CLEAN. HEAD = `d564100`.
+Branched off `main`, **not yet merged**. **Design LOCKED** (⚑ block atop `prototypes/design-spec.md`).
+**816→842 tests pass · `tsc` clean · web build OK. Native `tauri:build` NOT run yet (P7).**
 
-**Done & pushed:** P0 research · P1 UX (7 prototypes) · P2 locked design + refinements ·
-**P3** inline AudioBlock (play/wave/scrub/time/⋯ menu, `/audio` slash, `pensieve:audio` fence) ·
-**P4** transcript sidecar load/save + Accio search folding · **P5** transcript views
-(Split pane + inline Dropdown reader, segment-aware word-sync) + P5.1 polish.
-**Tests: 809/809 pass · `tsc` clean · web build OK. Native `tauri:build` NOT yet run (that's P7).**
+### ░ ONE THING TO TEST FIRST ON BOOT — the open bug (drag mp3 → gallery)
+`npm run dev` → open DevTools **Console**, filter `media:` → create/open a gallery (`/gallery`,
+add an image via **+**), then **drag an mp3 from Finder onto the gallery**. Report what logs:
+- want: `media:gallery.dropListeners.attached {root:"ProseMirror"}` (wired), then on drop
+  `media:gallery.nativeDrop {accepted:1}` + a dashed ring appears → **then it works**.
+- if the drop logs `media:drop.received` / `media:insertSmart` instead → it landed OUTSIDE the
+  gallery (editor-wide handler) — widen the hit-test.
+- if **NOTHING** logs on drag → the editor-root capture listener still isn't catching it.
+The latest fix (`d564100`) attaches dragover/drop to the gallery's `.ProseMirror` root in the
+CAPTURE phase (ancestor of where BlockNote listens) + hit-tests the cursor against the gallery.
+**This is UNVERIFIED by the owner** — it's the thing to confirm first. See "OPEN BUG" below for
+everything tried.
 
-**NEXT = P6** then P7 (see roadmap below). In P6, also wire **auto-reindex-on-create** (writing a
-transcript sidecar doesn't change the `.md`, so the search index must be told to refold — today
-it only refolds on a full `bodies()` rebuild).
+### What WORKS (owner-confirmed, browser dev):
+- `/audio` → **Record** (live recorder: Stop/pause/elapsed/waveform) → Saving → playable bar.
+  Also `/audio` → *choose a file*. (Native mic needs the macOS entitlement — verify in P7.)
+- Transcript: **⋯ → Create transcript** (DEV-seeds the bundled real call) → transcript icon accent
+  → **Split to Transcript** (resizable pane, word-sync, click-to-seek) / **Dropdown Transcript**
+  (inline, selectable/copyable). Test mp3: `prototypes/assets/audio.mp3`; search `problém`/`partnerku`.
+- **Accio transcript-hit jump-lines**: search a spoken word → timecoded jumps under the result card
+  → click opens the note + transcript split seeked there.
+- **Audio in a gallery**: add via the gallery **+ / "Add media"** button (works) OR ⋯ on the card →
+  Create transcript. Round-trips via the `audio:` sigil in the `pensieve:gallery` fence.
+- Voice-memo notes have **no title** anywhere (not "Untitled").
+- Dragging an audio bar/card body no longer duplicates it (only the 6-dots gutter handle moves it).
 
-**How to test what's built (browser dev is enough):** `npm run dev` → http://localhost:5173 →
-in a note type `/audio` → **Choose an audio file…** → pick
-`updates/2026-10-16 AUDIO-RECORDINGS - OPEN/prototypes/assets/audio.mp3` (the real 19-min call) →
-bar plays/scrubs. Then **⋯ → Create transcript** (DEV-seeds the bundled real transcript) → the
-transcript icon turns accent → **transcript icon / ⋯ "Split to Transcript"** opens the right pane
-(play → words highlight, click a word to seek, drag divider, Collapse/Esc); **⋯ "Dropdown
-Transcript"** expands the reader inline (drag grip to resize, drag-select to copy). Search a spoken
-word in Accio (e.g. `problém`, `partnerku`) → the note matches on transcript text.
+### ⚠ OPEN BUG — dragging an mp3 ONTO a gallery (the ONLY thing not working)
+**Symptom:** dragging an mp3 from Finder onto a gallery gives NO "drop here" affordance (only
+BlockNote's between-row positions), and historically NO `media:` log fired during the drag.
+Uploading the SAME mp3 via the + button works and persists. Images drag in fine.
+**Proven NOT the cause:** markdown serialization — a real-editor round-trip test
+(`galleryRoundTrip.test`) confirms an audio gallery entry (`audio:` sigil + `kind`) round-trips.
+Both save paths register the url↔ref pairing, so persistence is sound once a tile is added.
+**Root cause (from a fresh-eyes investigation):** BlockNote/ProseMirror handle (and can swallow)
+file drags at the **editor root** before the event reaches our gallery node, AND our schema had
+replaced BlockNote's default audio block (no `fileBlockAccept`) so an un-caught mp3 fell to
+BlockNote's generic **`file` block** (the "stuck under the gallery, moves with it" artifact).
+**What we tried (in order), and why each failed:**
+1. Gallery React `onDrop` (image-only) + route audio via the editor-wide PM plugin — FAILED: the
+   PM plugin's `hasFiles` gate never passes for audio in the shell (no `drop.received` ever logged).
+2. NATIVE listeners on the gallery ELEMENT (bubble, then capture) — FAILED: too deep; BlockNote
+   swallows at the editor root above us, so the element listeners never fire.
+3. Removed BlockNote's default `file`/`video` block specs (`editorSchema.ts`) — GOOD + kept: now an
+   un-caught media drop inserts NOTHING instead of a stray `file` block. (Didn't make the drop work.)
+4. DOCUMENT-level capture listeners — plausibly correct but tipped `App.test` over its 4s editor-
+   mount timeout under full-suite load. Replaced by #5.
+5. **CURRENT (`d564100`):** listeners on the gallery's `.ProseMirror` root, CAPTURE phase (ancestor
+   of view.dom → runs before BlockNote), hit-testing `elementFromPoint ∈ gallery`. Test-safe (842
+   pass 3×). **UNVERIFIED by owner — test it first (above).**
+**Current assumption / if #5 fails:** the `.ProseMirror` capture listener should beat BlockNote;
+if the owner still sees NO `media:gallery.*` log on drag, the next hypotheses are (a) the drag's
+`dataTransfer` has no `Files` type during dragover in the shell so our `dragHasFiles`/preventDefault
+never runs (→ inspect `dataTransfer.types` live), or (b) `elementFromPoint` returns a BlockNote
+drop-cursor overlay instead of the gallery (→ hit-test by rect instead of elementFromPoint). A
+reliable fallback UX if drag stays unwinnable: drag an mp3 → a STANDALONE audio block (already wired
+for open-space single-audio), then merge into the gallery; the + button already covers adding audio.
+
+### CLEANUP owed once the drag bug is closed:
+Demote/remove the diagnostic logs added for this hunt: `media:drop.received`, `media:insertSmart`,
+`media:group.persist.start/ok`, `media:gallery.encode.audio`, `media:gallery.reconstruct.audio`,
+`media:gallery.nativeDrop`, `media:gallery.dropListeners.attached` (keep as `debug` or delete).
+
+### Gallery is now DECOMPOSED (owner asked "a file per element"), under `src/components/editor/media/gallery/`:
+`Gallery.tsx` (orchestrator) → `GalleryRow.tsx` → `GalleryTile.tsx` → `GalleryImageElement.tsx` /
+`GalleryAudioElement.tsx` (leaves); `useGalleryDrop.ts` (the drop hook — where the bug fix lives).
+`ImageGroupBlock.tsx` is now a thin block-spec shell mounting `<Gallery>`.
+
+### NEXT after the drag bug:
+**P6.5** (lower priority) home/flask duration chip + transcript-fills-flask (prototype `06-home-flask`).
+Then **P7:** `npm run build` → **`npm run tauri:build`** → device-verify (incl. native mic
+entitlement) → merge `update/audio-recordings` → `main` → rename folder `- OPEN`→`- CLOSED`. Replace
+the DEV transcript seed (`_sampleDominik.dev.json`, `createTranscript` in AudioBlock +
+gallery/GalleryAudioElement) with the real whisper engine when it lands.
+
+--- (historical "how to test" + P5.2 detail below) ---
 
 **P5 CONFIRMED by owner (2026-10-17).** After P5.1, a **P5.2 bugfix series** (owner testing the
 dropdown reader + multi-select) landed and is confirmed working:
