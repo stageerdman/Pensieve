@@ -436,7 +436,7 @@ function GroupRender({ block, editor }: RenderProps) {
               {editable ? (
                 <button type="button" className="pensieve-media-add" onClick={() => setPopover((p) => (p === "add" ? null : "add"))}>
                   <ImagesIcon size={22} />
-                  <span>Add images</span>
+                  <span>Add media</span>
                 </button>
               ) : null}
             </div>
@@ -542,8 +542,8 @@ function GroupRender({ block, editor }: RenderProps) {
             type="button"
             className="pensieve-gallery-add"
             style={{ height: containerHeight }}
-            title="Add images"
-            aria-label="Add images"
+            title="Add media"
+            aria-label="Add media"
             onClick={() => setPopover((p) => (p === "add" ? null : "add"))}
           >
             <Plus size={20} />

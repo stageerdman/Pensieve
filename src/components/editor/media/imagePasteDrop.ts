@@ -116,12 +116,21 @@ export const ImagePasteDrop = Extension.create({
             },
             drop: (view, event) => {
               if (!hasFiles(event.dataTransfer)) return false;
+              // A drop ONTO a media block (image or gallery) is that block's OWN gesture —
+              // its React onDrop accepts images AND audio and preventDefaults itself. Bail
+              // (no preventDefault, no handling) so we don't double-insert an image or reject
+              // an audio file the gallery would have accepted as a waveform card.
+              const over = document.elementFromPoint(event.clientX, event.clientY) as Element | null;
+              if (over?.closest(".pensieve-gallery, .pensieve-media")) return false;
               event.preventDefault();
               const target = blockIdAt(event.clientX, event.clientY);
               clearCaret(view);
               const images = imagesFrom(event.dataTransfer);
               if (!images.length) {
-                onReject?.("That file isn’t an image.");
+                // Audio dropped in open editor space isn't handled here (use /audio or drop
+                // onto a gallery) — stay silent rather than cry "not an image".
+                const hasAudio = Array.from(event.dataTransfer?.files ?? []).some((f) => f.type.startsWith("audio/"));
+                if (!hasAudio) onReject?.("That file isn’t an image.");
                 return true;
               }
               onFiles?.(images, target);
