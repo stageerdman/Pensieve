@@ -11,9 +11,11 @@ import { selectBlockRange } from "./blockRangeSelection";
 // selection — BlockNote's own setSelection throws "anchor in block without content" on a
 // content:"none" block, so the position-anchored fallback has to carry those cases.
 
-// jsdom doesn't implement these; the audio controller calls them when a block unmounts.
+// jsdom doesn't implement these; mounting real audio blocks hits them (controller teardown
+// + the waveform canvas). Waveform already no-ops on a null 2d context.
 HTMLMediaElement.prototype.load = vi.fn();
 HTMLMediaElement.prototype.pause = vi.fn();
+HTMLCanvasElement.prototype.getContext = vi.fn(() => null) as never;
 
 if (!window.matchMedia) {
   window.matchMedia = ((q: string) => ({

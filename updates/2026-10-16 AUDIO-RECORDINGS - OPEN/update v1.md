@@ -39,9 +39,20 @@ transcript icon turns accent → **transcript icon / ⋯ "Split to Transcript"**
 Transcript"** expands the reader inline (drag grip to resize, drag-select to copy). Search a spoken
 word in Accio (e.g. `problém`, `partnerku`) → the note matches on transcript text.
 
-**CURRENTLY TESTING:** P5 transcript views. Owner said "almost good"; P5.1 just shipped three fixes
-(drop `.mp3` from split header · transcript⇄Note-Details mutually exclusive · Dropdown reader text
-now selectable). **Awaiting owner re-confirmation of P5 before P6.**
+**P5 CONFIRMED by owner (2026-10-17).** After P5.1, a **P5.2 bugfix series** (owner testing the
+dropdown reader + multi-select) landed and is confirmed working:
+- P5.2  — kill the full-row node-selection blue for audio; scrub no longer hijacked by a marquee
+  passing over the bar; controller keyed by **block id** (not url) so duplicated blocks have
+  independent playheads.
+- P5.2b–d — dropdown transcript is a **read-only editable island** (`contentEditable` + input
+  blocked): restores char-level select + ⌘C, no node-drag/duplicate (native mousedown stopper;
+  dragstart cancelled). Root cause: PM forces every `content:"none"` atom nodeview
+  `contentEditable=false` → region was unselectable.
+- P5.2c — `selectBlockRange` (new, tested): marquee now selects a run of audio blocks for
+  deletion (BlockNote's setSelection throws on void endpoints → raw PM TextSelection fallback).
+- P5.2e — marquee suppresses text-selection from the first instant of a blank-space press
+  (`pensieve-marquee-press`) so it no longer smears a selection before engaging.
+**816 tests pass · tsc clean · web build OK.** **NOW BUILDING P6.**
 
 **DEV PLACEHOLDER to delete when the whisper engine lands:** "Create transcript" seeds
 `src/lib/transcripts/_sampleDominik.dev.json` (the real call, matches the test mp3; wrong for any

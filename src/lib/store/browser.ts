@@ -4,12 +4,12 @@
 // on-disk .md vault + sidecar timeline files.
 
 import type { Note, NoteBody, NoteMeta, Store, TimelineEntry } from "../types";
-import { titleFromMarkdown, excerptFromMarkdown, contentCharCount, plainTextFromMarkdown } from "../text";
+import { titleFromMarkdown, excerptFromMarkdown, contentCharCount } from "../text";
 import { pruneToRecentDays } from "../timeline";
 import { log } from "../logger";
 import { newMediaId, mediaRef } from "../media";
-import { extractMediaRefs } from "../media/ref";
-import { transcriptRefFor, transcriptPlainText, parseTranscript } from "../transcripts/transcript";
+import { buildSearchBody } from "../search/searchBody";
+import { transcriptRefFor, parseTranscript } from "../transcripts/transcript";
 import type { Transcript } from "../transcripts/types";
 import { createIdbMediaStore, type MediaBlobStore } from "./idb";
 
@@ -78,12 +78,8 @@ export class BrowserStore implements Store {
       const key = localStorage.key(i);
       if (!key || !key.startsWith(NOTE_PREFIX)) continue;
       const n = readNote(key.slice(NOTE_PREFIX.length))!;
-      let text = plainTextFromMarkdown(n.markdown);
-      // Fold referenced recordings' transcript text into the search corpus (sidecars).
-      for (const ref of extractMediaRefs(n.markdown)) {
-        const t = await this.loadTranscript(ref);
-        if (t) text += " " + transcriptPlainText(t);
-      }
+      // Markdown + folded transcript sidecars (shared with the single-note reindex path).
+      const text = await buildSearchBody(n.markdown, (ref) => this.loadTranscript(ref));
       out.push({ id: n.id, text });
     }
     return out;

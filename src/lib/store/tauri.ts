@@ -8,13 +8,13 @@
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { appDataDir } from "@tauri-apps/api/path";
 import type { Category, Note, NoteBody, NoteMeta, Store, TimelineEntry } from "../types";
-import { titleFromMarkdown, excerptFromMarkdown, contentCharCount, plainTextFromMarkdown } from "../text";
+import { titleFromMarkdown, excerptFromMarkdown, contentCharCount } from "../text";
 import { parseFrontmatter, composeFrontmatter } from "../md/frontmatter";
 import { pruneToRecentDays } from "../timeline";
 import { log } from "../logger";
 import { newMediaId, mediaRef, bytesToBase64 } from "../media";
-import { extractMediaRefs } from "../media/ref";
-import { transcriptRefFor, transcriptPlainText, parseTranscript } from "../transcripts/transcript";
+import { buildSearchBody } from "../search/searchBody";
+import { transcriptRefFor, parseTranscript } from "../transcripts/transcript";
 import type { Transcript } from "../transcripts/types";
 
 const readText = (rel: string) => invoke<string | null>("read_text", { rel });
@@ -111,13 +111,9 @@ export class TauriStore implements Store {
       const file = await readText(notePath(id));
       if (!file) continue;
       const { body } = parseFrontmatter(file);
-      let text = plainTextFromMarkdown(body);
-      // Fold any referenced recordings' transcript text into the note's search corpus so
+      // Markdown + folded transcript sidecars (shared with the single-note reindex path) so
       // spoken words are findable in Accio (transcripts are sidecars, not in the .md).
-      for (const ref of extractMediaRefs(body)) {
-        const t = await this.loadTranscript(ref);
-        if (t) text += " " + transcriptPlainText(t);
-      }
+      const text = await buildSearchBody(body, (ref) => this.loadTranscript(ref));
       out.push({ id, text });
     }
     log.debug("search", "bodies.read", { count: out.length });

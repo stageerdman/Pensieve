@@ -8,6 +8,7 @@ import { refForUrl } from "../../../lib/media/url";
 import { getMediaNoteId } from "./mediaContext";
 import { saveAudioFile } from "./insertAudio";
 import { getStore } from "../../../lib/store";
+import { reindex } from "../../../lib/search/reindexController";
 import type { Transcript } from "../../../lib/transcripts/types";
 import { log } from "../../../lib/logger";
 
@@ -97,6 +98,9 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
       await getStore().saveTranscript(ref, sample);
       setTranscript(sample);
       setTState("present");
+      // The sidecar doesn't touch the .md/updatedAt, so tell the search index to refold this
+      // note now — otherwise the new spoken words aren't searchable until a full rebuild.
+      reindex.request(getMediaNoteId());
       log.info("media", "audio.transcript.seeded(dev)", { ref });
     } catch (e) {
       log.error("media", "audio.transcript.seed.error", { ref, error: String(e) });

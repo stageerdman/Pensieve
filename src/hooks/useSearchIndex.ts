@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { NoteMeta } from "../lib/types";
 import { getStore } from "../lib/store";
-import { plainTextFromMarkdown } from "../lib/text";
 import { MemoryIndex } from "../lib/search/indexer";
+import { buildSearchBody } from "../lib/search/searchBody";
+import { reindex } from "../lib/search/reindexController";
 import { log } from "../lib/logger";
 
 // Builds and maintains the full-text index for Summon — but LAZILY. Structured filters
@@ -55,7 +56,9 @@ export function useSearchIndex(notes: NoteMeta[]) {
       for (const n of changed) {
         const note = await store.load(n.id);
         if (cancelled) return;
-        if (note) indexRef.current.update(n.id, plainTextFromMarkdown(note.markdown));
+        // Recompute the SAME folded body a full rebuild would (markdown + transcript
+        // sidecars) — not bare markdown — so an edit doesn't silently drop spoken words.
+        if (note) indexRef.current.update(n.id, await buildSearchBody(note.markdown, (ref) => store.loadTranscript(ref)));
         stamp.set(n.id, n.updatedAt);
       }
       for (const id of removed) {
@@ -71,6 +74,22 @@ export function useSearchIndex(notes: NoteMeta[]) {
       cancelled = true;
     };
   }, [notes, ready, store]);
+
+  // Re-index a single note on demand — used when a transcript sidecar is written (which
+  // doesn't move updatedAt, so the diff effect above would never catch it). No-op until the
+  // index is built: the lazy cold build folds every transcript anyway.
+  useEffect(() => {
+    return reindex.subscribe((noteId) => {
+      if (!builtRef.current) return;
+      void (async () => {
+        const note = await store.load(noteId);
+        if (!note) return;
+        indexRef.current.update(noteId, await buildSearchBody(note.markdown, (ref) => store.loadTranscript(ref)));
+        setVersion((v) => v + 1);
+        log.debug("search", "index.reindexed", { noteId });
+      })();
+    });
+  }, [store]);
 
   return { index: indexRef.current, ready, version, ensureBuilt };
 }
