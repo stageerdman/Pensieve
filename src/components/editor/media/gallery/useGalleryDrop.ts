@@ -65,7 +65,23 @@ export function useGalleryDrop({ enabled, onFiles, setDragOver, debugId }: Opts)
       const pt = document.elementFromPoint(e.clientX, e.clientY);
       return !!pt && el.contains(pt);
     };
+    // One decisive log per drag gesture: proves the root capture listener fires at all, and
+    // dumps exactly what the gesture carries (types/hasFiles) and whether the cursor hit-tests
+    // inside the gallery. Reset on dragend/drop so each new drag logs once. Remove with the
+    // other media:* diagnostics once the drag bug is closed.
+    let logged = false;
     const over = (e: DragEvent) => {
+      if (!logged) {
+        logged = true;
+        const pt = document.elementFromPoint(e.clientX, e.clientY);
+        log.info("media", "gallery.dragover.first", {
+          id: debugId,
+          types: Array.from(e.dataTransfer?.types ?? []),
+          hasFiles: dragHasFiles(e.dataTransfer),
+          overThis: overThis(e),
+          hitTag: pt ? `${pt.tagName.toLowerCase()}.${(pt.className || "").toString().split(" ")[0]}` : null,
+        });
+      }
       const on = dragHasFiles(e.dataTransfer) && overThis(e);
       if (!on) {
         setDragOver(false);
@@ -77,6 +93,7 @@ export function useGalleryDrop({ enabled, onFiles, setDragOver, debugId }: Opts)
       setDragOver(true);
     };
     const drop = (e: DragEvent) => {
+      logged = false;
       if (!overThis(e)) {
         setDragOver(false);
         return;
@@ -93,7 +110,10 @@ export function useGalleryDrop({ enabled, onFiles, setDragOver, debugId }: Opts)
       });
       onFilesRef.current(files);
     };
-    const end = () => setDragOver(false);
+    const end = () => {
+      logged = false;
+      setDragOver(false);
+    };
 
     // Capture phase on the editor root — ahead of the editor's own drop handlers.
     root.addEventListener("dragover", over as EventListener, true);
