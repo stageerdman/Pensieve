@@ -1,5 +1,5 @@
 import { createReactBlockSpec } from "@blocknote/react";
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type DragEvent as ReactDragEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import {
   parseGalleryImages,
   stringifyGalleryImages,
@@ -69,22 +69,27 @@ const MAX_GALLERY_HEIGHT = 640;
 const DEFAULT_ASPECT = 1.5; // optimistic landscape until an image reports its natural size
 const AUDIO_ASPECT = 1.85; // a fixed landscape for audio cards — they ride the strip like a wide photo
 
-// Images from a drop: prefer dataTransfer.files, fall back to items (a copied/screenshot image
-// often lives only in items, kind "file"). IMAGES only — an audio drop onto the gallery is
-// routed through the editor's native paste/drop plugin instead (React's synthetic drop
-// dataTransfer is unreliable for audio files in the WKWebView shell), which calls back into
-// the gallery merge with the audio tagged kind:"audio".
-function imagesFromDT(dt: DataTransfer): File[] {
+// A gallery accepts images AND recordings. Pull both from a drop: prefer dataTransfer.files,
+// fall back to items (a copied/screenshot image often lives only in items). Audio is matched
+// by MIME OR by filename extension, because in the WKWebView shell a dragged mp3's File.type
+// is sometimes empty — the reason audio-drop was unreliable before.
+const AUDIO_NAME = /\.(mp3|wav|m4a|aac|webm|ogg|flac)$/i;
+const isGalleryFile = (f: File): boolean =>
+  f.type.startsWith("image/") || f.type.startsWith("audio/") || AUDIO_NAME.test(f.name);
+function mediaFromDT(dt: DataTransfer | null): File[] {
+  if (!dt) return [];
   const out: File[] = [];
-  for (const f of Array.from(dt.files)) if (f.type.startsWith("image/")) out.push(f);
+  for (const f of Array.from(dt.files)) if (isGalleryFile(f)) out.push(f);
   if (!out.length)
-    for (const it of Array.from(dt.items))
+    for (const it of Array.from(dt.items ?? []))
       if (it.kind === "file") {
         const f = it.getAsFile();
-        if (f && f.type.startsWith("image/")) out.push(f);
+        if (f && isGalleryFile(f)) out.push(f);
       }
   return out;
 }
+const dragHasFiles = (dt: DataTransfer | null): boolean =>
+  !!dt && (Array.from(dt.types).includes("Files") || dt.files.length > 0);
 
 // The inline gallery — several images grouped into ONE block (wiki "inline gallery block").
 // It REUSES the MediaBlock CSS language (frame/radius/border, saving/broken states) rather
@@ -297,24 +302,54 @@ function GroupRender({ block, editor }: RenderProps) {
 
   // Drag handlers shared by both layouts — a dashed drop ring, then merge the dropped images.
   // Mirrors ImageBlock's host: stopPropagation so the editor-wide plugin doesn't double-insert.
-  const dropProps = editable
-    ? {
-        onDragOver: (e: ReactDragEvent) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); },
-        onDragLeave: (e: ReactDragEvent) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); },
-        onDrop: (e: ReactDragEvent) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setDragOver(false);
-          const imgs = imagesFromDT(e.dataTransfer);
-          log.info("media", "gallery.reactDrop", {
-            id: block.id,
-            files: Array.from(e.dataTransfer?.files ?? []).map((f) => `${f.name}:${f.type || "?"}`),
-            images: imgs.length,
-          });
-          addFiles(imgs);
-        },
-      }
-    : {};
+  // File drops are handled by NATIVE listeners on the gallery root (not React's onDrop). In
+  // the WKWebView shell React's synthetic drop fires too late to beat ProseMirror/BlockNote's
+  // own drop handlers (which otherwise insert a stray `file` block), and its dataTransfer is
+  // flaky for audio. A native bubble-phase listener on the gallery runs BEFORE view.dom's PM
+  // handlers, so stopPropagation there keeps BlockNote out AND reads a dependable dataTransfer.
+  // (See AudioBlock's same native-listener rationale.) Wired via a callback ref so it attaches
+  // to whichever gallery root (empty placeholder / populated strip) is mounted.
+  const addFilesRef = useRef(addFiles);
+  addFilesRef.current = addFiles;
+  const dropCleanup = useRef<(() => void) | null>(null);
+  const galleryDropRef = useCallback(
+    (el: HTMLElement | null) => {
+      dropCleanup.current?.();
+      dropCleanup.current = null;
+      if (!el || !editable) return;
+      const over = (e: DragEvent) => {
+        if (!dragHasFiles(e.dataTransfer)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+        setDragOver(true);
+      };
+      const leave = (e: DragEvent) => {
+        if (!el.contains(e.relatedTarget as Node)) setDragOver(false);
+      };
+      const drop = (e: DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragOver(false);
+        const files = mediaFromDT(e.dataTransfer);
+        log.info("media", "gallery.nativeDrop", {
+          id: block.id,
+          files: Array.from(e.dataTransfer?.files ?? []).map((f) => `${f.name}:${f.type || "?"}`),
+          accepted: files.length,
+        });
+        addFilesRef.current(files);
+      };
+      el.addEventListener("dragover", over);
+      el.addEventListener("dragleave", leave);
+      el.addEventListener("drop", drop);
+      dropCleanup.current = () => {
+        el.removeEventListener("dragover", over);
+        el.removeEventListener("dragleave", leave);
+        el.removeEventListener("drop", drop);
+      };
+    },
+    [editable, block.id],
+  );
 
   // ── pointer-based tile reorder (HTML5 drag can't drop in the WKWebView shell) ──
   // A flat insertion index 0..n, found from the nearest tile centre (works across the justified
@@ -436,7 +471,7 @@ function GroupRender({ block, editor }: RenderProps) {
   // add menu (upload / library / embed), or drop images here. Removing the last collapses.
   if (images.length === 0) {
     return (
-      <div className={"pensieve-gallery" + (dragOver ? " is-dragover" : "")} contentEditable={false} {...dropProps}>
+      <div className={"pensieve-gallery" + (dragOver ? " is-dragover" : "")} contentEditable={false} ref={galleryDropRef}>
         <div className="pensieve-media is-shaped" style={{ width: "75%", maxWidth: "100%" }}>
           <div className="pensieve-media-frame is-shaped" style={{ aspectRatio: "3 / 2" }}>
             <div className="pensieve-media-placeholder">
@@ -528,7 +563,7 @@ function GroupRender({ block, editor }: RenderProps) {
   };
 
   return (
-    <div className={"pensieve-gallery" + (dragOver ? " is-dragover" : "")} contentEditable={false} {...dropProps}>
+    <div className={"pensieve-gallery" + (dragOver ? " is-dragover" : "")} contentEditable={false} ref={galleryDropRef}>
       {/* Pinterest-style justified strip: a horizontal scroller of `rowCount` stacked rows, each
           `rowH` tall; images keep their ratios (width = aspect·rowH); the whole strip is as tall as
           the (draggable) gallery height. The "+" add button sits full-height at the right. */}
