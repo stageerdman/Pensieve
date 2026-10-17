@@ -3,8 +3,24 @@ import { createRecorder, type AudioRecorder } from "../../lib/audio/recorder";
 import { paintWaveform } from "../../lib/audio/waveformPaint";
 import { fmt } from "../../lib/audio/time";
 import { StopIcon, PauseIcon, PlayIcon } from "./icons";
+import { X } from "../../components/icons";
 import { log } from "../../lib/logger";
 import "./audio.css";
+
+// Map a getUserMedia rejection to a human, actionable message. Permission-denied is the
+// common case on macOS and gets a "how to enable it" hint + a Retry.
+function describeMicError(e: unknown): { title: string; hint: string; denied: boolean } {
+  const name = e && typeof e === "object" && "name" in e ? String((e as { name: unknown }).name) : "";
+  if (name === "NotAllowedError" || name === "SecurityError")
+    return {
+      title: "Microphone access is off",
+      hint: "Enable it in System Settings › Privacy & Security › Microphone, then Retry.",
+      denied: true,
+    };
+  if (name === "NotFoundError" || name === "DevicesNotFoundError")
+    return { title: "No microphone found", hint: "Connect a mic, then Retry.", denied: false };
+  return { title: "Microphone unavailable", hint: "Something stopped the mic. Retry?", denied: false };
+}
 
 // The live recorder — the SAME `.pensieve-audio-bar`, just in its recording state (one bar,
 // everywhere). It owns a recorder engine, drives the live waveform + elapsed clock on rAF,
@@ -32,10 +48,12 @@ export function RecordingBar({ onStop, onCancel }: Props) {
   const sampleAccRef = useRef(0); // throttles amplitude pushes to ~every 80ms
   const [elapsed, setElapsed] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ title: string; hint: string; denied: boolean } | null>(null);
+  const [attempt, setAttempt] = useState(0); // bump to re-request the mic (Retry)
   const stoppingRef = useRef(false);
 
-  // Start the recorder once on mount; tear down on unmount (covers navigate-away mid-record).
+  // Start the recorder on mount AND on every Retry (attempt bump); tear down on unmount or
+  // before the next attempt (covers navigate-away mid-record / a retry after denial).
   useEffect(() => {
     const rec = createRecorder();
     recRef.current = rec;
@@ -44,12 +62,13 @@ export function RecordingBar({ onStop, onCancel }: Props) {
       .start()
       .then(() => {
         if (!alive) { rec.cancel(); return; }
+        setError(null);
         log.info("media", "audio.record.start", { mime: rec.mimeType() });
         loop(performance.now());
       })
       .catch((e) => {
         log.warn("media", "audio.record.denied", { error: String(e) });
-        if (alive) setError("Microphone unavailable");
+        if (alive) setError(describeMicError(e));
       });
 
     return () => {
@@ -59,7 +78,7 @@ export function RecordingBar({ onStop, onCancel }: Props) {
       if (!stoppingRef.current) recRef.current?.cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [attempt]);
 
   const loop = (prev: number) => {
     const rec = recRef.current;
@@ -134,13 +153,26 @@ export function RecordingBar({ onStop, onCancel }: Props) {
     else if (rec.state() === "paused") { rec.resume(); setPaused(false); }
   };
 
+  const handleDiscard = () => {
+    if (stoppingRef.current) return;
+    stoppingRef.current = true; // keep the unmount cleanup from double-cancelling
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    recRef.current?.cancel();
+    log.info("media", "audio.record.discard", { sec: Math.round(elapsed) });
+    onCancel("discarded");
+  };
+
   if (error) {
-    // Mic denied/unavailable — a calm, one-line bail with a way out (no red alarm).
+    // Mic denied/unavailable — a calm bail that TELLS you how to fix it and lets you Retry
+    // (re-requests the mic, so after you flip the System Settings toggle it just works).
     return (
       <div className="pensieve-audio-host">
         <div className="pensieve-audio-bar is-broken">
-          <span className="pensieve-audio-broken-text">{error} — recording needs microphone access.</span>
-          <button type="button" className="pensieve-audio-locate" onClick={() => onCancel(error)}>Dismiss</button>
+          <span className="pensieve-audio-broken-text">
+            <strong>{error.title}.</strong> {error.hint}
+          </span>
+          <button type="button" className="pensieve-audio-locate" onClick={() => setAttempt((a) => a + 1)}>Retry</button>
+          <button type="button" className="pensieve-audio-locate" onClick={() => onCancel(error.title)}>Dismiss</button>
         </div>
       </div>
     );
@@ -175,6 +207,16 @@ export function RecordingBar({ onStop, onCancel }: Props) {
           onClick={togglePause}
         >
           {paused ? <PlayIcon size={16} /> : <PauseIcon size={16} />}
+        </button>
+
+        <button
+          type="button"
+          className="pensieve-audio-iconbtn"
+          aria-label="Discard recording"
+          title="Discard recording"
+          onClick={handleDiscard}
+        >
+          <X size={16} />
         </button>
       </div>
       <div className="pensieve-audio-status">

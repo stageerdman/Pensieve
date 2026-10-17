@@ -7,7 +7,7 @@ import { OverflowMenu } from "./components/OverflowMenu";
 import { FlaskButton } from "./components/FlaskButton";
 import { TabBar, HOME } from "./components/TabBar";
 import { IconButton } from "./components/IconButton";
-import { Clock, PanelRight, PanelRightClose, Plus, Trash } from "./components/icons";
+import { Clock, PanelRight, PanelRightClose, Wand, Trash } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
 import { MediaBackupWhisper } from "./components/MediaBackupWhisper";
 import { ImageLightbox } from "./components/media/ImageLightbox";
@@ -266,7 +266,7 @@ export default function App() {
               {onHome ? (
                 <>
                   <IconButton label="New note" title="New note  ⌘N" onClick={() => void newNote()}>
-                    <Plus size={18} />
+                    <Wand size={18} />
                   </IconButton>
                   <GalleryCustomise
                     state={gallery.state}

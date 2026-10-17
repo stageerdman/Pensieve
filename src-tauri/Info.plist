@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Shown in the macOS microphone-permission prompt. Without this key the OS denies mic
+       access silently (no prompt), which is exactly why recording failed before. Tauri
+       merges this file into the bundled app's generated Info.plist on macOS. -->
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Pensieve uses your microphone to record voice memos and audio notes.</string>
+</dict>
+</plist>
