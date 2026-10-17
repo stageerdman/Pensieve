@@ -134,7 +134,7 @@ export const ImagePasteDrop = Extension.create({
               const onMedia = !!over?.closest(".pensieve-gallery, .pensieve-media");
               const images = imagesFrom(event.dataTransfer);
               const audio = audioFrom(event.dataTransfer);
-              log.info("media", "drop.received", {
+              log.debug("media", "drop.received", {
                 files: Array.from(event.dataTransfer?.files ?? []).map((f) => `${f.name}:${f.type || "?"}`),
                 images: images.length,
                 audio: audio.length,

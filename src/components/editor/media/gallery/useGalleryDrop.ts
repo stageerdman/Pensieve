@@ -85,7 +85,7 @@ export function useGalleryDrop({ enabled, onFiles, setDragOver, debugId }: Opts)
       e.stopPropagation(); // keep ProseMirror/BlockNote out of a drop that's ours
       setDragOver(false);
       const files = mediaFromDT(e.dataTransfer);
-      log.info("media", "gallery.nativeDrop", {
+      log.debug("media", "gallery.nativeDrop", {
         id: debugId,
         files: Array.from(e.dataTransfer?.files ?? []).map((f) => `${f.name}:${f.type || "?"}`),
         items: Array.from(e.dataTransfer?.items ?? []).map((i) => `${i.kind}:${i.type || "?"}`),
@@ -99,7 +99,6 @@ export function useGalleryDrop({ enabled, onFiles, setDragOver, debugId }: Opts)
     root.addEventListener("dragover", over as EventListener, true);
     root.addEventListener("drop", drop as EventListener, true);
     root.addEventListener("dragend", end as EventListener, true);
-    log.info("media", "gallery.dropListeners.attached", { id: debugId, root: root === document ? "document" : "ProseMirror" });
     return () => {
       root.removeEventListener("dragover", over as EventListener, true);
       root.removeEventListener("drop", drop as EventListener, true);

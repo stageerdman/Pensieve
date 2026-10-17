@@ -93,13 +93,13 @@ function persistTiles(
   files.forEach((file, i) => {
     const at = startIndex + i;
     const audio = isAudioFile(file);
-    log.info("media", "group.persist.start", { blockId, at, kind: audio ? "audio" : "image", name: (file as File).name, type: file.type });
+    log.debug("media", "group.persist.start", { blockId, at, kind: audio ? "audio" : "image", name: (file as File).name, type: file.type });
     const saved = audio ? saveAudioFile(noteId, file) : saveImageFile(noteId, file);
     void saved
       .then(({ url }) => {
         images[at] = { ...images[at], url: url ?? images[at].url, saving: false };
         editor.updateBlock(blockId, { props: { images: stringifyGalleryImages(images) } });
-        log.info("media", "group.persist.ok", { blockId, at, kind: audio ? "audio" : "image", gotUrl: !!url, url: (url ?? "").slice(0, 48) });
+        log.debug("media", "group.persist.ok", { blockId, at, kind: audio ? "audio" : "image", gotUrl: !!url, url: (url ?? "").slice(0, 48) });
       })
       .catch((e) => {
         images[at] = { ...images[at], saving: false };
@@ -178,7 +178,7 @@ export async function insertImagesSmart(
   const cursorId = atBlockId ?? editor.getTextCursorPosition().block.id;
   const planBlocks = editor.document.map((b) => ({ id: b.id, type: b.type, blank: isBlankParagraph(b) }));
   const plan = planImageInsert(planBlocks, cursorId, files.length);
-  log.info("media", "insertSmart", {
+  log.debug("media", "insertSmart", {
     cursorId,
     action: plan.action,
     targetId: "targetId" in plan ? plan.targetId : undefined,
