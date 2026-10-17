@@ -12,7 +12,7 @@ import { DEFAULT_IMAGE_WIDTH } from "../../../../lib/md/image";
 import { getMediaNoteId } from "../mediaContext";
 import { mergeFilesIntoBlock, type GroupEditor } from "../insertGroup";
 import { lightbox } from "../../../media/lightboxController";
-import { Plus, Images as ImagesIcon } from "../../../icons";
+import { Wand, Images as ImagesIcon } from "../../../icons";
 import { MediaLibrary } from "../MediaLibraryModal";
 import { log } from "../../../../lib/logger";
 import { GalleryRow } from "./GalleryRow";
@@ -432,7 +432,7 @@ export function Gallery({ block, editor }: Props) {
             aria-label="Add media"
             onClick={() => setPopover((p) => (p === "add" ? null : "add"))}
           >
-            <Plus size={20} />
+            <Wand size={20} />
           </button>
         )}
       </div>

@@ -2,10 +2,14 @@ import { useEffect, useRef, useState, type PointerEvent } from "react";
 import type { EditorView } from "@tiptap/pm/view";
 import { GripVertical } from "../icons";
 import { nearestRowId } from "./blockMarquee";
+import { selectBlockRange } from "./blockRangeSelection";
+import { DRAG_THRESHOLD } from "./dragScroll";
+import { GutterMenu, type GutterMenuEditor } from "./GutterMenu";
 
-interface HandleEditor {
+interface HandleEditor extends GutterMenuEditor {
   prosemirrorView: EditorView | undefined;
   getSelection: () => { blocks: Array<{ id: string }> } | undefined;
+  setSelection: (anchor: string, head: string) => void;
 }
 
 type StartDrag = (
@@ -16,7 +20,7 @@ type StartDrag = (
 interface HandlePos {
   x: number; // gutter x (left of the block content)
   y: number; // top of the block content row
-  ids: string[]; // what a drag from here should move
+  ids: string[]; // what a drag/menu from here should act on
 }
 
 // A block's content row (excludes its nested children) + indent, read from the DOM.
@@ -41,6 +45,10 @@ function scanRows(view: EditorView): Array<{ id: string; top: number; bottom: nu
 // render a single handle. When the hovered row is part of a multi-row (marquee) selection,
 // the handle anchors to the TOP selected row and drags the whole group — one group handle,
 // on the uppermost row, exactly as asked.
+//
+// The handle is dual-action: DRAG it to move the row(s); CLICK it (no drag) to select the
+// row(s) and bloom a small menu (Delete / Change type — see GutterMenu). Click vs drag is
+// decided by whether the pointer moved past DRAG_THRESHOLD before release.
 export function GutterHandle({
   editor,
   wrapRef,
@@ -51,14 +59,17 @@ export function GutterHandle({
   startDrag: StartDrag;
 }) {
   const [pos, setPos] = useState<HandlePos | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; ids: string[] } | null>(null);
   const dragging = useRef(false);
+  const menuOpen = useRef(false);
+  menuOpen.current = !!menu;
 
   useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap) return;
 
     const update = (clientX: number, clientY: number) => {
-      if (dragging.current) return;
+      if (dragging.current || menuOpen.current) return;
       const view = editor.prosemirrorView;
       if (!view) return setPos(null);
       const rows = scanRows(view);
@@ -78,7 +89,7 @@ export function GutterHandle({
 
     const onMove = (e: globalThis.PointerEvent) => update(e.clientX, e.clientY);
     const onLeave = () => {
-      if (!dragging.current) setPos(null);
+      if (!dragging.current && !menuOpen.current) setPos(null);
     };
     const onScroll = () => setPos(null); // reappears on the next move at the new position
 
@@ -92,32 +103,55 @@ export function GutterHandle({
     };
   }, [editor, wrapRef]);
 
-  if (!pos) return null;
-
   const onPointerDown = (e: PointerEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    const anchor = { x: pos!.x, y: pos!.y };
+    const ids = pos!.ids;
+    const startX = e.clientX;
+    const startY = e.clientY;
     dragging.current = true;
-    setPos(null); // hide the handle while dragging; it returns on the next hover
-    const done = () => {
-      dragging.current = false;
-      window.removeEventListener("pointerup", done, true);
-      window.removeEventListener("pointercancel", done, true);
+    let moved = false;
+    setPos(null); // hide the handle while interacting; it returns on the next hover
+    const onMoveCheck = (ev: globalThis.PointerEvent) => {
+      if (Math.abs(ev.clientX - startX) > DRAG_THRESHOLD || Math.abs(ev.clientY - startY) > DRAG_THRESHOLD) moved = true;
     };
-    window.addEventListener("pointerup", done, true);
-    window.addEventListener("pointercancel", done, true);
-    startDrag(e, pos.ids);
+    const finish = (opened: boolean) => {
+      dragging.current = false;
+      window.removeEventListener("pointerup", onUp, true);
+      window.removeEventListener("pointercancel", onCancel, true);
+      window.removeEventListener("pointermove", onMoveCheck, true);
+      // A clean click (no drag) → select the row(s) and open the action menu just below
+      // the handle. A drag was already committed by startDrag's own listeners.
+      if (opened && !moved) {
+        selectBlockRange(editor, ids[0], ids[ids.length - 1]);
+        setMenu({ x: anchor.x - 28, y: anchor.y + 22, ids });
+      }
+    };
+    const onUp = () => finish(true);
+    const onCancel = () => finish(false);
+    window.addEventListener("pointerup", onUp, true);
+    window.addEventListener("pointercancel", onCancel, true);
+    window.addEventListener("pointermove", onMoveCheck, true);
+    startDrag(e, ids);
   };
 
   return (
-    <button
-      type="button"
-      className="pensieve-drag-handle"
-      aria-label="Drag to move"
-      onPointerDown={onPointerDown}
-      style={{ position: "fixed", left: pos.x - 28, top: pos.y, zIndex: 30 }}
-    >
-      <GripVertical size={16} />
-    </button>
+    <>
+      {pos && (
+        <button
+          type="button"
+          className="pensieve-drag-handle"
+          aria-label="Move, or click for actions"
+          onPointerDown={onPointerDown}
+          style={{ position: "fixed", left: pos.x - 28, top: pos.y, zIndex: 30 }}
+        >
+          <GripVertical size={16} />
+        </button>
+      )}
+      {menu && (
+        <GutterMenu x={menu.x} y={menu.y} ids={menu.ids} editor={editor} onClose={() => setMenu(null)} />
+      )}
+    </>
   );
 }

@@ -7,7 +7,7 @@ import { OverflowMenu } from "./components/OverflowMenu";
 import { FlaskButton } from "./components/FlaskButton";
 import { TabBar, HOME } from "./components/TabBar";
 import { IconButton } from "./components/IconButton";
-import { Clock, PanelRight, Plus, Trash } from "./components/icons";
+import { Clock, PanelRight, PanelRightClose, Plus, Trash } from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
 import { MediaBackupWhisper } from "./components/MediaBackupWhisper";
 import { ImageLightbox } from "./components/media/ImageLightbox";
@@ -82,6 +82,9 @@ export default function App() {
 
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // Whether the transcript Split pane is open — the Note-details button becomes its
+  // "collapse split" control while it is (the split has no header of its own).
+  const [splitOpen, setSplitOpen] = useState(false);
   // Time travel: a past version the main page is showing read-only (null = the live,
   // editable note). Selected from the Timeline; never auto-saved. Reset when the note
   // changes or the Timeline closes so you can't get stranded in a read-only view.
@@ -141,6 +144,7 @@ export default function App() {
   // opening a transcript closes whichever dock was open (and vice-versa, above).
   useEffect(() => {
     return transcriptPane.subscribe((req) => {
+      setSplitOpen(!!req);
       if (req) {
         setTimelineOpen(false);
         setDetailsOpen(false);
@@ -292,12 +296,12 @@ export default function App() {
                       ]}
                     />
                     <IconButton
-                      label="Note details"
-                      title="Note details  ⌘⇧\"
-                      active={detailsOpen}
-                      onClick={toggleDetails}
+                      label={splitOpen ? "Collapse transcript" : "Note details"}
+                      title={splitOpen ? "Collapse transcript split" : "Note details  ⌘⇧\""}
+                      active={splitOpen || detailsOpen}
+                      onClick={splitOpen ? () => transcriptPane.close() : toggleDetails}
                     >
-                      <PanelRight />
+                      {splitOpen ? <PanelRightClose /> : <PanelRight />}
                     </IconButton>
                   </>
                 )

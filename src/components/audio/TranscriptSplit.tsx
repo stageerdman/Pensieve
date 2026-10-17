@@ -57,24 +57,8 @@ export function TranscriptSplit() {
         }}
       />
       <div className="pensieve-transcript">
-        <div className="pensieve-transcript-head">
-          <span className="pensieve-transcript-title">{req.title || "Transcript"}</span>
-          <button
-            type="button"
-            className="pensieve-audio-iconbtn"
-            aria-label="Collapse split view"
-            title="Collapse split view"
-            onClick={() => transcriptPane.close()}
-          >
-            {/* panel-collapse-right glyph */}
-            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <rect x="3" y="4" width="18" height="16" rx="2" />
-              <path d="M15 4v16" />
-              <path d="m8 9 3 3-3 3" />
-            </svg>
-          </button>
-        </div>
+        {/* No header row: the "Transcript" title + collapse icon are gone — the Note-details
+            button in the app header now owns collapsing this split (App.tsx). */}
         <div className="pensieve-transcript-dock">
           <AudioBar src={req.src} playerKey={req.playerKey} dock transcriptState="present" />
         </div>

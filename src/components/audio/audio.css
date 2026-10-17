@@ -362,11 +362,6 @@
 .pensieve-transcript-divider:hover::after,
 .pensieve-transcript-divider:focus-visible::after { background: hsl(var(--accent) / 0.6); }
 .pensieve-transcript { display: flex; flex-direction: column; min-height: 0; width: 100%; }
-.pensieve-transcript-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 14px; border-bottom: 1px solid hsl(var(--border));
-}
-.pensieve-transcript-title { font-size: 14px; color: hsl(var(--text)); font-weight: 500; }
 .pensieve-transcript-dock {
   padding: 8px 14px; border-bottom: 1px solid hsl(var(--border));
   background: hsl(var(--surface));
