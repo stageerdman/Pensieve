@@ -205,6 +205,22 @@ store methods in `src/lib/store/{tauri,browser}.ts`; schema `editorSchema.ts`; s
   **Native mic (WKWebView) needs the macOS entitlement — verify in P7. Browser dev works now.**
   **Remaining P6: gallery waveform card (P6.3) · Accio transcript-hit jump-lines (P6.4) ·
   home/flask (P6.5, lower priority).**
+- **2026-10-17 (P6.2a — drag only by the gutter handle):** grabbing the bar/recorder body
+  node-selected the void block and PM dragged it into a duplicate. Native `dragstart` stopper
+  on every state's blockwrap (beats PM's root handler); the 6-dots gutter handle lives outside
+  the block body so it stays the sole drag path. Only dragstart touched → ⋯ menu's outside-click
+  close (document mousedown) still works. Owner-confirmed.
+- **2026-10-17 (P6.4 DONE — Accio transcript-hit jump-lines):** searching a spoken word shows
+  timecoded jump-lines under the result card; click → opens the note + transcript split seeked
+  to that moment. `transcriptMatches.ts` (pure, tested) mirrors the index match rule (token
+  CONTAINS term, diacritic-sensitive) so jumps align with what Accio surfaced; word-level when
+  word timings exist, else segment-level. `useTranscriptHits` hook lazily resolves jumps only
+  for `where:"text"` results (skips image refs; off the main search path → grid stays cheap).
+  `TranscriptJumpLines` renders as a sibling of `FlaskCard` (card root is a <button>). Seek-on-
+  open: `TranscriptOpenReq.seekTo` → `TranscriptView` seeks+plays once there (waits for
+  metadata; re-fires on a second jump). 837 pass; tsc clean; build OK.
+  **Remaining: P6.3 gallery waveform card (the big one — touches the editor gallery block /
+  ImageGroupBlock model) · P6.5 home/flask (lower priority). Then P7.**
 
 ### Agent recommendations to carry into P2
 - #1 gallery: **Option C** (waveform-card tile → opens canonical bar in a "Now playing" dock).
