@@ -69,18 +69,19 @@ const MAX_GALLERY_HEIGHT = 640;
 const DEFAULT_ASPECT = 1.5; // optimistic landscape until an image reports its natural size
 const AUDIO_ASPECT = 1.85; // a fixed landscape for audio cards — they ride the strip like a wide photo
 
-// Media from a drop: prefer dataTransfer.files, fall back to items (a copied/screenshot image
-// often lives only in items, kind "file"). A gallery accepts images AND recordings (audio),
-// so an audio file dropped onto the strip joins as a waveform card.
-const isGalleryFile = (f: File) => f.type.startsWith("image/") || f.type.startsWith("audio/");
+// Images from a drop: prefer dataTransfer.files, fall back to items (a copied/screenshot image
+// often lives only in items, kind "file"). IMAGES only — an audio drop onto the gallery is
+// routed through the editor's native paste/drop plugin instead (React's synthetic drop
+// dataTransfer is unreliable for audio files in the WKWebView shell), which calls back into
+// the gallery merge with the audio tagged kind:"audio".
 function imagesFromDT(dt: DataTransfer): File[] {
   const out: File[] = [];
-  for (const f of Array.from(dt.files)) if (isGalleryFile(f)) out.push(f);
+  for (const f of Array.from(dt.files)) if (f.type.startsWith("image/")) out.push(f);
   if (!out.length)
     for (const it of Array.from(dt.items))
       if (it.kind === "file") {
         const f = it.getAsFile();
-        if (f && isGalleryFile(f)) out.push(f);
+        if (f && f.type.startsWith("image/")) out.push(f);
       }
   return out;
 }

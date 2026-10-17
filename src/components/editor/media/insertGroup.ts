@@ -175,6 +175,11 @@ export async function insertImagesSmart(
     await mergeFilesIntoBlock(editor, noteId, files, plan.targetId);
   } else if (plan.action === "group") {
     await createGroupFromFiles(editor, noteId, files, cursorId);
+  } else if (isAudioFile(files[0])) {
+    // A single recording, adjacency ruled out → its own standalone audio block (not an image).
+    const { url } = await saveAudioFile(noteId, files[0]);
+    editor.insertBlocks([{ type: "audio", props: { url: url ?? "" } }] as never, cursorId, "after");
+    log.info("media", "audio.insert", { noteId });
   } else {
     // A single image, adjacency ruled out → the existing single-image funnel.
     await insertImageFromFile(editor, noteId, files[0], cursorId, "after");

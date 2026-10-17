@@ -43,6 +43,18 @@ const imagesFrom = (dt: DataTransfer | null): File[] => {
   return out;
 };
 
+// Audio files from a drop (recordings dropped into a gallery / the editor). Routed here —
+// not through the gallery's React onDrop — because the synthetic drop's dataTransfer is
+// unreliable for audio in the WKWebView shell; the native PM drop event is dependable.
+const audioFrom = (dt: DataTransfer | null): File[] => {
+  if (!dt) return [];
+  const out: File[] = [];
+  const add = (f: File | null) => { if (f && f.type.startsWith("audio/")) out.push(f); };
+  Array.from(dt.files).forEach(add);
+  if (!out.length) Array.from(dt.items ?? []).forEach((it) => { if (it.kind === "file") add(it.getAsFile()); });
+  return out;
+};
+
 const hasFiles = (dt: DataTransfer | null): boolean =>
   !!dt &&
   (Array.from(dt.types).includes("Files") ||
@@ -116,24 +128,31 @@ export const ImagePasteDrop = Extension.create({
             },
             drop: (view, event) => {
               if (!hasFiles(event.dataTransfer)) return false;
-              // A drop ONTO a media block (image or gallery) is that block's OWN gesture —
-              // its React onDrop accepts images AND audio and preventDefaults itself. Bail
-              // (no preventDefault, no handling) so we don't double-insert an image or reject
-              // an audio file the gallery would have accepted as a waveform card.
-              const over = document.elementFromPoint(event.clientX, event.clientY) as Element | null;
-              if (over?.closest(".pensieve-gallery, .pensieve-media")) return false;
-              event.preventDefault();
               const target = blockIdAt(event.clientX, event.clientY);
-              clearCaret(view);
+              const over = document.elementFromPoint(event.clientX, event.clientY) as Element | null;
+              const onMedia = !!over?.closest(".pensieve-gallery, .pensieve-media");
               const images = imagesFrom(event.dataTransfer);
-              if (!images.length) {
-                // Audio dropped in open editor space isn't handled here (use /audio or drop
-                // onto a gallery) — stay silent rather than cry "not an image".
-                const hasAudio = Array.from(event.dataTransfer?.files ?? []).some((f) => f.type.startsWith("audio/"));
-                if (!hasAudio) onReject?.("That file isn’t an image.");
+              const audio = audioFrom(event.dataTransfer);
+
+              // A drop ONTO a media block (image / gallery) is that block's own gesture. Images
+              // are handled by the block's React onDrop (works) — so bail. But audio can't ride
+              // that path reliably, so WE route it (onFiles → insertImagesSmart merges it into
+              // the gallery as a waveform card).
+              if (onMedia) {
+                if (audio.length) { event.preventDefault(); clearCaret(view); onFiles?.(audio, target); return true; }
+                return false;
+              }
+
+              // Open editor space: handle image + audio file drops here (audio alone → an audio
+              // block; mixed/2+ → a gallery). Only a genuinely unsupported file type is rejected.
+              event.preventDefault();
+              clearCaret(view);
+              const media = [...images, ...audio];
+              if (!media.length) {
+                onReject?.("That file isn’t an image or recording.");
                 return true;
               }
-              onFiles?.(images, target);
+              onFiles?.(media, target);
               return true;
             },
           },
