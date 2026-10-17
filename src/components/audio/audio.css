@@ -166,6 +166,38 @@
 }
 .pensieve-audio-status.is-gold .dot { background: hsl(var(--gold)); }
 
+/* ── recording state — the bar IS the live recorder ───────────────────────── */
+/* Quiet accent halo so the bar reads as "alive" while capturing (same lift rule as
+   playing — a halo, never a drop-shadow). Paused drops the halo. */
+.pensieve-audio-bar.is-recording {
+  border-color: hsl(var(--accent) / 0.4);
+  box-shadow: 0 0 0 1px hsl(var(--accent) / 0.1), 0 0 24px -8px hsl(var(--accent-glow) / 0.3);
+}
+.pensieve-audio-bar.is-recording.is-paused {
+  border-color: hsl(var(--border));
+  box-shadow: none;
+}
+/* Stop control: the single accent-filled element while recording (mirrors the play button
+   footprint so the bar height never changes between states). The square is the signal. */
+.pensieve-audio-rec-stop {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: var(--audio-play);
+  height: var(--audio-play);
+  border: none;
+  border-radius: 6px;
+  background: hsl(var(--accent));
+  color: hsl(var(--surface));
+  cursor: pointer;
+  transition: background 120ms ease, transform 120ms ease;
+}
+.pensieve-audio-rec-stop:hover { background: hsl(var(--accent-glow)); }
+.pensieve-audio-rec-stop:active { transform: scale(0.94); }
+.pensieve-audio-rec-stop:focus-visible { box-shadow: 0 0 0 2px hsl(var(--accent) / 0.5); }
+/* Elapsed-only time (no "/ total" while recording): the live counter reads full-weight. */
+.pensieve-audio-time.is-elapsed .cur { color: hsl(var(--text)); }
+
 /* ── broken state inner ───────────────────────────────────────────────────── */
 .pensieve-audio-broken-glyph { flex: 0 0 auto; display: grid; place-items: center; color: hsl(var(--text-muted)); }
 .pensieve-audio-broken-text {
@@ -209,11 +241,10 @@
   background: hsl(var(--surface-sunken));
   color: hsl(var(--text-muted));
   font-size: 13px;
-  cursor: pointer;
   text-align: left;
   transition: border-color 120ms ease, color 120ms ease;
 }
-.pensieve-audio-empty:hover { border-color: hsl(var(--accent) / 0.5); color: hsl(var(--text)); }
+.pensieve-audio-empty:hover { border-color: hsl(var(--accent) / 0.4); }
 .pensieve-audio-empty.is-saving { cursor: default; }
 .pensieve-audio-empty-glyph {
   display: grid; place-items: center;
@@ -221,6 +252,26 @@
   background: hsl(var(--accent) / 0.12); color: hsl(var(--accent));
   font-size: 15px;
 }
+/* Record = the primary born-state (recorder IS the inline bar); choose-a-file is secondary. */
+.pensieve-audio-empty-rec {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 14px; border: none; border-radius: 7px;
+  background: hsl(var(--accent)); color: hsl(var(--surface));
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: background 120ms ease, transform 120ms ease;
+}
+.pensieve-audio-empty-rec:hover { background: hsl(var(--accent-glow)); }
+.pensieve-audio-empty-rec:active { transform: scale(0.97); }
+.pensieve-audio-empty-rec:focus-visible { box-shadow: 0 0 0 2px hsl(var(--accent) / 0.5); }
+.pensieve-audio-empty-or { color: hsl(var(--text-muted)); font-size: 12px; }
+.pensieve-audio-empty-choose {
+  border: none; background: transparent; color: hsl(var(--text-muted));
+  font-size: 13px; cursor: pointer; padding: 4px 2px; text-decoration: underline;
+  text-underline-offset: 2px; text-decoration-color: hsl(var(--border));
+  transition: color 120ms ease;
+}
+.pensieve-audio-empty-choose:hover { color: hsl(var(--text)); }
+.pensieve-audio-empty-choose:focus-visible { box-shadow: 0 0 0 2px hsl(var(--accent) / 0.5); border-radius: 4px; }
 
 /* ── dock variant (player atop a transcript) ──────────────────────────────── */
 .pensieve-audio-bar.is-dock {

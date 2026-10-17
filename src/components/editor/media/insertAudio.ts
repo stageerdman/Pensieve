@@ -19,12 +19,15 @@ const AUDIO_MIME_EXT: Record<string, string> = {
   "audio/flac": "flac",
 };
 
-/** A sensible file extension for a chosen/recorded audio file (from name, else mime). */
+/** A sensible file extension for a chosen/recorded audio file (from name, else mime).
+ *  Recorder blobs carry a parameterised type like "audio/webm;codecs=opus" — strip the
+ *  params before the lookup so they don't fall through to the mp3 default. */
 export function audioExtForFile(file: File | Blob): string {
   const name = (file as File).name ?? "";
   const dot = name.lastIndexOf(".");
   if (dot > 0 && dot < name.length - 1) return name.slice(dot + 1).toLowerCase();
-  return AUDIO_MIME_EXT[file.type] ?? "mp3";
+  const mime = (file.type || "").split(";")[0].trim().toLowerCase();
+  return AUDIO_MIME_EXT[mime] ?? "mp3";
 }
 
 /** Save audio bytes → vault ref, resolve ref → loadable url (registers the pair for save). */

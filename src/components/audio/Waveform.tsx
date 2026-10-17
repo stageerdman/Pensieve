@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { AudioController } from "../../lib/audio/controller";
-import { resamplePeaks, cachedPeaks, computePeaks, placeholderPeaks } from "../../lib/audio/peaks";
+import { cachedPeaks, computePeaks, placeholderPeaks } from "../../lib/audio/peaks";
+import { paintWaveform } from "../../lib/audio/waveformPaint";
 
 // The amplitude visualization + scrub surface. Pure presentation: it draws `peaks` to a
 // canvas (played vs unplayed vs playhead, from design tokens), and turns pointer gestures
@@ -70,37 +71,26 @@ export function Waveform({ controller, peaksSrc, peaks: explicit, compact, label
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
 
-      const pitch = BAR_W + GAP;
-      const n = Math.max(1, Math.floor(w / pitch));
-      const bars = resamplePeaks(peaks, n);
       const dur = controller.duration;
       const progress = Number.isFinite(dur) && dur > 0 ? controller.currentTime / dur : 0;
-      const playedBars = Math.round(progress * n);
-
-      const played = cssColor(wrap, "--accent", 1);
-      const head = cssColor(wrap, "--accent-glow", 1);
-      const unplayed = cssColor(wrap, "--text-muted", 0.35);
-      const hover = cssColor(wrap, "--accent", 0.55);
-      const mid = h / 2;
-
-      for (let i = 0; i < n; i++) {
-        const amp = Math.max(MIN, bars[i]);
-        const barH = Math.max(1, amp * h);
-        const x = i * pitch;
-        ctx.fillStyle = i < playedBars ? played : unplayed;
-        if (i === playedBars) ctx.fillStyle = head;
-        const r = Math.min(1.5, BAR_W / 2);
-        const y = mid - barH / 2;
-        // rounded-cap bar (roundRect is widely supported; fall back to rect if absent)
-        const rr = (ctx as CanvasRenderingContext2D & { roundRect?: (x: number, y: number, w: number, h: number, r: number) => void }).roundRect;
-        ctx.beginPath();
-        if (rr) rr.call(ctx, x, y, BAR_W, barH, r);
-        else ctx.rect(x, y, BAR_W, barH);
-        ctx.fill();
-      }
+      // Shared bar painter (same routine the live recording bar uses — one waveform look).
+      paintWaveform(ctx, {
+        width: w,
+        height: h,
+        peaks,
+        playedFrac: progress,
+        colors: {
+          played: cssColor(wrap, "--accent", 1),
+          head: cssColor(wrap, "--accent-glow", 1),
+          unplayed: cssColor(wrap, "--text-muted", 0.35),
+        },
+        barW: BAR_W,
+        gap: GAP,
+        min: MIN,
+      });
 
       if (hoverFrac != null) {
-        ctx.fillStyle = hover;
+        ctx.fillStyle = cssColor(wrap, "--accent", 0.55);
         ctx.fillRect(Math.round(hoverFrac * w), 0, 1, h);
       }
     };

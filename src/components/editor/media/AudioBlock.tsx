@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createReactBlockSpec } from "@blocknote/react";
 import { AudioBar, type TranscriptState } from "../../audio/AudioBar";
+import { RecordingBar } from "../../audio/RecordingBar";
 import { TranscriptView } from "../../audio/TranscriptView";
+import { MicIcon } from "../../audio/icons";
 import { transcriptPane } from "../../audio/transcriptController";
 import { isMediaPath, parseMediaPath } from "../../../lib/media/ref";
 import { refForUrl } from "../../../lib/media/url";
@@ -41,6 +43,7 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [tState, setTState] = useState<TranscriptState>("absent");
   const [readerOpen, setReaderOpen] = useState(false);
+  const [recording, setRecording] = useState(false);
   const [readerH, setReaderH] = useState(300);
   const readerDrag = useRef<{ y: number; h: number } | null>(null);
   const readerRef = useRef<HTMLDivElement>(null);
@@ -76,10 +79,13 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
     return () => { alive = false; };
   }, [ref]);
 
-  const choose = async (file: File) => {
+  // Persist chosen OR recorded audio (saveAudioFile takes a File or a recorder Blob). The
+  // block flips to "saving" while bytes write, then settles into the playable bar (url set).
+  const save = async (data: File | Blob) => {
+    setRecording(false);
     editor.updateBlock(block.id, { props: { status: "saving" } });
     try {
-      const { url: saved, ref: savedRef } = await saveAudioFile(getMediaNoteId(), file);
+      const { url: saved, ref: savedRef } = await saveAudioFile(getMediaNoteId(), data);
       editor.updateBlock(block.id, { props: { url: saved ?? savedRef, status: "" } });
     } catch (e) {
       log.error("media", "audio.choose.error", { id: block.id, error: String(e) });
@@ -126,16 +132,30 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
     log.info("media", "audio.download", { filename: audioFilename(url) });
   };
 
-  // ── empty (new block): file picker ──
+  // ── recording: the bar IS the live recorder (born in place from /audio) ──
+  if (!url && recording) {
+    return (
+      <div className="pensieve-audio-blockwrap">
+        <RecordingBar onStop={(blob) => void save(blob)} onCancel={() => setRecording(false)} />
+      </div>
+    );
+  }
+
+  // ── empty (new block): Record (primary) or choose a file ──
   if (!url && status !== "saving") {
     return (
       <div className="pensieve-audio-blockwrap">
-        <button type="button" className="pensieve-audio-empty" onClick={() => fileInputRef.current?.click()}>
-          <span className="pensieve-audio-empty-glyph">♪</span>
-          <span>Choose an audio file…</span>
-        </button>
+        <div className="pensieve-audio-empty">
+          <button type="button" className="pensieve-audio-empty-rec" onClick={() => setRecording(true)}>
+            <MicIcon size={15} /><span>Record</span>
+          </button>
+          <span className="pensieve-audio-empty-or">or</span>
+          <button type="button" className="pensieve-audio-empty-choose" onClick={() => fileInputRef.current?.click()}>
+            choose a file…
+          </button>
+        </div>
         <input ref={fileInputRef} type="file" accept="audio/*" hidden
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) void choose(f); e.target.value = ""; }} />
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) void save(f); e.target.value = ""; }} />
       </div>
     );
   }

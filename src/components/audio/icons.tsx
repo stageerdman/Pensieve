@@ -18,6 +18,18 @@ export const PauseIcon = ({ size }: P) => (
     <rect x="13.9" y="5" width="3.6" height="14" rx="1" />
   </svg>
 );
+export const StopIcon = ({ size }: P) => (
+  <svg {...box(size)} fill="currentColor">
+    <rect x="6.5" y="6.5" width="11" height="11" rx="2" />
+  </svg>
+);
+export const MicIcon = ({ size }: P) => (
+  <svg {...box(size)} fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+    <rect x="9" y="3" width="6" height="11" rx="3" />
+    <path d="M5 11a7 7 0 0 0 14 0" />
+    <path d="M12 18v3" />
+  </svg>
+);
 export const MoreIcon = ({ size }: P) => (
   <svg {...box(size)} fill="currentColor">
     <circle cx="5" cy="12" r="1.7" />
