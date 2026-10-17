@@ -23,18 +23,18 @@ describe("titleFromMarkdown", () => {
       "plain first line",
     );
   });
-  it("falls back to Untitled for empty content", () => {
-    expect(titleFromMarkdown("")).toBe("Untitled");
-    expect(titleFromMarkdown("   \n  ")).toBe("Untitled");
-    expect(titleFromMarkdown("###   ")).toBe("Untitled");
+  it("is empty (title-less) for content with no prose", () => {
+    expect(titleFromMarkdown("")).toBe("");
+    expect(titleFromMarkdown("   \n  ")).toBe("");
+    expect(titleFromMarkdown("###   ")).toBe("");
   });
-  it("never titles a note with a media fence or file path", () => {
+  it("is title-less for a note that is only media (no fence marker / file path as title)", () => {
     // a recording-only note: the pensieve:audio fence + ref must NOT become the title
-    expect(titleFromMarkdown("```pensieve:audio\nmedia/n1/abc-123.mp3\n```")).toBe("Untitled");
+    expect(titleFromMarkdown("```pensieve:audio\nmedia/n1/abc-123.mp3\n```")).toBe("");
     // text above the recording still wins
     expect(titleFromMarkdown("# Discovery call\n\n```pensieve:audio\nmedia/n1/x.mp3\n```")).toBe("Discovery call");
     // a lone image line isn't a title either
-    expect(titleFromMarkdown("![a photo](media/n1/pic.png)")).toBe("Untitled");
+    expect(titleFromMarkdown("![a photo](media/n1/pic.png)")).toBe("");
     // prose after a leading fence is still found
     expect(titleFromMarkdown("```pensieve:audio\nmedia/n1/x.mp3\n```\n\nActual note text")).toBe("Actual note text");
   });

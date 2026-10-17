@@ -142,28 +142,33 @@ export function FlaskCard({
       </span>
 
       {/* Title line: category dots · title. The title wraps to two lines when long —
-          dots then top-align with the first line. */}
-      <span className={`mt-2 flex gap-1.5 ${titleLines === 2 ? "items-start" : "items-center"}`}>
-        {showDots && (
-          <span className={`flex shrink-0 -space-x-0.5 ${titleLines === 2 ? "mt-[5px]" : ""}`}>
-            {cats.slice(0, 2).map((c) => (
-              <span
-                key={c}
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ background: catFg(colorOf(c, categoryDefs)) }}
-              />
-            ))}
-          </span>
-        )}
-        <span
-          className={
-            "min-w-0 flex-1 text-sm font-medium text-text " +
-            (titleLines === 2 ? "line-clamp-2" : "truncate")
-          }
-        >
-          {note.title || "Untitled"}
+          dots then top-align with the first line. A title-LESS note (e.g. a voice memo)
+          shows no title: the whole line is omitted unless there are category dots to show. */}
+      {(note.title || showDots) && (
+        <span className={`mt-2 flex gap-1.5 ${titleLines === 2 ? "items-start" : "items-center"}`}>
+          {showDots && (
+            <span className={`flex shrink-0 -space-x-0.5 ${titleLines === 2 ? "mt-[5px]" : ""}`}>
+              {cats.slice(0, 2).map((c) => (
+                <span
+                  key={c}
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ background: catFg(colorOf(c, categoryDefs)) }}
+                />
+              ))}
+            </span>
+          )}
+          {note.title && (
+            <span
+              className={
+                "min-w-0 flex-1 text-sm font-medium text-text " +
+                (titleLines === 2 ? "line-clamp-2" : "truncate")
+              }
+            >
+              {note.title}
+            </span>
+          )}
         </span>
-      </span>
+      )}
 
       {/* A body-text match shows the matched context (highlighted) in place of the
           preview; otherwise the normal excerpt. No `block`: line-clamp needs

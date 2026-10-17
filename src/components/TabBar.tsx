@@ -64,7 +64,8 @@ export function TabBar({ tabs, active, onHome, onSelect, onClose }: TabBarProps)
               }
             >
               <FlaskFor icon={n.icon} chars={n.chars} size={13} className="shrink-0" />
-              <span className="max-w-[120px] truncate">{n.title || "Untitled"}</span>
+              {/* Title-less notes (voice memos) show just the flask — no "Untitled". */}
+              {n.title && <span className="max-w-[120px] truncate">{n.title}</span>}
               <span
                 role="button"
                 aria-label="Close tab"

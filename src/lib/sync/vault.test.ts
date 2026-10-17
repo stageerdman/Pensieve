@@ -141,9 +141,9 @@ describe("writeNote", () => {
     expect(JSON.parse(files.get("notes/t1.meta.json")!).title).toBe("My Heading");
   });
 
-  it("falls back to Untitled for a body with no content lines", async () => {
+  it("is title-less (empty) for a body with no content lines", async () => {
     await tauriVault().writeNote("empty1", "");
-    expect(JSON.parse(files.get("notes/empty1.meta.json")!).title).toBe("Untitled");
+    expect(JSON.parse(files.get("notes/empty1.meta.json")!).title).toBe("");
   });
 });
 

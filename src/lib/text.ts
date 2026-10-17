@@ -3,8 +3,9 @@
 /** The note title is the first non-empty line of PROSE, with leading markdown heading
  *  marks stripped. Media is not a title: fenced blocks (our `pensieve:audio`/`image`/
  *  `gallery` fences and any code) are skipped whole, as are bare image lines — so a
- *  recording-only or image-only note falls back to "Untitled" instead of showing the fence
- *  marker or the media file path. Mirrors excerptFromMarkdown's fence handling. */
+ *  recording-only or image-only note has NO title (empty string) — the UI shows nothing
+ *  rather than inventing one or printing the fence marker / media file path. Mirrors
+ *  excerptFromMarkdown's fence handling. */
 export function titleFromMarkdown(md: string): string {
   let inFence = false;
   for (const raw of md.split("\n")) {
@@ -18,7 +19,7 @@ export function titleFromMarkdown(md: string): string {
     const t = line.replace(/^#{1,6}\s*/, "").trim();
     if (t) return t;
   }
-  return "Untitled";
+  return ""; // no prose → title-less (e.g. a voice memo); callers decide how to render empty
 }
 
 /** Filesystem-safe slug derived from the title (used for the .md basename). */
