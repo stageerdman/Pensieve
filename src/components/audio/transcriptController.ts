@@ -13,6 +13,8 @@ export interface TranscriptOpenReq {
   playerKey?: string;
   transcript: Transcript;
   title?: string;
+  /** Seconds to seek to on open (e.g. an Accio transcript-hit jump); plays once there. */
+  seekTo?: number;
 }
 
 type Listener = (req: TranscriptOpenReq | null) => void;

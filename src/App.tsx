@@ -20,6 +20,7 @@ import { Gallery } from "./features/gallery/Gallery";
 import { GalleryCustomise } from "./features/gallery/GalleryCustomise";
 import { Summon } from "./features/summon/Summon";
 import { useSummon } from "./hooks/useSummon";
+import { useTranscriptHits } from "./hooks/useTranscriptHits";
 import { contentCharCount } from "./lib/text";
 import { useNotes } from "./hooks/useNotes";
 import { useTabs } from "./hooks/useTabs";
@@ -71,6 +72,8 @@ export default function App() {
   // timeline grouping is preserved (we only hand it a filtered note list + match info).
   const categoryNames = useMemo(() => categories.defs.map((d) => d.name), [categories.defs]);
   const summon = useSummon(notes, categoryNames);
+  // Accio transcript-hit jump-lines: spoken-word matches for body-matched results (lazy).
+  const transcriptJumps = useTranscriptHits(summon.results, summon.match, summon.liveText);
   const summonInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -311,6 +314,7 @@ export default function App() {
               categoryDefs={categories.defs}
               header={<Summon summon={summon} inputRef={summonInputRef} />}
               match={summon.match}
+              transcriptJumps={transcriptJumps}
               searchActive={summon.active}
               theme={theme}
               onOpen={openNote}

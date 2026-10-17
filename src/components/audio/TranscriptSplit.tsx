@@ -78,7 +78,7 @@ export function TranscriptSplit() {
         <div className="pensieve-transcript-dock">
           <AudioBar src={req.src} playerKey={req.playerKey} dock transcriptState="present" />
         </div>
-        <TranscriptView src={req.src} playerKey={req.playerKey} transcript={req.transcript} />
+        <TranscriptView src={req.src} playerKey={req.playerKey} transcript={req.transcript} seekTo={req.seekTo} />
       </div>
     </aside>
   );

@@ -20,9 +20,11 @@ interface Props {
   playerKey?: string;
   transcript: Transcript;
   className?: string;
+  /** Seconds to jump to when opened (an Accio transcript-hit); seeks + plays once there. */
+  seekTo?: number;
 }
 
-export function TranscriptView({ src, playerKey, transcript, className }: Props) {
+export function TranscriptView({ src, playerKey, transcript, className, seekTo }: Props) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const wordRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const turnRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -92,6 +94,21 @@ export function TranscriptView({ src, playerKey, transcript, className }: Props)
       releaseController(key);
     };
   }, [key, src, transcript]);
+
+  // Open-at-a-time: when opened with a `seekTo` (an Accio jump), seek the shared controller
+  // there and play. Re-runs on each new seekTo (a second jump into an already-open
+  // transcript); waits for metadata if the audio hasn't loaded its duration yet.
+  useEffect(() => {
+    if (seekTo == null) return;
+    const c = cRef.current;
+    if (!c) return;
+    let offDur: (() => void) | null = null;
+    const go = () => { c.seek(seekTo); c.play(); };
+    if (Number.isFinite(c.duration) && c.duration > 0) go();
+    else offDur = c.on("durationchange", () => { offDur?.(); offDur = null; go(); });
+    return () => { offDur?.(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seekTo]);
 
   return (
     <div className={"pensieve-transcript-body" + (className ? " " + className : "")} ref={bodyRef}>

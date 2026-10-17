@@ -9,6 +9,10 @@ import { FlaskCard, type MenuAnchor, type PeekTarget } from "./FlaskCard";
 import { WorkingSetStrip } from "./WorkingSetStrip";
 import { PreviewPortal } from "./PreviewPortal";
 import { CardContextMenu, type CardMenuTarget } from "./CardContextMenu";
+import { TranscriptJumpLines } from "./TranscriptJumpLines";
+import type { TranscriptJump } from "../../hooks/useTranscriptHits";
+import { resolveMediaUrl } from "../../lib/media/url";
+import { transcriptPane } from "../../components/audio/transcriptController";
 
 // Home: every memory at once, as large flasks grouped by creation date (Apple-Photos
 // style, oldest on top). A quiet date rail on the left labels each group; the working
@@ -24,6 +28,8 @@ interface GalleryProps {
   header?: React.ReactNode;
   /** Per-note search match info (snippet + reason) when a summon query is active. */
   match?: Map<string, SearchResult>;
+  /** Per-note spoken-word matches (Accio transcript-hit jump-lines) when a query is active. */
+  transcriptJumps?: Map<string, TranscriptJump[]>;
   /** True when a summon query is narrowing the gallery — changes the empty state. */
   searchActive?: boolean;
   theme: "light" | "dark";
@@ -40,6 +46,7 @@ export function Gallery({
   categoryDefs,
   header,
   match,
+  transcriptJumps,
   searchActive,
   theme,
   onOpen,
@@ -50,6 +57,15 @@ export function Gallery({
 }: GalleryProps) {
   const now = useMemo(() => Date.now(), []);
   const wsSet = useMemo(() => new Set(state.workingSet), [state.workingSet]);
+
+  // A transcript jump: open the note, then open its transcript split seeked to the spoken
+  // moment. playerKey is the audio ref (stable per recording) so re-jumps reuse one playhead.
+  const openJump = async (noteId: string, jump: TranscriptJump) => {
+    onOpen(noteId, false);
+    const url = await resolveMediaUrl(jump.ref);
+    if (!url) return;
+    transcriptPane.open({ src: url, playerKey: jump.ref, transcript: jump.transcript, seekTo: jump.time });
+  };
   // While an Accio query is active we hide the working-set strip and let ALL matching
   // bottles share one normal grid — ordered by "when I last worked with them" (updatedAt),
   // most recent on top. At rest (no query) the strip rides above and its memories are
@@ -203,23 +219,30 @@ export function Gallery({
                 </div>
                 <section aria-label={s.label} className="border-l border-border pl-5">
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(176px,224px))] justify-start gap-x-4 gap-y-6">
-                    {s.notes.map((n) => (
-                      <FlaskCard
-                        key={n.id}
-                        note={n}
-                        fields={state.fields}
-                        snippetLines={state.snippetLines}
-                        categoryDefs={categoryDefs}
-                        now={now}
-                        inWorkingSet={wsSet.has(n.id)}
-                        searchMatch={match?.get(n.id)}
-                        onOpen={onOpen}
-                        onContextMenu={openContextMenu}
-                        onHoverChange={setHovered}
-                        onPeekToggle={onPeekToggle}
-                        onToggleWorkingSet={onToggleWorkingSet}
-                      />
-                    ))}
+                    {s.notes.map((n) => {
+                      const jumps = transcriptJumps?.get(n.id);
+                      return (
+                        <div key={n.id} className="flex flex-col">
+                          <FlaskCard
+                            note={n}
+                            fields={state.fields}
+                            snippetLines={state.snippetLines}
+                            categoryDefs={categoryDefs}
+                            now={now}
+                            inWorkingSet={wsSet.has(n.id)}
+                            searchMatch={match?.get(n.id)}
+                            onOpen={onOpen}
+                            onContextMenu={openContextMenu}
+                            onHoverChange={setHovered}
+                            onPeekToggle={onPeekToggle}
+                            onToggleWorkingSet={onToggleWorkingSet}
+                          />
+                          {jumps && jumps.length > 0 && (
+                            <TranscriptJumpLines jumps={jumps} onJump={(j) => void openJump(n.id, j)} />
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </section>
               </Fragment>
