@@ -25,13 +25,20 @@ export const GALLERY_FENCE = "pensieve:gallery";
 /** A gallery always holds at least two images (one collapses back to a single `image`). */
 export const GALLERY_MIN = 2;
 
-/** One image inside a gallery. `url` is a loadable url in-editor / a vault ref on disk.
- *  `saving` is a transient per-tile flag (never serialized) for the partial-upload state. */
+/** One entry inside a gallery. `url` is a loadable url in-editor / a vault ref on disk.
+ *  `saving` is a transient per-tile flag (never serialized) for the partial-upload state.
+ *  `kind` discriminates an audio recording (a waveform card) from an image; absent = image,
+ *  so every pre-existing gallery stays image-only with no migration. */
 export interface GalleryImage {
   url: string;
   caption?: string;
   saving?: boolean;
+  kind?: "image" | "audio";
 }
+
+/** Fence line prefix marking an audio entry — images have no scheme prefix, so old files
+ *  (no audio) parse identically. Same additive-token precedent as the leading `h=` line. */
+const AUDIO_SIGIL = "audio:";
 
 interface Block {
   type?: string;
@@ -61,6 +68,7 @@ export function parseGalleryImages(json: string | undefined): GalleryImage[] {
         url: x.url as string,
         ...(x.caption ? { caption: String(x.caption) } : {}),
         ...(x.saving ? { saving: true } : {}),
+        ...(x.kind === "audio" ? { kind: "audio" as const } : {}),
       }));
   } catch {
     return [];
@@ -71,7 +79,12 @@ export function parseGalleryImages(json: string | undefined): GalleryImage[] {
  *  only when asked; the editor keeps it, SAVE strips it via encodeImageGroupBlock). */
 export function stringifyGalleryImages(images: GalleryImage[]): string {
   return JSON.stringify(
-    images.map((i) => ({ url: i.url, ...(i.caption ? { caption: i.caption } : {}), ...(i.saving ? { saving: true } : {}) })),
+    images.map((i) => ({
+      url: i.url,
+      ...(i.caption ? { caption: i.caption } : {}),
+      ...(i.saving ? { saving: true } : {}),
+      ...(i.kind === "audio" ? { kind: "audio" } : {}),
+    })),
   );
 }
 
@@ -85,8 +98,9 @@ export function encodeImageGroupBlock(b: Block): Block {
   const lines = images.map((img) => {
     // The inverse of load-time resolution; an external/unresolved url is kept as-is.
     const ref = refForUrl(img.url) ?? img.url;
+    const token = img.kind === "audio" ? `${AUDIO_SIGIL}${ref}` : ref; // audio gets the sigil
     const caption = (img.caption ?? "").replace(/\n/g, " ").trim();
-    return caption ? `${ref} | ${caption}` : ref;
+    return caption ? `${token} | ${caption}` : token;
   });
   const height = Math.round(Number(b.props?.height) || 0);
   if (height > 0) lines.unshift(`h=${height}`);
@@ -108,8 +122,11 @@ export function reconstructGalleryFence(b: Block): Block | null {
   }
   const images: GalleryImage[] = rawLines.map((line) => {
     const sep = line.indexOf(" | ");
-    if (sep === -1) return { url: line };
-    return { url: line.slice(0, sep).trim(), caption: line.slice(sep + 3).trim() };
+    const token = sep === -1 ? line : line.slice(0, sep).trim();
+    const caption = sep === -1 ? undefined : line.slice(sep + 3).trim();
+    const isAudio = token.startsWith(AUDIO_SIGIL);
+    const url = isAudio ? token.slice(AUDIO_SIGIL.length) : token;
+    return { url, ...(caption ? { caption } : {}), ...(isAudio ? { kind: "audio" as const } : {}) };
   });
   const props: { images: string; height?: number } = { images: stringifyGalleryImages(images) };
   if (height > 0) props.height = height;

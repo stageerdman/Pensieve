@@ -6,6 +6,7 @@
 // routes its `onFiles` here.
 
 import { saveImageFile, type InsertEditor } from "./insertImage";
+import { saveAudioFile } from "./insertAudio";
 import {
   type GalleryImage,
   parseGalleryImages,
@@ -57,6 +58,15 @@ export function mergeMediaBlocksInto(editor: MergeEditor, targetId: string, sour
   return true;
 }
 
+/** A gallery can hold recordings too — audio files become audio-kind tiles (waveform cards),
+ *  everything else is an image tile. */
+const isAudioFile = (f: File | Blob): boolean => (f.type || "").startsWith("audio/");
+
+/** The gallery tile for a just-dropped file (local url, still saving), tagged by kind. */
+function tileForFile(url: string, file: File | Blob): GalleryImage {
+  return { url, caption: "", saving: true, ...(isAudioFile(file) ? { kind: "audio" as const } : {}) };
+}
+
 function isBlankParagraph(block: { type: string; content?: unknown }): boolean {
   if (block.type !== "paragraph") return false;
   const c = block.content;
@@ -77,7 +87,8 @@ function persistTiles(
 ): void {
   files.forEach((file, i) => {
     const at = startIndex + i;
-    void saveImageFile(noteId, file)
+    const saved = isAudioFile(file) ? saveAudioFile(noteId, file) : saveImageFile(noteId, file);
+    void saved
       .then(({ url }) => {
         images[at] = { ...images[at], url: url ?? images[at].url, saving: false };
         editor.updateBlock(blockId, { props: { images: stringifyGalleryImages(images) } });
@@ -102,7 +113,7 @@ export async function createGroupFromFiles(
   anchorId: string,
 ): Promise<string> {
   const localUrls = files.map((f) => URL.createObjectURL(f));
-  const images: GalleryImage[] = localUrls.map((url) => ({ url, caption: "", saving: true }));
+  const images: GalleryImage[] = files.map((f, i) => tileForFile(localUrls[i], f));
   const [block] = editor.insertBlocks(
     [{ type: "imageGroup", props: { images: stringifyGalleryImages(images) } }],
     anchorId,
@@ -134,7 +145,7 @@ export async function mergeFilesIntoBlock(
         : [];
 
   const localUrls = files.map((f) => URL.createObjectURL(f));
-  const incoming: GalleryImage[] = localUrls.map((url) => ({ url, caption: "", saving: true }));
+  const incoming: GalleryImage[] = files.map((f, i) => tileForFile(localUrls[i], f));
   const images = existing.concat(incoming);
 
   // Promote image → imageGroup, or update the group's list in place.

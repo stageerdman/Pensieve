@@ -114,3 +114,48 @@ describe("isImageGroupBlock", () => {
     expect(isImageGroupBlock({ type: "image" })).toBe(false);
   });
 });
+
+describe("audio entries in a gallery", () => {
+  const REC = "media/n1/rec-9.m4a";
+
+  it("round-trips an audio entry via the audio: sigil, preserving kind + order + caption", () => {
+    const images: GalleryImage[] = [
+      { url: A, caption: "a photo" },
+      { url: REC, caption: "the call", kind: "audio" },
+      { url: B },
+    ];
+    const fence = encodeImageGroupBlock(groupBlock(images));
+    const text = fenceText(fence);
+    // the audio line carries the sigil; image lines do not
+    expect(text).toContain(`audio:${REC} | the call`);
+    expect(text).toContain(`${A} | a photo`);
+    expect(text).not.toContain(`audio:${A}`);
+
+    const back = reconstructGalleryFence(fence)!;
+    const parsed = parseGalleryImages((back.props as { images: string }).images);
+    expect(parsed).toEqual([
+      { url: A, caption: "a photo" },
+      { url: REC, caption: "the call", kind: "audio" },
+      { url: B },
+    ]);
+  });
+
+  it("an audio entry with no caption round-trips too", () => {
+    const fence = encodeImageGroupBlock(groupBlock([{ url: REC, kind: "audio" }, { url: A }]));
+    expect(fenceText(fence).split("\n")[0]).toBe(`audio:${REC}`);
+    const parsed = parseGalleryImages((reconstructGalleryFence(fence)!.props as { images: string }).images);
+    expect(parsed[0]).toEqual({ url: REC, kind: "audio" });
+    expect(parsed[1]).toEqual({ url: A });
+  });
+
+  it("a legacy image-only fence (no sigil) still parses as all images", () => {
+    const legacy = {
+      type: "codeBlock",
+      props: { language: GALLERY_FENCE },
+      content: [{ type: "text", text: `${A} | one\n${B}`, styles: {} }],
+    };
+    const parsed = parseGalleryImages((reconstructGalleryFence(legacy)!.props as { images: string }).images);
+    expect(parsed.every((p) => p.kind === undefined)).toBe(true);
+    expect(parsed.map((p) => p.url)).toEqual([A, B]);
+  });
+});

@@ -12,6 +12,7 @@ import { computeDrop, type DropBlock, type DropTarget } from "../blockDrag";
 import { DEFAULT_IMAGE_WIDTH, imageFilename } from "../../../lib/md/image";
 import { getMediaNoteId } from "./mediaContext";
 import { mergeFilesIntoBlock, type GroupEditor } from "./insertGroup";
+import { GalleryAudioTile } from "./GalleryAudioTile";
 import { mediaAlt } from "../../../lib/media";
 import { lightbox } from "../../media/lightboxController";
 import { X, GripVertical, Plus, Images as ImagesIcon } from "../../icons";
@@ -66,17 +67,20 @@ const DEFAULT_GALLERY_HEIGHT = 260; // px, before the user drags
 const MIN_GALLERY_HEIGHT = 120;
 const MAX_GALLERY_HEIGHT = 640;
 const DEFAULT_ASPECT = 1.5; // optimistic landscape until an image reports its natural size
+const AUDIO_ASPECT = 1.85; // a fixed landscape for audio cards — they ride the strip like a wide photo
 
-// Images from a drop: prefer dataTransfer.files, fall back to items (a copied/screenshot image
-// often lives only in items, kind "file") — matches the editor-wide paste/drop plugin.
+// Media from a drop: prefer dataTransfer.files, fall back to items (a copied/screenshot image
+// often lives only in items, kind "file"). A gallery accepts images AND recordings (audio),
+// so an audio file dropped onto the strip joins as a waveform card.
+const isGalleryFile = (f: File) => f.type.startsWith("image/") || f.type.startsWith("audio/");
 function imagesFromDT(dt: DataTransfer): File[] {
   const out: File[] = [];
-  for (const f of Array.from(dt.files)) if (f.type.startsWith("image/")) out.push(f);
+  for (const f of Array.from(dt.files)) if (isGalleryFile(f)) out.push(f);
   if (!out.length)
     for (const it of Array.from(dt.items))
       if (it.kind === "file") {
         const f = it.getAsFile();
-        if (f && f.type.startsWith("image/")) out.push(f);
+        if (f && isGalleryFile(f)) out.push(f);
       }
   return out;
 }
@@ -135,7 +139,9 @@ function GroupRender({ block, editor }: RenderProps) {
   };
   // The justified horizontal layout: dragged height → rows → per-tile widths (ratio preserved).
   const packed = justifyGallery(
-    images.map((img) => aspects[img.url] ?? DEFAULT_ASPECT),
+    // Audio tiles use a FIXED aspect (they're not aspect-measured like images); the justify
+    // packer treats it like any other number, so they scale with the row height for free.
+    images.map((img) => (img.kind === "audio" ? AUDIO_ASPECT : aspects[img.url] ?? DEFAULT_ASPECT)),
     { containerHeight, gap: GALLERY_GAP, targetRowH: TARGET_ROW_H, maxRows: MAX_ROWS },
   );
 
@@ -408,7 +414,7 @@ function GroupRender({ block, editor }: RenderProps) {
     <input
       ref={fileRef}
       type="file"
-      accept="image/*"
+      accept="image/*,audio/*"
       multiple
       hidden
       onChange={(e) => {
@@ -461,7 +467,12 @@ function GroupRender({ block, editor }: RenderProps) {
         {editable && dropAt === images.length && i === images.length - 1 && (
           <div className="pensieve-gallery-insert is-end" aria-hidden />
         )}
-        {img.url && !broken.has(i) ? (
+        {img.kind === "audio" ? (
+          // A recording rides the strip as a compact waveform card (plays in place; its
+          // transcript opens the split). playerKey is per-recording so two cards don't
+          // share one playhead.
+          <GalleryAudioTile url={img.url} playerKey={`${block.id}:${img.url}`} caption={img.caption} />
+        ) : img.url && !broken.has(i) ? (
           // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
           <img
             className="pensieve-gallery-img"
@@ -488,17 +499,23 @@ function GroupRender({ block, editor }: RenderProps) {
             <div className="pensieve-gallery-grip" title="Drag to reorder (or out of the gallery)" aria-label="Reorder image" onPointerDown={onGripDown(i)}>
               <GripVertical size={14} />
             </div>
-            <input
-              className="pensieve-gallery-caption"
-              value={img.caption ?? ""}
-              placeholder="Caption…"
-              onChange={(e) => setCaption(i, e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
-            />
+            {/* Audio cards are self-contained (their controls occupy the bottom row) — no
+                caption input, which would collide with the controls. */}
+            {img.kind !== "audio" && (
+              <input
+                className="pensieve-gallery-caption"
+                value={img.caption ?? ""}
+                placeholder="Caption…"
+                onChange={(e) => setCaption(i, e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+              />
+            )}
           </>
         )}
-        {!editable && img.caption && <div className="pensieve-gallery-caption-static">{img.caption}</div>}
+        {!editable && img.caption && img.kind !== "audio" && (
+          <div className="pensieve-gallery-caption-static">{img.caption}</div>
+        )}
       </div>
     );
   };
