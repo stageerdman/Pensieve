@@ -23,7 +23,10 @@ interface DragEditor {
   nestBlock: () => void;
 }
 
-const isMediaType = (t: string | undefined): boolean => t === "image" || t === "imageGroup";
+// Audio counts as media too — a recording row can be dragged INTO a gallery (merge) and a
+// gallery/image can be dropped onto a recording to build one. Must stay in sync with
+// imagesOfMediaBlock (insertGroup), which turns each media block into its gallery tiles.
+const isMediaType = (t: string | undefined): boolean => t === "image" || t === "imageGroup" || t === "audio";
 
 // Drop a block's `id`s (recursively) so re-inserted copies get fresh ids — avoids any
 // duplicate-id window between insert and the removal of the originals.

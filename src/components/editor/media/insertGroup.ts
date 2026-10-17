@@ -31,6 +31,11 @@ export function imagesOfMediaBlock(
     const url = String(b.props?.url ?? "");
     return url ? [{ url, caption: String(b.props?.caption ?? "") }] : [];
   }
+  if (b.type === "audio") {
+    // A recording row merges in as an audio-kind tile (waveform card), not an image.
+    const url = String(b.props?.url ?? "");
+    return url ? [{ url, caption: String(b.props?.caption ?? ""), kind: "audio" as const }] : [];
+  }
   if (b.type === "imageGroup") return parseGalleryImages(b.props?.images as string | undefined);
   return [];
 }

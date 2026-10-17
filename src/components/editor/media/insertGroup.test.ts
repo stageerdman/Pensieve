@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, vi } from "vitest";
-import { createGroupFromFiles, mergeFilesIntoBlock, insertImagesSmart, type GroupEditor } from "./insertGroup";
+import { createGroupFromFiles, mergeFilesIntoBlock, insertImagesSmart, mergeMediaBlocksInto, imagesOfMediaBlock, type GroupEditor, type MergeEditor } from "./insertGroup";
 import { parseGalleryImages } from "../../../lib/md/gallery";
 
 // The emergent-creation orchestration above the single-image funnel. We assert the BLOCK
@@ -66,6 +66,44 @@ describe("mergeFilesIntoBlock", () => {
     const update = (calls.update[0] as [string, { type: string; props: { images: string } }])[1];
     expect(update.type).toBe("imageGroup");
     expect(parseGalleryImages(update.props.images)).toHaveLength(4);
+  });
+});
+
+describe("mergeMediaBlocksInto (drag a row ONTO a gallery)", () => {
+  function fakeMergeEditor(blocks: Record<string, { id: string; type?: string; props?: Record<string, unknown> }>) {
+    const removed: string[] = [];
+    const updates: Array<[string, { type?: string; props?: { images?: string } }]> = [];
+    const editor: MergeEditor = {
+      getBlock: (id) => blocks[id],
+      updateBlock: (id, update) => updates.push([id, update as { type?: string; props?: { images?: string } }]),
+      removeBlocks: (ids) => removed.push(...ids),
+    };
+    return { editor, removed, updates };
+  }
+
+  it("imagesOfMediaBlock turns an audio block into a kind:audio tile (reusing its url)", () => {
+    const tiles = imagesOfMediaBlock({ type: "audio", props: { url: "media/n1/memo.m4a", caption: "" } });
+    expect(tiles).toEqual([{ url: "media/n1/memo.m4a", caption: "", kind: "audio" }]);
+  });
+
+  it("merges an audio row into a gallery as an audio tile, then removes the source", () => {
+    const { editor, removed, updates } = fakeMergeEditor({
+      grp: { id: "grp", type: "imageGroup", props: { images: JSON.stringify([{ url: "media/n1/a.png" }]) } },
+      aud: { id: "aud", type: "audio", props: { url: "media/n1/memo.m4a" } },
+    });
+    expect(mergeMediaBlocksInto(editor, "grp", ["aud"])).toBe(true);
+    const images = parseGalleryImages(updates[0][1].props!.images!);
+    expect(images).toHaveLength(2);
+    expect(images[1]).toMatchObject({ url: "media/n1/memo.m4a", kind: "audio" }); // appended as audio
+    expect(removed).toEqual(["aud"]); // source row consumed
+  });
+
+  it("returns false (no-op) when a dragged audio row has no saved url yet", () => {
+    const { editor } = fakeMergeEditor({
+      grp: { id: "grp", type: "imageGroup", props: { images: "[]" } },
+      aud: { id: "aud", type: "audio", props: { url: "" } },
+    });
+    expect(mergeMediaBlocksInto(editor, "grp", ["aud"])).toBe(false);
   });
 });
 
