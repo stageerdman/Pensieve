@@ -1,6 +1,7 @@
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
+import { log } from "../../../lib/logger";
 
 // Cmd+V paste and drag-drop of image files, added through BlockNote's
 // `_tiptapOptions.extensions` escape hatch (modelled on blockSelectionDecorations). The
@@ -133,13 +134,28 @@ export const ImagePasteDrop = Extension.create({
               const onMedia = !!over?.closest(".pensieve-gallery, .pensieve-media");
               const images = imagesFrom(event.dataTransfer);
               const audio = audioFrom(event.dataTransfer);
+              log.info("media", "drop.received", {
+                files: Array.from(event.dataTransfer?.files ?? []).map((f) => `${f.name}:${f.type || "?"}`),
+                images: images.length,
+                audio: audio.length,
+                onMedia,
+                overClass: over?.className?.toString().slice(0, 60) ?? null,
+                target,
+              });
 
               // A drop ONTO a media block (image / gallery) is that block's own gesture. Images
               // are handled by the block's React onDrop (works) — so bail. But audio can't ride
               // that path reliably, so WE route it (onFiles → insertImagesSmart merges it into
               // the gallery as a waveform card).
               if (onMedia) {
-                if (audio.length) { event.preventDefault(); clearCaret(view); onFiles?.(audio, target); return true; }
+                if (audio.length) {
+                  log.info("media", "drop.audio-onto-media", { target, audio: audio.length });
+                  event.preventDefault();
+                  clearCaret(view);
+                  onFiles?.(audio, target);
+                  return true;
+                }
+                log.info("media", "drop.image-onto-media.bail", { target });
                 return false;
               }
 

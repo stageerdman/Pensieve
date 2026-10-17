@@ -19,6 +19,7 @@
 
 import { refForUrl, resolveMediaUrl } from "../media/url";
 import { isMediaPath } from "../media/ref";
+import { log } from "../logger";
 
 /** The fence language carrying an ordered image group. */
 export const GALLERY_FENCE = "pensieve:gallery";
@@ -104,6 +105,15 @@ export function encodeImageGroupBlock(b: Block): Block {
   });
   const height = Math.round(Number(b.props?.height) || 0);
   if (height > 0) lines.unshift(`h=${height}`);
+  const audioEntries = images.filter((i) => i.kind === "audio");
+  if (audioEntries.length) {
+    log.info("media", "gallery.encode.audio", {
+      count: audioEntries.length,
+      urls: audioEntries.map((i) => i.url.slice(0, 48)),
+      refs: audioEntries.map((i) => (refForUrl(i.url) ?? i.url).slice(0, 48)),
+      saving: audioEntries.some((i) => i.saving),
+    });
+  }
   return { type: "codeBlock", props: { language: GALLERY_FENCE }, content: [{ type: "text", text: lines.join("\n"), styles: {} }] };
 }
 
@@ -128,6 +138,10 @@ export function reconstructGalleryFence(b: Block): Block | null {
     const url = isAudio ? token.slice(AUDIO_SIGIL.length) : token;
     return { url, ...(caption ? { caption } : {}), ...(isAudio ? { kind: "audio" as const } : {}) };
   });
+  const audioEntries = images.filter((i) => i.kind === "audio");
+  if (audioEntries.length) {
+    log.info("media", "gallery.reconstruct.audio", { count: audioEntries.length, urls: audioEntries.map((i) => i.url.slice(0, 48)) });
+  }
   const props: { images: string; height?: number } = { images: stringifyGalleryImages(images) };
   if (height > 0) props.height = height;
   return { type: "imageGroup", props };

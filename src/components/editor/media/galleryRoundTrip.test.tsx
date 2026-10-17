@@ -92,6 +92,28 @@ describe("gallery .md round-trip (real editor + our schema)", () => {
     cleanup();
   });
 
+  it("round-trips a gallery containing an AUDIO entry through the real editor schema", async () => {
+    await withEditor(async (editor) => {
+      const REC = "media/n1/rec-9.m4a";
+      const images = [{ url: A, caption: "photo" }, { url: REC, kind: "audio" as const }, { url: B }];
+      const md = await blocksToExtendedMd(editor, [
+        { type: "imageGroup", props: { images: stringifyGalleryImages(images) } },
+      ]);
+      // the audio entry must carry the sigil in the fence
+      expect(md).toContain(`audio:${REC}`);
+
+      const blocks = (await extendedMdToBlocks(editor, md)) as Array<{ type: string; props: { images: string } }>;
+      expect(blocks[0].type).toBe("imageGroup");
+      const back = parseGalleryImages(blocks[0].props.images);
+      // kind + order survive the real editor's block schema (the prop is a JSON string)
+      expect(back).toEqual(images);
+      expect(back[1].kind).toBe("audio");
+      // idempotent
+      expect(await blocksToExtendedMd(editor, blocks)).toBe(md);
+    });
+    cleanup();
+  });
+
   it("round-trips a gallery sitting between paragraphs", async () => {
     await withEditor(async (editor) => {
       const images = [{ url: A }, { url: B }];

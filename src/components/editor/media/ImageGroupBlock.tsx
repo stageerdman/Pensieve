@@ -305,7 +305,13 @@ function GroupRender({ block, editor }: RenderProps) {
           e.preventDefault();
           e.stopPropagation();
           setDragOver(false);
-          addFiles(imagesFromDT(e.dataTransfer));
+          const imgs = imagesFromDT(e.dataTransfer);
+          log.info("media", "gallery.reactDrop", {
+            id: block.id,
+            files: Array.from(e.dataTransfer?.files ?? []).map((f) => `${f.name}:${f.type || "?"}`),
+            images: imgs.length,
+          });
+          addFiles(imgs);
         },
       }
     : {};
