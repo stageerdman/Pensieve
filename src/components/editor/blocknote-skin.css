@@ -157,10 +157,13 @@
   border: 1px solid hsl(var(--accent) / 0.5);
   border-radius: 3px;
 }
-/* While marqueeing, kill text selection across the surface so the drag can't smear a
-   caret selection through the rows it passes over. */
+/* While marqueeing — and from the very first instant of a blank-space press, before the
+   drag threshold engages — kill text selection across the surface so the gesture can't
+   smear a caret selection through the rows it passes over. */
 .pensieve-editor.pensieve-marqueeing,
-.pensieve-editor.pensieve-marqueeing * {
+.pensieve-editor.pensieve-marqueeing *,
+.pensieve-editor.pensieve-marquee-press,
+.pensieve-editor.pensieve-marquee-press * {
   user-select: none !important;
   -webkit-user-select: none !important;
 }

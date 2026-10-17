@@ -123,6 +123,7 @@ export function useBlockMarquee(editor: MarqueeEditor, wrapRef: RefObject<HTMLEl
         band = null;
       }
       wrap.classList.remove("pensieve-marqueeing");
+      wrap.classList.remove("pensieve-marquee-press");
       press = null;
       anchorId = null;
       scroller = null;
@@ -166,6 +167,12 @@ export function useBlockMarquee(editor: MarqueeEditor, wrapRef: RefObject<HTMLEl
       press = { startX: e.clientX, startY: e.clientY, active: false };
       lastX = e.clientX;
       lastY = e.clientY;
+      // Suppress native text selection from the first instant of a blank-space press — not
+      // only once the drag threshold is crossed. Otherwise the press-and-move before the
+      // marquee engages smears a caret selection across the rows ("selects text everywhere").
+      // user-select:none blocks range selection but not click-to-focus, so a plain blank
+      // click still behaves. Cleared in endDrag.
+      wrap.classList.add("pensieve-marquee-press");
       window.addEventListener("pointermove", onMove, true);
       window.addEventListener("pointerup", onUp, true);
       window.addEventListener("pointercancel", onUp, true);
