@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
-import { WaveformCard } from "../../audio/WaveformCard";
-import { type TranscriptState } from "../../audio/AudioBar";
-import { transcriptPane } from "../../audio/transcriptController";
-import { refForUrl } from "../../../lib/media/url";
-import { isMediaPath, parseMediaPath } from "../../../lib/media/ref";
-import { getStore } from "../../../lib/store";
-import { getMediaNoteId } from "./mediaContext";
-import { reindex } from "../../../lib/search/reindexController";
-import type { Transcript } from "../../../lib/transcripts/types";
-import { log } from "../../../lib/logger";
+import { WaveformCard } from "../../../audio/WaveformCard";
+import { type TranscriptState } from "../../../audio/AudioBar";
+import { transcriptPane } from "../../../audio/transcriptController";
+import { refForUrl } from "../../../../lib/media/url";
+import { isMediaPath, parseMediaPath } from "../../../../lib/media/ref";
+import { getStore } from "../../../../lib/store";
+import { getMediaNoteId } from "../mediaContext";
+import { reindex } from "../../../../lib/search/reindexController";
+import type { Transcript } from "../../../../lib/transcripts/types";
+import { log } from "../../../../lib/logger";
 
 // The editor-side adapter that mounts a WaveformCard for an AUDIO entry inside a gallery —
 // mirrors how AudioBlock wraps AudioBar. It owns the note/transcript context the standalone
@@ -29,7 +29,7 @@ function audioFilename(urlOrRef: string): string {
   return parsed ? `${parsed.mediaId}.${parsed.ext}` : "recording";
 }
 
-export function GalleryAudioTile({ url, playerKey, caption }: Props) {
+export function GalleryAudioElement({ url, playerKey, caption }: Props) {
   const ref = refForUrl(url) ?? (isMediaPath(url) ? url : null);
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [tState, setTState] = useState<TranscriptState>("absent");
@@ -53,7 +53,7 @@ export function GalleryAudioTile({ url, playerKey, caption }: Props) {
     if (!ref) return;
     setTState("transcribing");
     try {
-      const sample = ((await import("../../../lib/transcripts/_sampleDominik.dev.json")).default) as unknown as Transcript;
+      const sample = ((await import("../../../../lib/transcripts/_sampleDominik.dev.json")).default) as unknown as Transcript;
       await getStore().saveTranscript(ref, sample);
       setTranscript(sample);
       setTState("present");
