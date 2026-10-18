@@ -11,6 +11,28 @@ Engine = port the `/Users/stage/dev/transcriber` **approach** onto **whisper.cpp
 Rust/Tauri) + the **`claude -p` AI polish** step. Full engine/flags/prompt detail + Pensieve
 plug-in points are in **`wiki.md` — READ IT FIRST.**
 
+## ⚑ BEHAVIORAL SPEC — owner, 2026-10-18 (governs the real build)
+The queue + engine must obey these rules (prototype proved the UI; this is the behaviour):
+1. **Auto by default.** Every recording that is **synced in** and has **no transcript** is added to
+   the queue and transcribed automatically, using the **Czech** model by default (no prompt).
+2. **Locally-added ≠ auto.** A recording added **directly in a note** (local, not via sync) does
+   **not** auto-transcribe. It transcribes when I **click Process** manually, **or on the next sync**.
+   → So **sync is the enqueue trigger**: pressing Sync scans for new untranscribed recordings, adds
+   them, and transcribes them (Czech default).
+3. **Sync is primary, transcription secondary, they run in PARALLEL.** Always sync first; transcription
+   runs alongside at lower priority. Uploading an mp3 → it syncs **and** transcribes at the same time.
+4. **Finished transcript → sync it.** When a transcription completes, its sidecar is **auto-synced**
+   after it finishes (preferred), **or** the drawer offers a one-tap "sync again" when done.
+5. **Model change resets progress** — switching a row's model restarts it from 0 (already in prototype).
+
+### P0 SPIKE RESULT — 2026-10-18: environment is GO on this Mac ✅
+Apple M3/arm64 (Metal). Transcriber `.venv` (py3.11) imports `mlx_whisper` + `parakeet_mlx`.
+`ffmpeg`/`ffprobe`/`claude` present. BOTH models already in HF cache (`mikr/whisper-large-v3-czech-cv13`,
+`mlx-community/parakeet-tdt-0.6b-v3`) — no 6 GB download. **Packaging decision (for now, single-user
+owner):** Pensieve shells out to a ported Python engine run by the transcriber's venv (path
+configurable); bundling a self-contained venv into the distributable `.app` is deferred to a later
+packaging pass. Engine emits the LOCKED `Transcript` schema on stdout; Rust captures it + emits progress.
+
 ## ▶ RESUME HERE (next session) — updated 2026-10-18 (P1 core built + UI prototype; AWAITING owner A/B/C pick)
 **Branch:** `update/audio-transcription` (off `main`; AUDIO-RECORDINGS now MERGED to main & shipped).
 Tree clean, pushed. Model question SETTLED (owner directive "same models as /dev/transcriber" →
