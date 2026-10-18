@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pensieve · Transcription UI prototype</title>
+  <!-- THE shared design truth (same file the audio prototypes use). Prototype-only
+       classes (tq-*, sync-drawer*, rail) live in the inline <style> below; behaviour in
+       the inline module <script>. One openable file, internally modular. -->
+  <link rel="stylesheet" href="_kit.css" />
+  <style>
+    /* ======================================================================
+       PROTOTYPE-ONLY STYLES — build ON the kit tokens, never a new scale.
+       Prefixes: rail-* (the chooser), stage/mock-* (the faux app behind the
+       drawer), sync-drawer*/sync-strip (the shell), tq-* (transcribe queue),
+       tq-choose* (model picker). All colour via hsl(var(--token)).
+       ====================================================================== */
+
+    /* ── The control rail: pick A × B × C, read the legend ─────────────── */
+    .rail {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 60;
+      display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+      padding: 10px 56px 10px 16px;     /* right pad clears the theme toggle */
+      background: hsl(var(--surface-raised) / 0.92);
+      backdrop-filter: saturate(1.1) blur(8px);
+      border-bottom: 1px solid hsl(var(--border));
+    }
+    .rail-group { display: flex; align-items: center; gap: 8px; }
+    .rail-group > .lbl { font-size: 11px; color: hsl(var(--text-muted)); letter-spacing: .02em; }
+    .seg { display: inline-flex; border: 1px solid hsl(var(--border)); border-radius: var(--radius); overflow: hidden; }
+    .seg button {
+      border: none; background: transparent; color: hsl(var(--text-muted));
+      padding: 4px 9px; font-size: 12px; cursor: pointer;
+      border-left: 1px solid hsl(var(--border));
+    }
+    .seg button:first-child { border-left: none; }
+    .seg button.is-on { background: hsl(var(--accent) / 0.14); color: hsl(var(--text)); }
+    .seg button:hover:not(.is-on) { background: hsl(var(--accent) / 0.06); color: hsl(var(--text)); }
+    .rail-note { flex: 1 1 320px; min-width: 240px; font-size: 11px; color: hsl(var(--text-muted)); line-height: 1.45; }
+    .rail-note b { color: hsl(var(--text)); font-weight: 600; }
+    .rail-reset {
+      border: 1px solid hsl(var(--border)); background: hsl(var(--surface));
+      color: hsl(var(--text)); border-radius: var(--radius); padding: 4px 10px; font-size: 12px; cursor: pointer;
+    }
+    .rail-reset:hover { border-color: hsl(var(--accent) / 0.5); }
+    .rail-check { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: hsl(var(--text-muted)); cursor: pointer; }
+
+    /* ── The faux app behind the drawer (just enough context) ──────────── */
+    .stage {
+      position: fixed; inset: 0; top: 52px;    /* under the rail */
+      display: flex; flex-direction: column;
+      transition: margin-right var(--dur-slow) var(--ease);
+    }
+    .stage.is-push { margin-right: 360px; }     /* A3 pushes the editor */
+    .mock-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px; border-bottom: 1px solid hsl(var(--border));
+    }
+    .mock-brand { font-size: 14px; color: hsl(var(--text-muted)); }
+    .mock-editor { flex: 1 1 auto; overflow: hidden; padding: 40px max(16px, 8vw); }
+    .mock-editor h1 { font-size: 26px; margin: 0 0 14px; color: hsl(var(--text)); }
+    .mock-editor p { max-width: 62ch; color: hsl(var(--text) / 0.75); margin: 0 0 12px; }
+    .mock-editor .ghost { color: hsl(var(--text-muted) / 0.5); }
+
+    /* ── Header sync rune (reuses .sync-icon data-state from the kit) ───── */
+    .rune-btn {
+      display: inline-grid; place-items: center; width: 34px; height: 34px;
+      border: none; background: transparent; color: hsl(var(--text-muted));
+      border-radius: var(--radius); cursor: pointer; position: relative;
+    }
+    .rune-btn:hover, .rune-btn.is-open { background: hsl(var(--surface-raised)); color: hsl(var(--text)); }
+    .rune-btn .nub { position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: hsl(var(--warn)); }
+
+    /* ══════════════════════════════════════════════════════════════════
+       THE DRAWER SHELL  (A1 | A2 | A3)
+       ══════════════════════════════════════════════════════════════════ */
+    .sync-drawer {
+      position: fixed; top: 52px; right: 0; bottom: 0; width: 340px; z-index: 40;
+      display: flex; flex-direction: column;
+      background: hsl(var(--surface-raised));
+      border-left: 1px solid hsl(var(--border));
+      transform: translateX(100%);
+      transition: transform var(--dur-slow) var(--ease);
+      /* NO drop-shadow — the border-left + raised surface separate it (design.md). */
+    }
+    .sync-drawer.is-open { transform: translateX(0); }
+    .sync-drawer[data-a="A3"] { width: 360px; }
+
+    /* Sync region */
+    .sync-region { flex: 0 0 auto; border-bottom: 1px solid hsl(var(--border)); }
+    .sync-card { padding: 14px 14px 12px; }
+    .sync-headline { display: flex; align-items: flex-start; gap: 10px; }
+    .sync-headline .sync-icon { margin-top: 1px; }
+    .sync-meter { height: 6px; border-radius: 999px; background: hsl(var(--surface-sunken)); overflow: hidden; margin: 12px 0 2px; }
+    .sync-meter > i { display: block; height: 100%; width: 46%; background: hsl(var(--text-muted) / 0.5); }
+    .sync-btn {
+      display: inline-flex; width: 100%; align-items: center; justify-content: center; gap: 8px;
+      margin-top: 12px; padding: 7px 12px; border: 1px solid hsl(var(--border));
+      background: hsl(var(--surface)); color: hsl(var(--text)); border-radius: var(--radius);
+      font-size: 14px; cursor: pointer;
+    }
+    .sync-btn:hover { background: hsl(var(--surface-sunken)); }
+    .sync-sub { margin: 10px 0 0; padding-top: 10px; border-top: 1px solid hsl(var(--border));
+      display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: hsl(var(--text-muted)); }
+    .sync-sub a { color: hsl(var(--text-muted)); cursor: pointer; }
+    .sync-sub a:hover { color: hsl(var(--text)); }
+
+    /* A2 collapsed strip */
+    .sync-strip { display: none; width: 100%; align-items: center; gap: 8px; padding: 12px 14px;
+      border: none; background: transparent; color: hsl(var(--text)); cursor: pointer; font: inherit; }
+    .sync-strip .chev { margin-left: auto; color: hsl(var(--text-muted)); transition: transform var(--dur) var(--ease); }
+    .sync-drawer[data-a="A2"][data-collapsed="true"] .sync-card { display: none; }
+    .sync-drawer[data-a="A2"][data-collapsed="true"] .sync-strip { display: flex; }
+    .sync-drawer[data-a="A2"][data-collapsed="false"] .sync-strip .chev { transform: rotate(180deg); }
+
+    /* ══════════════════════════════════════════════════════════════════
+       THE TRANSCRIBE QUEUE SECTION
+       ══════════════════════════════════════════════════════════════════ */
+    .tq { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+    .tq-head {
+      position: sticky; top: 0; z-index: 2;
+      display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+      background: hsl(var(--surface-raised)); border-bottom: 1px solid hsl(var(--border));
+    }
+    .tq-head .ttl { font-size: 14px; color: hsl(var(--text)); }
+    .tq-all {
+      margin-left: auto; border: none; background: transparent; color: hsl(var(--text-muted));
+      border-radius: var(--radius); padding: 4px 8px; font-size: 12px; cursor: pointer;
+    }
+    .tq-all:hover { background: hsl(var(--accent) / 0.12); color: hsl(var(--text)); }
+    .tq-all[hidden] { display: none; }
+    .tq-banner {
+      display: flex; align-items: center; gap: 8px; margin: 8px; padding: 7px 10px;
+      background: hsl(var(--accent) / 0.06); border-radius: var(--radius);
+      font-size: 11px; color: hsl(var(--text-muted));
+    }
+    .tq-banner button { margin-left: auto; border: none; background: transparent; color: hsl(var(--text-muted)); cursor: pointer; font-size: 14px; line-height: 1; }
+    .tq-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+    .tq-empty { margin: auto; padding: 48px 16px; text-align: center; color: hsl(var(--text-muted)); }
+    .tq-empty svg { width: 22px; height: 22px; opacity: .5; margin-bottom: 10px; }
+
+    /* ── Shared row chrome ─────────────────────────────────────────────── */
+    .chip {
+      font-size: 11px; padding: 1px 7px; border: 1px solid hsl(var(--border));
+      border-radius: 999px; background: hsl(var(--surface-raised)); color: hsl(var(--text-muted)); white-space: nowrap;
+    }
+    .tq-row { background: hsl(var(--surface-sunken)); border: 1px solid hsl(var(--border)); border-radius: 10px; }
+    .tq-row.is-leaving { overflow: hidden; }
+    .tq-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: hsl(var(--text)); }
+    .tq-row.is-untitled .tq-title { font-style: italic; color: hsl(var(--text-muted)); }
+    .tq-btn {       /* shared compact button (Transcribe / Retry) */
+      flex: 0 0 auto; white-space: nowrap; padding: 4px 11px; border: 1px solid hsl(var(--border));
+      background: hsl(var(--surface)); color: hsl(var(--text)); border-radius: calc(var(--radius) - 2px);
+      font-size: 12px; cursor: pointer;
+    }
+    .tq-btn:hover { border-color: hsl(var(--accent) / 0.5); }
+    .tq-btn.is-primary { background: hsl(var(--accent)); border-color: hsl(var(--accent)); color: hsl(var(--surface)); }
+    .tq-btn.is-primary:hover { background: hsl(var(--accent-glow)); }
+    /* status line tones (dot colour follows tone; only the running row pulses) */
+    .audio-status.tone-gold .dot { background: hsl(var(--gold)); }
+    .audio-status.tone-success .dot { background: hsl(var(--success)); animation: none; }
+    .audio-status.tone-success { color: hsl(var(--success)); }
+    .audio-status.tone-danger .dot { background: hsl(var(--danger)); animation: none; }
+    .audio-status.tone-danger { color: hsl(var(--danger)); }
+    .audio-status.is-still .dot { animation: none; opacity: .5; }
+    .tq-peaks { flex: 0 0 auto; width: 84px; height: 24px; opacity: .72; }
+
+    /* ── B1: one-line ──────────────────────────────────────────────────── */
+    .tq-row--1line { display: flex; align-items: center; gap: 10px; min-height: var(--audio-bar-h-compact); padding: 6px 10px; }
+    .tq-row--1line .tq-title { flex: 1 1 auto; }
+    .tq-row--1line .slot { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
+
+    /* ── B2: two-line + mini-waveform (recommended) ────────────────────── */
+    .tq-row--2line { display: flex; align-items: center; gap: 12px; min-height: var(--audio-bar-h); padding: 8px 10px; }
+    .tq-row--2line .tq-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+    .tq-row--2line .l1 { display: flex; align-items: center; gap: 8px; }
+    .tq-row--2line .l1 .tq-title { flex: 1 1 auto; }
+    .tq-row--2line .l2 { display: flex; align-items: center; gap: 8px; font-size: 11px; color: hsl(var(--text-muted)); }
+    .tq-row--2line .l2 .spacer { margin-left: auto; }
+
+    /* ── B3: progressive expand ────────────────────────────────────────── */
+    .tq-row--expand { display: flex; flex-direction: column; }
+    .tq-row--expand .head { display: flex; align-items: center; gap: 10px; min-height: var(--audio-bar-h-compact); padding: 6px 10px; }
+    .tq-row--expand .head .tq-title { flex: 1 1 auto; }
+    .tq-row--expand .exp { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--dur-slow) var(--ease); }
+    .tq-row--expand[data-state="transcribing"] .exp,
+    .tq-row--expand[data-state="error"] .exp { grid-template-rows: 1fr; }
+    .tq-row--expand .exp > div { overflow: hidden; padding: 0 10px; }
+    .tq-row--expand[data-state="transcribing"] .exp > div,
+    .tq-row--expand[data-state="error"] .exp > div { padding: 2px 10px 8px; }
+    .tq-bar { height: 3px; border-radius: 999px; background: hsl(var(--surface-raised)); overflow: hidden; margin-top: 6px; }
+    .tq-bar > i { display: block; height: 100%; width: 0%; background: hsl(var(--accent)); transition: width var(--dur) linear; }
+    .tq-row--expand[data-phase="polishing"] .tq-bar > i { background: hsl(var(--gold)); }
+
+    /* ── C: the model choice ───────────────────────────────────────────── */
+    /* C1/C3 shared option look */
+    .tq-choose-opt {
+      display: flex; flex-direction: column; gap: 1px; text-align: left; width: 100%;
+      padding: 8px 10px; border: 1px solid hsl(var(--border)); border-radius: calc(var(--radius) - 1px);
+      background: hsl(var(--surface)); color: hsl(var(--text)); cursor: pointer;
+    }
+    .tq-choose-opt .sub { font-size: 11px; color: hsl(var(--text-muted)); }
+    .tq-choose-opt:hover { border-color: hsl(var(--accent) / 0.5); }
+    .tq-choose-opt--default { box-shadow: inset 2px 0 0 hsl(var(--accent)); }
+    .tq-choose-opt--default .nm::before { content: "✓ "; color: hsl(var(--accent)); }
+    .tq-choose-why { margin: 6px 2px 0; font-size: 11px; color: hsl(var(--text-muted)); line-height: 1.4; }
+    /* C1 popover reuses .audio-menu; widen a touch */
+    .audio-menu.tq-choose { min-width: 15rem; gap: 2px; padding: 6px; }
+    /* C2 split button */
+    .tq-split { display: inline-flex; }
+    .tq-split .tq-btn { border-radius: 0; }
+    .tq-split .main { border-top-left-radius: calc(var(--radius) - 2px); border-bottom-left-radius: calc(var(--radius) - 2px); }
+    .tq-split .caret { border-left: none; border-top-right-radius: calc(var(--radius) - 2px); border-bottom-right-radius: calc(var(--radius) - 2px); padding: 4px 7px; }
+    /* C3 inline reveal */
+    .tq-inline { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--dur) var(--ease); }
+    .tq-row.is-choosing .tq-inline { grid-template-rows: 1fr; }
+    .tq-inline > div { overflow: hidden; }
+    .tq-inline .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px 10px 2px; }
+  </style>
+</head>
+<body>
+  <!-- CONTROL RAIL — pick a combination; the drawer below rebuilds live. -->
+  <div class="rail">
+    <div class="rail-group"><span class="lbl">Drawer</span>
+      <div class="seg" id="seg-a">
+        <button data-v="A1">A1</button><button data-v="A2">A2</button><button data-v="A3">A3</button>
+      </div>
+    </div>
+    <div class="rail-group"><span class="lbl">Row</span>
+      <div class="seg" id="seg-b">
+        <button data-v="B1">B1</button><button data-v="B2">B2</button><button data-v="B3">B3</button>
+      </div>
+    </div>
+    <div class="rail-group"><span class="lbl">Choice</span>
+      <div class="seg" id="seg-c">
+        <button data-v="C1">C1</button><button data-v="C2">C2</button><button data-v="C3">C3</button>
+      </div>
+    </div>
+    <label class="rail-check"><input type="checkbox" id="chk-fail" /> fail next run</label>
+    <label class="rail-check"><input type="checkbox" id="chk-dl" /> first-run model download</label>
+    <button class="rail-reset" id="reset">Reset queue</button>
+    <p class="rail-note" id="note"></p>
+  </div>
+
+  <!-- FAUX APP (context for the drawer) -->
+  <div class="stage" id="stage">
+    <div class="mock-header">
+      <span class="mock-brand">Pensieve</span>
+      <button class="rune-btn" id="rune" aria-label="Sync & transcription" title="Sync & transcription">
+        <span class="sync-icon" data-state="reminder" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 16a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.6 1.4A3.5 3.5 0 0 1 17 16H6z"/>
+          </svg>
+        </span>
+        <span class="nub" id="rune-nub"></span>
+      </button>
+    </div>
+    <div class="mock-editor">
+      <h1>Thursday</h1>
+      <p>Logged three things today — a call with Dominik, a quick voice memo on the walk, and the standup notes.</p>
+      <p class="ghost">The sync rune (top-right) opens the drawer: backup status on top, and every recording still waiting for a transcript below. Pick a Drawer / Row / Choice combination in the bar above and try running one.</p>
+    </div>
+  </div>
+
+  <!-- THE DRAWER -->
+  <aside class="sync-drawer is-open" id="drawer" data-a="A2" data-collapsed="true" aria-label="Sync and transcription">
+    <!-- SYNC region -->
+    <div class="sync-region">
+      <button class="sync-strip" id="sync-strip">
+        <span class="sync-icon" data-state="rest" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.6 1.4A3.5 3.5 0 0 1 17 16H6z"/></svg>
+        </span>
+        <span class="t-ctl">All backed up</span>
+        <span class="t-meta muted">· 2m ago</span>
+        <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="sync-card">
+        <div class="sync-headline">
+          <span class="sync-icon" data-state="rest" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.6 1.4A3.5 3.5 0 0 1 17 16H6z"/></svg>
+          </span>
+          <div class="min-w-0">
+            <p class="t-ctl" style="margin:0">All backed up</p>
+            <p class="t-meta muted" style="margin:2px 0 0">Last backed up · 2m ago</p>
+          </div>
+        </div>
+        <div class="sync-meter"><i></i></div>
+        <p class="t-micro muted" style="margin:0">4.1 GB of 100 GB</p>
+        <button class="sync-btn">Back up now <span class="kbd">⌘S</span></button>
+        <div class="sync-sub">
+          <span class="muted">jakub@icloud.com</span>
+          <a>Sign out</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRANSCRIBE QUEUE -->
+    <section class="tq">
+      <header class="tq-head">
+        <span class="ttl">Transcribe</span>
+        <span class="chip" id="tq-count">0 waiting</span>
+        <button class="tq-all" id="tq-all">Transcribe all</button>
+      </header>
+      <div class="tq-banner" id="tq-banner" hidden>
+        <span class="dot"></span>
+        <span>Preparing the transcriber · 1.2 / 6&nbsp;GB</span>
+        <button id="tq-banner-x" title="Hide">×</button>
+      </div>
+      <div class="tq-list" id="tq-list"></div>
+    </section>
+  </aside>
+
+  <!-- Theme toggle (kit convention) -->
+  <button class="theme-toggle" id="theme" aria-label="Toggle theme" title="Toggle light/dark">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
+  </button>
+
+  <script type="module">
+  /* =====================================================================
+     PROTOTYPE BEHAVIOUR. Modular by concern:
+       · state + seed        — the queue model
+       · peaks()             — the mini-waveform fingerprint
+       · renderRow*()        — B1/B2/B3 row renderers
+       · openChoice*()       — C1/C2/C3 model pickers
+       · runItem()/pump()    — the serial transcribe lifecycle sim
+       · applyVariants()     — wire the rail → drawer
+     The two models mirror src/lib/transcripts/models.ts.
+     ===================================================================== */
+  const MODELS = {
+    "czech-whisper": { label: "Czech", choose: "Czech / complex", sub: "Best accuracy · slower", def: true },
+    "parakeet":      { label: "English", choose: "Simple English", sub: "Fast", def: false },
+  };
+  const WHY = "Czech handles noise & mixed topics; English is quicker for clear speech.";
+
+  const SEED = [
+    { id: "q1", title: "Call with Dominik", dur: "6:12", date: "today", seed: 17 },
+    { id: "q2", title: "",                   dur: "0:48", date: "today", seed: 41 },  // untitled memo
+    { id: "q3", title: "Standup notes",      dur: "2:48", date: "yesterday", seed: 73 },
+  ];
+  let S;
+  function reset() {
+    S = {
+      a: S?.a || "A2", b: S?.b || "B2", c: S?.c || "C2",
+      queue: SEED.map((x) => ({ ...x, state: "idle", phase: null, pct: 0, model: null })),
+      running: null,
+    };
+    applyVariants();
+  }
+
+  // Deterministic pseudo-random so each row's waveform is a stable fingerprint.
+  function rng(seed) { let s = seed; return () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff; }
+  function peaks(seed) {
+    const r = rng(seed), N = 26, w = 84, h = 24, bw = 2, gap = 1, pitch = bw + gap;
+    const x0 = (w - (N * pitch - gap)) / 2;
+    let bars = "";
+    for (let i = 0; i < N; i++) {
+      const a = Math.max(0.14, Math.pow(r(), 0.7));
+      const bh = a * (h - 2), y = (h - bh) / 2, x = x0 + i * pitch;
+      bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw}" height="${bh.toFixed(1)}" rx="1" fill="hsl(var(--text-muted))"/>`;
+    }
+    return `<svg class="tq-peaks" viewBox="0 0 ${w} ${h}" aria-hidden="true">${bars}</svg>`;
+  }
+
+  const titleHtml = (it) => it.title
+    ? `<span class="tq-title">${it.title}</span>`
+    : `<span class="tq-title">Untitled recording</span>`;
+  const el = (html) => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+
+  // ── status line (mirrors src/lib/transcripts/rowStatus.ts) ────────────
+  function statusHtml(it) {
+    if (it.state === "queued")
+      return `<span class="audio-status is-still"><span class="dot"></span>Queued</span>`;
+    if (it.state === "transcribing") {
+      if (it.phase === "polishing") return `<span class="audio-status tone-gold"><span class="dot"></span>Polishing…</span>`;
+      if (it.phase === "saving")    return `<span class="audio-status tone-gold"><span class="dot"></span>Saving…</span>`;
+      if (it.phase === "decoding")  return `<span class="audio-status"><span class="dot"></span>Preparing…</span>`;
+      return `<span class="audio-status"><span class="dot"></span>Transcribing… ${it.pct}%</span>`;
+    }
+    if (it.state === "done")  return `<span class="audio-status tone-success"><span class="dot"></span>✓ Transcribed</span>`;
+    if (it.state === "error") return `<span class="audio-status tone-danger"><span class="dot"></span>Couldn't transcribe</span>`;
+    return "";
+  }
+  const modelChip = (it) => it.model ? `<span class="chip">${MODELS[it.model].label}</span>` : "";
+
+  // The right-hand action/status slot shared by rows.
+  function slotHtml(it) {
+    if (it.state === "idle")  return choiceControlHtml(it);
+    if (it.state === "error") return `${statusHtml(it)} <button class="tq-btn" data-act="retry">Retry</button>`;
+    return `${modelChip(it)} ${statusHtml(it)}`;
+  }
+
+  // ── C: the model-choice control that sits in an idle row's slot ───────
+  function choiceControlHtml(it) {
+    if (S.c === "C2") {
+      return `<span class="tq-split">
+        <button class="tq-btn is-primary main" data-act="go-default" title="Transcribe with Czech">Transcribe</button>
+        <button class="tq-btn is-primary caret" data-act="open-choice" aria-haspopup="menu" title="Choose model">▾</button>
+      </span>`;
+    }
+    // C1 (popover) and C3 (inline) both start from a single Transcribe button.
+    return `<button class="tq-btn is-primary" data-act="open-choice" aria-haspopup="menu">Transcribe</button>`;
+  }
+  function optsHtml() {
+    const order = ["czech-whisper", "parakeet"];
+    return order.map((m) => `
+      <button class="tq-choose-opt ${MODELS[m].def ? "tq-choose-opt--default" : ""}" data-model="${m}">
+        <span class="nm">${MODELS[m].choose}</span><span class="sub">${MODELS[m].sub}</span>
+      </button>`).join("");
+  }
+  function closeAnyChoice() {
+    document.querySelectorAll(".audio-menu.tq-choose, .audio-menu-backdrop").forEach((n) => n.remove());
+    document.querySelectorAll(".tq-row.is-choosing").forEach((n) => n.classList.remove("is-choosing"));
+  }
+  function openChoice(it, rowEl, anchorEl, forAll = false) {
+    closeAnyChoice();
+    const pick = (m) => { closeAnyChoice(); forAll ? startAll(m) : start(it, m); };
+    if (S.c === "C3") {
+      // inline reveal inside the row
+      rowEl.classList.add("is-choosing");
+      const box = rowEl.querySelector(".tq-inline > div");
+      box.innerHTML = `<div class="opts">${optsHtml()}</div><p class="tq-choose-why">${WHY} <span class="kbd">Esc</span></p>`;
+      box.querySelectorAll("[data-model]").forEach((b) => b.onclick = () => pick(b.dataset.model));
+      const def = box.querySelector(".tq-choose-opt--default"); def && def.focus();
+      return;
+    }
+    // C1 + C2(caret) → popover (.audio-menu)
+    const back = el(`<div class="audio-menu-backdrop"></div>`);
+    back.onclick = closeAnyChoice;
+    document.body.appendChild(back);
+    const menu = el(`<div class="audio-menu tq-choose" role="menu">${optsHtml()}<p class="tq-choose-why">${WHY}</p></div>`);
+    document.body.appendChild(menu);
+    const r = anchorEl.getBoundingClientRect();
+    menu.style.position = "fixed";
+    menu.style.top = `${Math.min(r.bottom + 4, window.innerHeight - menu.offsetHeight - 8)}px`;
+    menu.style.left = `${Math.max(8, r.right - menu.offsetWidth)}px`;
+    menu.querySelectorAll("[data-model]").forEach((b) => b.onclick = () => pick(b.dataset.model));
+    const def = menu.querySelector(".tq-choose-opt--default"); def && def.focus();
+  }
+
+  // ── B: the three row renderers ────────────────────────────────────────
+  function rowShell(it) {
+    const row = el(`<div class="tq-row ${it.title ? "" : "is-untitled"}" data-id="${it.id}" data-state="${it.state}" ${it.phase ? `data-phase="${it.phase}"` : ""}></div>`);
+    return row;
+  }
+  function renderRow(it) {
+    const row = rowShell(it);
+    if (S.b === "B1") {
+      row.classList.add("tq-row--1line");
+      row.innerHTML = `${titleHtml(it)}<span class="audio-time t-mono">${it.dur}</span><span class="slot">${slotHtml(it)}</span>`;
+    } else if (S.b === "B3") {
+      row.classList.add("tq-row--expand");
+      row.innerHTML = `
+        <div class="head">${titleHtml(it)}<span class="audio-time t-mono">${it.dur}</span><span class="slot">${slotHtml(it)}</span></div>
+        <div class="exp"><div>
+          ${it.state === "error" ? `<div class="audio-broken"><span class="audio-broken-text t-meta">Model exited unexpectedly.</span></div>`
+            : `<div class="tq-bar"><i style="width:${it.pct}%"></i></div>`}
+        </div></div>`;
+    } else { // B2 (default)
+      row.classList.add("tq-row--2line");
+      row.innerHTML = `
+        ${peaks(it.seed)}
+        <div class="tq-main">
+          <div class="l1">${titleHtml(it)}${modelChip(it)}</div>
+          <div class="l2"><span class="audio-time t-mono">${it.dur}</span><span>·</span><span>${it.date}</span>
+            <span class="spacer"></span>${it.state === "idle" ? choiceControlHtml(it) : (it.state === "error" ? `<span class="audio-status tone-danger"><span class="dot"></span>Couldn't transcribe</span> <button class="tq-btn" data-act="retry">Retry</button>` : statusHtml(it))}</div>
+        </div>`;
+    }
+    // C3 needs an inline reveal container on the row
+    if (S.c === "C3") row.appendChild(el(`<div class="tq-inline"><div></div></div>`));
+    wireRow(row, it);
+    return row;
+  }
+  function wireRow(row, it) {
+    row.querySelectorAll("[data-act]").forEach((b) => {
+      const act = b.dataset.act;
+      b.onclick = (e) => {
+        e.stopPropagation();
+        if (act === "open-choice") openChoice(it, row, b.closest(".tq-split") || b);
+        else if (act === "go-default") start(it, "czech-whisper");  // C2 body = instant default
+        else if (act === "retry") start(it, it.model || "czech-whisper");
+      };
+    });
+  }
+
+  // ── the transcribe lifecycle sim (serial queue) ───────────────────────
+  const PHASES = [
+    { phase: "decoding",    ms: 450 },
+    { phase: "transcribing", ms: 2400 },
+    { phase: "polishing",   ms: 800 },
+    { phase: "saving",      ms: 350 },
+  ];
+  let timer = null;
+  function start(it, model) {
+    it.model = model;
+    it.state = S.running ? "queued" : "queued"; // enters queue; pump promotes it
+    if (!S.queue.find((q) => q.id === it.id)) {/* no-op */}
+    render();
+    pump();
+  }
+  function startAll(model) {
+    S.queue.forEach((it) => { if (it.state === "idle") { it.model = model; it.state = "queued"; } });
+    render(); pump();
+  }
+  function pump() {
+    if (S.running) return;
+    const next = S.queue.find((q) => q.state === "queued");
+    if (!next) return;
+    S.running = next.id;
+    runItem(next);
+  }
+  function runItem(it) {
+    it.state = "transcribing";
+    const willFail = document.getElementById("chk-fail").checked;
+    let pi = 0;
+    const step = () => {
+      const ph = PHASES[pi];
+      it.phase = ph.phase; it.pct = ph.phase === "transcribing" ? 0 : it.pct;
+      render();
+      if (ph.phase === "transcribing") {
+        let p = 0;
+        const iv = setInterval(() => {
+          p += 7 + Math.round(Math.random() * 6);
+          if (willFail && p >= 58) { clearInterval(iv); fail(it); return; }
+          it.pct = Math.min(100, p); render();
+          if (p >= 100) { clearInterval(iv); advance(); }
+        }, ph.ms / 16);
+      } else {
+        timer = setTimeout(advance, ph.ms);
+      }
+    };
+    const advance = () => { pi++; (pi < PHASES.length) ? step() : finish(it); };
+    step();
+  }
+  function fail(it) {
+    document.getElementById("chk-fail").checked = false;
+    it.state = "error"; it.phase = null; S.running = null; render();
+  }
+  function finish(it) {
+    it.state = "done"; it.phase = null; it.pct = 100; S.running = null; render();
+    setTimeout(() => {           // momentary ✓, then collapse out of the queue
+      const row = document.querySelector(`.tq-row[data-id="${it.id}"]`);
+      if (row) {
+        row.classList.add("is-leaving");
+        row.style.transition = "all var(--dur-slow) var(--ease)";
+        row.style.maxHeight = row.offsetHeight + "px";
+        requestAnimationFrame(() => { row.style.maxHeight = "0"; row.style.opacity = "0"; row.style.margin = "0"; row.style.paddingTop = "0"; row.style.paddingBottom = "0"; });
+        setTimeout(() => { S.queue = S.queue.filter((q) => q.id !== it.id); render(); pump(); }, 340);
+      } else { S.queue = S.queue.filter((q) => q.id !== it.id); render(); pump(); }
+    }, 900);
+    pump();
+  }
+
+  // ── render the whole list + head ──────────────────────────────────────
+  function render() {
+    const list = document.getElementById("tq-list");
+    // keep a leaving row in place while it animates out
+    const leaving = [...list.querySelectorAll(".tq-row.is-leaving")];
+    list.innerHTML = "";
+    const pending = S.queue.filter((q) => q.state !== "gone");
+    if (pending.length === 0 && leaving.length === 0) {
+      list.appendChild(el(`<div class="tq-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        <p class="t-ctl muted">Every recording has a transcript.</p></div>`));
+    } else {
+      pending.forEach((it) => list.appendChild(renderRow(it)));
+      leaving.forEach((n) => list.appendChild(n));
+    }
+    const waiting = S.queue.filter((q) => q.state === "idle" || q.state === "queued").length;
+    const running = S.queue.some((q) => q.state === "transcribing");
+    const cnt = document.getElementById("tq-count");
+    cnt.textContent = running ? `Transcribing ${S.queue.filter((q)=>q.state!=="idle").length - S.queue.filter((q)=>q.state==="queued").length} of ${S.queue.filter((q)=>q.state!=="idle").length}…` : `${waiting} waiting`;
+    document.getElementById("tq-all").hidden = waiting < 2 || running;
+  }
+
+  // ── rail → drawer wiring ──────────────────────────────────────────────
+  const NOTES = {
+    A1: "<b>A1 · Calm column</b> — sync stays a fixed card on top, the queue scrolls beneath. Lowest-risk; sync always visible but eats fixed height.",
+    A2: "<b>A2 · Whisper sync (rec)</b> — sync collapses to a one-line strip; the queue owns the drawer. Click the strip to expand sync. Most on-vision.",
+    A3: "<b>A3 · Push drawer</b> — the drawer pushes the editor left instead of overlaying. A real workspace panel; reflows the editor on open.",
+    B1: "<b>B1 · One-line</b> — tightest list; title · duration · one morphing action slot.",
+    B2: "<b>B2 · Two-line + waveform (rec)</b> — a mini-waveform fingerprint gives even an untitled memo an identity; room for the model chip + phase.",
+    B3: "<b>B3 · Progressive</b> — rows are one-liners that grow a slim progress bar only while working, then collapse away.",
+    C1: "<b>C1 · Popover</b> — Transcribe opens a two-item menu; both models equally visible. Two clicks every time.",
+    C2: "<b>C2 · Split button (rec)</b> — body = Czech instantly (one click); ▾ opens the picker for Simple English.",
+    C3: "<b>C3 · Inline reveal</b> — the row expands in place into two big choice buttons. No overlay; two clicks.",
+  };
+  function setSeg(id, v) { document.querySelectorAll(`#${id} button`).forEach((b) => b.classList.toggle("is-on", b.dataset.v === v)); }
+  function applyVariants() {
+    const d = document.getElementById("drawer");
+    d.dataset.a = S.a;
+    setSeg("seg-a", S.a); setSeg("seg-b", S.b); setSeg("seg-c", S.c);
+    document.getElementById("stage").classList.toggle("is-push", S.a === "A3" && d.classList.contains("is-open"));
+    // A2 starts collapsed; A1/A3 always show the full sync card
+    if (S.a === "A2") d.dataset.collapsed = d.dataset.collapsed === "false" ? "false" : "true";
+    else d.dataset.collapsed = "false";
+    document.getElementById("note").innerHTML = `${NOTES[S.a]}<br>${NOTES[S.b]} · ${NOTES[S.c]}`;
+    render();
+  }
+
+  // ── events ────────────────────────────────────────────────────────────
+  document.getElementById("seg-a").onclick = (e) => { if (e.target.dataset.v) { S.a = e.target.dataset.v; closeAnyChoice(); applyVariants(); } };
+  document.getElementById("seg-b").onclick = (e) => { if (e.target.dataset.v) { S.b = e.target.dataset.v; closeAnyChoice(); render(); } };
+  document.getElementById("seg-c").onclick = (e) => { if (e.target.dataset.v) { S.c = e.target.dataset.v; closeAnyChoice(); render(); } };
+  document.getElementById("reset").onclick = () => { if (timer) clearTimeout(timer); closeAnyChoice(); reset(); };
+  document.getElementById("tq-all").onclick = (e) => {
+    const idle = S.queue.find((q) => q.state === "idle");
+    if (!idle) return;
+    if (S.c === "C2") startAll("czech-whisper");           // batch default = one click
+    else openChoice(null, null, e.currentTarget, true);    // C1/C3 ask once for the batch
+  };
+  document.getElementById("rune").onclick = () => {
+    const d = document.getElementById("drawer"); const open = d.classList.toggle("is-open");
+    document.getElementById("rune").classList.toggle("is-open", open);
+    document.getElementById("stage").classList.toggle("is-push", S.a === "A3" && open);
+  };
+  document.getElementById("sync-strip").onclick = () => {
+    const d = document.getElementById("drawer");
+    d.dataset.collapsed = d.dataset.collapsed === "true" ? "false" : "true";
+  };
+  document.getElementById("tq-banner-x").onclick = () => document.getElementById("tq-banner").hidden = true;
+  document.getElementById("chk-dl").onchange = (e) => document.getElementById("tq-banner").hidden = !e.target.checked;
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAnyChoice(); });
+  document.getElementById("theme").onclick = () => {
+    const r = document.documentElement;
+    r.dataset.theme = r.dataset.theme === "dark" ? "light" : "dark";
+  };
+
+  reset();
+  </script>
+</body>
+</html>
