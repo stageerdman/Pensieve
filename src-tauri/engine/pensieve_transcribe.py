@@ -129,13 +129,27 @@ def transcribe_parakeet(audio_path: str) -> list[dict]:
         text = (sent.text or "").strip()
         if not text:
             continue
-        # parakeet sentences expose start/end; word timings via .tokens if present
+        # parakeet emits SUB-WORD tokens (" ne","w"," th","ing"); a leading space/'▁'
+        # marks a new word, the rest continue it — group them back into whole words so the
+        # reader highlights word-by-word (not letter-by-letter).
         words = []
+        cur = None
         for tok in getattr(sent, "tokens", []) or []:
-            tw = (getattr(tok, "text", "") or "").strip()
+            raw = getattr(tok, "text", "") or ""
             ts, te = getattr(tok, "start", None), getattr(tok, "end", None)
-            if tw and ts is not None and te is not None:
-                words.append({"w": tw, "s": round(float(ts), 3), "e": round(float(te), 3)})
+            if ts is None or te is None:
+                continue
+            starts_word = raw[:1] in (" ", "▁")
+            piece = raw.strip()
+            if cur is None or starts_word:
+                if cur is not None and cur["w"]:
+                    words.append(cur)
+                cur = {"w": piece, "s": round(float(ts), 3), "e": round(float(te), 3)}
+            else:
+                cur["w"] += piece
+                cur["e"] = round(float(te), 3)
+        if cur is not None and cur["w"]:
+            words.append(cur)
         segments.append({"start": round(float(sent.start), 3), "end": round(float(sent.end), 3), "text": text, "words": words})
     emit("transcribe", 90)
     return segments

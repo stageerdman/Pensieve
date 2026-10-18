@@ -10,7 +10,7 @@ import { refForUrl } from "../../../lib/media/url";
 import { getMediaNoteId } from "./mediaContext";
 import { saveAudioFile } from "./insertAudio";
 import { getStore } from "../../../lib/store";
-import { transcribeBlockAudio } from "../../transcription/blockTranscribe";
+import { processQueue } from "../../transcription/processQueueController";
 import { chooseTranscriptionModel } from "../../transcription/chooseModel";
 import type { Transcript } from "../../../lib/transcripts/types";
 import { log } from "../../../lib/logger";
@@ -119,14 +119,22 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
     if (!model) return; // dismissed → leave as-is
     const prev = tState;
     setTState("transcribing");
-    try {
-      const t = await transcribeBlockAudio(ref, getMediaNoteId(), model);
-      setTranscript(t);
-      setTState("present");
-      log.info("media", "audio.transcript.created", { ref, model });
-    } catch (e) {
-      log.error("media", "audio.transcript.error", { ref, error: String(e) });
-      setTState(prev); // keep an existing transcript on a failed regenerate
+    // Route through the drawer's Process queue so it's visible there with live progress;
+    // refresh this block's own state when that ref finishes/fails.
+    const off = processQueue.onResult(ref, (ok) => {
+      off();
+      if (!ok) return setTState(prev);
+      void getStore().loadTranscript(ref).then((t) => {
+        if (t) { setTranscript(t); setTState("present"); } else setTState(prev);
+      });
+    });
+    const handled = processQueue.request({ ref, noteId: getMediaNoteId(), model });
+    if (!handled) {
+      off();
+      setTState(prev);
+      log.error("media", "audio.transcript.noqueue", { ref });
+    } else {
+      log.info("media", "audio.transcript.requested", { ref, model });
     }
   };
 

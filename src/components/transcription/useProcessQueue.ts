@@ -14,9 +14,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getStore } from "../../lib/store";
 import { reindex } from "../../lib/search/reindexController";
 import { listUntranscribedAudio } from "../../lib/transcripts/queue";
+import { parseMediaPath } from "../../lib/media/ref";
 import { DEFAULT_MODEL, type TranscriptionModel } from "../../lib/transcripts/models";
 import type { TranscriptionEngine } from "../../lib/transcripts/engine";
 import { log } from "../../lib/logger";
+import { processQueue } from "./processQueueController";
 import {
   type ProcessItem,
   type QueueMode,
@@ -84,6 +86,7 @@ export function useProcessQueue(opts: {
         await getStore().saveTranscript(ref, t);
         reindex.request(noteId);
         onTranscribed?.();
+        processQueue.notifyResult(ref, true); // let the originating block refresh
         runningRef.current = null;
         log.info("transcribe", "queue.done", { ref, segments: t.segments.length });
         setItems((prev) => prev.filter((i) => i.ref !== ref));
@@ -92,6 +95,7 @@ export function useProcessQueue(opts: {
       .catch((e) => {
         runningRef.current = null;
         log.error("transcribe", "queue.error", { ref, error: String(e) });
+        processQueue.notifyResult(ref, false);
         setItems((prev) => prev.map((i) => (i.ref === ref ? { ...i, error: true, phase: null } : i)));
         setPlaying(false);
       });
@@ -119,6 +123,44 @@ export function useProcessQueue(opts: {
     const found = await listUntranscribedAudio(titleFor);
     setItems((prev) => mergeNewItems(prev, found, DEFAULT_MODEL));
   }, [enabled, titleFor]);
+
+  // Force one ref into the queue and run it (a manual block "Transcribe" / "Regenerate" —
+  // even if it already has a transcript, which the untranscribed scan would skip).
+  const enqueueOne = useCallback(
+    (req: { ref: string; noteId: string; model: TranscriptionModel }) => {
+      const parsed = parseMediaPath(req.ref);
+      const audioName = parsed ? `${parsed.mediaId}.${parsed.ext}` : req.ref;
+      setItems((prev) => {
+        const existing = prev.find((i) => i.ref === req.ref);
+        if (existing) {
+          // already listed → set its model, clear state, let it run
+          return prev.map((i) => (i.ref === req.ref ? { ...i, model: req.model, pct: 0, error: false } : i));
+        }
+        const item: ProcessItem = {
+          ref: req.ref,
+          noteId: req.noteId,
+          title: titleFor(req.noteId),
+          audioName,
+          type: "audio",
+          order: prev.length + 1,
+          model: req.model,
+          pct: 0,
+          phase: null,
+          error: false,
+        };
+        return [...prev, item];
+      });
+      setPlaying(true);
+    },
+    [titleFor],
+  );
+
+  // Blocks (outside React) request transcription through the controller seam → it appears
+  // in THIS queue with live progress, run by the single engine driver above.
+  useEffect(() => {
+    if (!enabled) return;
+    return processQueue.subscribeRequests(enqueueOne);
+  }, [enabled, enqueueOne]);
 
   const enqueueAuto = useCallback(async () => {
     await refresh();

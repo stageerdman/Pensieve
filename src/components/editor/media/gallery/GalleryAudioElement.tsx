@@ -6,7 +6,7 @@ import { refForUrl } from "../../../../lib/media/url";
 import { isMediaPath, parseMediaPath } from "../../../../lib/media/ref";
 import { getStore } from "../../../../lib/store";
 import { getMediaNoteId } from "../mediaContext";
-import { transcribeBlockAudio } from "../../../transcription/blockTranscribe";
+import { processQueue } from "../../../transcription/processQueueController";
 import { chooseTranscriptionModel } from "../../../transcription/chooseModel";
 import type { Transcript } from "../../../../lib/transcripts/types";
 import { log } from "../../../../lib/logger";
@@ -56,14 +56,20 @@ export function GalleryAudioElement({ url, playerKey, caption }: Props) {
     if (!model) return;
     const prev = tState;
     setTState("transcribing");
-    try {
-      const t = await transcribeBlockAudio(ref, getMediaNoteId(), model);
-      setTranscript(t);
-      setTState("present");
-      log.info("media", "gallery.audio.transcript.created", { ref, model });
-    } catch (e) {
-      log.error("media", "gallery.audio.transcript.error", { ref, error: String(e) });
+    const off = processQueue.onResult(ref, (ok) => {
+      off();
+      if (!ok) return setTState(prev);
+      void getStore().loadTranscript(ref).then((t) => {
+        if (t) { setTranscript(t); setTState("present"); } else setTState(prev);
+      });
+    });
+    const handled = processQueue.request({ ref, noteId: getMediaNoteId(), model });
+    if (!handled) {
+      off();
       setTState(prev);
+      log.error("media", "gallery.audio.transcript.noqueue", { ref });
+    } else {
+      log.info("media", "gallery.audio.transcript.requested", { ref, model });
     }
   };
 
