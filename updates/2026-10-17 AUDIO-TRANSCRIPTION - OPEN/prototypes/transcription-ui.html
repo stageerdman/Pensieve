@@ -507,75 +507,78 @@ button { font-family: inherit; color: inherit; }
     .sync-sub { margin-top: 12px; padding-top: 10px; border-top: 1px solid hsl(var(--border)); display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: hsl(var(--text-muted)); }
     .sync-sub a { color: hsl(var(--text-muted)); cursor: pointer; }
 
-    /* ── Queue ─────────────────────────────────────────────────────────── */
+    /* ── Process queue ───────────────────────────────────────────────────── */
     .tq { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-    .tq-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: hsl(var(--surface-raised)); border-bottom: 1px solid hsl(var(--border)); }
-    .tq-head .ttl { font-size: 14px; color: hsl(var(--text)); }
-    .tq-head .chip { font-size: 11px; padding: 1px 7px; border: 1px solid hsl(var(--border)); border-radius: 999px; background: hsl(var(--surface)); color: hsl(var(--text-muted)); }
-    .tq-all { margin-left: auto; border: none; background: transparent; color: hsl(var(--text-muted)); border-radius: var(--radius); padding: 4px 8px; font-size: 12px; cursor: pointer; }
-    .tq-all:hover { background: hsl(var(--accent) / 0.12); color: hsl(var(--text)); }
-    .tq-all[hidden] { display: none; }
-    .tq-hint { padding: 7px 14px; font-size: 11px; color: hsl(var(--text-muted)); border-bottom: 1px solid hsl(var(--border) / 0.6); }
-    .tq-hint b { color: hsl(var(--text)); font-weight: 600; }
+    .tq[hidden] { display: none; }                    /* nothing to process → section vanishes */
+    .tq-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: hsl(var(--surface-raised)); border-bottom: 1px solid hsl(var(--border)); }
+    .tq-head .ttl { font-size: 14px; color: hsl(var(--text)); margin-right: auto; }
+
+    /* mode toggle — 1 = process only the top item then pause · → = run down the whole queue */
+    .tq-mode { display: inline-grid; place-items: center; width: 30px; height: 28px; border: 1px solid hsl(var(--border)); background: hsl(var(--surface)); color: hsl(var(--text-muted)); border-radius: var(--radius); cursor: pointer; font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
+    .tq-mode:hover { color: hsl(var(--text)); border-color: hsl(var(--accent) / 0.5); }
+    .tq-mode svg { width: 16px; height: 16px; }
+
+    /* global run/pause — drives the queue per the mode */
+    .tq-go { display: inline-grid; place-items: center; width: 34px; height: 28px; border: none; background: hsl(var(--accent)); color: hsl(var(--surface)); border-radius: var(--radius); cursor: pointer; }
+    .tq-go:hover { background: hsl(var(--accent-glow)); }
+    .tq-go svg { width: 15px; height: 15px; }
+    .tq.is-running .tq-go { box-shadow: 0 0 16px -4px hsl(var(--accent-glow) / 0.7); }
+
     .tq-banner[hidden] { display: none; }
     .tq-banner { display: flex; align-items: center; gap: 8px; margin: 8px; padding: 7px 10px; background: hsl(var(--accent) / 0.06); border-radius: var(--radius); font-size: 11px; color: hsl(var(--text-muted)); }
     .tq-banner button { margin-left: auto; border: none; background: transparent; color: hsl(var(--text-muted)); cursor: pointer; font-size: 14px; }
     .tq-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px; }
-    .tq-empty { padding: 48px 16px; text-align: center; color: hsl(var(--text-muted)); }
-    .tq-empty svg { width: 22px; height: 22px; opacity: .5; margin-bottom: 10px; }
 
-    .tq-row { display: flex; flex-direction: column; gap: 3px; padding: 6px 8px; border-radius: 9px; }
+    /* ════════════════════════════════════════════════════════════════════════
+       PROCESS ROW — the reusable unit of ANY processing queue (audio today;
+       images / video / OCR later). Standard layout, left → right:
+         [order#] · [type affordances] · [label] · [meta] · [% while running]
+       + a thin progress line along the row's bottom edge while running.
+       Type-specific bits (audio's preview ▶ and model badge) are injected by
+       the ROW_TYPES registry — the shell stays type-agnostic.
+       ════════════════════════════════════════════════════════════════════════ */
+    .tq-row { position: relative; display: flex; align-items: center; gap: 9px; padding: 8px; border-radius: 9px; min-height: 42px; }
     .tq-row + .tq-row { border-top: 1px solid hsl(var(--border) / 0.6); }
-    .tq-main { display: flex; align-items: center; gap: 10px; min-height: 34px; }
+    .tq-row.is-active { background: hsl(var(--accent) / 0.06); }
+    .tq-row.is-leaving { overflow: hidden; }
+
+    /* order number — click to renumber (reorder the queue) */
+    .tq-ord { flex: 0 0 auto; width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid hsl(var(--border)); border-radius: 999px; background: hsl(var(--surface)); color: hsl(var(--text-muted)); font-family: var(--font-mono); font-size: 12px; font-variant-numeric: tabular-nums; cursor: pointer; padding: 0; }
+    .tq-ord:hover { color: hsl(var(--text)); border-color: hsl(var(--accent) / 0.6); }
+    .tq-row.is-active .tq-ord { background: hsl(var(--accent)); border-color: hsl(var(--accent)); color: hsl(var(--surface)); }
+    .tq-ord-input { flex: 0 0 auto; width: 24px; height: 24px; text-align: center; border: 1px solid hsl(var(--accent)); border-radius: 999px; background: hsl(var(--surface)); color: hsl(var(--text)); font-family: var(--font-mono); font-size: 12px; padding: 0; -moz-appearance: textfield; }
+
+    /* audio preview — hear the recording (independent of processing) */
+    .tq-prev { flex: 0 0 auto; width: 26px; height: 26px; display: grid; place-items: center; border: none; background: transparent; color: hsl(var(--text-muted)); border-radius: 50%; cursor: pointer; }
+    .tq-prev:hover { background: hsl(var(--accent) / 0.12); color: hsl(var(--text)); }
+    .tq-prev.is-playing { color: hsl(var(--accent)); background: hsl(var(--accent) / 0.12); }
+    .tq-prev svg { width: 15px; height: 15px; }
+
     .tq-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: hsl(var(--text)); }
     .tq-row.is-filename .tq-label { font-family: var(--font-mono); font-size: 12px; color: hsl(var(--text-muted)); }
+
+    /* per-row model badge (audio only) — tap to switch this file's model */
+    .tq-model { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 2px; border: 1px solid hsl(var(--border)); background: hsl(var(--surface)); color: hsl(var(--text-muted)); border-radius: 999px; padding: 1px 6px; font-size: 10px; font-weight: 600; letter-spacing: 0.03em; cursor: pointer; }
+    .tq-model:hover { color: hsl(var(--text)); border-color: hsl(var(--accent) / 0.6); }
+    .tq-model svg { width: 9px; height: 9px; opacity: 0.7; }
+
     .tq-dur { flex: 0 0 auto; font-family: var(--font-mono); font-size: 12px; color: hsl(var(--text-muted)); font-variant-numeric: tabular-nums; }
-    .tq-pct { flex: 0 0 auto; width: 40px; text-align: right; font-family: var(--font-mono); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: hsl(var(--accent)); }
-    .tq-row[data-state="paused"] .tq-pct { color: hsl(var(--text-muted)); }
+    .tq-pct { flex: 0 0 auto; width: 38px; text-align: right; font-family: var(--font-mono); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: hsl(var(--accent)); }
     .tq-err { flex: 0 0 auto; display: inline-flex; color: hsl(var(--danger)); }
     .tq-err svg { width: 16px; height: 16px; }
 
-    /* live equalizer (running only) */
-    .eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; flex: 0 0 auto; }
-    .eq i { width: 2px; height: 14px; background: hsl(var(--accent)); border-radius: 1px; transform-origin: bottom; animation: eq .9s var(--ease) infinite; }
-    .eq i:nth-child(2) { animation-delay: .15s; } .eq i:nth-child(3) { animation-delay: .3s; } .eq i:nth-child(4) { animation-delay: .45s; }
-    @keyframes eq { 0%, 100% { transform: scaleY(.3); } 50% { transform: scaleY(1); } }
-    .tq-row[data-state="paused"] .eq i { animation-play-state: paused; }
+    /* thin running line along the bottom (replaces the per-row ring) */
+    .tq-prog { position: absolute; left: 8px; right: 8px; bottom: 2px; height: 2px; border-radius: 2px; background: hsl(var(--border) / 0.7); overflow: hidden; }
+    .tq-prog > i { display: block; height: 100%; width: 0; background: hsl(var(--accent)); transition: width 160ms linear; }
 
-    /* live streaming partial transcript (running/paused only) */
-    .tq-live { font-size: 11px; line-height: 1.4; color: hsl(var(--text-muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 2px; }
-    .tq-live .cursor { color: hsl(var(--accent)); animation: audio-pulse 1s steps(1) infinite; }
-    @keyframes audio-pulse { 50% { opacity: 0; } }
-
-    /* control button (symbol + progress ring) */
-    .ctl { position: relative; flex: 0 0 auto; display: grid; place-items: center; width: 34px; height: 34px; border: none; background: transparent; padding: 0; cursor: pointer; border-radius: 50%; }
-    .ctl .glyph { position: relative; z-index: 1; display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
-    .ctl .glyph svg { width: 16px; height: 16px; }
-    .ctl .ring { position: absolute; inset: 0; transform: rotate(-90deg); pointer-events: none; }
-    .ctl .ring circle { fill: none; stroke-width: 2.5; }
-    .ctl .ring .track { stroke: hsl(var(--border)); }
-    .ctl .ring .fill { stroke: hsl(var(--accent)); stroke-linecap: round; stroke-dasharray: 100; transition: stroke-dashoffset 160ms linear; }
-    .tq-row[data-state="idle"] .ctl .glyph { background: hsl(var(--accent)); color: hsl(var(--surface)); }
-    .tq-row[data-state="idle"] .ctl:hover .glyph { background: hsl(var(--accent-glow)); }
-    .tq-row[data-state="running"] .ctl .glyph { color: hsl(var(--accent)); }
-    .tq-row[data-state="running"] .ctl:hover .glyph { background: hsl(var(--accent) / 0.12); }
-    .tq-row[data-state="paused"] .ctl .glyph { color: hsl(var(--text-muted)); }
-    .tq-row[data-state="paused"] .ctl .ring .fill { stroke: hsl(var(--text-muted)); }
-    .tq-row[data-state="paused"] .ctl:hover .glyph { background: hsl(var(--accent) / 0.12); color: hsl(var(--text)); }
-    .tq-row[data-state="queued"] .ctl .glyph, .tq-row[data-state="held"] .ctl .glyph { color: hsl(var(--text-muted)); border: 1px solid hsl(var(--border)); }
-    .tq-row[data-state="queued"] .ctl:hover .glyph, .tq-row[data-state="held"] .ctl:hover .glyph { color: hsl(var(--text)); border-color: hsl(var(--accent) / 0.5); }
-    .tq-row[data-state="error"] .ctl:hover .glyph { background: hsl(var(--accent) / 0.12); color: hsl(var(--text)); }
-    .tq-row.is-leaving { overflow: hidden; }
-
-    /* the drawer is z-index:40 — lift the model picker (and its backdrop) above it,
-       or the menu opens *behind* the drawer panel and the ▶ looks dead. */
-    .audio-menu.tq-choose { min-width: 14rem; z-index: 60; }
+    /* model picker menu — lift above the z-index:40 drawer (else it opens behind it) */
+    .audio-menu.tq-choose { min-width: 13rem; z-index: 60; }
     .audio-menu-backdrop { z-index: 50; }
     .audio-menu.tq-choose button { justify-content: space-between; }
     .tq-choose .sub { font-size: 11px; color: hsl(var(--text-muted)); }
     .tq-choose .cancel { color: hsl(var(--text-muted)); }
 
-    .demo { position: fixed; left: 16px; bottom: 16px; z-index: 55; display: flex; gap: 14px; align-items: center; padding: 8px 12px; background: hsl(var(--surface-raised) / 0.94); backdrop-filter: blur(8px); border: 1px solid hsl(var(--border)); border-radius: var(--radius); font-size: 11px; color: hsl(var(--text-muted)); }
+    .demo { position: fixed;    .demo { position: fixed; left: 16px; bottom: 16px; z-index: 55; display: flex; gap: 14px; align-items: center; padding: 8px 12px; background: hsl(var(--surface-raised) / 0.94); backdrop-filter: blur(8px); border: 1px solid hsl(var(--border)); border-radius: var(--radius); font-size: 11px; color: hsl(var(--text-muted)); }
     .demo label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
     .demo button { border: 1px solid hsl(var(--border)); background: hsl(var(--surface)); color: hsl(var(--text)); border-radius: var(--radius); padding: 4px 9px; font-size: 11px; cursor: pointer; }
     .demo .sep { width: 1px; height: 18px; background: hsl(var(--border)); }
@@ -624,9 +627,12 @@ button { font-family: inherit; color: inherit; }
       </div>
     </div>
 
-    <section class="tq">
-      <header class="tq-head"><span class="ttl">Transcribe</span><span class="chip" id="count">0 waiting</span><button class="tq-all" id="all">Transcribe all</button></header>
-      <div class="tq-hint"><b>▶</b> start · <b>⏸</b> pause · ring + % + live text = transcribing · done drops out</div>
+    <section class="tq" id="tqsec">
+      <header class="tq-head">
+        <span class="ttl">Process</span>
+        <button class="tq-mode" id="mode" title="Mode"></button>
+        <button class="tq-go" id="go" title="Run / pause"></button>
+      </header>
       <div class="tq-banner" id="banner" hidden><span class="dot"></span><span>Preparing the transcriber · 1.2 / 6&nbsp;GB</span><button id="banner-x" title="Hide">×</button></div>
       <div class="tq-list" id="list"></div>
     </section>
@@ -643,139 +649,201 @@ button { font-family: inherit; color: inherit; }
   </div>
 
   <script>
+  /* ════════════════════════════════════════════════════════════════════════
+     Process queue — global Run/Pause + mode, ordered rows, one at a time.
+       · Rows are ordered by a number you can edit (click it → type a new rank).
+       · Run/Pause is GLOBAL. Mode "1" processes only the top item then pauses;
+         mode "→" runs down the whole queue.
+       · Reordering while paused only changes order; while running, the new top
+         begins immediately (the previous one freezes, keeping its %).
+       · The ROW is a standalone, reusable unit (see ROW_TYPES) — audio adds a
+         preview ▶ and a model badge; other types will plug in later.
+     ════════════════════════════════════════════════════════════════════════ */
   const MODELS = {
-    "czech-whisper": { choiceLabel: "Czech Mix (Slow)", sub: "best accuracy", def: true },
-    "parakeet":      { choiceLabel: "English (Fast)",   sub: "quick, clear speech", def: false },
+    "czech-whisper": { short: "CZ", choiceLabel: "Czech Mix (Slow)", sub: "best accuracy" },
+    "parakeet":      { short: "EN", choiceLabel: "English (Fast)",   sub: "quick, clear speech" },
   };
   const GLYPH = {
     play:  '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10-6.5a1 1 0 0 0 0-1.72l-10-6.5A1 1 0 0 0 8 5.5z"/></svg>',
     pause: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="5" width="3.4" height="14" rx="1"/><rect x="13.6" y="5" width="3.4" height="14" rx="1"/></svg>',
-    retry: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>',
+    arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l6 6-6 6"/></svg>',
+    chev:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
     warn:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>',
   };
-  const EQ = '<span class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>';
-  // sample partial transcript revealed as % climbs (feels like live captioning)
-  const SAMPLE = "Dobře, tak pojďme na to. Chtěl jsem s tebou dneska probrat ten návrh, co jsme minule načali, protože si myslím, že tam je pár věcí, které bychom měli doladit, než to pošleme dál klientovi.".split(" ");
+
+  // Type registry — what affordances a row gets. The row shell is type-agnostic.
+  const ROW_TYPES = {
+    audio: { preview: true, model: true },
+    // future: image: { preview:false, model:false }, video: {...}
+  };
+
   const SEED = [
-    { id: "q1", label: "Call with Dominik", isFile: false, dur: "6:12" },
-    { id: "q2", label: "rec-0048.m4a",      isFile: true,  dur: "0:48" },
-    { id: "q3", label: "Standup notes",     isFile: false, dur: "2:48" },
+    { id: "q1", type: "audio", label: "Call with Dominik", isFile: false, dur: "6:12" },
+    { id: "q2", type: "audio", label: "rec-0048.m4a",      isFile: true,  dur: "0:48" },
+    { id: "q3", type: "audio", label: "Standup notes",     isFile: false, dur: "2:48" },
   ];
 
   const $ = (id) => document.getElementById(id);
+  const list = () => $("list");
   const el = (h) => { const t = document.createElement("template"); t.innerHTML = h.trim(); return t.content.firstElementChild; };
-  let Q, ticker = null;
 
-  function liveText(pct) {
-    const n = Math.max(1, Math.floor((pct / 100) * SAMPLE.length));
-    const words = SAMPLE.slice(0, n);
-    const tail = words.slice(-10).join(" ");
-    return `${n > 10 ? "…" : ""}${tail} <span class="cursor">▌</span>`;
-  }
-  function controlHtml(state, pct) {
-    const ring = (state === "running" || state === "paused")
-      ? `<svg class="ring" viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="15.915"/><circle class="fill" cx="18" cy="18" r="15.915" style="stroke-dashoffset:${100 - pct}"/></svg>` : "";
-    if (state === "error") return `<button class="ctl" data-act="ctl" title="Retry" aria-label="Retry"><span class="glyph">${GLYPH.retry}</span></button>`;
-    const glyph = state === "running" ? GLYPH.pause : GLYPH.play;
-    const title = state === "idle" ? "Transcribe" : state === "running" ? "Pause" : state === "paused" ? "Resume" : state === "held" ? "Resume (release)" : "Hold";
-    return `<button class="ctl" data-act="${state === "idle" ? "start" : "ctl"}" title="${title}" aria-label="${title}">${ring}<span class="glyph">${glyph}</span></button>`;
-  }
-  function rowHtml(it) {
-    const live = it.state === "running" || it.state === "paused";
-    const err = it.state === "error" ? `<span class="tq-err" title="Couldn't transcribe">${GLYPH.warn}</span>` : "";
-    return `<div class="tq-main">
-        <span class="tq-label" title="${it.label}">${it.label}</span>
-        <span class="tq-dur">${it.dur}</span>
-        ${it.state === "running" ? EQ : ""}
-        ${live ? `<span class="tq-pct">${Math.round(it.pct)}%</span>` : ""}
-        ${err}${controlHtml(it.state, it.pct)}
-      </div>
-      ${live ? `<div class="tq-live">${liveText(it.pct)}</div>` : ""}`;
+  let Q;                       // items (each: {..., order, pct, error})
+  let playing = false;         // global run state
+  let mode = "all";            // "all" (→) | "one" (1)
+  let previewId = null;        // which row is previewing audio
+  let ticker = null;
+  const leaving = new Set();   // ids mid drop-out animation
+
+  const sorted = () => [...Q].sort((a, b) => a.order - b.order);
+  const activeItem = () => sorted().filter((x) => !leaving.has(x.id))[0] || null;
+
+  function renumber() { sorted().forEach((x, i) => (x.order = i + 1)); }
+
+  function reset() {
+    Q = SEED.map((x, i) => ({ ...x, order: i + 1, pct: 0, error: false, model: "czech-whisper" }));
+    playing = false; mode = "all"; previewId = null;
+    stopTick(); closeChoice(); $("fail").checked = false;
+    render();
   }
 
-  function reset() { Q = SEED.map((x) => ({ ...x, state: "idle", model: null, pct: 0 })); $("fail").checked = false; closeChoice(); render(); }
-
+  /* ── model picker (reused for each row's badge) ── */
   function closeChoice() { document.querySelectorAll(".audio-menu.tq-choose,.audio-menu-backdrop").forEach((n) => n.remove()); }
-  function openChoice(anchor, onPick) {
+  function openChoice(anchor, current, onPick) {
     closeChoice();
     const back = el('<div class="audio-menu-backdrop"></div>'); back.onclick = closeChoice; document.body.appendChild(back);
-    const menu = el(`<div class="audio-menu tq-choose" role="menu">
-      <button role="menuitem" data-m="czech-whisper"><span>${MODELS["czech-whisper"].choiceLabel}</span><span class="sub">${MODELS["czech-whisper"].sub}</span></button>
-      <button role="menuitem" data-m="parakeet"><span>${MODELS.parakeet.choiceLabel}</span><span class="sub">${MODELS.parakeet.sub}</span></button>
-      <div class="audio-menu-sep"></div><button role="menuitem" class="cancel" data-m="">Cancel</button></div>`);
+    const item = (id) => `<button role="menuitem" data-m="${id}"><span>${MODELS[id].choiceLabel}${current === id ? " ✓" : ""}</span><span class="sub">${MODELS[id].sub}</span></button>`;
+    const menu = el(`<div class="audio-menu tq-choose" role="menu">${item("czech-whisper")}${item("parakeet")}<div class="audio-menu-sep"></div><button role="menuitem" class="cancel" data-m="">Cancel</button></div>`);
     document.body.appendChild(menu);
     const r = anchor.getBoundingClientRect();
     menu.style.position = "fixed";
     menu.style.top = Math.min(r.bottom + 6, innerHeight - menu.offsetHeight - 8) + "px";
-    menu.style.left = Math.max(8, r.right - menu.offsetWidth) + "px";
-    menu.querySelectorAll("[data-m]").forEach((b) => b.onclick = () => { const m = b.dataset.m; closeChoice(); if (m) onPick(m); });
-    menu.querySelector('[data-m="czech-whisper"]').focus();
+    menu.style.left = Math.max(8, Math.min(r.left, innerWidth - menu.offsetWidth - 8)) + "px";
+    menu.querySelectorAll("[data-m]").forEach((b) => (b.onclick = () => { const m = b.dataset.m; closeChoice(); if (m) onPick(m); }));
+    (menu.querySelector(`[data-m="${current}"]`) || menu.querySelector("[data-m]")).focus();
   }
 
-  const active = () => Q.find((x) => x.state === "running" || x.state === "paused");
-  function pump() { if (!active()) { const n = Q.find((x) => x.state === "queued"); if (n) n.state = "running"; } render(); tick(); }
+  /* ── processing loop ── */
+  function setPlaying(p) {
+    playing = p;
+    if (playing) { const it = activeItem(); if (it && it.error) it.error = false; }
+    render(); tick();
+  }
+  function stopTick() { if (ticker) { clearInterval(ticker); ticker = null; } }
   function tick() {
-    if (ticker) return;
+    if (ticker || !playing) return;
     ticker = setInterval(() => {
-      const it = Q.find((x) => x.state === "running");
-      if (!it) { clearInterval(ticker); ticker = null; return; }
-      if ($("fail").checked && it.pct >= 55) { $("fail").checked = false; it.state = "error"; render(); pump(); return; }
+      if (!playing) return stopTick();
+      const it = activeItem();
+      if (!it) { stopTick(); return; }
+      if (it.pct >= 100) return;                          // waiting on drop-out
+      if ($("fail").checked && it.pct >= 55) {            // demo: simulate a failure
+        $("fail").checked = false; it.error = true; playing = false; stopTick(); render(); return;
+      }
       it.pct = Math.min(100, it.pct + ($("fast").checked ? 6 : 1.3));
-      if (it.pct >= 100) finish(it); else renderLive(it); // cheap in-place update while running
+      if (it.pct >= 100) finish(it); else renderLive(it);
     }, 150);
   }
   function finish(it) {
-    it.pct = 100; it.state = "done"; render();
-    const row = document.querySelector(`.tq-list .tq-row[data-id="${it.id}"]`);
-    const drop = () => { Q = Q.filter((x) => x.id !== it.id); render(); pump(); };
-    if (row) { row.classList.add("is-leaving"); row.style.transition = "all var(--dur-slow) var(--ease)"; row.style.maxHeight = row.offsetHeight + "px";
-      requestAnimationFrame(() => { row.style.maxHeight = "0"; row.style.opacity = "0"; row.style.paddingTop = "0"; row.style.paddingBottom = "0"; });
+    stopTick();
+    it.pct = 100; renderLive(it);
+    leaving.add(it.id);
+    const row = list().querySelector(`.tq-row[data-id="${it.id}"]`);
+    const drop = () => {
+      leaving.delete(it.id);
+      if (row) row.remove();                              // actually leave the DOM (not just the model)
+      Q = Q.filter((x) => x.id !== it.id);
+      renumber();
+      if (mode === "one") playing = false;                // single-shot: stop after one
+      render();
+      if (playing) tick();
+    };
+    if (row) {
+      row.classList.add("is-leaving");
+      row.style.transition = "all var(--dur-slow) var(--ease)";
+      row.style.maxHeight = row.offsetHeight + "px";
+      requestAnimationFrame(() => { row.style.maxHeight = "0"; row.style.opacity = "0"; row.style.marginTop = "0"; row.style.paddingTop = "0"; row.style.paddingBottom = "0"; });
       setTimeout(drop, 340);
     } else drop();
   }
-  function onCtl(it) {
-    switch (it.state) {
-      case "queued": it.state = "held"; break;
-      case "held": it.state = "queued"; render(); return pump();
-      case "running": it.state = "paused"; break;
-      case "paused": it.state = "running"; render(); return tick();
-      case "error": it.state = "queued"; render(); return pump();
-    }
+
+  /* ── reorder by typing a new position ── */
+  function reorder(id, pos) {
+    const arr = sorted();
+    const idx = arr.findIndex((x) => x.id === id);
+    if (idx < 0) return render();
+    const [item] = arr.splice(idx, 1);
+    pos = Math.max(1, Math.min(arr.length + 1, pos | 0));
+    arr.splice(pos - 1, 0, item);
+    arr.forEach((x, i) => (x.order = i + 1));
     render();
+    if (playing) { const it = activeItem(); if (it && it.error) it.error = false; tick(); }
+  }
+  function startEdit(it, btn) {
+    const input = el(`<input class="tq-ord-input" type="text" inputmode="numeric" value="${it.order}" aria-label="New position">`);
+    btn.replaceWith(input);
+    input.focus(); input.select();
+    let done = false;
+    const commit = (apply) => { if (done) return; done = true; const v = parseInt(input.value, 10); if (apply && !isNaN(v)) reorder(it.id, v); else render(); };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); commit(true); }
+      else if (e.key === "Escape") { e.preventDefault(); commit(false); }
+    });
+    input.addEventListener("blur", () => commit(true));
   }
 
-  // in-place update of just the active row (ring, %, live text) — avoids rebuilding the list each tick
+  function togglePreview(id) { previewId = previewId === id ? null : id; render(); }
+
+  /* ── render ── */
+  function rowHtml(it) {
+    const t = ROW_TYPES[it.type] || {};
+    const isActive = activeItem() && activeItem().id === it.id;
+    const preview = t.preview
+      ? `<button class="tq-prev ${previewId === it.id ? "is-playing" : ""}" data-act="prev" title="${previewId === it.id ? "Pause preview" : "Play recording"}" aria-label="Play recording">${previewId === it.id ? GLYPH.pause : GLYPH.play}</button>`
+      : "";
+    const badge = t.model
+      ? `<button class="tq-model" data-act="model" title="Model: ${MODELS[it.model].choiceLabel}">${MODELS[it.model].short}${GLYPH.chev}</button>`
+      : "";
+    const showPct = it.pct > 0 && !it.error;
+    const err = it.error ? `<span class="tq-err" title="Couldn't process — press Run to retry">${GLYPH.warn}</span>` : "";
+    return `
+      <button class="tq-ord" data-act="ord" title="Reorder — type a new position">${it.order}</button>
+      ${preview}
+      <span class="tq-label" title="${it.label}">${it.label}</span>
+      ${badge}
+      <span class="tq-dur">${it.dur}</span>
+      ${showPct ? `<span class="tq-pct">${Math.round(it.pct)}%</span>` : ""}
+      ${err}
+      ${showPct ? `<div class="tq-prog"><i style="width:${it.pct}%"></i></div>` : ""}`;
+  }
   function renderLive(it) {
-    const row = document.querySelector(`.tq-list .tq-row[data-id="${it.id}"]`);
+    const row = list().querySelector(`.tq-row[data-id="${it.id}"]`);
     if (!row) return render();
-    const fill = row.querySelector(".ring .fill"); if (fill) fill.style.strokeDashoffset = 100 - it.pct;
-    const pct = row.querySelector(".tq-pct"); if (pct) pct.textContent = Math.round(it.pct) + "%";
-    const live = row.querySelector(".tq-live"); if (live) live.innerHTML = liveText(it.pct);
+    const p = row.querySelector(".tq-pct"); if (p) p.textContent = Math.round(it.pct) + "%";
+    const f = row.querySelector(".tq-prog > i"); if (f) f.style.width = it.pct + "%";
   }
-
   function render() {
-    const list = $("list");
-    const leaving = [...list.querySelectorAll(".tq-row.is-leaving")];
-    list.innerHTML = "";
-    const rows = Q.filter((x) => x.state !== "done");
-    if (!rows.length && !leaving.length) {
-      list.appendChild(el(`<div class="tq-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><p class="t-ctl muted">Every recording has a transcript.</p></div>`));
-    } else {
-      rows.forEach((it) => {
-        const row = el(`<div class="tq-row ${it.isFile ? "is-filename" : ""}" data-id="${it.id}" data-state="${it.state}">${rowHtml(it)}</div>`);
-        row.querySelector('[data-act="start"]')?.addEventListener("click", (e) => { e.stopPropagation(); openChoice(e.currentTarget, (m) => { it.model = m; it.state = "queued"; it.pct = 0; pump(); }); });
-        row.querySelector('[data-act="ctl"]')?.addEventListener("click", (e) => { e.stopPropagation(); onCtl(it); });
-        list.appendChild(row);
-      });
-      leaving.forEach((n) => list.appendChild(n));
-    }
-    const waiting = Q.filter((x) => x.state === "idle").length;
-    const inFlight = Q.filter((x) => ["queued", "held", "running", "paused"].includes(x.state)).length;
-    $("count").textContent = inFlight ? `${inFlight} in queue` : `${waiting} waiting`;
-    $("all").hidden = waiting < 2;
+    $("tqsec").hidden = Q.length === 0;                   // nothing to process → section vanishes
+    $("tqsec").classList.toggle("is-running", playing);
+    $("mode").innerHTML = mode === "one" ? "1" : GLYPH.arrow;
+    $("mode").title = mode === "one" ? "Mode: one — process the top item, then pause" : "Mode: all — run down the whole queue";
+    $("go").innerHTML = playing ? GLYPH.pause : GLYPH.play;
+    $("go").title = playing ? "Pause" : "Run";
+
+    const L = list();
+    const keep = [...L.querySelectorAll(".tq-row.is-leaving")].filter((n) => leaving.has(n.dataset.id));
+    L.innerHTML = "";
+    sorted().filter((x) => !leaving.has(x.id)).forEach((it) => {
+      const active = activeItem() && activeItem().id === it.id;
+      const row = el(`<div class="tq-row ${it.isFile ? "is-filename" : ""} ${active ? "is-active" : ""}" data-id="${it.id}" data-type="${it.type}">${rowHtml(it)}</div>`);
+      row.querySelector('[data-act="ord"]').addEventListener("click", (e) => { e.stopPropagation(); startEdit(it, e.currentTarget); });
+      row.querySelector('[data-act="prev"]')?.addEventListener("click", (e) => { e.stopPropagation(); togglePreview(it.id); });
+      row.querySelector('[data-act="model"]')?.addEventListener("click", (e) => { e.stopPropagation(); openChoice(e.currentTarget, it.model, (m) => { it.model = m; render(); }); });
+      L.appendChild(row);
+    });
+    keep.forEach((n) => L.appendChild(n));
   }
 
-  /* ── live BACKUP animation (makes the cloud side alive) ── */
+  /* ── live BACKUP animation (keeps the cloud side alive) ── */
   let syncing = false;
   function runBackup() {
     if (syncing) return; syncing = true;
@@ -802,17 +870,19 @@ button { font-family: inherit; color: inherit; }
   }
 
   /* ── events ── */
-  $("all").onclick = (e) => { const idle = Q.filter((x) => x.state === "idle"); if (!idle.length) return; openChoice(e.currentTarget, (m) => { idle.forEach((it) => { it.model = m; it.state = "queued"; it.pct = 0; }); pump(); }); };
+  $("mode").onclick = () => { mode = mode === "one" ? "all" : "one"; render(); };
+  $("go").onclick = () => setPlaying(!playing);
   $("rune").onclick = () => { const open = $("drawer").classList.toggle("is-open"); $("rune").classList.toggle("is-open", open); if (open) $("nub").style.display = "none"; };
   $("sync-collapse").onclick = () => { const r = $("sync-region"); r.dataset.collapsed = r.dataset.collapsed === "true" ? "false" : "true"; };
   $("backup").onclick = runBackup;
-  $("banner-x").onclick = () => $("banner").hidden = true;
-  $("dl").onchange = (e) => $("banner").hidden = !e.target.checked;
+  $("banner-x").onclick = () => ($("banner").hidden = true);
+  $("dl").onchange = (e) => ($("banner").hidden = !e.target.checked);
   $("reset").onclick = reset;
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeChoice(); });
   $("theme").onclick = () => { const r = document.documentElement; r.dataset.theme = r.dataset.theme === "dark" ? "light" : "dark"; };
 
   reset();
+
   </script>
 </body>
 </html>
