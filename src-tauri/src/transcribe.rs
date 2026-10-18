@@ -94,6 +94,11 @@ pub async fn transcribe_audio(
         if polish.unwrap_or(false) {
             cmd.arg("--polish");
         }
+        // A Finder-launched .app inherits a minimal PATH (no /opt/homebrew/bin), so the
+        // engine's `ffmpeg` (audio decode) and `claude` (polish) lookups fail. Put the
+        // common Homebrew/local bins on the child's PATH so they're found.
+        let base_path = std::env::var("PATH").unwrap_or_default();
+        cmd.env("PATH", format!("/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:{base_path}"));
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         let mut child = cmd.spawn().map_err(|e| format!("spawn failed: {e}"))?;

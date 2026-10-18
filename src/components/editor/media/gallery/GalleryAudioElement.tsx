@@ -7,6 +7,7 @@ import { isMediaPath, parseMediaPath } from "../../../../lib/media/ref";
 import { getStore } from "../../../../lib/store";
 import { getMediaNoteId } from "../mediaContext";
 import { transcribeBlockAudio } from "../../../transcription/blockTranscribe";
+import { chooseTranscriptionModel } from "../../../transcription/chooseModel";
 import type { Transcript } from "../../../../lib/transcripts/types";
 import { log } from "../../../../lib/logger";
 
@@ -51,15 +52,18 @@ export function GalleryAudioElement({ url, playerKey, caption }: Props) {
   // Desktop-only; bulk/automatic transcription lives in the sync drawer's Process queue.
   const createTranscript = async () => {
     if (!ref) return;
+    const model = await chooseTranscriptionModel(); // ask: English (fast) or Czech (best)
+    if (!model) return;
+    const prev = tState;
     setTState("transcribing");
     try {
-      const t = await transcribeBlockAudio(ref, getMediaNoteId());
+      const t = await transcribeBlockAudio(ref, getMediaNoteId(), model);
       setTranscript(t);
       setTState("present");
-      log.info("media", "gallery.audio.transcript.created", { ref });
+      log.info("media", "gallery.audio.transcript.created", { ref, model });
     } catch (e) {
       log.error("media", "gallery.audio.transcript.error", { ref, error: String(e) });
-      setTState("absent");
+      setTState(prev);
     }
   };
 

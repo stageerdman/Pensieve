@@ -5,18 +5,22 @@
 // path; the drawer's per-row badge is where a model is chosen. Desktop-only (MLX engine).
 import { getStore, isTauri } from "../../lib/store";
 import { reindex } from "../../lib/search/reindexController";
-import { DEFAULT_MODEL } from "../../lib/transcripts/models";
+import { DEFAULT_MODEL, type TranscriptionModel } from "../../lib/transcripts/models";
 import { NativeTranscriptionEngine } from "../../lib/transcripts/nativeEngine";
 import type { Transcript } from "../../lib/transcripts/types";
 
 let engine: NativeTranscriptionEngine | null = null;
 
-/** Transcribe one audio ref with the default model, save the sidecar, and refold search.
+/** Transcribe one audio ref with the given model, save the sidecar, and refold search.
  *  Rejects on failure (the caller restores the idle state). */
-export async function transcribeBlockAudio(ref: string, noteId: string): Promise<Transcript> {
+export async function transcribeBlockAudio(
+  ref: string,
+  noteId: string,
+  model: TranscriptionModel = DEFAULT_MODEL,
+): Promise<Transcript> {
   if (!isTauri()) throw new Error("transcription is a desktop-only capability");
   engine ??= new NativeTranscriptionEngine();
-  const t = await engine.transcribe(ref, { model: DEFAULT_MODEL });
+  const t = await engine.transcribe(ref, { model });
   await getStore().saveTranscript(ref, t);
   // The sidecar doesn't touch the .md/updatedAt, so refold this note's search body now.
   reindex.request(noteId);
