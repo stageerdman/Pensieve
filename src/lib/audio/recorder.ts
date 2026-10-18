@@ -54,9 +54,11 @@ export interface AudioRecorder {
   mimeType(): string;
 }
 
-// Prefer Opus-in-WebM (Chromium/dev) then mp4/aac (WKWebView/Safari); "" lets the browser
-// choose. First supported wins.
-const MIME_CANDIDATES = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/aac", ""];
+// Prefer M4A/AAC (audio/mp4) — the native app runs on macOS WKWebView, which plays mp4/aac
+// flawlessly (with a duration + seeking) but handles its OWN MediaRecorder WebM/Opus output
+// badly (no duration, glitchy playback — that cost us an hour tape once). Fall back to WebM
+// only where mp4 recording isn't offered (e.g. Chromium in `npm run dev`). "" = let it choose.
+const MIME_CANDIDATES = ["audio/mp4", "audio/aac", "audio/webm;codecs=opus", "audio/webm", ""];
 
 function pickMimeType(): string {
   const MR = typeof MediaRecorder !== "undefined" ? MediaRecorder : undefined;
