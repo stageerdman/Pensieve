@@ -567,7 +567,10 @@ button { font-family: inherit; color: inherit; }
     .tq-row[data-state="error"] .ctl:hover .glyph { background: hsl(var(--accent) / 0.12); color: hsl(var(--text)); }
     .tq-row.is-leaving { overflow: hidden; }
 
-    .audio-menu.tq-choose { min-width: 14rem; }
+    /* the drawer is z-index:40 — lift the model picker (and its backdrop) above it,
+       or the menu opens *behind* the drawer panel and the ▶ looks dead. */
+    .audio-menu.tq-choose { min-width: 14rem; z-index: 60; }
+    .audio-menu-backdrop { z-index: 50; }
     .audio-menu.tq-choose button { justify-content: space-between; }
     .tq-choose .sub { font-size: 11px; color: hsl(var(--text-muted)); }
     .tq-choose .cancel { color: hsl(var(--text-muted)); }
