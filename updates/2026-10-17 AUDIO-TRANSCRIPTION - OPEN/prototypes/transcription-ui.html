@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -582,8 +582,6 @@ button { font-family: inherit; color: inherit; }
     .demo label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
     .demo button { border: 1px solid hsl(var(--border)); background: hsl(var(--surface)); color: hsl(var(--text)); border-radius: var(--radius); padding: 4px 9px; font-size: 11px; cursor: pointer; }
     .demo .sep { width: 1px; height: 18px; background: hsl(var(--border)); }
-    /* move the kit's theme toggle to the LEFT — it collides with the right drawer */
-    .theme-toggle { left: 16px; right: auto; }
   </style>
 </head>
 <body>
@@ -638,15 +636,6 @@ button { font-family: inherit; color: inherit; }
     </section>
   </aside>
 
-  <button class="theme-toggle" id="theme" aria-label="Toggle theme" title="Toggle light/dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></button>
-
-  <div class="demo">
-    <span>demo:</span>
-    <label><input type="checkbox" id="fast" /> 4× speed</label>
-    <label><input type="checkbox" id="fail" /> fail next run</label>
-    <label><input type="checkbox" id="dl" /> model download</label>
-    <span class="sep"></span><button id="reset">Reset</button>
-  </div>
 
   <script>
   /* ════════════════════════════════════════════════════════════════════════
@@ -702,7 +691,7 @@ button { font-family: inherit; color: inherit; }
   function reset() {
     Q = SEED.map((x, i) => ({ ...x, order: i + 1, pct: 0, error: false, model: "czech-whisper" }));
     playing = false; mode = "all"; previewId = null;
-    stopTick(); closeChoice(); $("fail").checked = false;
+    stopTick(); closeChoice();
     render();
   }
 
@@ -736,10 +725,7 @@ button { font-family: inherit; color: inherit; }
       const it = activeItem();
       if (!it) { stopTick(); return; }
       if (it.pct >= 100) return;                          // waiting on drop-out
-      if ($("fail").checked && it.pct >= 55) {            // demo: simulate a failure
-        $("fail").checked = false; it.error = true; playing = false; stopTick(); render(); return;
-      }
-      it.pct = Math.min(100, it.pct + ($("fast").checked ? 6 : 1.3));
+      it.pct = Math.min(100, it.pct + 3);                 // prototype pace
       if (it.pct >= 100) finish(it); else renderLive(it);
     }, 150);
   }
@@ -866,7 +852,7 @@ button { font-family: inherit; color: inherit; }
         $("sync-title").textContent = "All backed up"; $("sync-subtle").textContent = "Last backed up · just now";
         $("backup").disabled = false; $("nub").style.display = "none";
       }
-    }, $("fast").checked ? 180 : 420);
+    }, 300);
   }
 
   /* ── events ── */
@@ -876,10 +862,7 @@ button { font-family: inherit; color: inherit; }
   $("sync-collapse").onclick = () => { const r = $("sync-region"); r.dataset.collapsed = r.dataset.collapsed === "true" ? "false" : "true"; };
   $("backup").onclick = runBackup;
   $("banner-x").onclick = () => ($("banner").hidden = true);
-  $("dl").onchange = (e) => ($("banner").hidden = !e.target.checked);
-  $("reset").onclick = reset;
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeChoice(); });
-  $("theme").onclick = () => { const r = document.documentElement; r.dataset.theme = r.dataset.theme === "dark" ? "light" : "dark"; };
 
   reset();
 
