@@ -825,7 +825,7 @@ button { font-family: inherit; color: inherit; }
       const row = el(`<div class="tq-row ${it.isFile ? "is-filename" : ""} ${active ? "is-active" : ""}" data-id="${it.id}" data-type="${it.type}">${rowHtml(it)}</div>`);
       row.querySelector('[data-act="ord"]').addEventListener("click", (e) => { e.stopPropagation(); startEdit(it, e.currentTarget); });
       row.querySelector('[data-act="prev"]')?.addEventListener("click", (e) => { e.stopPropagation(); togglePreview(it.id); });
-      row.querySelector('[data-act="model"]')?.addEventListener("click", (e) => { e.stopPropagation(); openChoice(e.currentTarget, it.model, (m) => { it.model = m; render(); }); });
+      row.querySelector('[data-act="model"]')?.addEventListener("click", (e) => { e.stopPropagation(); openChoice(e.currentTarget, it.model, (m) => { if (m !== it.model) { it.model = m; it.pct = 0; it.error = false; } render(); if (playing) tick(); }); });
       L.appendChild(row);
     });
     keep.forEach((n) => L.appendChild(n));
