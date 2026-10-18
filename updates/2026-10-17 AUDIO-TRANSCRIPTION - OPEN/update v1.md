@@ -93,6 +93,23 @@ risky; the rest is wiring.
 - **P6 — Build, device-verify (real mic recording → transcribe → read in split), merge.**
 
 ## Status / decisions / next
+- 2026-10-18 (cont.): **Real engine built + proven; native binding done.**
+  - Prototype: owner picked **per-row model badge**; forced **dark-only**, dropped theme toggle + demo bar;
+    restored running %, text `1`/`→` toggle, preview moved right of title, hover tooltip + added-date,
+    model-change resets progress. All verified in jsdom.
+  - **P0 GO**: M3 Mac has the transcriber venv (`mlx_whisper`+`parakeet_mlx`), ffmpeg, `claude`, and BOTH
+    models cached. **P1 engine** `spike-engine/pensieve_transcribe.py` (also shipped at
+    `src-tauri/engine/`) emits the LOCKED schema; ran the 60s clip: czech-whisper 7seg/115 words/23s,
+    parakeet 7seg/170 words/3.5s — all schema checks pass. Self-contained (venv only, no PYTHONPATH).
+  - **P2 Rust** `src-tauri/src/transcribe.rs` → `transcribe_audio(mediaRef,model,pythonPath,enginePath,
+    polish)` spawns the engine, streams `transcribe-progress`, returns the Transcript JSON. `cargo check` clean.
+  - **NEXT — P3 (frontend):** port the prototype queue into a real React right-drawer (reuse `deriveSyncView`),
+    wire `listUntranscribedAudio` + the P1 queue state machine, a config holding pythonPath/enginePath
+    (defaults: transcriber venv + shipped engine), the progress listener, and replace the TWO dev
+    `createTranscript` seeders with the real `invoke("transcribe_audio")` → `saveTranscript` → `reindex`.
+    **P4:** sync wiring (auto-enqueue on sync, Czech default, sync-primary + transcribe-parallel, auto-sync
+    finished sidecar). **P5/6:** `tauri:build` + owner device-verify.
+
 - 2026-10-17: Deep research done (transcriber engine + Pensieve internals) → `wiki.md`. Plan drafted.
   Asked the 3 owner decisions; **interrupted before answers** → they're the first thing on resume.
   No code yet. Everything still on `update/audio-recordings` @ `cbbee3e`.
