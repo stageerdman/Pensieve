@@ -10,7 +10,8 @@ import { refForUrl } from "../../../lib/media/url";
 import { getMediaNoteId } from "./mediaContext";
 import { saveAudioFile } from "./insertAudio";
 import { getStore } from "../../../lib/store";
-import { reindex } from "../../../lib/search/reindexController";
+import { processQueue } from "../../transcription/processQueueController";
+import { chooseTranscriptionModel } from "../../transcription/chooseModel";
 import type { Transcript } from "../../../lib/transcripts/types";
 import { log } from "../../../lib/logger";
 
@@ -109,24 +110,31 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
     }
   };
 
-  // DEV PLACEHOLDER until the whisper engine lands: "Create transcript" seeds the bundled
-  // real-call sample as the sidecar so the transcript UX is testable now. The real engine
-  // replaces this with actual output (same schema) — then delete this + the sample json.
+  // Manual "Create transcript": run the real native engine (default Czech model), save the
+  // sidecar, refold search. Desktop-only — in the browser dev build this rejects and we fall
+  // back to idle. Bulk / automatic transcription happens in the sync drawer's Process queue.
   const createTranscript = async () => {
     if (!ref) return;
+    const model = await chooseTranscriptionModel(); // ask: English (fast) or Czech (best)
+    if (!model) return; // dismissed → leave as-is
+    const prev = tState;
     setTState("transcribing");
-    try {
-      const sample = ((await import("../../../lib/transcripts/_sampleDominik.dev.json")).default) as unknown as Transcript;
-      await getStore().saveTranscript(ref, sample);
-      setTranscript(sample);
-      setTState("present");
-      // The sidecar doesn't touch the .md/updatedAt, so tell the search index to refold this
-      // note now — otherwise the new spoken words aren't searchable until a full rebuild.
-      reindex.request(getMediaNoteId());
-      log.info("media", "audio.transcript.seeded(dev)", { ref });
-    } catch (e) {
-      log.error("media", "audio.transcript.seed.error", { ref, error: String(e) });
-      setTState("absent");
+    // Route through the drawer's Process queue so it's visible there with live progress;
+    // refresh this block's own state when that ref finishes/fails.
+    const off = processQueue.onResult(ref, (ok) => {
+      off();
+      if (!ok) return setTState(prev);
+      void getStore().loadTranscript(ref).then((t) => {
+        if (t) { setTranscript(t); setTState("present"); } else setTState(prev);
+      });
+    });
+    const handled = processQueue.request({ ref, noteId: getMediaNoteId(), model });
+    if (!handled) {
+      off();
+      setTState(prev);
+      log.error("media", "audio.transcript.noqueue", { ref });
+    } else {
+      log.info("media", "audio.transcript.requested", { ref, model });
     }
   };
 

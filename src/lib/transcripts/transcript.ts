@@ -4,10 +4,15 @@
 
 import type { Transcript } from "./types";
 
+/** The suffix that turns an audio ref into its transcript-sidecar path. The single source
+ *  of truth for the sidecar naming convention (built by `transcriptRefFor`, recognised by
+ *  the transcription queue). */
+export const TRANSCRIPT_SIDECAR_SUFFIX = ".transcript.json";
+
 /** Sidecar path for an audio ref: `media/<note>/<id>.mp3` → `…/<id>.mp3.transcript.json`.
  *  The `.ext` is kept so `a.mp3`/`a.wav` with the same stem don't collide. */
 export function transcriptRefFor(audioRef: string): string {
-  return `${audioRef}.transcript.json`;
+  return `${audioRef}${TRANSCRIPT_SIDECAR_SUFFIX}`;
 }
 
 /** The searchable text of a transcript (segment texts joined) — folded into a note's

@@ -1,0 +1,444 @@
+/* ============================================================================
+   _kit.css — Pensieve AUDIO design system (shared prototype stylesheet).
+   ----------------------------------------------------------------------------
+   THE single source of visual truth for every audio prototype. Each .html links
+   this file and the per-surface agents BUILD ON these classes — they never grow
+   a second radius, shadow, accent hue, or bar height. Mirrors the real app's
+   src/styles/tokens.css (light :root + dark override) and the design.md rules:
+     · ONE accent (the magical blue). State colours exist, never as decoration.
+     · Shadows/gradients are reserved for the magical language (accent halo, the
+       Basin depth) — never a drop-shadow to "lift" flat UI.
+     · Fixed type scale (11/12/14/16/18), mono for time/timecode.
+     · Fixed radius scale (base 6 → 4/6/10/14/20/full) + 4px spacing grid.
+   Colour format: `H S% L%`, consumed as `hsl(var(--token) / <alpha>)`.
+   ========================================================================= */
+
+/* ── Tokens — light (mirror of tokens.css :root) ─────────────────────────── */
+:root {
+  color-scheme: light;
+  --surface: 210 30% 99%;
+  --surface-sunken: 214 20% 96%;
+  --surface-raised: 214 16% 94%;
+  --text: 218 16% 19%;
+  --text-muted: 218 9% 45%;
+  --border: 214 15% 90%;
+  --accent: 216 83% 49%;
+  --accent-glow: 216 90% 60%;
+  --success: 150 30% 40%;
+  --warn: 32 80% 45%;
+  --danger: 0 72% 58%;
+  --gold: 43 92% 55%;
+
+  --font-sans: ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI", system-ui, "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --radius: 6px;
+  --font-scale: 1;
+
+  /* ── Audio-system constants (derive, don't re-type magic numbers) ──────── */
+  --audio-bar-h: 56px;          /* inline player bar height (14 * 4px grid) */
+  --audio-bar-h-compact: 44px;  /* dense contexts: gallery tile / search hit */
+  --audio-play-size: 36px;      /* primary play/pause control diameter */
+  --audio-play-size-sm: 28px;   /* compact play control */
+  --audio-icon-btn: 28px;       /* ⋯ and transcript icon-button hit box */
+  --wave-bar-w: 2px;            /* waveform bar width */
+  --wave-bar-gap: 1px;          /* gap between bars (→ 3px pitch) */
+  --wave-min: 0.12;             /* floor so a silent bar still reads as a tick */
+
+  /* Motion — all subtle, calm. */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --dur-slow: 320ms;
+}
+
+/* ── Tokens — dark. Supports BOTH conventions: the prototype toggle writes
+   :root[data-theme="dark"]; the real app uses .dark. Keep them identical. ── */
+:root[data-theme="dark"],
+.dark {
+  color-scheme: dark;
+  --surface: 222 24% 11%;
+  --surface-sunken: 222 22% 13%;
+  --surface-raised: 222 18% 17%;
+  --text: 216 18% 84%;
+  --text-muted: 218 12% 60%;
+  --border: 222 16% 21%;
+  --accent: 215 85% 74%;
+  --accent-glow: 218 100% 72%;
+  --success: 150 28% 55%;
+  --warn: 36 85% 58%;
+  --danger: 0 68% 65%;
+  --gold: 43 92% 55%;
+}
+
+/* ── Base reset + Pensieve typography ────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 16px;                 /* body */
+  line-height: 1.5;
+  color: hsl(var(--text));
+  background: hsl(var(--surface));
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button { font-family: inherit; color: inherit; }
+:where(button, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid hsl(var(--accent));
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
+/* Type-scale helpers (use these, never arbitrary px). */
+.t-micro  { font-size: 11px; }         /* labels / chips / dates / counts */
+.t-meta   { font-size: 12px; }         /* meta */
+.t-ctl    { font-size: 14px; }         /* secondary / controls */
+.t-body   { font-size: 16px; }         /* body */
+.t-mono   { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   AUDIO BAR — the core element. A calm horizontal pill:
+   [ play ] [ waveform + progress ] [ time ] [ transcript ] [ ⋯ ]
+   Lives inline in a note AND inside a gallery; same family everywhere.
+   ════════════════════════════════════════════════════════════════════════ */
+.audio-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: var(--audio-bar-h);
+  padding: 8px 12px;
+  background: hsl(var(--surface-sunken));
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;                 /* rounded-lg */
+  color: hsl(var(--text));
+  /* NO drop-shadow — the resting bar is flat. Depth is earned only by the
+     playing-state accent halo below. */
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.audio-bar.is-compact {
+  min-height: var(--audio-bar-h-compact);
+  gap: 8px;
+  padding: 6px 10px;
+}
+/* Playing: the one permitted magical lift — a faint accent halo, not a shadow. */
+.audio-bar.is-playing {
+  border-color: hsl(var(--accent) / 0.45);
+  box-shadow: 0 0 0 1px hsl(var(--accent) / 0.12), 0 0 24px -6px hsl(var(--accent-glow) / 0.35);
+}
+.audio-bar.is-broken {
+  border-color: hsl(var(--danger) / 0.45);
+  background: hsl(var(--danger) / 0.05);
+}
+
+/* ── Play / pause control — the single accent-FILLED element on the bar ──── */
+.audio-play {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: var(--audio-play-size);
+  height: var(--audio-play-size);
+  border: none;
+  border-radius: var(--radius);        /* a soft square, not a hard circle — Pensieve, not Spotify */
+  background: hsl(var(--accent));
+  color: hsl(var(--surface));           /* glyph reads on the accent fill in both themes */
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), box-shadow var(--dur) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.audio-play:hover { background: hsl(var(--accent-glow)); }
+.audio-play:active { transform: scale(0.94); }
+.is-playing .audio-play { box-shadow: 0 0 20px -4px hsl(var(--accent-glow) / 0.6); }
+.audio-play.is-sm { width: var(--audio-play-size-sm); height: var(--audio-play-size-sm); border-radius: calc(var(--radius) - 2px); }
+.audio-play svg { width: 55%; height: 55%; display: block; }
+.audio-play.is-loading { pointer-events: none; }
+.audio-play.is-loading svg { animation: audio-spin 900ms linear infinite; opacity: 0.8; }
+@keyframes audio-spin { to { transform: rotate(360deg); } }
+
+/* ── Waveform — the amplitude visualization + scrub surface ──────────────── */
+.audio-wave {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 32px;
+  cursor: pointer;
+  touch-action: none;                   /* we own the drag */
+}
+.audio-bar.is-compact .audio-wave { height: 24px; }
+.audio-wave canvas { display: block; width: 100%; height: 100%; }
+/* Hover scrubline — a thin accent tick that follows the cursor (affordance). */
+.audio-wave .audio-scrubline {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 1px;
+  background: hsl(var(--accent) / 0.55);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.audio-wave:hover .audio-scrubline { opacity: 1; }
+/* Hover time bubble above the scrubline. */
+.audio-wave .audio-scrubtime {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  transform: translateX(-50%);
+  padding: 1px 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--text));
+  background: hsl(var(--surface-raised));
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.audio-wave:hover .audio-scrubtime { opacity: 1; }
+.audio-wave.is-scrubbing { cursor: grabbing; }
+.audio-wave.is-scrubbing .audio-scrubline,
+.audio-wave.is-scrubbing .audio-scrubtime { opacity: 1; }
+
+/* ── Time readout — mono, tabular. "current / total" or just current. ───── */
+.audio-time {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--text-muted));
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+.audio-time .cur { color: hsl(var(--text)); }
+.audio-time .sep { opacity: 0.5; margin: 0 1px; }
+
+/* ── Icon buttons (transcript + ⋯) — ghost by default ────────────────────── */
+.audio-iconbtn {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: var(--audio-icon-btn);
+  height: var(--audio-icon-btn);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: hsl(var(--text-muted));
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.audio-iconbtn:hover { background: hsl(var(--accent) / 0.12); color: hsl(var(--text)); }
+.audio-iconbtn svg { width: 17px; height: 17px; display: block; }
+.audio-iconbtn[aria-expanded="true"] { background: hsl(var(--accent) / 0.12); color: hsl(var(--text)); }
+
+/* Transcript icon — its state is the signal, never a second colour:
+     present    → accent-tinted, "open transcript"
+     absent     → faint ghost (lives in the ⋯ menu as "Create transcript")
+     transcribing → muted + a quiet looping pulse, NEVER a blocking spinner */
+.audio-transcript.is-present { color: hsl(var(--accent)); }
+.audio-transcript.is-present:hover { background: hsl(var(--accent) / 0.14); color: hsl(var(--accent)); }
+.audio-transcript.is-absent { color: hsl(var(--text-muted) / 0.55); }
+.audio-transcript.is-transcribing { color: hsl(var(--text-muted)); cursor: default; }
+.audio-transcript.is-transcribing svg { animation: audio-pulse 1.6s var(--ease) infinite; }
+@keyframes audio-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+
+/* Quiet non-blocking status line (e.g. "Transcribing… 40%") shown under/beside
+   the bar — reserved, calm, never a modal. */
+.audio-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: hsl(var(--text-muted));
+  font-variant-numeric: tabular-nums;
+}
+.audio-status .dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: hsl(var(--accent));
+  animation: audio-pulse 1.6s var(--ease) infinite;
+}
+.audio-status.is-saving .dot { background: hsl(var(--gold)); }
+
+/* Broken-state inline notice — ONE row at the standard bar height, never taller.
+   The filename truncates with an ellipsis; Locate… stays compact inline. */
+.audio-broken {
+  display: flex; align-items: center; gap: 8px;
+  flex: 1 1 auto; min-width: 0;
+  flex-wrap: nowrap;            /* never wrap onto a second row */
+  overflow: hidden;
+  color: hsl(var(--text-muted));
+  font-size: 12px;
+}
+.audio-broken > svg { flex: 0 0 auto; width: 16px; height: 16px; }  /* MUST size it: engine glyphs have no intrinsic w/h → default 300×150 balloons the bar + hides Locate */
+/* The message span is the shrinkable one: it truncates with an ellipsis. */
+.audio-broken-text {
+  min-width: 0;                 /* allow the flex item to shrink below content */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.audio-broken .name { font-family: var(--font-mono); font-size: 11px; color: hsl(var(--text)); }
+.audio-broken-locate {
+  margin-left: auto;
+  flex: 0 0 auto;               /* stays compact, never shrinks or wraps */
+  white-space: nowrap;
+  padding: 3px 9px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface));
+  color: hsl(var(--text));
+  border-radius: calc(var(--radius) - 2px);
+  font-size: 12px; cursor: pointer;
+}
+.audio-broken-locate:hover { border-color: hsl(var(--accent) / 0.5); }
+
+/* ── ⋯ menu (Download recording / Create transcript / …) ─────────────────── */
+.audio-menu-backdrop { position: fixed; inset: 0; z-index: 19; }
+.audio-menu {
+  position: absolute;
+  z-index: 20;
+  min-width: 12rem;
+  display: flex; flex-direction: column;
+  padding: 4px;
+  background: hsl(var(--surface-raised));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  box-shadow: 0 10px 30px -10px hsl(0 0% 0% / 0.35);  /* menu depth — the sanctioned use */
+  line-height: 1.2;
+}
+.audio-menu button {
+  display: flex; align-items: center; gap: 9px;
+  text-align: left;
+  padding: 7px 10px;
+  border: none; background: transparent; color: hsl(var(--text));
+  border-radius: calc(var(--radius) - 2px);
+  font-size: 14px; cursor: pointer;
+}
+.audio-menu button:hover { background: hsl(var(--accent) / 0.12); }
+.audio-menu button svg { width: 15px; height: 15px; color: hsl(var(--text-muted)); flex: 0 0 auto; }
+.audio-menu button:hover svg { color: hsl(var(--text)); }
+.audio-menu button[disabled] { opacity: 0.45; pointer-events: none; }
+.audio-menu-sep { height: 1px; margin: 4px 2px; background: hsl(var(--border)); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   TRANSCRIPT reading experience — a docked player on top, text below, with
+   word-by-word highlight + click-to-seek. Used standalone (phone/overlay) and
+   as the RIGHT pane of the desktop split view.
+   ════════════════════════════════════════════════════════════════════════ */
+.transcript {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: hsl(var(--surface));
+}
+/* Docked player — sticky to the top of the transcript column (Spotify-like). */
+.transcript-dock {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 12px 16px;
+  background: hsl(var(--surface) / 0.9);
+  backdrop-filter: saturate(1.1) blur(8px);
+  border-bottom: 1px solid hsl(var(--border));
+}
+.transcript-dock .audio-bar { background: transparent; border: none; padding: 0; min-height: auto; }
+.transcript-dock-meta {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 6px;
+  font-size: 11px; color: hsl(var(--text-muted));
+}
+.transcript-dock-meta .chip {
+  padding: 1px 7px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 999px;
+  background: hsl(var(--surface-raised));
+}
+
+/* Scrollable transcript body. */
+.transcript-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 16px 40vh;              /* trailing room so the last line can center */
+  scroll-behavior: smooth;
+}
+
+/* A speaker turn — grouped by segment speaker. Diarization is shown WITHOUT a
+   second accent hue: label + a left rail keyed to the speaker by alpha/weight,
+   and alternating turns get a faint sunken wash. */
+.turn { display: grid; grid-template-columns: 7rem 1fr; gap: 12px; padding: 8px 4px; border-radius: var(--radius); }
+.turn + .turn { margin-top: 2px; }
+.turn.is-active { background: hsl(var(--accent) / 0.05); }
+.turn-gutter { text-align: right; padding-top: 2px; user-select: none; }
+.turn-speaker {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+  color: hsl(var(--text-muted));
+}
+.turn.spk-0 .turn-speaker { color: hsl(var(--text)); }          /* two speakers told apart by */
+.turn.spk-1 .turn-speaker { color: hsl(var(--text-muted)); }    /* weight/tone, not a 2nd hue */
+.turn-time { display: block; margin-top: 2px; font-family: var(--font-mono); font-size: 11px; color: hsl(var(--text-muted) / 0.8); }
+.turn-text { font-size: 16px; line-height: 1.6; color: hsl(var(--text)); }
+.turn.spk-1 .turn-text { color: hsl(var(--text) / 0.92); }
+
+/* A clickable word. Resting = plain text; hover shows it's seekable. */
+.word { border-radius: 3px; padding: 0 0.5px; cursor: pointer; transition: background var(--dur-fast) linear, color var(--dur-fast) linear; }
+.word:hover { background: hsl(var(--accent) / 0.12); }
+/* Already spoken (read) — subtly dimmed so the eye finds "where we are". */
+.word.is-read { color: hsl(var(--text-muted)); }
+/* The word being spoken right now — the single live accent highlight. */
+.word.is-active { background: hsl(var(--accent) / 0.22); color: hsl(var(--text)); box-shadow: 0 0 0 1px hsl(var(--accent) / 0.25); }
+:root[data-theme="dark"] .word.is-active,
+.dark .word.is-active { background: hsl(var(--accent) / 0.28); color: hsl(var(--surface)); box-shadow: none; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   SPLIT VIEW — desktop: editor (left) | transcript (right), draggable divider.
+   ════════════════════════════════════════════════════════════════════════ */
+.split {
+  display: grid;
+  grid-template-columns: 1fr 6px var(--split-right, 40%);
+  height: 100%;
+  min-height: 0;
+}
+.split-left  { min-width: 0; overflow-y: auto; background: hsl(var(--surface)); }
+.split-right { min-width: 0; overflow: hidden; background: hsl(var(--surface)); border-left: 1px solid hsl(var(--border)); }
+.split-divider {
+  cursor: col-resize;
+  background: hsl(var(--border));
+  position: relative;
+  transition: background var(--dur-fast) var(--ease);
+}
+.split-divider:hover, .split-divider.is-dragging { background: hsl(var(--accent) / 0.6); }
+.split-divider::after {                 /* a wider invisible grab target */
+  content: ""; position: absolute; inset: 0 -5px;
+}
+
+/* ── Theme toggle — a small fixed button every prototype drops in ────────── */
+.theme-toggle {
+  position: fixed; top: 16px; right: 16px; z-index: 50;
+  display: grid; place-items: center;
+  width: 36px; height: 36px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface-raised));
+  color: hsl(var(--text-muted));
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.theme-toggle:hover { color: hsl(var(--text)); border-color: hsl(var(--accent) / 0.5); }
+.theme-toggle svg { width: 18px; height: 18px; }
+
+/* ── Small shared primitives the demos reuse ─────────────────────────────── */
+.card {
+  background: hsl(var(--surface-sunken));
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;
+  padding: 16px;
+}
+.muted { color: hsl(var(--text-muted)); }
+.kbd {
+  font-family: var(--font-mono); font-size: 11px;
+  padding: 1px 5px; border: 1px solid hsl(var(--border));
+  border-bottom-width: 2px; border-radius: 4px;
+  background: hsl(var(--surface-raised)); color: hsl(var(--text-muted));
+}

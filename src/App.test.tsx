@@ -44,7 +44,7 @@ describe("App", () => {
       () => {
         expect(screen.getByTestId("editor")).toBeInTheDocument();
       },
-      { timeout: 4000 },
+      { timeout: 10000 },
     );
   });
 

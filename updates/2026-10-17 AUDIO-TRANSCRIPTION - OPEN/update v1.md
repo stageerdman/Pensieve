@@ -11,17 +11,51 @@ Engine = port the `/Users/stage/dev/transcriber` **approach** onto **whisper.cpp
 Rust/Tauri) + the **`claude -p` AI polish** step. Full engine/flags/prompt detail + Pensieve
 plug-in points are in **`wiki.md` — READ IT FIRST.**
 
-## ▶ RESUME HERE (next session) — updated 2026-10-17 (WRAP-UP, nothing coded yet)
-**Branch:** `update/audio-recordings` (transcription will continue here or a branch off it;
-AUDIO-RECORDINGS is NOT merged to main yet — see that update's resume block + its P7/device-verify).
-**HEAD = `cbbee3e` (P6.7), tree clean, pushed.** NO transcription code written yet — this update
-is **research + plan only** so far. 845+4 tests green as of P6.7.
+## ⚑ BEHAVIORAL SPEC — owner, 2026-10-18 (governs the real build)
+The queue + engine must obey these rules (prototype proved the UI; this is the behaviour):
+1. **Auto by default.** Every recording that is **synced in** and has **no transcript** is added to
+   the queue and transcribed automatically, using the **Czech** model by default (no prompt).
+2. **Locally-added ≠ auto.** A recording added **directly in a note** (local, not via sync) does
+   **not** auto-transcribe. It transcribes when I **click Process** manually, **or on the next sync**.
+   → So **sync is the enqueue trigger**: pressing Sync scans for new untranscribed recordings, adds
+   them, and transcribes them (Czech default).
+3. **Sync is primary, transcription secondary, they run in PARALLEL.** Always sync first; transcription
+   runs alongside at lower priority. Uploading an mp3 → it syncs **and** transcribes at the same time.
+4. **Finished transcript → sync it.** When a transcription completes, its sidecar is **auto-synced**
+   after it finishes (preferred), **or** the drawer offers a one-tap "sync again" when done.
+5. **Model change resets progress** — switching a row's model restarts it from 0 (already in prototype).
 
-### FIRST THING ON RESUME: get the 3 owner decisions (asked, but interrupted before answering)
-They are in `wiki.md` §D. Summary: (1) whisper model default — turbo vs large-v3 vs medium;
-(2) language — auto-detect vs always-Czech vs a setting; (3) sidebar — right drawer (toggled by
-sync button) vs always-docked panel. My recommendations: turbo (or large-v3 if Czech accuracy
-matters most), auto-detect, right drawer. Then bake answers into the phases below and build.
+### P0 SPIKE RESULT — 2026-10-18: environment is GO on this Mac ✅
+Apple M3/arm64 (Metal). Transcriber `.venv` (py3.11) imports `mlx_whisper` + `parakeet_mlx`.
+`ffmpeg`/`ffprobe`/`claude` present. BOTH models already in HF cache (`mikr/whisper-large-v3-czech-cv13`,
+`mlx-community/parakeet-tdt-0.6b-v3`) — no 6 GB download. **Packaging decision (for now, single-user
+owner):** Pensieve shells out to a ported Python engine run by the transcriber's venv (path
+configurable); bundling a self-contained venv into the distributable `.app` is deferred to a later
+packaging pass. Engine emits the LOCKED `Transcript` schema on stdout; Rust captures it + emits progress.
+
+## ▶ RESUME HERE (next session) — updated 2026-10-18 (P1 core built + UI prototype; AWAITING owner A/B/C pick)
+**Branch:** `update/audio-transcription` (off `main`; AUDIO-RECORDINGS now MERGED to main & shipped).
+Tree clean, pushed. Model question SETTLED (owner directive "same models as /dev/transcriber" →
+see `wiki.md` ⚑ DECISION UPDATE 2026-10-18): **Czech-Whisper default + Parakeet "simple English";
+engine = shell out to a Python/MLX subprocess, NOT whisper.cpp.**
+
+### DONE this session
+- **P1 core (TS, model-agnostic, tested):** `src/lib/transcripts/` —
+  `audioRef.ts` (isAudioRef + sidecar predicates), `queue.ts` (`listUntranscribedAudio`, store-
+  agnostic, pure `partitionAudioRefs`), `models.ts` (two-model catalog: ids/backendIds/labels/
+  hints/choice order/`coerceModel`), `engine.ts` (`TranscriptionEngine` seam + progress phases),
+  `rowStatus.ts` (phase→status mapping). +18 tests. `tsc` clean.
+- **UI PROTOTYPE:** `prototypes/transcription-ui.html` (single self-contained file + shared
+  `_kit.css`). Live-combinable **A**(drawer) × **B**(row) × **C**(choice) with a real transcribe
+  lifecycle sim. Built from 3 parallel UX agents; jsdom smoke-tested.
+
+### ⛔ NEXT: owner picks the combo (A#, B#, C#) — recommendations A2 · B2 · C2
+Variants (full rationale in each agent's proposal / the prototype rail legend):
+- Drawer: A1 calm-column · **A2 whisper-sync/queue-first (rec)** · A3 push-content
+- Row:    B1 one-line · **B2 two-line + mini-waveform (rec)** · B3 progressive-expand
+- Choice: C1 popover · **C2 split-button (press=Czech / ▾=choose) (rec)** · C3 inline reveal
+Then: P2 build the chosen drawer+queue as real React (wire `listUntranscribedAudio` + the model
+catalog into `SyncStatus`→drawer), then P0 packaging spike (bundle the Python/MLX engine) → P3+ engine.
 
 ### THEN: Phase 0 is a RESEARCH SPIKE (biggest risk) — do it before committing to the plan
 Verify, in a throwaway spike **inside this update folder** (not main code):
@@ -59,6 +93,35 @@ risky; the rest is wiring.
 - **P6 — Build, device-verify (real mic recording → transcribe → read in split), merge.**
 
 ## Status / decisions / next
+- 2026-10-18 (cont.): **Real engine built + proven; native binding done.**
+  - Prototype: owner picked **per-row model badge**; forced **dark-only**, dropped theme toggle + demo bar;
+    restored running %, text `1`/`→` toggle, preview moved right of title, hover tooltip + added-date,
+    model-change resets progress. All verified in jsdom.
+  - **P0 GO**: M3 Mac has the transcriber venv (`mlx_whisper`+`parakeet_mlx`), ffmpeg, `claude`, and BOTH
+    models cached. **P1 engine** `spike-engine/pensieve_transcribe.py` (also shipped at
+    `src-tauri/engine/`) emits the LOCKED schema; ran the 60s clip: czech-whisper 7seg/115 words/23s,
+    parakeet 7seg/170 words/3.5s — all schema checks pass. Self-contained (venv only, no PYTHONPATH).
+  - **P2 Rust** `src-tauri/src/transcribe.rs` → `transcribe_audio(mediaRef,model,pythonPath,enginePath,
+    polish)` spawns the engine, streams `transcribe-progress`, returns the Transcript JSON. `cargo check` clean.
+  - **P3/P4 DONE (frontend + sync):** `src/lib/transcripts/nativeEngine.ts` (real engine seam) +
+    `src/components/transcription/` (useProcessQueue, pure queueOps [tested], ProcessRow reusable
+    row, ProcessQueue section). `SyncStatus` popup → full-height **right drawer**, always-mounted so
+    background transcription survives closing. Sync rules wired: completed sync → auto-enqueue new
+    untranscribed audio (Czech default); finished transcript → `syncNow()` uploads the sidecar;
+    opening the drawer rescans for manually-added recordings. Both block seeders now call the real
+    engine (`transcribeBlockAudio`). tsc clean · 885 tests · web build clean.
+  - **P5/P6 DONE (build):** engine bundled as a Tauri resource; `npm run tauri:build` → installed to
+    `/Applications/Pensieve.app` (verified mod-time + bundled engine at Contents/Resources/engine/).
+    **AWAITING owner on-device click-through** before merge to main (open app → sync rune → Process
+    queue → Run). Known minor: the per-row model menu can clip at the bottom of a long queue (portal
+    later). Not merged yet.
+  - (superseded) NEXT — P3 (frontend): port the prototype queue into a real React right-drawer (reuse `deriveSyncView`),
+    wire `listUntranscribedAudio` + the P1 queue state machine, a config holding pythonPath/enginePath
+    (defaults: transcriber venv + shipped engine), the progress listener, and replace the TWO dev
+    `createTranscript` seeders with the real `invoke("transcribe_audio")` → `saveTranscript` → `reindex`.
+    **P4:** sync wiring (auto-enqueue on sync, Czech default, sync-primary + transcribe-parallel, auto-sync
+    finished sidecar). **P5/6:** `tauri:build` + owner device-verify.
+
 - 2026-10-17: Deep research done (transcriber engine + Pensieve internals) → `wiki.md`. Plan drafted.
   Asked the 3 owner decisions; **interrupted before answers** → they're the first thing on resume.
   No code yet. Everything still on `update/audio-recordings` @ `cbbee3e`.

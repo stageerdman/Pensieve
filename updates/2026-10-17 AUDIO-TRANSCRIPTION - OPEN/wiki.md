@@ -132,7 +132,47 @@ audio-extension set. **No `isAudioRef` exists yet — add one** next to `isImage
 
 ---
 
-## C. Engineering decisions already made (not owner-facing)
+## ⚑ DECISION UPDATE — 2026-10-18 (owner directive) — SUPERSEDES parts of §A/§C/§D below
+
+Owner directive this session: **"use the same models as `/dev/transcriber`."** A fresh ground-truth
+read of that repo (see report) settles the model question and FLIPS the engine architecture:
+
+### The two models (confirmed, exact ids)
+- **Czech-finetuned Whisper — the DEFAULT.** HF `mikr/whisper-large-v3-czech-cv13`, converted to
+  **Apple-MLX fp16** (~3 GB), run via **`mlx-whisper`** + Silero-VAD chunking. Best Czech quality.
+- **Parakeet TDT v3 — the "not whisper" model.** `mlx-community/parakeet-tdt-0.6b-v3`, run via
+  **`parakeet-mlx`**. NVIDIA TDT architecture (not encoder-decoder), **multilingual & auto-detecting**,
+  ~60× realtime, essentially never hallucinates. NB: it is NOT English-only — it is the *fast/robust*
+  model. It maps onto the owner's "simple English" choice well, but technically takes no language arg.
+
+### Engine architecture — FLIPPED: shell out to a Python/MLX engine, NOT whisper.cpp
+Both models are **Apple-MLX / Python**. Parakeet CANNOT run on whisper.cpp at all. So to honour
+"same models," Pensieve's Rust shell **spawns a Python transcription subprocess** (reusing the
+transcriber's engine) and captures its stdout → our locked `Transcript` JSON. This matches Pensieve's
+existing "shell out to the `claude` CLI" pattern. Consequences, all accepted as the cost of same-models:
+- **Apple-Silicon macOS only** (MLX needs Metal). Fine — Pensieve is macOS-first, desktop-only AI.
+- **~6 GB of models** downloaded on first use (3 GB Czech + the Parakeet weights). Progress in sidebar.
+- Needs a **Python runtime + the MLX deps** present (bundled venv, or a documented local env — P0 spike
+  decides packaging). **ffmpeg** comes along as the decode path (the engine already uses it) → the old
+  symphonia/whisper-rs/Metal-build worries in §C are MOOT; delete that risk.
+- `whisper.cpp`/`whisper-rs` are **dropped** for this feature (contradicts CLAUDE.md's stack line —
+  owner directive overrides; note it when updating CLAUDE.md).
+
+### Model-choice UX — owner decided (the new interaction to design)
+- **Automatic transcription → Czech-finetuned Whisper by default** (no prompt).
+- **Manual "Transcribe" button → ask one quick question:** is this **simple English** (→ Parakeet,
+  fast) or **more complicated / Czech** (→ Czech Whisper, the default)? Two choices, nothing more.
+- Language: Whisper path auto-detects (polish preserves source language); Parakeet auto-detects itself.
+  → So the old §D Q1/Q2/Q3 are effectively ANSWERED (model axis + language). Only packaging (P0) is open.
+
+### Still to port verbatim from the transcriber (unchanged by the flip)
+Decode flags (`condition_on_previous_text=False`, temp ladder `(0,0.2,0.4)`, `word_timestamps=True`,
+NO `initial_prompt`, thresholds), Silero-VAD 28 s chunking, and the `claude -p` minimal-edit polish
+with the 1.4× length + 0.6 accent-folded containment guards. Single-track / speaker=null.
+
+---
+
+## C. Engineering decisions already made (not owner-facing) — ⚠ whisper.cpp items SUPERSEDED above
 - **ASR = whisper.cpp** (via `whisper-rs` crate in-process, OR a bundled `whisper-cli` binary — the
   P0 spike decides; whisper-rs is cleaner/"integrated" but compiles C++ with Metal → build-time risk).
 - **Audio decode = pure-Rust `symphonia` + a resampler to 16 kHz mono**, to AVOID bundling ffmpeg
@@ -146,7 +186,11 @@ audio-extension set. **No `isAudioRef` exists yet — add one** next to `isImage
 - **Desktop-only**: the whole queue + engine is Tauri-only; hide on browser/phone (like
   `deriveSyncView.hidden`).
 
-## D. OWNER DECISIONS STILL PENDING (asked, interrupted before answering) — ASK THESE FIRST ON RESUME
+## D. OWNER DECISIONS — ✅ RESOLVED 2026-10-18 (see the ⚑ DECISION UPDATE block above)
+Superseded by the owner directive "use the same models as /dev/transcriber": model axis is now
+Czech-Whisper-default vs Parakeet-for-simple-English (asked at the Transcribe button); language
+auto-detects; sidebar = right drawer (still the recommendation, confirm in prototype). Original
+pending list kept below for history.
 1. **Whisper model default**: `large-v3-turbo` (~1.6GB, fast, slightly weaker Czech) vs `large-v3`
    (~3GB, best Czech, 2–3× slower) vs `medium` (~1.5GB, lower accuracy). My recommendation: turbo,
    unless Czech accuracy is paramount → large-v3.
