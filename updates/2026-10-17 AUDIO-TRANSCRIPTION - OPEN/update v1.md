@@ -103,7 +103,19 @@ risky; the rest is wiring.
     parakeet 7seg/170 words/3.5s — all schema checks pass. Self-contained (venv only, no PYTHONPATH).
   - **P2 Rust** `src-tauri/src/transcribe.rs` → `transcribe_audio(mediaRef,model,pythonPath,enginePath,
     polish)` spawns the engine, streams `transcribe-progress`, returns the Transcript JSON. `cargo check` clean.
-  - **NEXT — P3 (frontend):** port the prototype queue into a real React right-drawer (reuse `deriveSyncView`),
+  - **P3/P4 DONE (frontend + sync):** `src/lib/transcripts/nativeEngine.ts` (real engine seam) +
+    `src/components/transcription/` (useProcessQueue, pure queueOps [tested], ProcessRow reusable
+    row, ProcessQueue section). `SyncStatus` popup → full-height **right drawer**, always-mounted so
+    background transcription survives closing. Sync rules wired: completed sync → auto-enqueue new
+    untranscribed audio (Czech default); finished transcript → `syncNow()` uploads the sidecar;
+    opening the drawer rescans for manually-added recordings. Both block seeders now call the real
+    engine (`transcribeBlockAudio`). tsc clean · 885 tests · web build clean.
+  - **P5/P6 DONE (build):** engine bundled as a Tauri resource; `npm run tauri:build` → installed to
+    `/Applications/Pensieve.app` (verified mod-time + bundled engine at Contents/Resources/engine/).
+    **AWAITING owner on-device click-through** before merge to main (open app → sync rune → Process
+    queue → Run). Known minor: the per-row model menu can clip at the bottom of a long queue (portal
+    later). Not merged yet.
+  - (superseded) NEXT — P3 (frontend): port the prototype queue into a real React right-drawer (reuse `deriveSyncView`),
     wire `listUntranscribedAudio` + the P1 queue state machine, a config holding pythonPath/enginePath
     (defaults: transcriber venv + shipped engine), the progress listener, and replace the TWO dev
     `createTranscript` seeders with the real `invoke("transcribe_audio")` → `saveTranscript` → `reindex`.
