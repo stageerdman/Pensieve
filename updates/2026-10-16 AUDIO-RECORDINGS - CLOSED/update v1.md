@@ -14,7 +14,19 @@ the full seam for it: the sidecar schema, loading, rendering, sync, and search. 
 is **UX-led**: the hard part is the design. We produce judgeable `.html` prototypes first,
 the owner picks, then we build.
 
-## ▶ RESUME HERE (for the next session / new AI) — updated 2026-10-17 (drag bug CLOSED)
+## ✅ SHIPPED (2026-10-18) — desktop merged to main
+**MERGED to `main` @ `e870a8f`** (fast-forward) and pushed. Native `tauri:build` run → app
+installed to `/Applications`. **Owner-confirmed: desktop audio works well** (recording, mic
+permission, gutter click-menu, transcript views, Accio, gallery). 849 tests pass · `tsc` clean.
+
+**Deferred (NOT part of this update — intentionally left for later):**
+- **iPhone audio capture** → a SEPARATE future update (the phone app is capture-only).
+- **Wand polish** → the home "+" wand works but is unloved; cosmetic rework later, not now.
+
+Transcription continues on branch `update/audio-transcription` (off `main`).
+
+---
+### (historical) ▶ RESUME HERE — updated 2026-10-17 (drag bug CLOSED)
 **Branch:** `update/audio-recordings` — ALL work pushed to origin, tree CLEAN. HEAD = `P6.3i`.
 Branched off `main`, **not yet merged**. **Design LOCKED** (⚑ block atop `prototypes/design-spec.md`).
 **845 tests pass · `tsc` clean · web build OK. Native `tauri:build` NOT run yet (P7).**
