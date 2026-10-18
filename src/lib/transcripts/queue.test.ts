@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { partitionAudioRefs, listUntranscribedAudio, type QueueStore } from "./queue";
+import { partitionAudioRefs, listUntranscribedAudio, queueItemLabel, type QueueStore } from "./queue";
 import { isAudioRef, isTranscriptSidecar, audioRefForSidecar } from "./audioRef";
 import type { Transcript } from "./types";
 
@@ -56,7 +56,15 @@ describe("listUntranscribedAudio", () => {
     ]);
     const q = await listUntranscribedAudio(titleFor, store);
     expect(q.map((i) => i.ref)).toEqual(["media/n2/b.wav"]);
-    expect(q[0]).toMatchObject({ ref: "media/n2/b.wav", noteId: "n2", title: "Note n2" });
+    expect(q[0]).toMatchObject({ ref: "media/n2/b.wav", noteId: "n2", title: "Note n2", audioName: "b.wav" });
+  });
+
+  it("labels a row by note title, falling back to the audio file name", async () => {
+    const store = fakeStore(["media/n9/rec-9.mp3"]);
+    const [withTitle] = await listUntranscribedAudio(() => "Call with Dominik", store);
+    expect(queueItemLabel(withTitle)).toBe("Call with Dominik");
+    const [noTitle] = await listUntranscribedAudio(() => "   ", store); // blank note title
+    expect(queueItemLabel(noTitle)).toBe("rec-9.mp3");
   });
 
   it("falls back to loadTranscript when sidecars aren't listed (browser shape)", async () => {

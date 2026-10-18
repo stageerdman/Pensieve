@@ -16,7 +16,14 @@ export type QueueStore = Pick<Store, "listMedia" | "loadTranscript">;
 export interface AudioQueueItem {
   ref: string; // vault-relative audio ref — the engine's input + the sidecar key
   noteId: string; // the note this audio belongs to
-  title: string; // human label for the row (note title)
+  title: string; // the note's page title (may be empty — voice memos carry no title)
+  audioName: string; // the audio file's basename (e.g. "rec-9.mp3") — the label fallback
+}
+
+/** The row label: the note's page title when it has one, else the audio file name
+ *  (never a generic "Untitled") — per the owner's spec. */
+export function queueItemLabel(item: AudioQueueItem): string {
+  return item.title.trim() || item.audioName;
 }
 
 export interface AudioPartition {
@@ -63,7 +70,12 @@ export async function listUntranscribedAudio(
     if ((await store.loadTranscript(ref)) !== null) continue; // browser / belt-and-braces
     const parsed = parseMediaPath(ref);
     if (!parsed) continue;
-    out.push({ ref, noteId: parsed.noteId, title: titleFor(parsed.noteId) });
+    out.push({
+      ref,
+      noteId: parsed.noteId,
+      title: titleFor(parsed.noteId),
+      audioName: `${parsed.mediaId}.${parsed.ext}`,
+    });
   }
   return out.reverse();
 }

@@ -13,6 +13,13 @@ describe("transcription model catalog", () => {
     expect(MODELS.parakeet.backendId).toBe("mlx-community/parakeet-tdt-0.6b-v3");
   });
 
+  it("uses the owner's choice wording + short chips", () => {
+    expect(MODELS["czech-whisper"].choiceLabel).toBe("Czech Mix (Slow)");
+    expect(MODELS["czech-whisper"].chipLabel).toBe("Czech");
+    expect(MODELS.parakeet.choiceLabel).toBe("English (Fast)");
+    expect(MODELS.parakeet.chipLabel).toBe("English");
+  });
+
   it("lists choices default-first (path of least resistance)", () => {
     const ids = modelChoices().map((m) => m.id);
     expect(ids).toEqual(["czech-whisper", "parakeet"]);

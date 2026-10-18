@@ -22,10 +22,10 @@ export interface ModelInfo {
   id: TranscriptionModel;
   /** The native model identifier the engine loads (HF repo / converted MLX dir). */
   backendId: string;
-  /** Short label for the choice UI. */
-  label: string;
-  /** One-line plain-language tradeoff hint (speed vs Czech accuracy) — no jargon. */
-  hint: string;
+  /** The label in the Transcribe choice menu — speed tradeoff baked in (owner's wording). */
+  choiceLabel: string;
+  /** The tiny badge shown on a running/chosen row. */
+  chipLabel: string;
   /** True for the default/safe option, so the UI can mark the path of least resistance. */
   isDefault: boolean;
 }
@@ -34,15 +34,15 @@ export const MODELS: Record<TranscriptionModel, ModelInfo> = {
   "czech-whisper": {
     id: "czech-whisper",
     backendId: "mikr/whisper-large-v3-czech-cv13",
-    label: "Complicated / Czech",
-    hint: "Best for Czech or anything tricky. A little slower.",
+    choiceLabel: "Czech Mix (Slow)",
+    chipLabel: "Czech",
     isDefault: true,
   },
   parakeet: {
     id: "parakeet",
     backendId: "mlx-community/parakeet-tdt-0.6b-v3",
-    label: "Simple English",
-    hint: "Fast, for clear English speech.",
+    choiceLabel: "English (Fast)",
+    chipLabel: "English",
     isDefault: false,
   },
 };
