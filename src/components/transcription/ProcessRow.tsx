@@ -38,6 +38,7 @@ export interface ProcessRowProps {
   running?: boolean; // engine is actively on this row
   pct: number; // 0..100
   error?: boolean;
+  errorMsg?: string; // the failure reason — shown on hover over the error icon
   // audio-type extras (omit → a plain processing row)
   model?: TranscriptionModel;
   previewing?: boolean;
@@ -55,6 +56,7 @@ export function ProcessRow({
   running,
   pct,
   error,
+  errorMsg,
   model,
   previewing,
   onReorder,
@@ -178,7 +180,10 @@ export function ProcessRow({
         </span>
       )}
       {error && (
-        <span className="inline-flex shrink-0 text-danger" title="Couldn't process — press Run to retry">
+        <span
+          className="inline-flex shrink-0 cursor-help text-danger"
+          title={errorMsg ? `${errorMsg}\n\n(press Run to retry)` : "Couldn't process — press Run to retry"}
+        >
           <Warn />
         </span>
       )}

@@ -32,6 +32,21 @@ import {
 
 export type { ProcessItem, QueueMode } from "./queueOps";
 
+/** Turn a raw transcribe rejection into a short, human-readable reason for the error tooltip.
+ *  The Rust error is `engine exited with <status>: <stderr tail>`; the tail interleaves JSON
+ *  progress lines and tqdm bars with the real failure. Keep the last few meaningful lines
+ *  (a Python traceback ends with the exception, e.g. `RuntimeError: Czech MLX model missing`). */
+export function cleanEngineError(e: unknown): string {
+  const raw = (typeof e === "string" ? e : (e as Error)?.message ?? String(e)).trim();
+  if (!raw) return "Transcription failed (no error detail)";
+  const meaningful = raw
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("{") && !/\d+%\|/.test(l) && !/^\d+\/\d+\s*\[/.test(l));
+  const tail = meaningful.slice(-4).join("\n");
+  return (tail || raw).slice(0, 800);
+}
+
 export interface UseProcessQueue {
   items: ProcessItem[]; // sorted by order
   playing: boolean;
@@ -94,9 +109,10 @@ export function useProcessQueue(opts: {
       })
       .catch((e) => {
         runningRef.current = null;
-        log.error("transcribe", "queue.error", { ref, error: String(e) });
+        const msg = cleanEngineError(e);
+        log.error("transcribe", "queue.error", { ref, error: msg });
         processQueue.notifyResult(ref, false);
-        setItems((prev) => prev.map((i) => (i.ref === ref ? { ...i, error: true, phase: null } : i)));
+        setItems((prev) => prev.map((i) => (i.ref === ref ? { ...i, error: true, errorMsg: msg, phase: null } : i)));
         setPlaying(false);
       });
   }, [items, playing, enabled, engine, onTranscribed]);
@@ -134,7 +150,7 @@ export function useProcessQueue(opts: {
         const existing = prev.find((i) => i.ref === req.ref);
         if (existing) {
           // already listed → set its model, clear state, let it run
-          return prev.map((i) => (i.ref === req.ref ? { ...i, model: req.model, pct: 0, error: false } : i));
+          return prev.map((i) => (i.ref === req.ref ? { ...i, model: req.model, pct: 0, error: false, errorMsg: undefined } : i));
         }
         const item: ProcessItem = {
           ref: req.ref,

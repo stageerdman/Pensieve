@@ -104,6 +104,7 @@ export const ProcessQueue = forwardRef<ProcessQueueHandle, Props>(function Proce
               running={q.playing && q.activeRef === it.ref}
               pct={it.pct}
               error={it.error}
+              errorMsg={it.errorMsg}
               model={it.model}
               previewing={previewRef === it.ref}
               onReorder={(pos) => q.reorder(it.ref, pos)}

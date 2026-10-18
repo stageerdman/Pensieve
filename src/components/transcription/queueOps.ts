@@ -17,6 +17,7 @@ export interface ProcessItem {
   pct: number; // 0..100
   phase: TranscribePhase | null;
   error: boolean;
+  errorMsg?: string; // the engine/invoke failure reason, shown on hover over the error icon
 }
 
 export const byOrder = (a: ProcessItem, b: ProcessItem) => a.order - b.order;
@@ -72,10 +73,10 @@ export function mergeNewItems(
 
 /** Change a row's model — and reset its progress, since it must transcribe from scratch. */
 export function setItemModel(items: ProcessItem[], ref: string, model: TranscriptionModel): ProcessItem[] {
-  return items.map((i) => (i.ref === ref && i.model !== model ? { ...i, model, pct: 0, error: false } : i));
+  return items.map((i) => (i.ref === ref && i.model !== model ? { ...i, model, pct: 0, error: false, errorMsg: undefined } : i));
 }
 
 /** Clear errors (and reset their %) so a Run retries previously-failed rows. */
 export function clearErrorsForRetry(items: ProcessItem[]): ProcessItem[] {
-  return items.map((i) => (i.error ? { ...i, error: false, pct: 0 } : i));
+  return items.map((i) => (i.error ? { ...i, error: false, errorMsg: undefined, pct: 0 } : i));
 }
