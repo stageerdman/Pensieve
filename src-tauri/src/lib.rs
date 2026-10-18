@@ -11,6 +11,7 @@ use tauri::menu::{Menu, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 
 mod sync;
+mod transcribe;
 
 // Flip between a normal app (dock icon + the Appearance menu) and a pure menu-bar
 // "accessory" (no dock icon, no app menu) depending on whether a window is on screen.
@@ -265,7 +266,8 @@ pub fn run() {
             sync::open_url,
             sync::oauth_listen,
             sync::port_available,
-            sync::http_request
+            sync::http_request,
+            transcribe::transcribe_audio
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
