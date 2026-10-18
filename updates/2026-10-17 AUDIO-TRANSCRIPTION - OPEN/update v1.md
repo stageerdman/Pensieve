@@ -11,17 +11,29 @@ Engine = port the `/Users/stage/dev/transcriber` **approach** onto **whisper.cpp
 Rust/Tauri) + the **`claude -p` AI polish** step. Full engine/flags/prompt detail + Pensieve
 plug-in points are in **`wiki.md` — READ IT FIRST.**
 
-## ▶ RESUME HERE (next session) — updated 2026-10-17 (WRAP-UP, nothing coded yet)
-**Branch:** `update/audio-recordings` (transcription will continue here or a branch off it;
-AUDIO-RECORDINGS is NOT merged to main yet — see that update's resume block + its P7/device-verify).
-**HEAD = `cbbee3e` (P6.7), tree clean, pushed.** NO transcription code written yet — this update
-is **research + plan only** so far. 845+4 tests green as of P6.7.
+## ▶ RESUME HERE (next session) — updated 2026-10-18 (P1 core built + UI prototype; AWAITING owner A/B/C pick)
+**Branch:** `update/audio-transcription` (off `main`; AUDIO-RECORDINGS now MERGED to main & shipped).
+Tree clean, pushed. Model question SETTLED (owner directive "same models as /dev/transcriber" →
+see `wiki.md` ⚑ DECISION UPDATE 2026-10-18): **Czech-Whisper default + Parakeet "simple English";
+engine = shell out to a Python/MLX subprocess, NOT whisper.cpp.**
 
-### FIRST THING ON RESUME: get the 3 owner decisions (asked, but interrupted before answering)
-They are in `wiki.md` §D. Summary: (1) whisper model default — turbo vs large-v3 vs medium;
-(2) language — auto-detect vs always-Czech vs a setting; (3) sidebar — right drawer (toggled by
-sync button) vs always-docked panel. My recommendations: turbo (or large-v3 if Czech accuracy
-matters most), auto-detect, right drawer. Then bake answers into the phases below and build.
+### DONE this session
+- **P1 core (TS, model-agnostic, tested):** `src/lib/transcripts/` —
+  `audioRef.ts` (isAudioRef + sidecar predicates), `queue.ts` (`listUntranscribedAudio`, store-
+  agnostic, pure `partitionAudioRefs`), `models.ts` (two-model catalog: ids/backendIds/labels/
+  hints/choice order/`coerceModel`), `engine.ts` (`TranscriptionEngine` seam + progress phases),
+  `rowStatus.ts` (phase→status mapping). +18 tests. `tsc` clean.
+- **UI PROTOTYPE:** `prototypes/transcription-ui.html` (single self-contained file + shared
+  `_kit.css`). Live-combinable **A**(drawer) × **B**(row) × **C**(choice) with a real transcribe
+  lifecycle sim. Built from 3 parallel UX agents; jsdom smoke-tested.
+
+### ⛔ NEXT: owner picks the combo (A#, B#, C#) — recommendations A2 · B2 · C2
+Variants (full rationale in each agent's proposal / the prototype rail legend):
+- Drawer: A1 calm-column · **A2 whisper-sync/queue-first (rec)** · A3 push-content
+- Row:    B1 one-line · **B2 two-line + mini-waveform (rec)** · B3 progressive-expand
+- Choice: C1 popover · **C2 split-button (press=Czech / ▾=choose) (rec)** · C3 inline reveal
+Then: P2 build the chosen drawer+queue as real React (wire `listUntranscribedAudio` + the model
+catalog into `SyncStatus`→drawer), then P0 packaging spike (bundle the Python/MLX engine) → P3+ engine.
 
 ### THEN: Phase 0 is a RESEARCH SPIKE (biggest risk) — do it before committing to the plan
 Verify, in a throwaway spike **inside this update folder** (not main code):
