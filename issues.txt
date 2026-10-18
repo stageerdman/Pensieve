@@ -1,6 +1,31 @@
 Pensieve — known issues & TODOs
 (one line per item; move resolved items out or mark done)
 
+AUDIO-TRANSCRIPTION — SHIPPED to main (2026-10-18, owner-confirmed on the native app):
+- [x] Local two-model transcription: Czech-finetuned Whisper (default, lang cs, Silero-VAD
+      28s chunks) + Parakeet TDT v3 (fast). Python/MLX engine the Rust shell spawns; emits the
+      locked Transcript schema w/ word timings. Engine bundled at Contents/Resources/engine/.
+- [x] Rust `transcribe_audio` streams `transcribe-progress`; child PATH includes /opt/homebrew/bin
+      (a Finder-launched .app has a minimal PATH → ffmpeg/claude not found → silent failure).
+- [x] Sync popup → full-height right DRAWER w/ a Process queue (global Run/Pause + 1/→ mode,
+      editable order #, per-row model badge, preview ▶). Auto on sync (Czech default); manual
+      block "Create/Regenerate" asks English/Czech and routes through the queue (visible there).
+- [x] Parakeet sub-word tokens grouped back into whole words (was letter-by-letter in the reader).
+- [ ] Transcription failures only show a red icon, not the reason — add the error TEXT to the
+      Process row (engine error already round-trips in the invoke rejection; just display it).
+- [ ] Per-row model menu can clip at the bottom of a long queue — portal it.
+- [ ] Packaging: engine runs via the transcriber venv (/Users/stage/dev/transcriber/.venv, or
+      $PENSIEVE_PYTHON); bundling a self-contained Python+MLX runtime into the .app is deferred.
+- [ ] Czech on a 75-min tape ~25-30 min (Parakeet ~2 min) — no in-UI ETA; acceptable for now.
+
+AUDIO format — post-ship fix (2026-10-18): WKWebView plays its OWN MediaRecorder WebM/Opus badly
+(no duration → silent/glitchy playback; ate an hour tape, fully recovered):
+- [x] Record audio/mp4 (.m4a/AAC) by default; WebM only as a dev-browser fallback (recorder.ts).
+- [x] Player self-heals duration=Infinity/NaN via seek-past-end-then-0 (controller.ts), so legacy
+      WebM clips repair on load. MediaRecorder CANNOT emit mp3 in any engine — m4a is the target.
+- [ ] Legacy WebM recordings made before this fix: recover with `ffmpeg -i in.webm -c:a aac
+      out.m4a` + repoint the note's pensieve:audio ref (self-heal also lets them play as-is).
+
 MEDIA-IMAGES — built on branch update/media-images (2026-10-14), owner to confirm native:
 - [x] Desktop single image: paste / `/image` (URL or OS picker) / drag-drop; width snaps
       25/50/75/100% (⌘[ / ⌘]); caption = alt; Replace/Remove; broken-keeps-rect state.
