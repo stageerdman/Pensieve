@@ -7,44 +7,60 @@
   <link rel="stylesheet" href="_kit.css" />
   <style>
     /* ─────────────────────────────────────────────────────────────────────
-       Transcription queue prototype (v2 — clearer controls + visible progress).
-       Design per owner: one-line rows · page title (or audio filename) · duration ·
-       bare % while working · SYMBOL controls (▶ start / ⏸ pause). A thin progress
-       RING encircles the control while transcribing (not a horizontal load bar).
-       One at a time; pause / hold / resume any row; done → row drops out.
-       Model choice = 3 options: Czech Mix (Slow) · English (Fast) · Cancel.
+       Transcription queue prototype (v3 — full living experience).
+       Flow: drawer starts CLOSED → click the sync rune → full cloud details +
+       the Transcribe queue. Press ▶ on a row → pick a model → it transcribes
+       for real-feeling: ring + climbing % + a live streaming partial transcript
+       + an equalizer. One at a time; pause/hold/resume; done → row drops out.
+       "Back up now" runs a live backup animation so the cloud side is alive too.
        ───────────────────────────────────────────────────────────────────── */
     .stage { position: fixed; inset: 0; display: flex; flex-direction: column; }
     .mock-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid hsl(var(--border)); }
     .mock-brand { font-size: 14px; color: hsl(var(--text-muted)); }
     .mock-body { flex: 1 1 auto; overflow: auto; padding: 32px max(16px, 5vw); }
     .mock-body h1 { font-size: 24px; margin: 0 0 8px; }
-    .mock-body p { max-width: 60ch; color: hsl(var(--text) / 0.72); margin: 0 0 20px; }
+    .mock-body p { max-width: 60ch; color: hsl(var(--text) / 0.72); margin: 0 0 14px; }
+    .mock-body .cue { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: hsl(var(--accent)); }
+    .mock-body .cue svg { width: 18px; height: 18px; }
 
-    /* ── Legend: every state shown statically so nothing hides behind timing ── */
-    .legend { max-width: 540px; }
-    .legend h2 { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: hsl(var(--text-muted)); margin: 0 0 10px; }
-    .legend-row { display: flex; align-items: center; gap: 14px; padding: 9px 12px; border: 1px solid hsl(var(--border)); border-radius: 10px; background: hsl(var(--surface-sunken)); margin-bottom: 8px; }
-    .legend-row .cap { font-size: 12px; color: hsl(var(--text-muted)); }
-    .legend-row .cap b { color: hsl(var(--text)); font-weight: 600; }
-
-    /* ── Drawer shell (whisper-sync + queue) ─────────────────────────────── */
-    .rune-btn { display: inline-grid; place-items: center; width: 34px; height: 34px; border: none; background: transparent; color: hsl(var(--text-muted)); border-radius: var(--radius); cursor: pointer; }
+    /* sync rune (reuses the kit .sync-icon; add the syncing animation here) */
+    .rune-btn { position: relative; display: inline-grid; place-items: center; width: 34px; height: 34px; border: none; background: transparent; color: hsl(var(--text-muted)); border-radius: var(--radius); cursor: pointer; }
     .rune-btn:hover, .rune-btn.is-open { background: hsl(var(--surface-raised)); color: hsl(var(--text)); }
-    .sync-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 350px; z-index: 40; display: flex; flex-direction: column; background: hsl(var(--surface-raised)); border-left: 1px solid hsl(var(--border)); transform: translateX(100%); transition: transform var(--dur-slow) var(--ease); }
-    .sync-drawer.is-open { transform: translateX(0); }
-    .sync-region { flex: 0 0 auto; border-bottom: 1px solid hsl(var(--border)); }
-    .sync-strip { display: flex; width: 100%; align-items: center; gap: 8px; padding: 12px 14px; border: none; background: transparent; color: hsl(var(--text)); cursor: pointer; font: inherit; }
-    .sync-strip .chev { margin-left: auto; color: hsl(var(--text-muted)); transition: transform var(--dur) var(--ease); }
-    .sync-region[data-collapsed="false"] .sync-strip .chev { transform: rotate(180deg); }
-    .sync-region[data-collapsed="true"] .sync-card { display: none; }
-    .sync-card { padding: 0 14px 14px; }
-    .sync-meter { height: 6px; border-radius: 999px; background: hsl(var(--surface-sunken)); overflow: hidden; margin: 6px 0 2px; }
-    .sync-meter > i { display: block; height: 100%; width: 46%; background: hsl(var(--text-muted) / 0.5); }
-    .sync-btn { display: inline-flex; width: 100%; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; padding: 7px 12px; border: 1px solid hsl(var(--border)); background: hsl(var(--surface)); color: hsl(var(--text)); border-radius: var(--radius); font-size: 14px; cursor: pointer; }
-    .sync-sub { margin-top: 12px; padding-top: 10px; border-top: 1px solid hsl(var(--border)); display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: hsl(var(--text-muted)); }
+    .rune-btn .nub { position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: hsl(var(--accent)); box-shadow: 0 0 0 2px hsl(var(--surface)); }
+    .sync-icon[data-state="syncing"] svg { animation: spin 1.6s linear infinite; color: hsl(var(--accent)); }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── Queue ───────────────────────────────────────────────────────────── */
+    /* ── Drawer ─────────────────────────────────────────────────────────── */
+    .sync-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 352px; z-index: 40; display: flex; flex-direction: column; background: hsl(var(--surface-raised)); border-left: 1px solid hsl(var(--border)); transform: translateX(100%); transition: transform var(--dur-slow) var(--ease); }
+    .sync-drawer.is-open { transform: translateX(0); }
+
+    .sync-region { flex: 0 0 auto; border-bottom: 1px solid hsl(var(--border)); padding: 14px; }
+    .sync-top { display: flex; align-items: flex-start; gap: 10px; }
+    .sync-top .sync-icon { margin-top: 1px; color: hsl(var(--text-muted)); }
+    .sync-title { font-size: 14px; color: hsl(var(--text)); margin: 0; }
+    .sync-subtle { font-size: 11px; color: hsl(var(--text-muted)); margin: 2px 0 0; }
+    .sync-collapse { margin-left: auto; border: none; background: transparent; color: hsl(var(--text-muted)); cursor: pointer; border-radius: var(--radius); display: grid; place-items: center; width: 24px; height: 24px; }
+    .sync-collapse svg { width: 14px; height: 14px; transition: transform var(--dur) var(--ease); }
+    .sync-region[data-collapsed="true"] .sync-collapse svg { transform: rotate(180deg); }
+    .sync-region[data-collapsed="true"] .sync-detail { display: none; }
+
+    .sync-transfer { display: none; align-items: center; gap: 9px; margin-top: 12px; }
+    .sync-region.is-syncing .sync-transfer { display: flex; }
+    .sync-flask { position: relative; width: 20px; height: 26px; border: 1.5px solid hsl(var(--text-muted)); border-radius: 4px 4px 7px 7px; overflow: hidden; flex: 0 0 auto; }
+    .sync-flask > i { position: absolute; left: 0; right: 0; bottom: 0; background: hsl(var(--accent) / 0.55); transition: height 300ms var(--ease); }
+    .sync-transfer .tx { min-width: 0; }
+    .sync-transfer .tx p { margin: 0; font-size: 11px; color: hsl(var(--text)); }
+    .sync-transfer .tx .fn { color: hsl(var(--text-muted)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .sync-meter { height: 6px; border-radius: 999px; background: hsl(var(--surface-sunken)); overflow: hidden; margin: 12px 0 4px; }
+    .sync-meter > i { display: block; height: 100%; width: 41%; background: hsl(var(--text-muted) / 0.5); transition: width 300ms var(--ease); }
+    .sync-btn { display: inline-flex; width: 100%; align-items: center; justify-content: center; gap: 8px; margin-top: 10px; padding: 7px 12px; border: 1px solid hsl(var(--border)); background: hsl(var(--surface)); color: hsl(var(--text)); border-radius: var(--radius); font-size: 14px; cursor: pointer; }
+    .sync-btn:hover { background: hsl(var(--surface-sunken)); }
+    .sync-btn[disabled] { opacity: .5; cursor: default; }
+    .sync-sub { margin-top: 12px; padding-top: 10px; border-top: 1px solid hsl(var(--border)); display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: hsl(var(--text-muted)); }
+    .sync-sub a { color: hsl(var(--text-muted)); cursor: pointer; }
+
+    /* ── Queue ─────────────────────────────────────────────────────────── */
     .tq { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
     .tq-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: hsl(var(--surface-raised)); border-bottom: 1px solid hsl(var(--border)); }
     .tq-head .ttl { font-size: 14px; color: hsl(var(--text)); }
@@ -60,9 +76,9 @@
     .tq-empty { padding: 48px 16px; text-align: center; color: hsl(var(--text-muted)); }
     .tq-empty svg { width: 22px; height: 22px; opacity: .5; margin-bottom: 10px; }
 
-    /* one-line row */
-    .tq-row { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 6px 8px; border-radius: 9px; }
+    .tq-row { display: flex; flex-direction: column; gap: 3px; padding: 6px 8px; border-radius: 9px; }
     .tq-row + .tq-row { border-top: 1px solid hsl(var(--border) / 0.6); }
+    .tq-main { display: flex; align-items: center; gap: 10px; min-height: 34px; }
     .tq-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: hsl(var(--text)); }
     .tq-row.is-filename .tq-label { font-family: var(--font-mono); font-size: 12px; color: hsl(var(--text-muted)); }
     .tq-dur { flex: 0 0 auto; font-family: var(--font-mono); font-size: 12px; color: hsl(var(--text-muted)); font-variant-numeric: tabular-nums; }
@@ -71,7 +87,19 @@
     .tq-err { flex: 0 0 auto; display: inline-flex; color: hsl(var(--danger)); }
     .tq-err svg { width: 16px; height: 16px; }
 
-    /* ── the control button (SYMBOL + optional progress ring) ───────────── */
+    /* live equalizer (running only) */
+    .eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; flex: 0 0 auto; }
+    .eq i { width: 2px; height: 14px; background: hsl(var(--accent)); border-radius: 1px; transform-origin: bottom; animation: eq .9s var(--ease) infinite; }
+    .eq i:nth-child(2) { animation-delay: .15s; } .eq i:nth-child(3) { animation-delay: .3s; } .eq i:nth-child(4) { animation-delay: .45s; }
+    @keyframes eq { 0%, 100% { transform: scaleY(.3); } 50% { transform: scaleY(1); } }
+    .tq-row[data-state="paused"] .eq i { animation-play-state: paused; }
+
+    /* live streaming partial transcript (running/paused only) */
+    .tq-live { font-size: 11px; line-height: 1.4; color: hsl(var(--text-muted)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 2px; }
+    .tq-live .cursor { color: hsl(var(--accent)); animation: audio-pulse 1s steps(1) infinite; }
+    @keyframes audio-pulse { 50% { opacity: 0; } }
+
+    /* control button (symbol + progress ring) */
     .ctl { position: relative; flex: 0 0 auto; display: grid; place-items: center; width: 34px; height: 34px; border: none; background: transparent; padding: 0; cursor: pointer; border-radius: 50%; }
     .ctl .glyph { position: relative; z-index: 1; display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
     .ctl .glyph svg { width: 16px; height: 16px; }
@@ -79,34 +107,23 @@
     .ctl .ring circle { fill: none; stroke-width: 2.5; }
     .ctl .ring .track { stroke: hsl(var(--border)); }
     .ctl .ring .fill { stroke: hsl(var(--accent)); stroke-linecap: round; stroke-dasharray: 100; transition: stroke-dashoffset 160ms linear; }
-
-    /* idle → accent-filled ▶ (clearly "start") */
     .tq-row[data-state="idle"] .ctl .glyph { background: hsl(var(--accent)); color: hsl(var(--surface)); }
     .tq-row[data-state="idle"] .ctl:hover .glyph { background: hsl(var(--accent-glow)); }
-    /* running → ⏸ inside an accent ring showing % */
     .tq-row[data-state="running"] .ctl .glyph { color: hsl(var(--accent)); }
     .tq-row[data-state="running"] .ctl:hover .glyph { background: hsl(var(--accent) / 0.12); }
-    /* paused → ▶ inside a frozen muted ring */
     .tq-row[data-state="paused"] .ctl .glyph { color: hsl(var(--text-muted)); }
     .tq-row[data-state="paused"] .ctl .ring .fill { stroke: hsl(var(--text-muted)); }
     .tq-row[data-state="paused"] .ctl:hover .glyph { background: hsl(var(--accent) / 0.12); color: hsl(var(--text)); }
-    /* queued/held → outline control, muted (no ring) */
-    .tq-row[data-state="queued"] .ctl .glyph,
-    .tq-row[data-state="held"] .ctl .glyph { color: hsl(var(--text-muted)); border: 1px solid hsl(var(--border)); }
-    .tq-row[data-state="queued"] .ctl:hover .glyph,
-    .tq-row[data-state="held"] .ctl:hover .glyph { color: hsl(var(--text)); border-color: hsl(var(--accent) / 0.5); }
-    /* error → retry control */
-    .tq-row[data-state="error"] .ctl .glyph { color: hsl(var(--text-muted)); }
+    .tq-row[data-state="queued"] .ctl .glyph, .tq-row[data-state="held"] .ctl .glyph { color: hsl(var(--text-muted)); border: 1px solid hsl(var(--border)); }
+    .tq-row[data-state="queued"] .ctl:hover .glyph, .tq-row[data-state="held"] .ctl:hover .glyph { color: hsl(var(--text)); border-color: hsl(var(--accent) / 0.5); }
     .tq-row[data-state="error"] .ctl:hover .glyph { background: hsl(var(--accent) / 0.12); color: hsl(var(--text)); }
     .tq-row.is-leaving { overflow: hidden; }
 
-    /* 3-option choice popover */
     .audio-menu.tq-choose { min-width: 14rem; }
     .audio-menu.tq-choose button { justify-content: space-between; }
     .tq-choose .sub { font-size: 11px; color: hsl(var(--text-muted)); }
     .tq-choose .cancel { color: hsl(var(--text-muted)); }
 
-    /* demo bar */
     .demo { position: fixed; left: 16px; bottom: 16px; z-index: 55; display: flex; gap: 14px; align-items: center; padding: 8px 12px; background: hsl(var(--surface-raised) / 0.94); backdrop-filter: blur(8px); border: 1px solid hsl(var(--border)); border-radius: var(--radius); font-size: 11px; color: hsl(var(--text-muted)); }
     .demo label { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
     .demo button { border: 1px solid hsl(var(--border)); background: hsl(var(--surface)); color: hsl(var(--text)); border-radius: var(--radius); padding: 4px 9px; font-size: 11px; cursor: pointer; }
@@ -117,59 +134,59 @@
   <div class="stage">
     <div class="mock-header">
       <span class="mock-brand">Pensieve</span>
-      <button class="rune-btn is-open" id="rune" title="Sync & transcription" aria-label="Sync & transcription">
-        <span class="sync-icon" data-state="rest" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.6 1.4A3.5 3.5 0 0 1 17 16H6z"/></svg></span>
+      <button class="rune-btn" id="rune" title="Sync & transcription" aria-label="Sync & transcription">
+        <span class="sync-icon" id="rune-icon" data-state="rest" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.6 1.4A3.5 3.5 0 0 1 17 16H6z"/></svg></span>
+        <span class="nub" id="nub"></span>
       </button>
     </div>
     <div class="mock-body">
-      <h1>Transcription queue — prototype</h1>
-      <p>The drawer on the right is the real thing to try: press a row's <b>▶</b> to transcribe (pick a model), watch the <b>ring + %</b> fill, and <b>⏸</b> to pause. One runs at a time; a finished transcript drops out of the list. Below is a static key so you can see every control at a glance.</p>
-
-      <div class="legend" id="legend">
-        <h2>What each control means</h2>
-        <!-- filled by JS so the controls are identical to the real rows -->
-      </div>
+      <h1>Pensieve</h1>
+      <p>A couple of recordings are logged but not transcribed yet.</p>
+      <p class="cue">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        Start here → click the cloud rune, top-right.
+      </p>
     </div>
   </div>
 
-  <aside class="sync-drawer is-open" id="drawer" aria-label="Sync and transcription">
-    <div class="sync-region" id="sync-region" data-collapsed="true">
-      <button class="sync-strip" id="sync-strip">
-        <span class="sync-icon" data-state="rest" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.6 1.4A3.5 3.5 0 0 1 17 16H6z"/></svg></span>
-        <span class="t-ctl">All backed up</span><span class="t-meta muted">· 2m ago</span>
-        <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-      </button>
-      <div class="sync-card">
-        <div class="sync-meter"><i></i></div>
-        <p class="t-micro muted" style="margin:0">4.1 GB of 100 GB</p>
-        <button class="sync-btn">Back up now <span class="kbd">⌘S</span></button>
-        <div class="sync-sub"><span class="muted">jakub@icloud.com</span><a style="cursor:pointer">Sign out</a></div>
+  <aside class="sync-drawer" id="drawer" aria-label="Sync and transcription">
+    <div class="sync-region" id="sync-region" data-collapsed="false">
+      <div class="sync-top">
+        <span class="sync-icon" id="sync-glyph" data-state="rest" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16a4 4 0 0 1 .5-8 5.5 5.5 0 0 1 10.6 1.4A3.5 3.5 0 0 1 17 16H6z"/></svg></span>
+        <div style="min-width:0">
+          <p class="sync-title" id="sync-title">All backed up</p>
+          <p class="sync-subtle" id="sync-subtle">Last backed up · 2m ago</p>
+        </div>
+        <button class="sync-collapse" id="sync-collapse" title="Collapse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg></button>
+      </div>
+      <div class="sync-detail">
+        <div class="sync-transfer" id="sync-transfer">
+          <span class="sync-flask"><i id="flask-fill" style="height:0%"></i></span>
+          <div class="tx"><p id="tx-count">↑ 1 of 8</p><p class="fn" id="tx-name">Call with Dominik.m4a</p></div>
+        </div>
+        <div class="sync-meter"><i id="meter"></i></div>
+        <p class="t-micro muted" style="margin:0" id="space">4.1 GB of 100 GB</p>
+        <button class="sync-btn" id="backup">Back up now <span class="kbd">⌘S</span></button>
+        <div class="sync-sub"><span class="muted">jakub@icloud.com</span><a>Sign out</a></div>
       </div>
     </div>
 
     <section class="tq">
-      <header class="tq-head">
-        <span class="ttl">Transcribe</span>
-        <span class="chip" id="count">0 waiting</span>
-        <button class="tq-all" id="all">Transcribe all</button>
-      </header>
-      <div class="tq-hint"><b>▶</b> start · <b>⏸</b> pause · ring + % = progress · done drops out</div>
+      <header class="tq-head"><span class="ttl">Transcribe</span><span class="chip" id="count">0 waiting</span><button class="tq-all" id="all">Transcribe all</button></header>
+      <div class="tq-hint"><b>▶</b> start · <b>⏸</b> pause · ring + % + live text = transcribing · done drops out</div>
       <div class="tq-banner" id="banner" hidden><span class="dot"></span><span>Preparing the transcriber · 1.2 / 6&nbsp;GB</span><button id="banner-x" title="Hide">×</button></div>
       <div class="tq-list" id="list"></div>
     </section>
   </aside>
 
-  <button class="theme-toggle" id="theme" aria-label="Toggle theme" title="Toggle light/dark">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
-  </button>
+  <button class="theme-toggle" id="theme" aria-label="Toggle theme" title="Toggle light/dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></button>
 
   <div class="demo">
     <span>demo:</span>
     <label><input type="checkbox" id="fast" /> 4× speed</label>
     <label><input type="checkbox" id="fail" /> fail next run</label>
     <label><input type="checkbox" id="dl" /> model download</label>
-    <span class="sep"></span>
-    <button id="reset">Reset</button>
+    <span class="sep"></span><button id="reset">Reset</button>
   </div>
 
   <script type="module">
@@ -183,6 +200,9 @@
     retry: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>',
     warn:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>',
   };
+  const EQ = '<span class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>';
+  // sample partial transcript revealed as % climbs (feels like live captioning)
+  const SAMPLE = "Dobře, tak pojďme na to. Chtěl jsem s tebou dneska probrat ten návrh, co jsme minule načali, protože si myslím, že tam je pár věcí, které bychom měli doladit, než to pošleme dál klientovi.".split(" ");
   const SEED = [
     { id: "q1", label: "Call with Dominik", isFile: false, dur: "6:12" },
     { id: "q2", label: "rec-0048.m4a",      isFile: true,  dur: "0:48" },
@@ -193,47 +213,35 @@
   const el = (h) => { const t = document.createElement("template"); t.innerHTML = h.trim(); return t.content.firstElementChild; };
   let Q, ticker = null;
 
-  /* The control button HTML for a given state + pct. Same markup the legend reuses. */
+  function liveText(pct) {
+    const n = Math.max(1, Math.floor((pct / 100) * SAMPLE.length));
+    const words = SAMPLE.slice(0, n);
+    const tail = words.slice(-10).join(" ");
+    return `${n > 10 ? "…" : ""}${tail} <span class="cursor">▌</span>`;
+  }
   function controlHtml(state, pct) {
-    const ringFor = (s) => (s === "running" || s === "paused")
+    const ring = (state === "running" || state === "paused")
       ? `<svg class="ring" viewBox="0 0 36 36"><circle class="track" cx="18" cy="18" r="15.915"/><circle class="fill" cx="18" cy="18" r="15.915" style="stroke-dashoffset:${100 - pct}"/></svg>` : "";
     if (state === "error") return `<button class="ctl" data-act="ctl" title="Retry" aria-label="Retry"><span class="glyph">${GLYPH.retry}</span></button>`;
-    const glyph = state === "running" ? GLYPH.pause : GLYPH.play;   // idle/queued/held/paused → ▶, running → ⏸
-    const title = state === "idle" ? "Transcribe" : state === "running" ? "Pause"
-      : state === "paused" ? "Resume" : state === "held" ? "Resume (release)" : "Hold";
-    const act = state === "idle" ? "start" : "ctl";
-    return `<button class="ctl" data-act="${act}" title="${title}" aria-label="${title}">${ringFor(state)}<span class="glyph">${glyph}</span></button>`;
+    const glyph = state === "running" ? GLYPH.pause : GLYPH.play;
+    const title = state === "idle" ? "Transcribe" : state === "running" ? "Pause" : state === "paused" ? "Resume" : state === "held" ? "Resume (release)" : "Hold";
+    return `<button class="ctl" data-act="${state === "idle" ? "start" : "ctl"}" title="${title}" aria-label="${title}">${ring}<span class="glyph">${glyph}</span></button>`;
   }
-  function rowInner(it) {
-    const showPct = it.state === "running" || it.state === "paused";
+  function rowHtml(it) {
+    const live = it.state === "running" || it.state === "paused";
     const err = it.state === "error" ? `<span class="tq-err" title="Couldn't transcribe">${GLYPH.warn}</span>` : "";
-    return `<span class="tq-label" title="${it.label}">${it.label}</span>
-      <span class="tq-dur">${it.dur}</span>
-      ${showPct ? `<span class="tq-pct">${it.pct}%</span>` : ``}
-      ${err}${controlHtml(it.state, it.pct)}`;
-  }
-
-  /* ── legend (static, non-interactive, identical controls) ── */
-  function buildLegend() {
-    const items = [
-      ["idle", 0, "<b>Start</b> — pick Czech Mix (Slow) or English (Fast)"],
-      ["running", 42, "<b>Transcribing</b> — ring + % fill; tap to pause"],
-      ["paused", 42, "<b>Paused</b> — tap to resume"],
-      ["queued", 0, "<b>Queued</b> — waiting its turn; tap to hold"],
-      ["error", 0, "<b>Failed</b> — tap to retry"],
-    ];
-    $("legend").querySelectorAll(".legend-row").forEach((n) => n.remove());
-    for (const [state, pct, cap] of items) {
-      const row = el(`<div class="legend-row tq-row" data-state="${state}" style="margin:0 0 8px"><span class="tq-label" style="flex:0 0 150px">Example recording</span><span class="tq-dur">2:30</span>${(state==="running"||state==="paused")?`<span class="tq-pct">${pct}%</span>`:``}${state==="error"?`<span class="tq-err">${GLYPH.warn}</span>`:``}${controlHtml(state, pct)}</div>`);
-      row.querySelectorAll("button").forEach((b) => b.setAttribute("tabindex", "-1"));
-      row.style.pointerEvents = "none";
-      $("legend").appendChild(row);
-    }
+    return `<div class="tq-main">
+        <span class="tq-label" title="${it.label}">${it.label}</span>
+        <span class="tq-dur">${it.dur}</span>
+        ${it.state === "running" ? EQ : ""}
+        ${live ? `<span class="tq-pct">${Math.round(it.pct)}%</span>` : ""}
+        ${err}${controlHtml(it.state, it.pct)}
+      </div>
+      ${live ? `<div class="tq-live">${liveText(it.pct)}</div>` : ""}`;
   }
 
   function reset() { Q = SEED.map((x) => ({ ...x, state: "idle", model: null, pct: 0 })); $("fail").checked = false; closeChoice(); render(); }
 
-  /* ── 3-option choice ── */
   function closeChoice() { document.querySelectorAll(".audio-menu.tq-choose,.audio-menu-backdrop").forEach((n) => n.remove()); }
   function openChoice(anchor, onPick) {
     closeChoice();
@@ -241,8 +249,7 @@
     const menu = el(`<div class="audio-menu tq-choose" role="menu">
       <button role="menuitem" data-m="czech-whisper"><span>${MODELS["czech-whisper"].choiceLabel}</span><span class="sub">${MODELS["czech-whisper"].sub}</span></button>
       <button role="menuitem" data-m="parakeet"><span>${MODELS.parakeet.choiceLabel}</span><span class="sub">${MODELS.parakeet.sub}</span></button>
-      <div class="audio-menu-sep"></div>
-      <button role="menuitem" class="cancel" data-m="">Cancel</button></div>`);
+      <div class="audio-menu-sep"></div><button role="menuitem" class="cancel" data-m="">Cancel</button></div>`);
     document.body.appendChild(menu);
     const r = anchor.getBoundingClientRect();
     menu.style.position = "fixed";
@@ -252,7 +259,6 @@
     menu.querySelector('[data-m="czech-whisper"]').focus();
   }
 
-  /* ── one-at-a-time controller ── */
   const active = () => Q.find((x) => x.state === "running" || x.state === "paused");
   function pump() { if (!active()) { const n = Q.find((x) => x.state === "queued"); if (n) n.state = "running"; } render(); tick(); }
   function tick() {
@@ -261,8 +267,8 @@
       const it = Q.find((x) => x.state === "running");
       if (!it) { clearInterval(ticker); ticker = null; return; }
       if ($("fail").checked && it.pct >= 55) { $("fail").checked = false; it.state = "error"; render(); pump(); return; }
-      it.pct = Math.min(100, it.pct + ($("fast").checked ? 7 : 1.6));
-      if (it.pct >= 100) finish(it); else render();
+      it.pct = Math.min(100, it.pct + ($("fast").checked ? 6 : 1.3));
+      if (it.pct >= 100) finish(it); else renderLive(it); // cheap in-place update while running
     }, 150);
   }
   function finish(it) {
@@ -276,16 +282,24 @@
   }
   function onCtl(it) {
     switch (it.state) {
-      case "queued":  it.state = "held"; break;
-      case "held":    it.state = "queued"; render(); return pump();
+      case "queued": it.state = "held"; break;
+      case "held": it.state = "queued"; render(); return pump();
       case "running": it.state = "paused"; break;
-      case "paused":  it.state = "running"; render(); return tick();
-      case "error":   it.state = "queued"; render(); return pump();
+      case "paused": it.state = "running"; render(); return tick();
+      case "error": it.state = "queued"; render(); return pump();
     }
     render();
   }
 
-  /* ── render ── */
+  // in-place update of just the active row (ring, %, live text) — avoids rebuilding the list each tick
+  function renderLive(it) {
+    const row = document.querySelector(`.tq-list .tq-row[data-id="${it.id}"]`);
+    if (!row) return render();
+    const fill = row.querySelector(".ring .fill"); if (fill) fill.style.strokeDashoffset = 100 - it.pct;
+    const pct = row.querySelector(".tq-pct"); if (pct) pct.textContent = Math.round(it.pct) + "%";
+    const live = row.querySelector(".tq-live"); if (live) live.innerHTML = liveText(it.pct);
+  }
+
   function render() {
     const list = $("list");
     const leaving = [...list.querySelectorAll(".tq-row.is-leaving")];
@@ -295,7 +309,7 @@
       list.appendChild(el(`<div class="tq-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><p class="t-ctl muted">Every recording has a transcript.</p></div>`));
     } else {
       rows.forEach((it) => {
-        const row = el(`<div class="tq-row ${it.isFile ? "is-filename" : ""}" data-id="${it.id}" data-state="${it.state}">${rowInner(it)}</div>`);
+        const row = el(`<div class="tq-row ${it.isFile ? "is-filename" : ""}" data-id="${it.id}" data-state="${it.state}">${rowHtml(it)}</div>`);
         row.querySelector('[data-act="start"]')?.addEventListener("click", (e) => { e.stopPropagation(); openChoice(e.currentTarget, (m) => { it.model = m; it.state = "queued"; it.pct = 0; pump(); }); });
         row.querySelector('[data-act="ctl"]')?.addEventListener("click", (e) => { e.stopPropagation(); onCtl(it); });
         list.appendChild(row);
@@ -308,17 +322,44 @@
     $("all").hidden = waiting < 2;
   }
 
+  /* ── live BACKUP animation (makes the cloud side alive) ── */
+  let syncing = false;
+  function runBackup() {
+    if (syncing) return; syncing = true;
+    const region = $("sync-region"), total = 8; let done = 0;
+    region.classList.add("is-syncing");
+    $("rune-icon").dataset.state = "syncing"; $("sync-glyph").dataset.state = "syncing";
+    $("sync-title").textContent = "Backing up…"; $("sync-subtle").textContent = "Uploading new recordings";
+    $("backup").disabled = true;
+    const names = ["Call with Dominik.m4a", "rec-0048.m4a", "Standup notes.md", "photo-14.jpg", "thursday.md"];
+    const iv = setInterval(() => {
+      done++;
+      $("tx-count").textContent = `↑ ${done} of ${total}`;
+      $("tx-name").textContent = names[done % names.length];
+      $("flask-fill").style.height = Math.round((done / total) * 100) + "%";
+      $("meter").style.width = (41 + done) + "%";
+      if (done >= total) {
+        clearInterval(iv); syncing = false;
+        region.classList.remove("is-syncing");
+        $("rune-icon").dataset.state = "rest"; $("sync-glyph").dataset.state = "rest";
+        $("sync-title").textContent = "All backed up"; $("sync-subtle").textContent = "Last backed up · just now";
+        $("backup").disabled = false; $("nub").style.display = "none";
+      }
+    }, $("fast").checked ? 180 : 420);
+  }
+
   /* ── events ── */
   $("all").onclick = (e) => { const idle = Q.filter((x) => x.state === "idle"); if (!idle.length) return; openChoice(e.currentTarget, (m) => { idle.forEach((it) => { it.model = m; it.state = "queued"; it.pct = 0; }); pump(); }); };
-  $("rune").onclick = () => { const open = $("drawer").classList.toggle("is-open"); $("rune").classList.toggle("is-open", open); };
-  $("sync-strip").onclick = () => { const r = $("sync-region"); r.dataset.collapsed = r.dataset.collapsed === "true" ? "false" : "true"; };
+  $("rune").onclick = () => { const open = $("drawer").classList.toggle("is-open"); $("rune").classList.toggle("is-open", open); if (open) $("nub").style.display = "none"; };
+  $("sync-collapse").onclick = () => { const r = $("sync-region"); r.dataset.collapsed = r.dataset.collapsed === "true" ? "false" : "true"; };
+  $("backup").onclick = runBackup;
   $("banner-x").onclick = () => $("banner").hidden = true;
   $("dl").onchange = (e) => $("banner").hidden = !e.target.checked;
   $("reset").onclick = reset;
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeChoice(); });
   $("theme").onclick = () => { const r = document.documentElement; r.dataset.theme = r.dataset.theme === "dark" ? "light" : "dark"; };
 
-  buildLegend(); reset();
+  reset();
   </script>
 </body>
 </html>
