@@ -514,9 +514,8 @@ button { font-family: inherit; color: inherit; }
     .tq-head .ttl { font-size: 14px; color: hsl(var(--text)); margin-right: auto; }
 
     /* mode toggle — 1 = process only the top item then pause · → = run down the whole queue */
-    .tq-mode { display: inline-grid; place-items: center; width: 30px; height: 28px; border: 1px solid hsl(var(--border)); background: hsl(var(--surface)); color: hsl(var(--text-muted)); border-radius: var(--radius); cursor: pointer; font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
-    .tq-mode:hover { color: hsl(var(--text)); border-color: hsl(var(--accent) / 0.5); }
-    .tq-mode svg { width: 16px; height: 16px; }
+    .tq-mode { display: inline-grid; place-items: center; min-width: 20px; height: 28px; padding: 0 4px; border: none; background: transparent; color: hsl(var(--text-muted)); cursor: pointer; font-family: var(--font-mono); font-size: 17px; line-height: 1; font-weight: 600; }
+    .tq-mode:hover { color: hsl(var(--accent)); }
 
     /* global run/pause — drives the queue per the mode */
     .tq-go { display: inline-grid; place-items: center; width: 34px; height: 28px; border: none; background: hsl(var(--accent)); color: hsl(var(--surface)); border-radius: var(--radius); cursor: pointer; }
@@ -667,9 +666,9 @@ button { font-family: inherit; color: inherit; }
   };
 
   const SEED = [
-    { id: "q1", type: "audio", label: "Call with Dominik", isFile: false, dur: "6:12" },
-    { id: "q2", type: "audio", label: "rec-0048.m4a",      isFile: true,  dur: "0:48" },
-    { id: "q3", type: "audio", label: "Standup notes",     isFile: false, dur: "2:48" },
+    { id: "q1", type: "audio", label: "Call with Dominik about the Q4 roadmap and the client proposal", isFile: false, dur: "6:12", added: "Oct 18 · 2:14 PM" },
+    { id: "q2", type: "audio", label: "rec-0048.m4a",  isFile: true,  dur: "0:48", added: "Oct 18 · 1:52 PM" },
+    { id: "q3", type: "audio", label: "Standup notes", isFile: false, dur: "2:48", added: "Oct 17 · 9:03 AM" },
   ];
 
   const $ = (id) => document.getElementById(id);
@@ -789,12 +788,15 @@ button { font-family: inherit; color: inherit; }
     const badge = t.model
       ? `<button class="tq-model" data-act="model" title="Model: ${MODELS[it.model].choiceLabel}">${MODELS[it.model].short}${GLYPH.chev}</button>`
       : "";
-    const showPct = it.pct > 0 && !it.error;
+    // show % as soon as a row is processing (active + running), not only once pct>0 —
+    // otherwise the per-tick live update has no element to write into.
+    const showPct = !it.error && (it.pct > 0 || (isActive && playing));
     const err = it.error ? `<span class="tq-err" title="Couldn't process — press Run to retry">${GLYPH.warn}</span>` : "";
+    const tip = `${it.label}\nAdded to queue · ${it.added}`;
     return `
       <button class="tq-ord" data-act="ord" title="Reorder — type a new position">${it.order}</button>
+      <span class="tq-label" title="${tip}">${it.label}</span>
       ${preview}
-      <span class="tq-label" title="${it.label}">${it.label}</span>
       ${badge}
       <span class="tq-dur">${it.dur}</span>
       ${showPct ? `<span class="tq-pct">${Math.round(it.pct)}%</span>` : ""}
@@ -810,7 +812,7 @@ button { font-family: inherit; color: inherit; }
   function render() {
     $("tqsec").hidden = Q.length === 0;                   // nothing to process → section vanishes
     $("tqsec").classList.toggle("is-running", playing);
-    $("mode").innerHTML = mode === "one" ? "1" : GLYPH.arrow;
+    $("mode").textContent = mode === "one" ? "1" : "→";
     $("mode").title = mode === "one" ? "Mode: one — process the top item, then pause" : "Mode: all — run down the whole queue";
     $("go").innerHTML = playing ? GLYPH.pause : GLYPH.play;
     $("go").title = playing ? "Pause" : "Run";
