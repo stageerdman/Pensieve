@@ -27,6 +27,37 @@ fn vault_audio_path(app: &AppHandle, media_ref: &str) -> Result<std::path::PathB
     Ok(dir.join("vault").join(media_ref))
 }
 
+/// The Python interpreter to run the engine with. Packaging is deferred, so (for now) this
+/// is the transcriber's MLX venv: overridable via $PENSIEVE_PYTHON, else the known path.
+fn resolve_python(explicit: Option<String>) -> String {
+    if let Some(p) = explicit.filter(|s| !s.is_empty()) {
+        return p;
+    }
+    if let Ok(p) = std::env::var("PENSIEVE_PYTHON") {
+        if !p.is_empty() {
+            return p;
+        }
+    }
+    "/Users/stage/dev/transcriber/.venv/bin/python".to_string()
+}
+
+/// The engine script path: the frontend value if given, else the bundled resource
+/// (`<resources>/engine/pensieve_transcribe.py`), else the in-repo dev path.
+fn resolve_engine(app: &AppHandle, explicit: Option<String>) -> String {
+    if let Some(p) = explicit.filter(|s| !s.is_empty()) {
+        return p;
+    }
+    if let Ok(dir) = app.path().resource_dir() {
+        let bundled = dir.join("engine/pensieve_transcribe.py");
+        if bundled.exists() {
+            return bundled.to_string_lossy().to_string();
+        }
+    }
+    // dev fallback: alongside the Cargo manifest
+    let dev = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("engine/pensieve_transcribe.py");
+    dev.to_string_lossy().to_string()
+}
+
 /// Transcribe one audio file. Returns the raw Transcript JSON (stdout) on success.
 /// Emits `transcribe-progress` {mediaRef, phase, pct} as the engine reports.
 #[tauri::command]
@@ -34,8 +65,8 @@ pub async fn transcribe_audio(
     app: AppHandle,
     media_ref: String,
     model: String,
-    python_path: String,
-    engine_path: String,
+    python_path: Option<String>,
+    engine_path: Option<String>,
     polish: Option<bool>,
 ) -> Result<String, String> {
     if model != "czech-whisper" && model != "parakeet" {
@@ -46,6 +77,8 @@ pub async fn transcribe_audio(
         return Err(format!("audio not found: {}", audio.display()));
     }
     let audio_str = audio.to_string_lossy().to_string();
+    let python_path = resolve_python(python_path);
+    let engine_path = resolve_engine(&app, engine_path);
     let ref_for_thread = media_ref.clone();
 
     // spawn_blocking: child process + line-reading loop are blocking work.

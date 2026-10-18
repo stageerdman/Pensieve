@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useDismiss } from "../hooks/useDismiss";
 import { SyncRune } from "./icons";
 import { SyncFlask } from "./SyncFlask";
@@ -7,6 +7,9 @@ import { RestoreFromCloud } from "./RestoreFromCloud";
 import { formatBytes } from "../lib/format";
 import { deriveSyncView } from "../lib/sync/deriveSyncView";
 import type { useSync } from "../hooks/useSync";
+import { isTauri } from "../lib/store";
+import { NativeTranscriptionEngine } from "../lib/transcripts/nativeEngine";
+import { ProcessQueue, type ProcessQueueHandle } from "./transcription/ProcessQueue";
 
 // The one OneDrive sync affordance: a quiet cloud-sync rune in the header, nearly
 // invisible at rest, that UNFOLDS into a small non-modal details panel on click.
@@ -47,6 +50,21 @@ export function SyncStatus({
     if (open) void refreshInfo();
   }, [open, refreshInfo]);
 
+  // The native transcription engine (desktop only) and a handle to the Process queue.
+  const engine = useMemo(() => (isTauri() ? new NativeTranscriptionEngine() : null), []);
+  const queueApi = useRef<ProcessQueueHandle>(null);
+
+  // Opening the drawer rescans the vault so manually-added recordings appear.
+  useEffect(() => {
+    if (open) void queueApi.current?.refresh();
+  }, [open]);
+
+  // Owner rule: a completed sync pulls in any newly-synced, untranscribed audio and
+  // auto-transcribes it (Czech default). Sync stays primary; transcription runs after/in
+  // parallel. (A recording added locally in a note waits for manual Process or the next sync.)
+  useEffect(() => {
+    if (ui.phase === "synced") void queueApi.current?.enqueueAuto();
+  }, [ui.phase, ui.lastSyncedAt]);
 
   const view = deriveSyncView(ui, pending, justSynced);
   if (view.hidden) return null;
@@ -91,12 +109,16 @@ export function SyncStatus({
         {dot && <span className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${dot}`} aria-hidden />}
       </button>
 
-      {open && (
-        <div
-          role="dialog"
-          aria-label="Sync status"
-          className="sync-panel absolute right-0 top-9 z-20 w-[280px] rounded-lg border border-border bg-surface-raised p-3 shadow-lg"
-        >
+      <div
+        role="dialog"
+        aria-label="Sync and transcription"
+        aria-hidden={!open}
+        className={
+          "fixed bottom-0 right-0 top-0 z-40 flex w-[352px] flex-col border-l border-border bg-surface-raised shadow-lg transition-transform duration-300 " +
+          (open ? "translate-x-0" : "pointer-events-none translate-x-full")
+        }
+      >
+        <div className="flex-none overflow-y-auto p-3">
           {/* Header: the same rune, breathing once as the panel opens, + the verb */}
           <div className="flex items-start gap-2">
             <span
@@ -170,10 +192,7 @@ export function SyncStatus({
           {p && (
             <button
               type="button"
-              onClick={() => {
-                if (ui.phase !== "conflicts") setOpen(false);
-                runPrimary();
-              }}
+              onClick={() => runPrimary()}
               className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-text transition-colors hover:bg-surface"
             >
               {p.label}
@@ -213,7 +232,20 @@ export function SyncStatus({
             </div>
           )}
         </div>
-      )}
+
+        {/* The Process queue — untranscribed audio, below the sync info. Always mounted
+            (even when the drawer is slid closed) so background transcription keeps running;
+            it renders nothing when there is nothing to process. */}
+        {engine && (
+          <ProcessQueue
+            ref={queueApi}
+            engine={engine}
+            titleFor={titleFor}
+            enabled
+            onTranscribed={() => void syncNow()}
+          />
+        )}
+      </div>
     </div>
   );
 }

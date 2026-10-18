@@ -10,7 +10,7 @@ import { refForUrl } from "../../../lib/media/url";
 import { getMediaNoteId } from "./mediaContext";
 import { saveAudioFile } from "./insertAudio";
 import { getStore } from "../../../lib/store";
-import { reindex } from "../../../lib/search/reindexController";
+import { transcribeBlockAudio } from "../../transcription/blockTranscribe";
 import type { Transcript } from "../../../lib/transcripts/types";
 import { log } from "../../../lib/logger";
 
@@ -109,23 +109,19 @@ function AudioRender({ block, editor }: { block: { id: string; props: Record<str
     }
   };
 
-  // DEV PLACEHOLDER until the whisper engine lands: "Create transcript" seeds the bundled
-  // real-call sample as the sidecar so the transcript UX is testable now. The real engine
-  // replaces this with actual output (same schema) — then delete this + the sample json.
+  // Manual "Create transcript": run the real native engine (default Czech model), save the
+  // sidecar, refold search. Desktop-only — in the browser dev build this rejects and we fall
+  // back to idle. Bulk / automatic transcription happens in the sync drawer's Process queue.
   const createTranscript = async () => {
     if (!ref) return;
     setTState("transcribing");
     try {
-      const sample = ((await import("../../../lib/transcripts/_sampleDominik.dev.json")).default) as unknown as Transcript;
-      await getStore().saveTranscript(ref, sample);
-      setTranscript(sample);
+      const t = await transcribeBlockAudio(ref, getMediaNoteId());
+      setTranscript(t);
       setTState("present");
-      // The sidecar doesn't touch the .md/updatedAt, so tell the search index to refold this
-      // note now — otherwise the new spoken words aren't searchable until a full rebuild.
-      reindex.request(getMediaNoteId());
-      log.info("media", "audio.transcript.seeded(dev)", { ref });
+      log.info("media", "audio.transcript.created", { ref });
     } catch (e) {
-      log.error("media", "audio.transcript.seed.error", { ref, error: String(e) });
+      log.error("media", "audio.transcript.error", { ref, error: String(e) });
       setTState("absent");
     }
   };
