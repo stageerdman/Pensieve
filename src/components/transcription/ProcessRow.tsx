@@ -3,6 +3,7 @@
 // badge) are opt-in via props. Standard layout, left → right:
 //   [order#] · [label (+ type extras)] · [meta] · [% while running]  + a bottom progress line.
 import { useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { TranscriptionModel } from "../../lib/transcripts/models";
 import { MODELS, modelChoices } from "../../lib/transcripts/models";
 
@@ -27,6 +28,60 @@ const Warn = () => (
     <path d="M12 9v4M12 17h.01M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
   </svg>
 );
+
+/** The red error icon + its reason popover. A native `title` tooltip doesn't render in the
+ *  WKWebView, so this is a real DOM popover: portaled to <body> (the drawer's `overflow-y-auto`
+ *  would otherwise clip it) and `fixed` with a high z-index (the drawer is z-40). Shows on
+ *  hover AND on click (click pins it open — hover alone is unreliable), anchored to the icon's
+ *  right edge so it opens leftward/upward and never runs off the drawer edge. */
+function ErrorTip({ message }: { message?: string }) {
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [pos, setPos] = useState<{ right: number; bottom: number } | null>(null);
+
+  const text = message?.trim() || "Couldn't process — press Run to retry.";
+
+  const place = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ right: window.innerWidth - r.right, bottom: window.innerHeight - r.top + 6 });
+  };
+  const show = () => { place(); setOpen(true); };
+  const hide = () => { if (!pinned) setOpen(false); };
+  const toggle = () => { place(); const next = !pinned; setPinned(next); setOpen(next); };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        onFocus={show}
+        onBlur={() => { setPinned(false); setOpen(false); }}
+        onClick={toggle}
+        aria-label="Show error"
+        className="inline-flex shrink-0 cursor-help text-danger"
+      >
+        <Warn />
+      </button>
+      {open && pos &&
+        createPortal(
+          <div
+            role="tooltip"
+            onMouseEnter={() => setOpen(true)}
+            onMouseLeave={hide}
+            style={{ right: pos.right, bottom: pos.bottom }}
+            className="fixed z-[70] max-h-[40vh] w-[260px] overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-danger/40 bg-surface-raised px-3 py-2 text-xs leading-relaxed text-text shadow-lg"
+          >
+            <div className="mb-1 font-semibold text-danger">Transcription failed</div>
+            {text}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
 
 export interface ProcessRowProps {
   order: number;
@@ -179,14 +234,7 @@ export function ProcessRow({
           {Math.round(pct)}%
         </span>
       )}
-      {error && (
-        <span
-          className="inline-flex shrink-0 cursor-help text-danger"
-          title={errorMsg ? `${errorMsg}\n\n(press Run to retry)` : "Couldn't process — press Run to retry"}
-        >
-          <Warn />
-        </span>
-      )}
+      {error && <ErrorTip message={errorMsg} />}
 
       {/* thin running line along the bottom */}
       {showPct && (
