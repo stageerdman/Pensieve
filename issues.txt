@@ -11,6 +11,13 @@ AUDIO-TRANSCRIPTION — SHIPPED to main (2026-10-18, owner-confirmed on the nati
       editable order #, per-row model badge, preview ▶). Auto on sync (Czech default); manual
       block "Create/Regenerate" asks English/Czech and routes through the queue (visible there).
 - [x] Parakeet sub-word tokens grouped back into whole words (was letter-by-letter in the reader).
+- [x] "engine exited with status 120" FIXED (2026-10-19): Python returns 120 when a shutdown-time
+      stream flush fails (MLX/thread/claude-p cleanup disturbing the inherited stdout pipe) AFTER the
+      full transcript was already written — the Rust shell was discarding a good result. Fix: engine
+      flushes then os._exit(rc) to skip CPython finalization; Rust now trusts non-empty stdout (one
+      json.dump at the end == completed) regardless of exit status, parseTranscript validates.
+- [x] Error icon tooltip was a native `title` — dead in WKWebView. Replaced with a real portaled
+      popover (ErrorTip, z-70, shows on hover + pins on click) so the reason is actually visible.
 - [x] Transcription failures now show the reason on HOVER over the red error icon (2026-10-19):
       cleanEngineError strips JSON-progress/tqdm noise from the Rust stderr tail and keeps the
       real Python exception; threaded ProcessItem.errorMsg → ProcessRow tooltip. NB diagnosis:
