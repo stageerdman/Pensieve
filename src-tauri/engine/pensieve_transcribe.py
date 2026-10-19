@@ -160,10 +160,38 @@ def transcribe_whisper(audio, language: str, checkpoint: str | None = None) -> l
     if start_chunk:
         emit("transcribe", 10 + 80 * (done / total_speech))  # jump the bar to where we left off
 
+    consecutive_failures = 0
     for idx in range(start_chunk, len(chunks)):
         s, e = chunks[idx]
         offset = s / VAD_SR
-        result = mlx_whisper.transcribe(audio[s:e], path_or_hf_repo=repo, language=language, verbose=False, **WHISPER_DECODE_OPTS)
+        # One chunk should never kill a ~2 h job: retry a transient MLX/Metal failure a few
+        # times, and if it still fails, skip this (<=28 s) chunk and carry on. But if MANY
+        # chunks fail in a row the backend is genuinely wedged — abort with a clear reason.
+        result = None
+        for attempt in range(3):
+            try:
+                result = mlx_whisper.transcribe(
+                    audio[s:e], path_or_hf_repo=repo, language=language, verbose=False, **WHISPER_DECODE_OPTS
+                )
+                break
+            except Exception as ex:  # noqa: BLE001 — transient backend error; retry/skip
+                sys.stderr.write(
+                    json.dumps({"warn": f"chunk {idx} attempt {attempt + 1}/3 failed: {ex!r}"}) + "\n"
+                )
+                sys.stderr.flush()
+        if result is None:
+            consecutive_failures += 1
+            if consecutive_failures >= 5:
+                raise RuntimeError(
+                    f"transcription backend failed on {consecutive_failures} chunks in a row "
+                    f"(last at chunk {idx}/{len(chunks)}) — the MLX/Metal engine may be unavailable"
+                )
+            done += e - s
+            if checkpoint:
+                _save_checkpoint(checkpoint, "czech-whisper", language, chunks, idx + 1, segments)
+            emit("transcribe", 10 + 80 * (done / total_speech))
+            continue
+        consecutive_failures = 0
         for seg in result.get("segments", []):
             text = (seg.get("text") or "").strip()
             if not text:
@@ -374,15 +402,32 @@ def main() -> int:
     return 0
 
 
-if __name__ == "__main__":
+def _flush_and_exit(rc: int) -> None:
     # Flush explicitly, then os._exit to skip CPython's interpreter shutdown. MLX/thread/
     # subprocess (claude -p) cleanup at finalization can raise while flushing the inherited
-    # stdout pipe, which makes Python exit 120 even though the full transcript was already
-    # written — the Rust shell would then discard a good result. os._exit avoids all of that.
-    rc = main()
+    # stdout pipe, which makes Python exit 120 even though the real result/error was already
+    # written — and that 120 MASKS the real reason. os._exit avoids the whole shutdown phase.
     try:
         sys.stdout.flush()
         sys.stderr.flush()
     except Exception:
         pass
     os._exit(rc)
+
+
+if __name__ == "__main__":
+    # Any unhandled exception in main() (e.g. a transient MLX/Metal runtime failure) must be
+    # reported as itself, not swallowed into a cryptic shutdown-time exit 120. Print the real
+    # traceback to stderr (the Rust shell forwards its tail into the error popover) and exit
+    # cleanly with 1. The czech-whisper checkpoint is NOT deleted on failure, so the next run
+    # resumes mid-file.
+    try:
+        rc = main()
+    except SystemExit as e:
+        rc = e.code if isinstance(e.code, int) else 1
+    except BaseException as e:  # noqa: BLE001 — top-level guard; we re-report and exit
+        import traceback
+        sys.stderr.write("ENGINE ERROR: " + repr(e) + "\n")
+        traceback.print_exc()
+        _flush_and_exit(1)
+    _flush_and_exit(rc)
