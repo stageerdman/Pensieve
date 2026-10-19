@@ -47,9 +47,14 @@ Owner decisions (2026-10-19):
   tested (897 green); native app installed 10:06. Live GUI cycle awaits owner device-confirmation
   (can't drive the WKWebView from here).
 
-## Live status
-- Started + built end-to-end 2026-10-19. All phases shipped to main. Builds on the AUDIO-TRANSCRIPTION
-  engine + Process queue.
+## Live status — CLOSED 2026-10-19 (owner-confirmed: "works great, exactly as I wanted")
+- All phases shipped to main; native app confirmed on device. Folder CLOSED.
+- Post-build: the recurring "engine exited with status 120" was run to ground by a 3-agent debug
+  team and fixed — it was a RUST panic in transcribe.rs's stderr reader (`String.split_off` off a
+  UTF-8 char boundary on tqdm's `█` bytes), which closed the child's stderr pipe and manufactured
+  the 120; NOT an engine fault. Fix: byte-safe bounded line buffer (push_bounded, +regression
+  tests), verbose=None to kill the tqdm flood, _safe_stderr guards, on-disk --debug-log,
+  code-vs-signal reporting, env hardening + caffeinate. See wiki.md "The real exit 120 root cause".
 - **Owner to confirm on the native app:** start a long Czech transcription, quit mid-run, reopen →
   it should reappear and continue from where it left off; Pause should stop promptly and Run resume.
 - Known accepted edge: the queue mounts inside SyncStatus, which is hidden only when OneDrive is
