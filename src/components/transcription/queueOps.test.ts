@@ -67,6 +67,20 @@ describe("queueOps", () => {
     expect(out[1].model).toBe("czech-whisper"); // auto path uses the default (Czech)
   });
 
+  it("merge re-applies persisted model + order for restored refs (auto-resume)", () => {
+    const found: AudioQueueItem[] = [
+      { ref: "a", noteId: "n", title: "A", audioName: "a.mp3" },
+      { ref: "b", noteId: "n2", title: "B", audioName: "b.mp3" },
+    ];
+    const persisted = { a: { model: "parakeet" as const, order: 5 } }; // only `a` was saved
+    const out = mergeNewItems([], found, "czech-whisper", persisted);
+    const a = out.find((i) => i.ref === "a")!;
+    const b = out.find((i) => i.ref === "b")!;
+    expect(a.model).toBe("parakeet"); // restored
+    expect(a.order).toBe(5); // restored ordering
+    expect(b.model).toBe("czech-whisper"); // no saved entry → default
+  });
+
   it("clearErrorsForRetry resets errored rows so Run retries them", () => {
     const items = [item("a", 1, { error: true, pct: 60 }), item("b", 2)];
     const out = clearErrorsForRetry(items);

@@ -43,11 +43,14 @@ export function reorderItems(items: ProcessItem[], ref: string, pos: number): Pr
   return arr.map((i, n) => ({ ...i, order: n + 1 }));
 }
 
-/** Append any found audio not already queued, as fresh items with the default model. */
+/** Append any found audio not already queued, as fresh items with the default model.
+ *  `persisted` (ref → saved {model, order}) restores a row's model + ordering after an app
+ *  restart; refs without a saved entry fall back to the default model and the next order #. */
 export function mergeNewItems(
   prev: ProcessItem[],
   found: AudioQueueItem[],
   defaultModel: TranscriptionModel,
+  persisted?: Record<string, { model: TranscriptionModel; order: number }>,
 ): ProcessItem[] {
   const have = new Set(prev.map((i) => i.ref));
   let order = prev.length;
@@ -55,14 +58,15 @@ export function mergeNewItems(
   for (const q of found) {
     if (have.has(q.ref)) continue;
     order += 1;
+    const saved = persisted?.[q.ref];
     added.push({
       ref: q.ref,
       noteId: q.noteId,
       title: q.title,
       audioName: q.audioName,
       type: "audio",
-      order,
-      model: defaultModel,
+      order: saved?.order ?? order,
+      model: saved?.model ?? defaultModel,
       pct: 0,
       phase: null,
       error: false,

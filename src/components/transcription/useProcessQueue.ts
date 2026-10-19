@@ -19,6 +19,7 @@ import { DEFAULT_MODEL, type TranscriptionModel } from "../../lib/transcripts/mo
 import { isCancelled, type TranscriptionEngine } from "../../lib/transcripts/engine";
 import { log } from "../../lib/logger";
 import { processQueue } from "./processQueueController";
+import { loadQueueState, saveQueueState, type PersistedRow } from "./queuePersistence";
 import {
   type ProcessItem,
   type QueueMode,
@@ -146,10 +147,12 @@ export function useProcessQueue(opts: {
   }, []);
 
   // ── scan the vault for untranscribed audio, merging into the list ─────────
+  // Persisted model/order is re-applied so a restored row keeps the model the user chose.
   const refresh = useCallback(async () => {
     if (!enabled) return;
     const found = await listUntranscribedAudio(titleFor);
-    setItems((prev) => mergeNewItems(prev, found, DEFAULT_MODEL));
+    const persisted = loadQueueState();
+    setItems((prev) => mergeNewItems(prev, found, DEFAULT_MODEL, persisted?.rows));
   }, [enabled, titleFor]);
 
   // Force one ref into the queue and run it (a manual block "Transcribe" / "Regenerate" —
@@ -194,6 +197,34 @@ export function useProcessQueue(opts: {
     await refresh();
     setPlaying(true); // auto path: Czech default (the item default), start running
   }, [refresh]);
+
+  // ── restore + auto-resume on mount ───────────────────────────────────────
+  // Rebuild from the vault scan (which finds any still-untranscribed audio), re-apply the
+  // saved model/order, restore the mode, and — if the queue was running when it was
+  // interrupted — resume automatically (the engine picks czech-whisper back up from its
+  // on-disk checkpoint, so a long job continues mid-file instead of from zero).
+  const didInit = useRef(false);
+  useEffect(() => {
+    if (!enabled || didInit.current) return;
+    didInit.current = true;
+    const persisted = loadQueueState();
+    if (persisted?.mode) setMode(persisted.mode);
+    void refresh().then(() => {
+      if (persisted?.playing) setPlaying(true);
+    });
+  }, [enabled, refresh]);
+
+  // ── persist durable queue state (refs + model + order + playing + mode) ──
+  // Keyed off a signature of ONLY the durable fields, so the frequent pct/phase progress
+  // updates don't thrash localStorage — we save when the queue's shape or run-state changes.
+  const persistSig = JSON.stringify({ rows: items.map((i) => [i.ref, i.model, i.order]), playing, mode });
+  useEffect(() => {
+    if (!enabled) return;
+    const rows: Record<string, PersistedRow> = {};
+    for (const i of items) rows[i.ref] = { model: i.model, order: i.order };
+    saveQueueState({ rows, playing, mode });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persistSig, enabled]);
 
   return {
     items: sorted,

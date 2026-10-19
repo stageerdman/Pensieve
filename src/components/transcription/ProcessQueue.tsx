@@ -2,7 +2,7 @@
 // (and anything else to process later) as reusable ProcessRow units, with a global Run/Pause
 // and a mode toggle (1 = top item then pause · → = run the whole queue). The whole section
 // disappears when there's nothing to process. Owns the audio-preview playback (one at a time).
-import { useCallback, useEffect, useImperativeHandle, useRef, useState, forwardRef } from "react";
+import { useCallback, useImperativeHandle, useRef, useState, forwardRef } from "react";
 import { resolveMediaUrl } from "../../lib/media/url";
 import type { TranscriptionEngine } from "../../lib/transcripts/engine";
 import { queueItemLabel } from "../../lib/transcripts/queue";
@@ -44,11 +44,9 @@ export const ProcessQueue = forwardRef<ProcessQueueHandle, Props>(function Proce
 
   useImperativeHandle(handleRef, () => ({ enqueueAuto: q.enqueueAuto, refresh: q.refresh }), [q.enqueueAuto, q.refresh]);
 
-  // scan once on mount so manually-added recordings appear when the drawer opens
-  useEffect(() => {
-    if (enabled) void q.refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled]);
+  // Note: the initial scan + restore + auto-resume is owned by useProcessQueue's own mount
+  // effect (so it can re-apply persisted model/order and resume a running queue), so there's
+  // no mount refresh here.
 
   const togglePreview = useCallback(async (ref: string) => {
     const el = audioRef.current;
