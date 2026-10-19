@@ -11,8 +11,13 @@ AUDIO-TRANSCRIPTION — SHIPPED to main (2026-10-18, owner-confirmed on the nati
       editable order #, per-row model badge, preview ▶). Auto on sync (Czech default); manual
       block "Create/Regenerate" asks English/Czech and routes through the queue (visible there).
 - [x] Parakeet sub-word tokens grouped back into whole words (was letter-by-letter in the reader).
-- [ ] Transcription failures only show a red icon, not the reason — add the error TEXT to the
-      Process row (engine error already round-trips in the invoke rejection; just display it).
+- [x] Transcription failures now show the reason on HOVER over the red error icon (2026-10-19):
+      cleanEngineError strips JSON-progress/tqdm noise from the Rust stderr tail and keeps the
+      real Python exception; threaded ProcessItem.errorMsg → ProcessRow tooltip. NB diagnosis:
+      the engine itself works end-to-end on the 75-min "How to achieve Understanding" tape
+      (parakeet ~3 min/953 segs; czech-whisper is just SLOW — ~101s per 60s of audio, so the
+      Czech default on a 75-min file is ~2 h + polish). Logger is in-memory only, so a past
+      failure's reason was unrecoverable — the hover is now the way to see it next time.
 - [ ] Per-row model menu can clip at the bottom of a long queue — portal it.
 - [ ] Packaging: engine runs via the transcriber venv (/Users/stage/dev/transcriber/.venv, or
       $PENSIEVE_PYTHON); bundling a self-contained Python+MLX runtime into the .app is deferred.
