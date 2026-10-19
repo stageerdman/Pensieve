@@ -1,6 +1,19 @@
 Pensieve — known issues & TODOs
 (one line per item; move resolved items out or mark done)
 
+OPEN / NEXT SESSION (media backup — observed 2026-10-19, NOT yet a confirmed bug):
+- [ ] Note "Performance Mastery Platform" (mvbzp2n7-xuj0gy) image mvemv33m-pvhcemxc.jpg (3.89 MB):
+      verified NOT failing — it just post-dates the last completed sync (sync 10:00, image added
+      10:26) and isn't in sync/state.json's media map yet. pushLocalMedia (engine.ts:104) scans all
+      local media each sync, so the NEXT completed sync should upload it (size is fine — a 5.96 MB
+      PNG already backed up via the same simple PUT path). TO CONFIRM later: run a sync, then check
+      state.json media[] contains that ref with backedUp:true. If it lands as backedUp:false+failedAt,
+      THEN investigate (look at log.query for "media.upload.failed").
+- [ ] Large-media backup: the 78 MB audio mvdrv6gg-zqr40w/mvdululy-rr0bjfyk.m4a is tracked but
+      still pending. It travels base64 over Tauri IPC (~104 MB) via a simple PUT (adapter.ts:206,
+      uploadMedia) — may be too big/slow and likely needs a Graph upload SESSION (chunked) for
+      files past a few MB. Decide whether to add chunked upload for large media. Not urgent.
+
 AUDIO-TRANSCRIPTION — SHIPPED to main (2026-10-18, owner-confirmed on the native app):
 - [x] Local two-model transcription: Czech-finetuned Whisper (default, lang cs, Silero-VAD
       28s chunks) + Parakeet TDT v3 (fast). Python/MLX engine the Rust shell spawns; emits the
