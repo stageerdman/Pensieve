@@ -144,14 +144,19 @@ pub async fn transcribe_audio(
         let stderr_tail = err_thread.join().unwrap_or_default();
         let status = child.wait().map_err(|e| e.to_string())?;
 
+        let json = json.trim().to_string();
+        // The engine writes the whole transcript to stdout in one shot at the very END
+        // (a single json.dump). So non-empty stdout means it ran to completion — trust it
+        // and let the frontend's parseTranscript be the final validator — EVEN IF the exit
+        // status is non-zero: a teardown-only failure (classically Python exit 120 while
+        // flushing streams at shutdown) must not discard an already-complete transcript.
+        if !json.is_empty() {
+            return Ok(json);
+        }
         if !status.success() {
             return Err(format!("engine exited with {status}: {stderr_tail}"));
         }
-        let json = json.trim().to_string();
-        if json.is_empty() {
-            return Err("engine produced no output".into());
-        }
-        Ok(json)
+        Err("engine produced no output".into())
     })
     .await
     .map_err(|e| e.to_string())?

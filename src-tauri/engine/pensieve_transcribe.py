@@ -306,4 +306,14 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # Flush explicitly, then os._exit to skip CPython's interpreter shutdown. MLX/thread/
+    # subprocess (claude -p) cleanup at finalization can raise while flushing the inherited
+    # stdout pipe, which makes Python exit 120 even though the full transcript was already
+    # written — the Rust shell would then discard a good result. os._exit avoids all of that.
+    rc = main()
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+    except Exception:
+        pass
+    os._exit(rc)
