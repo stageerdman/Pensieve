@@ -46,6 +46,61 @@ def emit(phase: str, pct: float) -> None:
     sys.stderr.flush()
 
 
+# ── Checkpointing (czech-whisper resume) ──────────────────────────────────────
+# The czech-whisper path transcribes VAD chunks sequentially and can take ~2 h on a long
+# tape, so we checkpoint after each chunk. If the run is interrupted (quit / crash / a
+# cancelled Pause), the next run reloads the checkpoint and resumes from `nextChunk` instead
+# of from zero. The chunk plan is deterministic for a given audio file + VAD params, so a
+# checkpoint is only trusted when its stored plan + model + language match the recomputed
+# ones; otherwise it's discarded and we start fresh. Parakeet is single-shot (no checkpoint).
+def _plan_key(plan: list[tuple[int, int]]) -> list[list[int]]:
+    return [[int(s), int(e)] for s, e in plan]
+
+
+def _save_checkpoint(path: str, model: str, language, plan, next_chunk: int, segments: list[dict]) -> None:
+    try:
+        payload = {
+            "version": 1,
+            "model": model,
+            "language": language,
+            "plan": _plan_key(plan),
+            "nextChunk": next_chunk,
+            "segments": segments,
+        }
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False)
+        os.replace(tmp, path)  # atomic — a crash mid-write can't corrupt the checkpoint
+    except OSError:
+        pass  # checkpointing is best-effort; never fail the transcription over it
+
+
+def _load_checkpoint(path: str, model: str, language, plan) -> tuple[int, list[dict]]:
+    """Return (nextChunk, segments) if a matching checkpoint exists, else (0, [])."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return 0, []
+    if d.get("model") != model or d.get("language") != language or d.get("plan") != _plan_key(plan):
+        return 0, []  # stale / different input → restart cleanly
+    nxt = int(d.get("nextChunk", 0))
+    segs = d.get("segments") or []
+    if not isinstance(segs, list) or nxt < 0 or nxt > len(plan):
+        return 0, []
+    return nxt, segs
+
+
+def _delete_checkpoint(path: str | None) -> None:
+    if not path:
+        return
+    for p in (path, path + ".tmp"):
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+
+
 # ── Silero VAD chunking (ported) ──────────────────────────────────────────────
 def speech_chunks(audio) -> list[tuple[int, int]]:
     from faster_whisper.vad import VadOptions, get_speech_timestamps
@@ -87,19 +142,26 @@ def _seg_times(seg: dict) -> tuple[float, float]:
     return float(seg["start"]), float(seg["end"])
 
 
-def transcribe_whisper(audio, language: str) -> list[dict]:
+def transcribe_whisper(audio, language: str, checkpoint: str | None = None) -> list[dict]:
     import mlx_whisper
 
     repo = str(CZECH_FT_PATH)
     if not CZECH_FT_PATH.exists():
         raise RuntimeError(f"Czech MLX model missing at {CZECH_FT_PATH}")
     chunks = speech_chunks(audio)
-    segments: list[dict] = []
     if not chunks:  # all silence per VAD → one pass over the whole clip
         chunks = [(0, len(audio))]
     total_speech = sum(e - s for s, e in chunks) or 1
-    done = 0
-    for (s, e) in chunks:
+
+    # Resume from a matching checkpoint, if any (same audio+model+plan).
+    start_chunk, segments = (_load_checkpoint(checkpoint, "czech-whisper", language, chunks)
+                             if checkpoint else (0, []))
+    done = sum(e - s for s, e in chunks[:start_chunk])
+    if start_chunk:
+        emit("transcribe", 10 + 80 * (done / total_speech))  # jump the bar to where we left off
+
+    for idx in range(start_chunk, len(chunks)):
+        s, e = chunks[idx]
         offset = s / VAD_SR
         result = mlx_whisper.transcribe(audio[s:e], path_or_hf_repo=repo, language=language, verbose=False, **WHISPER_DECODE_OPTS)
         for seg in result.get("segments", []):
@@ -114,6 +176,8 @@ def transcribe_whisper(audio, language: str) -> list[dict]:
                 "words": _words_from_seg(seg, offset),
             })
         done += e - s
+        if checkpoint:
+            _save_checkpoint(checkpoint, "czech-whisper", language, chunks, idx + 1, segments)
         emit("transcribe", 10 + 80 * (done / total_speech))
     return segments
 
@@ -243,6 +307,8 @@ def main() -> int:
     ap.add_argument("--language", default=None, help="whisper language (default cs for czech-whisper)")
     ap.add_argument("--polish", action="store_true")
     ap.add_argument("--media-ref", default=None)
+    ap.add_argument("--checkpoint", default=None,
+                    help="path to a resume checkpoint (czech-whisper only); resumed from + deleted on success")
     args = ap.parse_args()
 
     t0 = time.time()
@@ -261,10 +327,10 @@ def main() -> int:
     if args.model == "czech-whisper":
         if language is None:
             language = "cs"
-        raw_segments = transcribe_whisper(audio, language)
+        raw_segments = transcribe_whisper(audio, language, args.checkpoint)
         model_label = "czech-whisper"
     else:
-        raw_segments = transcribe_parakeet(audio_path)
+        raw_segments = transcribe_parakeet(audio_path)  # single-shot; no checkpoint
         model_label = "parakeet"
         language = language or None
 
@@ -298,6 +364,9 @@ def main() -> int:
         },
         "segments": segments,
     }
+    # The transcript is complete (all chunks done + polish, if any) — drop the checkpoint so
+    # the next run doesn't think there's unfinished work.
+    _delete_checkpoint(args.checkpoint)
     emit("done", 100)
     sys.stderr.write(json.dumps({"elapsed_sec": round(time.time() - t0, 1), "segments": len(segments)}) + "\n")
     json.dump(transcript, sys.stdout, ensure_ascii=False)
