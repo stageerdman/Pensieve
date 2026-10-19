@@ -11,6 +11,16 @@ AUDIO-TRANSCRIPTION — SHIPPED to main (2026-10-18, owner-confirmed on the nati
       editable order #, per-row model badge, preview ▶). Auto on sync (Czech default); manual
       block "Create/Regenerate" asks English/Czech and routes through the queue (visible there).
 - [x] Parakeet sub-word tokens grouped back into whole words (was letter-by-letter in the reader).
+TRANSCRIPTION-RESUME — shipped to main 2026-10-19 (owner to device-confirm):
+- [x] Stop + restore: an interrupted transcription (quit/crash/error/cancel) now resumes on reopen.
+      czech-whisper checkpoints per VAD chunk to <appData>/transcription/<ref>.partial.json and
+      resumes mid-file; Pause actually kills the running engine child (cancel_transcription) and keeps
+      the checkpoint so Run resumes; queue state (model/order/playing/mode) persists to localStorage
+      and auto-resumes on launch. Parakeet is single-shot (restarts whole, ~3 min). Folder OPEN.
+- [ ] Parakeet has no mid-file checkpoint (single library call) — restarts from 0 on resume.
+- [ ] Auto-resume rides on the SyncStatus-mounted queue; if OneDrive is ever "unavailable" the queue
+      doesn't mount, so resume would wait for a surface that mounts it. Fine for the connected owner.
+
 - [x] "engine exited with status 120" FIXED (2026-10-19): Python returns 120 when a shutdown-time
       stream flush fails (MLX/thread/claude-p cleanup disturbing the inherited stdout pipe) AFTER the
       full transcript was already written — the Rust shell was discarding a good result. Fix: engine

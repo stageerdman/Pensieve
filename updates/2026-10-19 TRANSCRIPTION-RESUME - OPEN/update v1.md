@@ -37,13 +37,22 @@ Owner decisions (2026-10-19):
   it resumes and the final transcript matches an uninterrupted run. — STATUS: ✅ DONE (CLI spike:
   killed after chunk 5/15 → resumed to identical result; checkpoint auto-deleted on success).
 - **Phase 2 — Rust checkpoint path + cancellable child.** Resolve+pass `--checkpoint`; child registry;
-  `cancel_transcription`; cancelled-sentinel. — STATUS: not started
+  `cancel_transcription`; cancelled-sentinel. — STATUS: ✅ DONE (cargo check clean; command registered).
 - **Phase 3 — Frontend Stop + mid-file Pause.** Pause cancels the active job; Run resumes; cancelled
-  ≠ error. — STATUS: not started
+  ≠ error. — STATUS: ✅ DONE (engine.cancel + isCancelled seam; tsc + tests green).
 - **Phase 4 — Frontend queue persistence + auto-resume.** Store seam; restore on mount; auto-run.
-  — STATUS: not started
+  — STATUS: ✅ DONE (localStorage `pensieve:transcription:queue`; hook owns init + auto-resume).
 - **Phase 5 — Tests + native build + verify.** Unit tests (checkpoint I/O, persistence merge, cancel
-  path); build the .app; verify an interrupted Czech job resumes on reopen. — STATUS: not started
+  path); build the .app; verify an interrupted Czech job resumes on reopen. — STATUS: ✅ built + unit-
+  tested (897 green); native app installed 10:06. Live GUI cycle awaits owner device-confirmation
+  (can't drive the WKWebView from here).
 
 ## Live status
-- Started 2026-10-19. Builds on the shipped AUDIO-TRANSCRIPTION engine + Process queue.
+- Started + built end-to-end 2026-10-19. All phases shipped to main. Builds on the AUDIO-TRANSCRIPTION
+  engine + Process queue.
+- **Owner to confirm on the native app:** start a long Czech transcription, quit mid-run, reopen →
+  it should reappear and continue from where it left off; Pause should stop promptly and Run resume.
+- Known accepted edge: the queue mounts inside SyncStatus, which is hidden only when OneDrive is
+  "unavailable"; the connected owner always mounts it, so auto-resume fires on launch. If sync is ever
+  fully unavailable, auto-resume waits until a surface mounts the queue — acceptable for single-user.
+- Folder stays OPEN until owner device-confirmation; then rename to CLOSED.
