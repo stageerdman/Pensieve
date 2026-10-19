@@ -6,8 +6,9 @@
 // are passed in from the frontend (which holds the configured paths), so this stays
 // generic and we avoid hardcoding the transcriber venv here. Bundling a self-contained
 // runtime into the .app is a later packaging pass.
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{BufRead, BufReader, Read};
+use std::os::unix::process::ExitStatusExt;
 use std::process::{Command, Stdio};
 use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Emitter, Manager};
@@ -18,6 +19,21 @@ struct Progress {
     media_ref: String,
     phase: String,
     pct: f64,
+}
+
+/// Append `line` to a bounded tail of recent stderr lines, dropping the oldest while the
+/// total byte size exceeds `cap` (always keeping at least one line). Whole-line bookkeeping
+/// — never a byte-offset String slice — so multi-byte UTF-8 (e.g. tqdm's `█`) can't trigger
+/// the `split_off`-on-non-char-boundary panic that used to kill the reader thread and cascade
+/// into a bogus engine exit 120.
+fn push_bounded(recent: &mut VecDeque<String>, tail_bytes: &mut usize, line: String, cap: usize) {
+    *tail_bytes += line.len() + 1;
+    recent.push_back(line);
+    while *tail_bytes > cap && recent.len() > 1 {
+        if let Some(dropped) = recent.pop_front() {
+            *tail_bytes -= dropped.len() + 1;
+        }
+    }
 }
 
 /// Returned (as the invoke rejection) when a running job was cancelled by the user via
@@ -59,13 +75,25 @@ pub fn cancel_transcription(media_ref: String) -> Result<(), String> {
     Ok(())
 }
 
-/// `<appData>/transcription/<sanitized media ref>.partial.json` — the czech-whisper resume
-/// checkpoint. Lives outside the vault so it never pollutes the note store or OneDrive sync.
-fn checkpoint_path(app: &AppHandle, media_ref: &str) -> Option<String> {
+/// `<appData>/transcription/` — holds the resume checkpoints and the debug log, outside the
+/// vault so they never pollute the note store or OneDrive sync. Returns the created dir.
+fn transcription_dir(app: &AppHandle) -> Option<std::path::PathBuf> {
     let dir = app.path().app_data_dir().ok()?.join("transcription");
     let _ = std::fs::create_dir_all(&dir);
+    Some(dir)
+}
+
+/// `<appData>/transcription/<sanitized media ref>.partial.json` — the czech-whisper resume
+/// checkpoint.
+fn checkpoint_path(app: &AppHandle, media_ref: &str) -> Option<String> {
     let safe = media_ref.replace(['/', '\\'], "_");
-    Some(dir.join(format!("{safe}.partial.json")).to_string_lossy().to_string())
+    Some(transcription_dir(app)?.join(format!("{safe}.partial.json")).to_string_lossy().to_string())
+}
+
+/// `<appData>/transcription/transcribe-debug.log` — the engine's step/env/crash log, on disk
+/// so we have ground truth about a failure regardless of what the stdout/stderr pipes do.
+fn debug_log_path(app: &AppHandle) -> Option<String> {
+    Some(transcription_dir(app)?.join("transcribe-debug.log").to_string_lossy().to_string())
 }
 
 fn vault_audio_path(app: &AppHandle, media_ref: &str) -> Result<std::path::PathBuf, String> {
@@ -132,6 +160,7 @@ pub async fn transcribe_audio(
     let ref_for_thread = media_ref.clone();
     // czech-whisper checkpoints for mid-file resume; parakeet is single-shot (no checkpoint).
     let checkpoint = if model == "czech-whisper" { checkpoint_path(&app, &media_ref) } else { None };
+    let debug_log = debug_log_path(&app);
 
     // A fresh run for this ref supersedes any earlier cancel request still on the books.
     if let Ok(mut reg) = registry().lock() {
@@ -151,6 +180,9 @@ pub async fn transcribe_audio(
         if let Some(ref cp) = checkpoint {
             cmd.arg("--checkpoint").arg(cp);
         }
+        if let Some(ref dl) = debug_log {
+            cmd.arg("--debug-log").arg(dl);
+        }
         if polish.unwrap_or(false) {
             cmd.arg("--polish");
         }
@@ -159,13 +191,25 @@ pub async fn transcribe_audio(
         // common Homebrew/local bins on the child's PATH so they're found.
         let base_path = std::env::var("PATH").unwrap_or_default();
         cmd.env("PATH", format!("/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:{base_path}"));
+        // A Finder-launched .app also lacks a terminal's env. Set the few vars that matter for
+        // a long Python/MLX run: unbuffered I/O + a native-fault traceback for diagnosis, an
+        // explicit UTF-8 locale, and no tokenizer fork-thread churn.
+        cmd.env("PYTHONUNBUFFERED", "1");
+        cmd.env("PYTHONFAULTHANDLER", "1");
+        cmd.env("LANG", "en_US.UTF-8");
+        cmd.env("TOKENIZERS_PARALLELISM", "false");
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         let mut child = cmd.spawn().map_err(|e| format!("spawn failed: {e}"))?;
+        let child_pid = child.id();
         // Register the PID so a Pause (cancel_transcription) can kill this child.
         if let Ok(mut reg) = registry().lock() {
-            reg.pids.insert(ref_for_thread.clone(), child.id());
+            reg.pids.insert(ref_for_thread.clone(), child_pid);
         }
+        // A czech-whisper job can run ~2 h; the app usually hides to the menu bar (an
+        // unattended, dockless process), so hold off idle sleep for the child's lifetime —
+        // otherwise sleep can invalidate the Metal/GPU context mid-run. Best-effort.
+        let _ = Command::new("caffeinate").arg("-i").arg("-w").arg(child_pid.to_string()).spawn();
         let stdout = child.stdout.take().ok_or("no stdout pipe")?;
         let stderr = child.stderr.take().ok_or("no stderr pipe")?;
 
@@ -175,8 +219,24 @@ pub async fn transcribe_audio(
         let app2 = app.clone();
         let ref2 = ref_for_thread.clone();
         let err_thread = std::thread::spawn(move || {
-            let mut tail = String::new();
-            for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+            // Keep a bounded tail of recent stderr LINES. The previous version grew a String
+            // and did `tail.split_off(tail.len() - 2000)` — which PANICS when that byte offset
+            // lands inside a multi-byte char, exactly what tqdm's `█` (3-byte) progress bars
+            // caused. That panic killed this thread, closed the child's stderr pipe, and made
+            // the engine die with a bogus exit 120. Read raw BYTES + lossy-decode (so a stray
+            // non-UTF-8 byte can't terminate the reader either) and bound the tail by line.
+            let mut reader = BufReader::new(stderr);
+            let mut recent: VecDeque<String> = VecDeque::new();
+            let mut tail_bytes: usize = 0;
+            let mut buf: Vec<u8> = Vec::new();
+            loop {
+                buf.clear();
+                match reader.read_until(b'\n', &mut buf) {
+                    Ok(0) => break,  // EOF
+                    Ok(_) => {}
+                    Err(_) => break, // reader error — stop, but never panic
+                }
+                let line = String::from_utf8_lossy(&buf).trim_end_matches(['\n', '\r']).to_string();
                 let t = line.trim();
                 if t.starts_with('{') {
                     if let Ok(v) = serde_json::from_str::<serde_json::Value>(t) {
@@ -192,13 +252,9 @@ pub async fn transcribe_audio(
                         }
                     }
                 }
-                tail.push_str(&line);
-                tail.push('\n');
-                if tail.len() > 4000 {
-                    tail = tail.split_off(tail.len() - 2000);
-                }
+                push_bounded(&mut recent, &mut tail_bytes, line, 4000);
             }
-            tail
+            recent.into_iter().collect::<Vec<_>>().join("\n")
         });
 
         let mut json = String::new();
@@ -231,10 +287,54 @@ pub async fn transcribe_audio(
             return Ok(json);
         }
         if !status.success() {
-            return Err(format!("engine exited with {status}: {stderr_tail}"));
+            let detail = match (status.code(), status.signal()) {
+                (Some(code), _) => format!("exit code {code}"),
+                (None, Some(sig)) => format!("killed by signal {sig}"),
+                _ => "unknown exit".to_string(),
+            };
+            let tail = if stderr_tail.trim().is_empty() {
+                "(no engine output — see transcribe-debug.log)".to_string()
+            } else {
+                stderr_tail
+            };
+            return Err(format!("engine failed ({detail}): {tail}"));
         }
         Err("engine produced no output".into())
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The regression guard for the exit-120 bug: the OLD code did
+    // `tail.split_off(tail.len() - 2000)`, which panics when that byte offset lands inside a
+    // multi-byte char. Feed the bounded-tail helper a flood of 3-byte `█` lines (exactly what
+    // mlx_whisper's tqdm bar emitted) across the truncation boundary and assert it never
+    // panics and stays bounded.
+    #[test]
+    fn push_bounded_never_panics_on_multibyte_and_stays_bounded() {
+        let mut recent: VecDeque<String> = VecDeque::new();
+        let mut bytes = 0usize;
+        for i in 0..1000 {
+            // '█' is U+2588 = 3 bytes; a line whose byte length makes len-2000 fall mid-char.
+            let line = format!("{}{}", "█".repeat(37), i);
+            push_bounded(&mut recent, &mut bytes, line, 4000);
+            assert!(bytes <= 4000 || recent.len() == 1);
+        }
+        // The retained tail joins back to valid UTF-8 (no mid-char slicing ever happened).
+        let tail = recent.into_iter().collect::<Vec<_>>().join("\n");
+        assert!(tail.contains('█'));
+        assert!(tail.len() <= 4100);
+    }
+
+    #[test]
+    fn push_bounded_keeps_at_least_one_oversize_line() {
+        let mut recent: VecDeque<String> = VecDeque::new();
+        let mut bytes = 0usize;
+        push_bounded(&mut recent, &mut bytes, "x".repeat(10_000), 4000);
+        assert_eq!(recent.len(), 1); // never drops the only line, even if it exceeds the cap
+    }
 }

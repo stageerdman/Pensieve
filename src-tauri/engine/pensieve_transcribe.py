@@ -40,10 +40,46 @@ VAD_MAX_CHUNK_S = 28.0
 VAD_MERGE_GAP_S = 0.4
 
 
+# ── Debug log (on-disk transparency) ──────────────────────────────────────────
+# A line-buffered log file the Rust shell points us at (--debug-log). It is independent of
+# the stdout/stderr pipes, so even if those break we still have ground truth on disk about
+# what the engine was doing and why it stopped. Best-effort; never fails the run.
+_DLOG = None
+
+
+def _dlog_init(path: str | None) -> None:
+    global _DLOG
+    if not path:
+        return
+    try:
+        _DLOG = open(path, "a", encoding="utf-8", buffering=1)  # line-buffered
+    except OSError:
+        _DLOG = None
+
+
+def dlog(msg: str) -> None:
+    if _DLOG is None:
+        return
+    try:
+        _DLOG.write(f"{time.strftime('%H:%M:%S')} [{os.getpid()}] {msg}\n")
+    except Exception:
+        pass
+
+
+def _safe_stderr(text: str) -> None:
+    """Write to stderr WITHOUT ever raising. If Rust stopped reading (broken pipe) this must
+    not throw — an unguarded stderr write on a broken pipe is what used to cascade into a
+    bogus exit 120. Failures are mirrored to the debug log instead."""
+    try:
+        sys.stderr.write(text)
+        sys.stderr.flush()
+    except (BrokenPipeError, OSError):
+        dlog("stderr write failed (broken pipe) — continuing")
+
+
 def emit(phase: str, pct: float) -> None:
     """Progress line → stderr (Rust forwards it as a transcribe-progress event)."""
-    sys.stderr.write(json.dumps({"phase": phase, "pct": round(max(0.0, min(100.0, pct)), 1)}) + "\n")
-    sys.stderr.flush()
+    _safe_stderr(json.dumps({"phase": phase, "pct": round(max(0.0, min(100.0, pct)), 1)}) + "\n")
 
 
 # ── Checkpointing (czech-whisper resume) ──────────────────────────────────────
@@ -157,6 +193,7 @@ def transcribe_whisper(audio, language: str, checkpoint: str | None = None) -> l
     start_chunk, segments = (_load_checkpoint(checkpoint, "czech-whisper", language, chunks)
                              if checkpoint else (0, []))
     done = sum(e - s for s, e in chunks[:start_chunk])
+    dlog(f"whisper: {len(chunks)} chunks, starting at {start_chunk} ({len(segments)} segments resumed)")
     if start_chunk:
         emit("transcribe", 10 + 80 * (done / total_speech))  # jump the bar to where we left off
 
@@ -170,15 +207,16 @@ def transcribe_whisper(audio, language: str, checkpoint: str | None = None) -> l
         result = None
         for attempt in range(3):
             try:
+                # verbose=None (not False): disables mlx_whisper's per-chunk tqdm progress bar,
+                # which otherwise floods stderr with multi-byte `█` chars (hundreds of chunks →
+                # the pipe pressure behind the old crash) and prints nothing to stdout.
                 result = mlx_whisper.transcribe(
-                    audio[s:e], path_or_hf_repo=repo, language=language, verbose=False, **WHISPER_DECODE_OPTS
+                    audio[s:e], path_or_hf_repo=repo, language=language, verbose=None, **WHISPER_DECODE_OPTS
                 )
                 break
             except Exception as ex:  # noqa: BLE001 — transient backend error; retry/skip
-                sys.stderr.write(
-                    json.dumps({"warn": f"chunk {idx} attempt {attempt + 1}/3 failed: {ex!r}"}) + "\n"
-                )
-                sys.stderr.flush()
+                dlog(f"chunk {idx} attempt {attempt + 1}/3 failed: {ex!r}")
+                _safe_stderr(json.dumps({"warn": f"chunk {idx} attempt {attempt + 1}/3 failed: {ex!r}"}) + "\n")
         if result is None:
             consecutive_failures += 1
             if consecutive_failures >= 5:
@@ -207,6 +245,8 @@ def transcribe_whisper(audio, language: str, checkpoint: str | None = None) -> l
         if checkpoint:
             _save_checkpoint(checkpoint, "czech-whisper", language, chunks, idx + 1, segments)
         emit("transcribe", 10 + 80 * (done / total_speech))
+        if idx % 10 == 0 or idx == len(chunks) - 1:
+            dlog(f"whisper: chunk {idx + 1}/{len(chunks)} done, {len(segments)} segments")
     return segments
 
 
@@ -337,18 +377,26 @@ def main() -> int:
     ap.add_argument("--media-ref", default=None)
     ap.add_argument("--checkpoint", default=None,
                     help="path to a resume checkpoint (czech-whisper only); resumed from + deleted on success")
+    ap.add_argument("--debug-log", default=None, help="append step/env/crash diagnostics to this file")
     args = ap.parse_args()
+
+    _dlog_init(args.debug_log)
+    dlog(f"START model={args.model} polish={args.polish} ref={args.media_ref} audio={args.audio}")
+    dlog(f"env: py={sys.version.split()[0]} utf8_mode={getattr(sys.flags, 'utf8_mode', '?')} "
+         f"cwd={os.getcwd()} LANG={os.environ.get('LANG')} stdout.enc={sys.stdout.encoding}")
 
     t0 = time.time()
     audio_path = str(Path(args.audio).expanduser())
     if not Path(audio_path).exists():
-        sys.stderr.write(json.dumps({"error": f"audio not found: {audio_path}"}) + "\n")
+        dlog(f"audio not found: {audio_path}")
+        _safe_stderr(json.dumps({"error": f"audio not found: {audio_path}"}) + "\n")
         return 2
 
     emit("load-audio", 2)
     from mlx_whisper.audio import load_audio
     audio = load_audio(audio_path)  # float32 mono @ 16 kHz (shells out to ffmpeg)
     duration = round(len(audio) / VAD_SR, 2)
+    dlog(f"audio loaded: {duration}s")
     emit("load-audio", 8)
 
     language = args.language
@@ -396,7 +444,9 @@ def main() -> int:
     # the next run doesn't think there's unfinished work.
     _delete_checkpoint(args.checkpoint)
     emit("done", 100)
-    sys.stderr.write(json.dumps({"elapsed_sec": round(time.time() - t0, 1), "segments": len(segments)}) + "\n")
+    elapsed = round(time.time() - t0, 1)
+    dlog(f"DONE {len(segments)} segments in {elapsed}s — writing transcript to stdout")
+    _safe_stderr(json.dumps({"elapsed_sec": elapsed, "segments": len(segments)}) + "\n")
     json.dump(transcript, sys.stdout, ensure_ascii=False)
     sys.stdout.write("\n")
     return 0
@@ -427,7 +477,11 @@ if __name__ == "__main__":
         rc = e.code if isinstance(e.code, int) else 1
     except BaseException as e:  # noqa: BLE001 — top-level guard; we re-report and exit
         import traceback
-        sys.stderr.write("ENGINE ERROR: " + repr(e) + "\n")
-        traceback.print_exc()
+        tb = traceback.format_exc()
+        # Record the REAL cause to the disk log first (can't break), then try stderr. The
+        # stderr write is guarded: if Rust already stopped reading, an unguarded write here
+        # would re-raise and let CPython's shutdown-flush failure mask this with exit 120.
+        dlog("ENGINE ERROR: " + repr(e) + "\n" + tb)
+        _safe_stderr("ENGINE ERROR: " + repr(e) + "\n" + tb)
         _flush_and_exit(1)
     _flush_and_exit(rc)
