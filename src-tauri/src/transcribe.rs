@@ -6,8 +6,10 @@
 // are passed in from the frontend (which holds the configured paths), so this stays
 // generic and we avoid hardcoding the transcriber venv here. Bundling a self-contained
 // runtime into the .app is a later packaging pass.
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Read};
 use std::process::{Command, Stdio};
+use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Clone, serde::Serialize)]
@@ -16,6 +18,54 @@ struct Progress {
     media_ref: String,
     phase: String,
     pct: f64,
+}
+
+/// Returned (as the invoke rejection) when a running job was cancelled by the user via
+/// `cancel_transcription` — the frontend treats this as "paused", NOT a failure, and keeps
+/// the checkpoint so Run resumes mid-file. Kept in sync with the frontend constant.
+pub const CANCELLED: &str = "__cancelled__";
+
+/// Registry of in-flight transcription children so a Pause can actually stop one. Keyed by
+/// media ref: the live child PID, plus the set of refs the user asked to cancel (the signal
+/// the worker checks after the child exits to report CANCELLED instead of an error).
+struct Registry {
+    pids: HashMap<String, u32>,
+    cancelled: HashSet<String>,
+}
+fn registry() -> &'static Mutex<Registry> {
+    static REG: OnceLock<Mutex<Registry>> = OnceLock::new();
+    REG.get_or_init(|| Mutex::new(Registry { pids: HashMap::new(), cancelled: HashSet::new() }))
+}
+
+/// Cancel the running transcription for `media_ref` (the Pause button). Kills the engine
+/// child if present; its czech-whisper checkpoint is left on disk so the next run resumes.
+#[tauri::command]
+pub fn cancel_transcription(media_ref: String) -> Result<(), String> {
+    let pid = {
+        let mut reg = registry().lock().map_err(|e| e.to_string())?;
+        match reg.pids.get(&media_ref).copied() {
+            Some(pid) => {
+                reg.cancelled.insert(media_ref.clone());
+                Some(pid)
+            }
+            None => None, // nothing running for this ref — a no-op
+        }
+    };
+    if let Some(pid) = pid {
+        // SIGKILL the engine. Any short-lived `claude -p` child it spawned during polish is
+        // orphaned and exits on its own; MLX work is in-process, so this stops it outright.
+        let _ = Command::new("kill").arg("-9").arg(pid.to_string()).status();
+    }
+    Ok(())
+}
+
+/// `<appData>/transcription/<sanitized media ref>.partial.json` — the czech-whisper resume
+/// checkpoint. Lives outside the vault so it never pollutes the note store or OneDrive sync.
+fn checkpoint_path(app: &AppHandle, media_ref: &str) -> Option<String> {
+    let dir = app.path().app_data_dir().ok()?.join("transcription");
+    let _ = std::fs::create_dir_all(&dir);
+    let safe = media_ref.replace(['/', '\\'], "_");
+    Some(dir.join(format!("{safe}.partial.json")).to_string_lossy().to_string())
 }
 
 fn vault_audio_path(app: &AppHandle, media_ref: &str) -> Result<std::path::PathBuf, String> {
@@ -80,6 +130,13 @@ pub async fn transcribe_audio(
     let python_path = resolve_python(python_path);
     let engine_path = resolve_engine(&app, engine_path);
     let ref_for_thread = media_ref.clone();
+    // czech-whisper checkpoints for mid-file resume; parakeet is single-shot (no checkpoint).
+    let checkpoint = if model == "czech-whisper" { checkpoint_path(&app, &media_ref) } else { None };
+
+    // A fresh run for this ref supersedes any earlier cancel request still on the books.
+    if let Ok(mut reg) = registry().lock() {
+        reg.cancelled.remove(&media_ref);
+    }
 
     // spawn_blocking: child process + line-reading loop are blocking work.
     tauri::async_runtime::spawn_blocking(move || {
@@ -91,6 +148,9 @@ pub async fn transcribe_audio(
             .arg(&model)
             .arg("--media-ref")
             .arg(&ref_for_thread);
+        if let Some(ref cp) = checkpoint {
+            cmd.arg("--checkpoint").arg(cp);
+        }
         if polish.unwrap_or(false) {
             cmd.arg("--polish");
         }
@@ -102,6 +162,10 @@ pub async fn transcribe_audio(
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         let mut child = cmd.spawn().map_err(|e| format!("spawn failed: {e}"))?;
+        // Register the PID so a Pause (cancel_transcription) can kill this child.
+        if let Ok(mut reg) = registry().lock() {
+            reg.pids.insert(ref_for_thread.clone(), child.id());
+        }
         let stdout = child.stdout.take().ok_or("no stdout pipe")?;
         let stderr = child.stderr.take().ok_or("no stderr pipe")?;
 
@@ -143,6 +207,19 @@ pub async fn transcribe_audio(
             .map_err(|e| e.to_string())?;
         let stderr_tail = err_thread.join().unwrap_or_default();
         let status = child.wait().map_err(|e| e.to_string())?;
+
+        // Deregister this child; learn whether the exit was a user cancel.
+        let was_cancelled = match registry().lock() {
+            Ok(mut reg) => {
+                reg.pids.remove(&ref_for_thread);
+                reg.cancelled.remove(&ref_for_thread)
+            }
+            Err(_) => false,
+        };
+        if was_cancelled {
+            // Paused by the user — not a failure. The checkpoint stays on disk for resume.
+            return Err(CANCELLED.into());
+        }
 
         let json = json.trim().to_string();
         // The engine writes the whole transcript to stdout in one shot at the very END

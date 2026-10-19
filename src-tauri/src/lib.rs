@@ -267,7 +267,8 @@ pub fn run() {
             sync::oauth_listen,
             sync::port_available,
             sync::http_request,
-            transcribe::transcribe_audio
+            transcribe::transcribe_audio,
+            transcribe::cancel_transcription
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
