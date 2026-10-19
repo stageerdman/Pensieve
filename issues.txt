@@ -17,6 +17,14 @@ TRANSCRIPTION-RESUME — shipped to main 2026-10-19 (owner to device-confirm):
       resumes mid-file; Pause actually kills the running engine child (cancel_transcription) and keeps
       the checkpoint so Run resumes; queue state (model/order/playing/mode) persists to localStorage
       and auto-resumes on launch. Parakeet is single-shot (restarts whole, ~3 min). Folder OPEN.
+- [x] Recurring "engine exited with 120" on the 75-min Czech tape was 120 MASKING a real
+      exception: an unhandled error in main() bypassed os._exit, so CPython's shutdown-flush
+      failed → 120, hiding the traceback printed just before. Now main() is wrapped to print
+      "ENGINE ERROR: <repr>"+traceback and exit 1 (checkpoint kept → resume). Plus per-chunk
+      retry(3x)→skip so a transient MLX/Metal hiccup can't kill the job; 5-in-a-row aborts with
+      a clear message. Root cause of the underlying chunk failure still TBD — next failure will
+      now show the real reason in the popover (owner to paste it). Parakeet does this file in
+      ~3 min reliably as an immediate alternative (switch the row's model badge).
 - [ ] Parakeet has no mid-file checkpoint (single library call) — restarts from 0 on resume.
 - [ ] Auto-resume rides on the SyncStatus-mounted queue; if OneDrive is ever "unavailable" the queue
       doesn't mount, so resume would wait for a surface that mounts it. Fine for the connected owner.
