@@ -83,7 +83,7 @@ export const ProcessQueue = forwardRef<ProcessQueueHandle, Props>(function Proce
         <button
           type="button"
           onClick={q.togglePlay}
-          title={q.playing ? "Pause" : "Run"}
+          title={q.playing ? "Pause — stops the current job; Run resumes where it left off" : "Run"}
           className={`grid h-7 w-[34px] place-items-center rounded-md bg-accent text-surface hover:bg-accent-glow ${
             q.playing ? "shadow-[0_0_16px_-4px_hsl(var(--accent-glow))]" : ""
           }`}

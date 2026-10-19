@@ -16,7 +16,7 @@ import { reindex } from "../../lib/search/reindexController";
 import { listUntranscribedAudio } from "../../lib/transcripts/queue";
 import { parseMediaPath } from "../../lib/media/ref";
 import { DEFAULT_MODEL, type TranscriptionModel } from "../../lib/transcripts/models";
-import type { TranscriptionEngine } from "../../lib/transcripts/engine";
+import { isCancelled, type TranscriptionEngine } from "../../lib/transcripts/engine";
 import { log } from "../../lib/logger";
 import { processQueue } from "./processQueueController";
 import {
@@ -109,6 +109,14 @@ export function useProcessQueue(opts: {
       })
       .catch((e) => {
         runningRef.current = null;
+        if (isCancelled(e)) {
+          // Paused by the user — not a failure. Leave the row (progress frozen); its
+          // checkpoint is kept, so a later Run resumes it mid-file. The [...prev] nudge
+          // re-runs the driver effect in case Run was pressed before this rejection landed.
+          log.info("transcribe", "queue.paused", { ref });
+          setItems((prev) => [...prev]);
+          return;
+        }
         const msg = cleanEngineError(e);
         log.error("transcribe", "queue.error", { ref, error: msg });
         processQueue.notifyResult(ref, false);
@@ -120,10 +128,14 @@ export function useProcessQueue(opts: {
   const togglePlay = useCallback(() => {
     setPlaying((p) => {
       const next = !p;
-      if (next) setItems((prev) => clearErrorsForRetry(prev)); // Run retries failed rows
+      if (next) {
+        setItems((prev) => clearErrorsForRetry(prev)); // Run retries failed rows
+      } else if (runningRef.current && engine.cancel) {
+        void engine.cancel(runningRef.current); // Pause actually STOPS the active job (resumable)
+      }
       return next;
     });
-  }, []);
+  }, [engine]);
 
   const reorder = useCallback((ref: string, pos: number) => {
     setItems((prev) => reorderItems(prev, ref, pos));

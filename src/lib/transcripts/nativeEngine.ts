@@ -67,6 +67,13 @@ export class NativeTranscriptionEngine implements TranscriptionEngine {
       if (unlisten) unlisten();
     }
   }
+
+  /** Pause: ask the Rust side to kill the running engine child for `ref`. The in-flight
+   *  `transcribe` promise above then rejects with the CANCELLED sentinel; the czech-whisper
+   *  checkpoint is left on disk so a later Run resumes mid-file. */
+  async cancel(ref: string): Promise<void> {
+    await invoke("cancel_transcription", { mediaRef: ref });
+  }
 }
 
 /** A progress mapper exported for tests. */
