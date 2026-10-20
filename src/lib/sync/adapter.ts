@@ -9,7 +9,7 @@
 // item paths are path-addressed under the root and URL-encoded.
 
 import type { GraphClient } from "./graph";
-import { REMOTE_ROOT } from "./config";
+import { GRAPH_BASE, REMOTE_ROOT } from "./config";
 import { ConflictError, type RemoteItem, type SyncAccount, type SyncQuota } from "./types";
 import { isMediaPath, parseMediaPath } from "../media";
 import { log } from "../logger";
@@ -232,6 +232,76 @@ export async function downloadMedia(graph: GraphClient, ref: string): Promise<Ui
   const buf = await res.arrayBuffer();
   log.debug("sync", "adapter.media.download", { ref, size: buf.byteLength });
   return new Uint8Array(buf);
+}
+
+// ── Large media (resumable upload sessions + chunked downloads) ──────────────────
+// Graph's simple PUT/GET content calls above are capped at ~4MB. Anything bigger
+// routes through here instead: a resumable upload session for pushes, plain item
+// metadata + the absolute content URL for chunked Range-GET pulls. The actual byte
+// transfer for both happens natively (see native.ts/vault.ts) — these functions only
+// ever carry small JSON, never the file itself.
+
+/** Graph's own simple-upload/-download ceiling. Below this, the plain PUT/GET above
+ *  is used unchanged; at or above it, the resumable/chunked path takes over. */
+export const LARGE_MEDIA_THRESHOLD = 4 * 1024 * 1024;
+
+export interface MediaUploadSession {
+  uploadUrl: string;
+  expirationDateTime: string;
+}
+
+/** Create a resumable Graph upload session for a media ref. "replace" mirrors
+ *  uploadMedia's semantics — a retried/resumed upload may legitimately recreate the
+ *  same content-addressed ref. */
+export async function createMediaUploadSession(graph: GraphClient, ref: string): Promise<MediaUploadSession> {
+  const res = await graph.fetch(`${mediaItemPath(ref)}:/createUploadSession`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ item: { "@microsoft.graph.conflictBehavior": "replace" } }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`createUploadSession failed (${res.status}): ${text.slice(0, 200)}`);
+  }
+  const session = (await res.json()) as MediaUploadSession;
+  log.debug("sync", "adapter.media.session.created", { ref, expires: session.expirationDateTime });
+  return session;
+}
+
+/** Ask Graph how much of an in-progress upload session it has already received, so a
+ *  resumed upload (the owner closed the app mid-transfer) continues from exactly the
+ *  right byte instead of restarting. Null means the session is gone — expired,
+ *  completed, or cancelled — the caller should create a fresh one. Deliberately
+ *  skips the Bearer token: Graph rejects a request to the session URL that carries
+ *  one. */
+export async function queryUploadSession(graph: GraphClient, uploadUrl: string): Promise<number | null> {
+  const res = await graph.fetch(uploadUrl, { absolute: true, skipAuth: true });
+  if (!res.ok) return null;
+  const data = (await res.json().catch(() => null)) as { nextExpectedRanges?: string[] } | null;
+  const first = data?.nextExpectedRanges?.[0];
+  if (!first) return null;
+  const start = Number(first.split("-")[0]);
+  return Number.isFinite(start) ? start : null;
+}
+
+/** A media ref's remote id + size, or null if it isn't on the remote yet. Checked
+ *  before pulling so the engine can decide whole-buffer vs chunked-download without
+ *  ever fetching the content itself first. */
+export async function mediaMeta(graph: GraphClient, ref: string): Promise<{ id: string; size: number } | null> {
+  const res = await graph.fetch(`${mediaItemPath(ref)}?$select=id,size`);
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`mediaMeta failed (${res.status}): ${text.slice(0, 200)}`);
+  }
+  return (await res.json()) as { id: string; size: number };
+}
+
+/** The absolute Graph URL for a media ref's content — for the native chunked
+ *  downloader, which talks to Graph directly with a bearer token rather than through
+ *  this client's fetch() wrapper (so bytes never round-trip through JS). */
+export function mediaContentUrl(ref: string): string {
+  return `${GRAPH_BASE}${mediaItemPath(ref)}:/content`;
 }
 
 export interface DeltaResult {

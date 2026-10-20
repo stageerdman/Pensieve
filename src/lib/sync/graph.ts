@@ -19,7 +19,10 @@ import { log } from "../logger";
 // base64 back to bytes so arbitrary image content survives. The browser path handles
 // bytes natively, so the flags are no-ops there.
 async function transport(url: string, options: GraphFetchOptions, token: string): Promise<Response> {
-  const headers = { ...(options.headers as Record<string, string> | undefined), Authorization: `Bearer ${token}` };
+  const headers = { ...(options.headers as Record<string, string> | undefined) };
+  // A resumable upload-session URL is pre-authorized — Graph rejects the request
+  // outright if an Authorization header rides along, so these calls must skip it.
+  if (!options.skipAuth) headers.Authorization = `Bearer ${token}`;
   if (isTauri()) {
     const method = (options.method ?? "GET").toUpperCase();
     let body: string | null = null;
@@ -56,14 +59,43 @@ export interface GraphFetchOptions extends RequestInit {
   binaryBody?: boolean;
   /** Expect a binary response — decode it from base64 to bytes (image downloads). */
   binaryResponse?: boolean;
+  /** Skip attaching our Bearer token. Required for a resumable upload-session URL —
+   *  see the transport() comment above. */
+  skipAuth?: boolean;
 }
 
 export interface GraphClient {
   fetch(path: string, options?: GraphFetchOptions): Promise<Response>;
   json<T>(path: string, options?: GraphFetchOptions): Promise<T>;
+  /** The raw bearer token, for the native streaming large-media transfer, which talks
+   *  to Graph directly (outside this client's fetch wrapper) so bytes never round-trip
+   *  through JS. */
+  token(): Promise<string>;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Defense-in-depth: this path only ever moves note-sized text or ≤4MB media (large
+// media is routed around it entirely, through the native chunked transfer — see
+// adapter.ts/engine.ts). If a call somehow stalls anyway, force it to fail cleanly
+// into the existing retry/backoff instead of leaving the sync promise hung forever —
+// the exact failure mode a giant base64 transfer used to produce before that move.
+const TRANSPORT_TIMEOUT_MS = 45_000;
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
 
 export function makeGraphClient(provider: TokenProvider): GraphClient {
   const maxRetries = 4;
@@ -74,7 +106,7 @@ export function makeGraphClient(provider: TokenProvider): GraphClient {
       const token = await provider.getToken();
       let res: Response;
       try {
-        res = await transport(url, options, token);
+        res = await withTimeout(transport(url, options, token), TRANSPORT_TIMEOUT_MS);
       } catch (e) {
         // A transport throw (no network, DNS, native HTTP timeout) is temporary —
         // one retry, then surface it as transient (not a generic/expired error).
@@ -113,5 +145,5 @@ export function makeGraphClient(provider: TokenProvider): GraphClient {
     return res.json() as Promise<T>;
   }
 
-  return { fetch: doFetch, json };
+  return { fetch: doFetch, json, token: () => provider.getToken() };
 }

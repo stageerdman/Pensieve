@@ -179,6 +179,7 @@ class FakeDrive {
     return {
       fetch: async (path, opts) => handle(path, opts) as unknown as Response,
       json: async <T>(path: string, opts?: GraphFetchOptions) => (await (handle(path, opts).json())) as T,
+      token: async () => "fake-token",
     };
   }
 }
@@ -321,6 +322,7 @@ describe("sync engine", () => {
         }
         return graph.json<T>(path, opts);
       },
+      token: graph.token,
     };
 
     const r = await sync(tombGraph, vault);

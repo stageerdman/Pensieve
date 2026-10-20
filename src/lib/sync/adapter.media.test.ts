@@ -33,6 +33,7 @@ function fakeGraph(opts: {
   return {
     fetch: async (path, o) => mk(path, o) as unknown as Response,
     json: async <T>(path: string, o?: GraphFetchOptions) => (await mk(path, o).json()) as T,
+    token: async () => "fake-token",
   };
 }
 

@@ -143,6 +143,7 @@ class FakeDrive {
     return {
       fetch: async (path, opts) => handle(path, opts) as unknown as Response,
       json: async <T>(path: string, opts?: GraphFetchOptions) => (await handle(path, opts).json()) as T,
+      token: async () => "fake-token",
     };
   }
 }
@@ -191,6 +192,7 @@ describe("sync engine — media backup", () => {
         return graph.fetch(path, opts);
       },
       json: graph.json,
+      token: graph.token,
     };
     const r2 = await sync(spyGraph, vault);
     expect(r2.pushedMedia).toEqual([]);
@@ -208,6 +210,7 @@ describe("sync engine — media backup", () => {
         return graph.fetch(path, opts);
       },
       json: graph.json,
+      token: graph.token,
     };
     const r = await sync(brokenGraph, vault);
     // The note still synced; the media is flagged failed (auto-retried next time).

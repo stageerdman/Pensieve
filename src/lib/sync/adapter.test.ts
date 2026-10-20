@@ -35,6 +35,7 @@ function fakeGraph(handlers: Handler[]): { graph: GraphClient; calls: Array<{ pa
   const graph: GraphClient = {
     fetch: async (path, opts = {}) => toResponse(next(path, opts)) as unknown as Response,
     json: async <T>(path: string, opts: GraphFetchOptions = {}) => next(path, opts).body as T,
+    token: async () => "fake-token",
   };
   return { graph, calls };
 }
