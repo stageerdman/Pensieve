@@ -13,6 +13,7 @@ import { tauriVault } from "./vault";
 import { ConflictError, EMPTY_SYNC_STATE, type MediaSyncRecord, type NoteSyncRecord, type SyncProgress, type SyncState } from "./types";
 import type { RemoteItem } from "./types";
 import {
+  createMediaUploadSession,
   createRoot,
   delta,
   deleteNote,
@@ -20,8 +21,12 @@ import {
   downloadNote,
   getAccount,
   getQuota,
+  LARGE_MEDIA_THRESHOLD,
   listNotes,
+  mediaContentUrl,
+  mediaMeta,
   noteIdFromName,
+  queryUploadSession,
   remoteRootExists,
   uploadMedia,
   uploadNote,
@@ -72,7 +77,12 @@ function nowMs(): number {
 /** Download every referenced media binary a pulled note needs but the vault lacks, and
  *  record it as backed up (so a second machine / a restore rehydrates images). `have` is
  *  the set of refs already on disk (mutated as we add). Never throws — a flaky media
- *  download must not abort the whole sync; it's retried on a later sync. */
+ *  download must not abort the whole sync; it's retried on a later sync.
+ *
+ *  Below LARGE_MEDIA_THRESHOLD, this is the original single whole-buffer GET. At or
+ *  above it, the native chunked downloader streams straight to disk (resuming from
+ *  whatever a previous partial attempt left behind) — the file never passes through
+ *  JS as one in-memory buffer. */
 async function pullReferencedMedia(
   graph: GraphClient,
   vault: LocalVault,
@@ -88,9 +98,18 @@ async function pullReferencedMedia(
       continue;
     }
     try {
-      const bytes = await downloadMedia(graph, ref);
-      if (!bytes) continue; // not on the remote (yet) — leave it; a later sync may find it
-      await vault.writeMediaBytes(ref, bytes);
+      const meta = await mediaMeta(graph, ref);
+      if (!meta) continue; // not on the remote (yet) — leave it; a later sync may find it
+
+      if (meta.size > LARGE_MEDIA_THRESHOLD && vault.downloadMediaStream) {
+        const token = await graph.token();
+        await vault.downloadMediaStream(ref, mediaContentUrl(ref), token, meta.size);
+      } else {
+        const bytes = await downloadMedia(graph, ref);
+        if (!bytes) continue;
+        await vault.writeMediaBytes(ref, bytes);
+      }
+
       have.add(ref);
       media[ref] = { ref, backedUp: true };
       setMediaBackupState(ref, "backed-up");
@@ -103,33 +122,103 @@ async function pullReferencedMedia(
 
 /** Upload every local media binary not yet recorded as backed up. Content-addressed, so a
  *  present remote copy = done. Failures are recorded + surfaced via the backup-status
- *  store (auto-retried next sync), never thrown — one flaky image must not abort the sync. */
+ *  store (auto-retried next sync), never thrown — one flaky image must not abort the sync.
+ *
+ *  Below LARGE_MEDIA_THRESHOLD, this is the original single whole-buffer PUT. At or
+ *  above it, a resumable Graph upload session takes over (see uploadLargeMedia) —
+ *  takes `state` rather than just its `media` map so a freshly-created session can be
+ *  checkpointed to disk immediately, before any bytes go out. */
 async function pushLocalMedia(
   graph: GraphClient,
   vault: LocalVault,
-  media: Record<string, MediaSyncRecord>,
+  state: SyncState,
   result: SyncResult,
 ): Promise<void> {
+  const media = state.media!;
   const local = await vault.listMedia();
   for (const ref of local) {
     if (media[ref]?.backedUp) {
       setMediaBackupState(ref, "backed-up");
       continue;
     }
-    const bytes = await vault.readMediaBytes(ref);
-    if (!bytes) continue;
+    const size = await vault.mediaSize(ref);
+    if (size == null) continue; // vanished since listing
     setMediaBackupState(ref, "uploading");
     try {
-      const item = await uploadMedia(graph, ref, bytes);
-      media[ref] = { ref, remoteId: item.id, backedUp: true };
+      const remoteId =
+        size > LARGE_MEDIA_THRESHOLD && vault.uploadMediaStream
+          ? await uploadLargeMedia(graph, vault, state, ref, size)
+          : await uploadSmallMedia(graph, vault, ref);
+      media[ref] = { ref, remoteId, backedUp: true };
       setMediaBackupState(ref, "backed-up");
       result.pushedMedia.push(ref);
     } catch (e) {
-      media[ref] = { ref, remoteId: media[ref]?.remoteId, backedUp: false, failedAt: nowMs() };
+      // Keep any session handle uploadLargeMedia already persisted — that's exactly
+      // what lets a stalled/interrupted transfer resume from where Graph left off
+      // on the next sync, instead of restarting from byte 0.
+      media[ref] = {
+        ref,
+        remoteId: media[ref]?.remoteId,
+        backedUp: false,
+        failedAt: nowMs(),
+        uploadSession: media[ref]?.uploadSession,
+      };
       setMediaBackupState(ref, "failed");
       log.error("sync", "media.upload.failed", { ref, error: String(e) });
     }
   }
+}
+
+async function uploadSmallMedia(graph: GraphClient, vault: LocalVault, ref: string): Promise<string | undefined> {
+  const bytes = await vault.readMediaBytes(ref);
+  if (!bytes) throw new Error("media vanished before upload");
+  const item = await uploadMedia(graph, ref, bytes);
+  return item.id;
+}
+
+/** Upload a large media file via a resumable Graph session, resuming an in-progress
+ *  one if the owner closed the app mid-upload — Graph remembers how many bytes it
+ *  already received (queried from its uploadUrl), so this picks up exactly where it
+ *  left off rather than restarting. The session handle is written to disk via
+ *  `vault.writeState` the moment it's created — BEFORE the first byte goes out — so a
+ *  hard crash mid-transfer still leaves something to resume from on the next sync. */
+async function uploadLargeMedia(
+  graph: GraphClient,
+  vault: LocalVault,
+  state: SyncState,
+  ref: string,
+  size: number,
+): Promise<string | undefined> {
+  const media = state.media!;
+  let session = media[ref]?.uploadSession;
+  let resumeFrom = 0;
+
+  if (session) {
+    if (Date.parse(session.expirationDateTime) < nowMs()) {
+      session = undefined; // Graph has already discarded an expired session
+    } else {
+      const next = await queryUploadSession(graph, session.uploadUrl);
+      if (next == null) session = undefined; // gone/completed — start fresh
+      else resumeFrom = next;
+    }
+  }
+
+  if (!session) {
+    session = await createMediaUploadSession(graph, ref);
+    resumeFrom = 0;
+    media[ref] = { ...(media[ref] ?? { ref, backedUp: false }), uploadSession: session };
+    await vault.writeState(state); // checkpoint BEFORE sending any bytes
+  }
+
+  if (resumeFrom >= size) {
+    // Every byte is already acknowledged — nothing left to send. We may not have the
+    // final item id (a crash could land exactly here); the next /delta pull will pick
+    // up the finished item either way.
+    return media[ref]?.remoteId;
+  }
+
+  const { remoteId } = await vault.uploadMediaStream!(ref, session.uploadUrl, resumeFrom);
+  return remoteId;
 }
 
 /** Run a full two-way sync. Pull first (so remote wins where only remote changed),
@@ -290,7 +379,7 @@ export async function sync(
   // flaky image never blocks the note sync.
   const haveMedia = new Set(await vault.listMedia());
   await pullReferencedMedia(graph, vault, pulledMediaRefs, haveMedia, state.media!, result);
-  await pushLocalMedia(graph, vault, state.media!, result);
+  await pushLocalMedia(graph, vault, state, result);
 
   // ---------- LOCAL DELETIONS → remote ----------
   // Use the CURRENT on-disk set (downloads above added notes; localDeletes removed

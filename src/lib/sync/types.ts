@@ -102,6 +102,14 @@ export interface MediaSyncRecord {
   backedUp: boolean;
   /** Epoch ms of the last failed upload, if any (for display/retry). */
   failedAt?: number;
+  /** An in-progress large (> LARGE_MEDIA_THRESHOLD) upload session — set the moment
+   *  the session is created (before any bytes are sent) and checkpointed to disk
+   *  immediately, so an app close mid-transfer still has a session to resume on the
+   *  next sync. Graph tracks how many bytes it has actually received server-side
+   *  (queried via its uploadUrl), so this is the only bookkeeping needed — no local
+   *  byte-offset tracking. Cleared once the upload completes or a fresh session
+   *  replaces it. */
+  uploadSession?: { uploadUrl: string; expirationDateTime: string };
 }
 
 /** The whole sync state, persisted beside the vault (not a note). */

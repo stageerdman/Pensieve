@@ -79,6 +79,11 @@ class FakeDrive {
     const m = path.match(/:\/Pensieve\/(media\/[^:]+):\/content/);
     return m ? m[1] : null;
   }
+  // Parse a media ref out of a plain metadata path (no :/content): mediaMeta()'s probe.
+  private mediaMetaRefFromPath(path: string): string | null {
+    const m = path.match(/:\/Pensieve\/(media\/[^:?]+)(\?|$)/);
+    return m ? m[1] : null;
+  }
   private noteNameFromPath(path: string): string {
     const rest = path.slice(ROOT.length + 1);
     return rest.split(":")[0].split("?")[0];
@@ -109,6 +114,15 @@ class FakeDrive {
         if (method === "GET") {
           const b = self.mediaFiles.get(mref);
           return b ? resp(200, undefined, b) : resp(404);
+        }
+      }
+
+      // mediaMeta()'s plain id/size probe (no :/content) — checked before pulling.
+      if (method === "GET") {
+        const metaRef = self.mediaMetaRefFromPath(path);
+        if (metaRef) {
+          const b = self.mediaFiles.get(metaRef);
+          return b ? resp(200, { id: `m${metaRef}`, size: b.byteLength }) : resp(404);
         }
       }
 
