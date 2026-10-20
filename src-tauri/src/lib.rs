@@ -10,6 +10,7 @@ use std::path::PathBuf;
 use tauri::menu::{Menu, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 
+mod media_transfer;
 mod sync;
 mod transcribe;
 
@@ -52,7 +53,7 @@ fn is_safe_rel(rel: &str) -> bool {
     !(rel.contains("..") || rel.starts_with('/'))
 }
 
-fn resolve(app: &AppHandle, rel: &str) -> Result<PathBuf, String> {
+pub(crate) fn resolve(app: &AppHandle, rel: &str) -> Result<PathBuf, String> {
     // Keep everything inside the vault — no path traversal.
     if !is_safe_rel(rel) {
         return Err("invalid path".into());
@@ -267,6 +268,9 @@ pub fn run() {
             sync::oauth_listen,
             sync::port_available,
             sync::http_request,
+            media_transfer::media_size,
+            media_transfer::upload_media_chunked,
+            media_transfer::download_media_chunked,
             transcribe::transcribe_audio,
             transcribe::cancel_transcription
         ])

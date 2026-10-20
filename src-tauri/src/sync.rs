@@ -149,7 +149,7 @@ pub async fn http_request(req: HttpReq) -> Result<HttpRes, String> {
 
 fn http_blocking(req: HttpReq) -> Result<HttpRes, String> {
     let agent = ureq::AgentBuilder::new()
-        .timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(60))
         .build();
     let mut r = agent.request(&req.method, &req.url);
     for (k, v) in &req.headers {
