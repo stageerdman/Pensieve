@@ -42,6 +42,9 @@ class MemVault implements LocalVault {
   async writeMediaBytes(ref: string, bytes: Uint8Array) {
     this.media.set(ref, bytes);
   }
+  async mediaSize(ref: string) {
+    return this.media.get(ref)?.byteLength ?? null;
+  }
   edit(id: string, content: string, updatedAt: number) {
     this.notes.set(id, { content, updatedAt });
   }

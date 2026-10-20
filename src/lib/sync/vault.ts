@@ -9,6 +9,7 @@ import { EMPTY_SYNC_STATE } from "./types";
 import { parseFrontmatter } from "../md/frontmatter";
 import { titleFromMarkdown } from "../text";
 import { MEDIA_DIR, base64ToBytes, bytesToBase64 } from "../media";
+import { downloadMediaChunked, mediaSize as nativeMediaSize, uploadMediaChunked } from "./native";
 
 export interface LocalNoteInfo {
   id: string;
@@ -36,6 +37,17 @@ export interface LocalVault {
   readMediaBytes(ref: string): Promise<Uint8Array | null>;
   /** Write raw bytes for a media ref (creates parent dirs) — pulled-media rehydration. */
   writeMediaBytes(ref: string, bytes: Uint8Array): Promise<void>;
+  /** Byte size of a media file without reading its contents, or null if absent. Lets
+   *  the sync engine route big media through the streaming path (below) instead of
+   *  loading it whole into memory just to find out how big it is. */
+  mediaSize(ref: string): Promise<number | null>;
+  /** Stream a large media file straight from disk to an already-created Graph upload
+   *  session, resuming from `resumeFrom`. Native-only — undefined elsewhere (tests,
+   *  a future browser/PWA path), so callers fall back to the whole-buffer upload. */
+  uploadMediaStream?(ref: string, uploadUrl: string, resumeFrom: number): Promise<{ remoteId: string }>;
+  /** Stream a large media file from an authenticated Graph content URL straight to
+   *  disk, resuming from wherever a previous partial attempt left off. Native-only. */
+  downloadMediaStream?(ref: string, contentUrl: string, bearerToken: string, expectedSize: number): Promise<void>;
 }
 
 // ---- Tauri implementation (the on-disk vault) ----
@@ -132,5 +144,16 @@ export function tauriVault(): LocalVault {
     },
 
     writeMediaBytes: (ref, bytes) => writeBytes(ref, bytesToBase64(bytes)),
+
+    mediaSize: (ref) => nativeMediaSize(ref),
+
+    async uploadMediaStream(ref, uploadUrl, resumeFrom) {
+      const remoteId = await uploadMediaChunked(ref, uploadUrl, resumeFrom);
+      return { remoteId };
+    },
+
+    async downloadMediaStream(ref, contentUrl, bearerToken, expectedSize) {
+      await downloadMediaChunked(ref, contentUrl, bearerToken, expectedSize);
+    },
   };
 }
