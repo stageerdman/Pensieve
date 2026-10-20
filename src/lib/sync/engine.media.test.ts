@@ -3,6 +3,7 @@ import type { GraphClient, GraphFetchOptions } from "./graph";
 import type { LocalVault, LocalNoteInfo, WriteTimes } from "./vault";
 import { EMPTY_SYNC_STATE, type SyncState } from "./types";
 import { sync, restoreFromCloud } from "./engine";
+import { createMediaUploadSession, LARGE_MEDIA_THRESHOLD } from "./adapter";
 import {
   _resetMediaBackup,
   setMediaBackupEnabled,
@@ -50,15 +51,43 @@ class MemVault implements LocalVault {
   }
 }
 
+// A MemVault that also implements the optional native-only streaming capabilities —
+// standing in for what the real Rust commands do (read/write the local bytes, talk to
+// the "drive" directly) so the engine's large-media routing is exercised end to end
+// without any real native layer. Only present here; the plain MemVault above keeps
+// every other test on the whole-buffer path, same as before this update.
+class LargeMemVault extends MemVault {
+  constructor(private drive: FakeDrive) {
+    super();
+  }
+  async uploadMediaStream(ref: string, uploadUrl: string, resumeFrom: number): Promise<{ remoteId: string }> {
+    const bytes = this.media.get(ref);
+    if (!bytes) throw new Error(`media vanished before upload: ${ref}`);
+    const remoteId = this.drive.completeUploadSession(uploadUrl, ref, bytes.subarray(resumeFrom));
+    return { remoteId };
+  }
+  async downloadMediaStream(ref: string, _contentUrl: string, _token: string, expectedSize: number): Promise<void> {
+    const bytes = this.drive.mediaFiles.get(ref);
+    if (!bytes || bytes.byteLength !== expectedSize) {
+      throw new Error(`large download size mismatch for ${ref}`);
+    }
+    this.media.set(ref, bytes);
+  }
+}
+
 // A fake drive holding notes (string) AND media binaries (bytes), modelling the delta
 // cursor + the binary PUT/GET the adapter uses.
 const ROOT = "/me/drive/root:/Pensieve";
 class FakeDrive {
   notes = new Map<string, { id: string; content: string; cTag: string; time: string; ver: number }>();
   mediaFiles = new Map<string, Uint8Array>(); // keyed by ref
+  // Resumable upload sessions, modelling Graph's server-side "how much have you
+  // actually got" tracking — the whole point of the resume design under test.
+  uploadSessions = new Map<string, { ref: string; received: number }>();
   rootExists = true;
   ver = 0;
   idc = 0;
+  sid = 0;
   clock = 1_000_000;
 
   private stamp() {
@@ -72,6 +101,21 @@ class FakeDrive {
   }
   putMedia(ref: string, bytes: Uint8Array) {
     this.mediaFiles.set(ref, bytes);
+  }
+
+  /** Simulate what the native uploader really does: PUT the remaining bytes to an
+   *  open session and finish it. Merges onto whatever the session already had
+   *  "received" (set directly in a test to model an interrupted prior attempt). */
+  completeUploadSession(uploadUrl: string, ref: string, remaining: Uint8Array): string {
+    const sess = this.uploadSessions.get(uploadUrl);
+    if (!sess) throw new Error(`no such upload session: ${uploadUrl}`);
+    const existing = this.mediaFiles.get(ref) ?? new Uint8Array(0);
+    const merged = new Uint8Array(sess.received + remaining.length);
+    merged.set(existing.subarray(0, sess.received), 0);
+    merged.set(remaining, sess.received);
+    this.mediaFiles.set(ref, merged);
+    this.uploadSessions.delete(uploadUrl); // Graph discards a completed session
+    return `large-${ref}`;
   }
 
   // Parse a media ref out of a content path: "/me/drive/root:/Pensieve/media/n/x.png:/content".
@@ -103,6 +147,24 @@ class FakeDrive {
     const handle = (path: string, opts: GraphFetchOptions = {}) => {
       const method = (opts.method ?? "GET").toUpperCase();
       if (path === ROOT && method === "GET") return self.rootExists ? resp(200, { id: "root" }) : resp(404);
+
+      // An upload session's own (absolute, skipAuth) URL — queryUploadSession's probe.
+      if (path.startsWith("https://fake-upload/")) {
+        const sess = self.uploadSessions.get(path);
+        if (method === "GET") {
+          return sess ? resp(200, { nextExpectedRanges: [`${sess.received}-`] }) : resp(404);
+        }
+      }
+
+      // createMediaUploadSession.
+      if (method === "POST" && path.includes(":/createUploadSession")) {
+        const ref = self.mediaMetaRefFromPath(path.replace(":/createUploadSession", ""));
+        const url = `https://fake-upload/sess${++self.sid}`;
+        self.uploadSessions.set(url, { ref: ref!, received: 0 });
+        // Real wall-clock future, not the fake drive clock — engine.ts compares a
+        // session's expiry against the real Date.now().
+        return resp(200, { uploadUrl: url, expirationDateTime: new Date(Date.now() + 86_400_000).toISOString() });
+      }
 
       // Media content PUT/GET (nested path with :/content and a media/ segment).
       const mref = self.mediaRefFromPath(path);
@@ -261,6 +323,103 @@ describe("sync engine — media backup", () => {
     expect(r.pulled).toEqual(["x"]);
     expect(r.pulledMedia).toEqual([REF]);
     expect([...(vault.media.get(REF) as Uint8Array)]).toEqual([3, 1, 4, 1, 5]);
+    expect(vault.state.media?.[REF]?.backedUp).toBe(true);
+  });
+});
+
+// A deterministic non-uniform payload past LARGE_MEDIA_THRESHOLD, so a bug that drops,
+// duplicates, or misorders bytes shows up as a content mismatch, not just a size one.
+function bigBytes(n: number): Uint8Array {
+  const out = new Uint8Array(n);
+  for (let i = 0; i < n; i++) out[i] = i & 0xff;
+  return out;
+}
+
+describe("sync engine — large media (resumable sessions)", () => {
+  let vault: LargeMemVault;
+  let drive: FakeDrive;
+  let graph: GraphClient;
+  const BIG = LARGE_MEDIA_THRESHOLD + 1000;
+
+  beforeEach(() => {
+    _resetMediaBackup();
+    setMediaBackupEnabled(true);
+    drive = new FakeDrive();
+    vault = new LargeMemVault(drive);
+    graph = drive.client();
+  });
+
+  it("uploads a file over the threshold via a resumable session, not the simple PUT", async () => {
+    const bytes = bigBytes(BIG);
+    vault.edit("x", NOTE, 5);
+    vault.media.set(REF, bytes);
+
+    const r = await sync(graph, vault);
+
+    expect(r.pushedMedia).toEqual([REF]);
+    expect(drive.mediaFiles.get(REF)?.byteLength).toBe(BIG);
+    expect([...drive.mediaFiles.get(REF)!]).toEqual([...bytes]);
+    expect(vault.state.media?.[REF]?.backedUp).toBe(true);
+    // The session is done — nothing left to resume on a future sync.
+    expect(vault.state.media?.[REF]?.uploadSession).toBeUndefined();
+    expect(getMediaBackupState(REF)).toBe("backed-up");
+  });
+
+  it("resumes an interrupted upload from the byte Graph already has, not from 0", async () => {
+    const bytes = bigBytes(BIG);
+    vault.edit("x", NOTE, 5);
+    vault.media.set(REF, bytes);
+
+    // Model a prior run that created a session, got partway through, then the app
+    // was killed — exactly the checkpoint persisted via vault.writeState the moment
+    // the session is created (before any bytes went out).
+    const session = await createMediaUploadSession(graph, REF);
+    drive.uploadSessions.get(session.uploadUrl)!.received = 12_345;
+    // What Graph already has on its side for the bytes it acknowledged.
+    drive.mediaFiles.set(REF, bytes.subarray(0, 12_345));
+    vault.state.media![REF] = { ref: REF, backedUp: false, uploadSession: session };
+
+    const seenResumeFrom: number[] = [];
+    const realStream = vault.uploadMediaStream.bind(vault);
+    vault.uploadMediaStream = async (ref, url, resumeFrom) => {
+      seenResumeFrom.push(resumeFrom);
+      return realStream(ref, url, resumeFrom);
+    };
+
+    const r = await sync(graph, vault);
+
+    expect(seenResumeFrom).toEqual([12_345]); // not 0 — it picked up where Graph left off
+    expect(r.pushedMedia).toEqual([REF]);
+    expect([...drive.mediaFiles.get(REF)!]).toEqual([...bytes]); // still byte-correct end to end
+  });
+
+  it("a failed large upload keeps its session for the next sync instead of losing it", async () => {
+    vault.edit("x", NOTE, 5);
+    vault.media.set(REF, bigBytes(BIG));
+    vault.uploadMediaStream = async () => {
+      throw new Error("connection dropped mid-chunk");
+    };
+
+    const r = await sync(graph, vault);
+
+    expect(r.pushedMedia).toEqual([]);
+    expect(vault.state.media?.[REF]?.backedUp).toBe(false);
+    expect(vault.state.media?.[REF]?.failedAt).toBeGreaterThan(0);
+    expect(vault.state.media?.[REF]?.uploadSession?.uploadUrl).toBeTruthy();
+    expect(getMediaBackupState(REF)).toBe("failed");
+  });
+
+  it("pulls a file over the threshold via chunked download, not the simple GET", async () => {
+    const bytes = bigBytes(BIG);
+    drive.putNote("x.md", NOTE);
+    drive.putMedia(REF, bytes);
+
+    const r = await sync(graph, vault);
+
+    expect(r.pulled).toEqual(["x"]);
+    expect(r.pulledMedia).toEqual([REF]);
+    expect(vault.media.get(REF)?.byteLength).toBe(BIG);
+    expect([...vault.media.get(REF)!]).toEqual([...bytes]);
     expect(vault.state.media?.[REF]?.backedUp).toBe(true);
   });
 });

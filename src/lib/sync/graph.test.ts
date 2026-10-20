@@ -58,6 +58,21 @@ describe("fetch() — URL building + auth header", () => {
     await client.fetch("https://graph.microsoft.com/v1.0/next?x=1", { absolute: true });
     expect(fetchMock.mock.calls[0][0]).toBe("https://graph.microsoft.com/v1.0/next?x=1");
   });
+
+  it("skipAuth omits the Authorization header — required for a resumable upload-session URL", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(resp(200, {}));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = makeGraphClient(provider("tok-xyz"));
+
+    await client.fetch("https://upload.example/sess1", { absolute: true, skipAuth: true });
+    const headers = (fetchMock.mock.calls[0][1].headers ?? {}) as Record<string, string>;
+    expect(headers.Authorization).toBeUndefined();
+  });
+
+  it("token() returns the provider's bearer token, for the native large-media transfer", async () => {
+    const client = makeGraphClient(provider("tok-raw"));
+    expect(await client.token()).toBe("tok-raw");
+  });
 });
 
 describe("fetch() — 401 refresh-once", () => {
@@ -149,6 +164,20 @@ describe("fetch() — transport throw", () => {
     await vi.advanceTimersByTimeAsync(1000);
     const res = await pending;
     expect(res.status).toBe(200);
+  });
+
+  it("forces a stalled call to fail (and retry) instead of hanging forever — the old 'Backing up…' bug", async () => {
+    // A transport that never settles — exactly what a giant base64 payload could do
+    // to the old whole-buffer media path. The client-side timeout must turn this into
+    // a transient failure that retries, not a promise that never resolves.
+    const fetchMock = vi.fn().mockReturnValue(new Promise<Response>(() => {}));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = makeGraphClient(provider());
+
+    const pending = client.fetch("/me");
+    const assertion = expect(pending).rejects.toBeInstanceOf(TransientSyncError);
+    await vi.runAllTimersAsync();
+    await assertion;
   });
 });
 
