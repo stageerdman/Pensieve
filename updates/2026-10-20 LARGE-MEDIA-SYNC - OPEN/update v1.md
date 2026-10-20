@@ -77,9 +77,30 @@ off and continuing from there, not re-uploading from scratch.
 
 ## Status
 - [x] Phase 1 — this doc.
-- [ ] Phase 2 — Rust native commands.
-- [ ] Phase 3 — TS plumbing.
-- [ ] Phase 4 — engine rewiring.
-- [ ] Phase 5 — UI.
-- [ ] Phase 6 — tests.
-- [ ] Phase 7 — build/verify/close.
+- [x] Phase 2 — Rust native commands (`media_transfer.rs`: `media_size`,
+  `upload_media_chunked`, `download_media_chunked`).
+- [x] Phase 3 — TS plumbing (`graph.ts` skipAuth/token, `adapter.ts` session helpers,
+  `native.ts`/`vault.ts` streaming hooks).
+- [x] Phase 4 — engine rewiring (`pushLocalMedia`/`pullReferencedMedia` route by size;
+  resume-aware `uploadLargeMedia` checkpoints the session to disk before sending bytes;
+  a failed upload keeps its session instead of losing it).
+- [x] Phase 5 — UI (`MediaBackupWhisper`: generic "file" wording + live byte progress
+  from the native chunked uploader).
+- [x] Phase 6 — tests: Rust unit tests for the pure helpers; new engine-level tests with
+  a `LargeMemVault` + a fake drive with real resumable-session semantics (byte-exact
+  upload, resume-from-interruption, failure-preserves-session, chunked download);
+  adapter-level unit tests for the session helpers; a `graph.ts` test that reproduces
+  the original hang (a transport promise that never settles) and proves the timeout fix.
+- [x] Phase 7 — `npm test` (913 passed), `npx tsc --noEmit` (clean), `cargo test` (8
+  passed), `npm run tauri:build` (built + installed to /Applications/Pensieve.app).
+  `issues.txt` updated; this folder closes out.
+
+## Owner follow-up needed
+This fixes the mechanism (the hang + the 4MB ceiling) and is verified by test + a real
+native build/install, but it has **not yet been exercised against the owner's actual
+account with a real large file** — that needs the owner to open the app, let the
+pending 78 MB audio recording (and the 3.89 MB image, if it's still pending) back up,
+and confirm in the sync panel that it completes rather than sitting on "Backing up…".
+If the owner closes the app mid-upload of a large file and reopens it, the session
+should resume from wherever Graph left off rather than restarting — worth confirming
+once, since that's the core of what was asked for.

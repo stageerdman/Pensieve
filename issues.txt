@@ -1,18 +1,24 @@
 Pensieve — known issues & TODOs
 (one line per item; move resolved items out or mark done)
 
-OPEN / NEXT SESSION (media backup — observed 2026-10-19, NOT yet a confirmed bug):
-- [ ] Note "Performance Mastery Platform" (mvbzp2n7-xuj0gy) image mvemv33m-pvhcemxc.jpg (3.89 MB):
-      verified NOT failing — it just post-dates the last completed sync (sync 10:00, image added
-      10:26) and isn't in sync/state.json's media map yet. pushLocalMedia (engine.ts:104) scans all
-      local media each sync, so the NEXT completed sync should upload it (size is fine — a 5.96 MB
-      PNG already backed up via the same simple PUT path). TO CONFIRM later: run a sync, then check
-      state.json media[] contains that ref with backedUp:true. If it lands as backedUp:false+failedAt,
-      THEN investigate (look at log.query for "media.upload.failed").
-- [ ] Large-media backup: the 78 MB audio mvdrv6gg-zqr40w/mvdululy-rr0bjfyk.m4a is tracked but
-      still pending. It travels base64 over Tauri IPC (~104 MB) via a simple PUT (adapter.ts:206,
-      uploadMedia) — may be too big/slow and likely needs a Graph upload SESSION (chunked) for
-      files past a few MB. Decide whether to add chunked upload for large media. Not urgent.
+LARGE-MEDIA-SYNC — SHIPPED to main (2026-10-20, native app rebuilt+installed):
+- [x] Root cause of both items below: the whole-file-as-one-base64-string PUT/GET path
+      (adapter.ts uploadMedia/downloadMedia) had no real ceiling on how long it could run or
+      how big the JS string could get — for a large file this could block the renderer's JS
+      thread for a long time and/or exceed Graph's real 4MB simple-upload cap, which is exactly
+      why sync could get stuck showing "Backing up…"/"Backing up 1 image…" forever with no
+      failure ever surfacing.
+- [x] The 78 MB audio recording (mvdrv6gg-zqr40w/mvdululy-rr0bjfyk.m4a) and anything else past
+      4 MiB now routes through a resumable Graph upload session (uploads) or chunked Range GETs
+      to a .part file (downloads) — both streamed straight from/to disk in Rust
+      (media_transfer.rs), never materialized as one JS string. Resume after an app close is
+      automatic: Graph tracks how many bytes a session actually received server-side, so the
+      next sync just asks and continues from there — no local per-chunk bookkeeping needed.
+      Bounded per-chunk timeout+retry means a stalled chunk fails (and resumes) in ~2 minutes
+      instead of hanging the sync forever. See updates/2026-10-20 LARGE-MEDIA-SYNC - OPEN/.
+- [ ] Not done: no explicit "pause" UI — closing the app IS the pause, by design (mirrors the
+      transcription-resume precedent). If the owner wants a visible "N% backed up, paused"
+      affordance instead of just the quiet whisper, that's a follow-up, not a bug.
 
 AUDIO-TRANSCRIPTION — SHIPPED to main (2026-10-18, owner-confirmed on the native app):
 - [x] Local two-model transcription: Czech-finetuned Whisper (default, lang cs, Silero-VAD
