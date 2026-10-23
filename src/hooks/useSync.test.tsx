@@ -23,7 +23,7 @@ vi.mock("../lib/sync/tokens", () => ({ isConnected: (...a: unknown[]) => isConne
 vi.mock("../lib/sync/vault", () => ({ tauriVault: (...a: unknown[]) => tauriVault(...a) }));
 
 import { useSync } from "./useSync";
-import type { SyncResult } from "../lib/sync/engine";
+import type { SyncConflict, SyncResult } from "../lib/sync/engine";
 import { ReconnectNeededError, RemoteRootMissingError, TransientSyncError } from "../lib/sync/types";
 
 function result(overrides: Partial<SyncResult> = {}): SyncResult {
@@ -56,6 +56,7 @@ interface EngineMock {
   run: ReturnType<typeof vi.fn>;
   summon: ReturnType<typeof vi.fn>;
   keepLocal: ReturnType<typeof vi.fn>;
+  keepRemote: ReturnType<typeof vi.fn>;
   info: ReturnType<typeof vi.fn>;
 }
 
@@ -67,6 +68,7 @@ beforeEach(() => {
     run: vi.fn().mockResolvedValue(result()),
     summon: vi.fn().mockResolvedValue(result()),
     keepLocal: vi.fn().mockResolvedValue(undefined),
+    keepRemote: vi.fn().mockResolvedValue(undefined),
     info: vi.fn().mockResolvedValue({ account: { email: "me@example.com" }, quota: { usedBytes: 1, totalBytes: 2 } }),
   };
   vault = { readState: vi.fn().mockResolvedValue({ lastSyncedAt: null }) };
@@ -311,6 +313,12 @@ describe("useSync — connect / disconnect", () => {
   });
 });
 
+// A real (unfaked) macrotask tick — lets the resolve queue's microtasks/awaits drain
+// without fighting testing-library's `waitFor` polling, which fake timers complicate.
+function tick(ms = 0) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 describe("useSync — summon and conflict resolution", () => {
   it("summon() drives the engine's summon (not run) and reaches 'synced'", async () => {
     const { result: r } = await mountIdle();
@@ -322,23 +330,116 @@ describe("useSync — summon and conflict resolution", () => {
     expect(r.current.ui.phase).toBe("synced");
   });
 
-  it("keepLocal() resolves the conflict then re-syncs", async () => {
+  // Drive a sync that reports conflicts, landing the hook in "conflicts" with the
+  // given list — the shared starting point for the resolution tests below.
+  async function mountWithConflicts(conflicts: SyncConflict[]) {
+    engine.run.mockResolvedValue(result({ conflicts }));
     const { result: r } = await mountIdle();
     await act(async () => {
-      await r.current.keepLocal("note-x");
+      await r.current.syncNow();
+    });
+    expect(r.current.ui.phase).toBe("conflicts");
+    return r;
+  }
+
+  it("keepLocal() resolves the conflict immediately — no synchronous full re-sync", async () => {
+    const r = await mountWithConflicts([{ noteId: "note-x", reason: "both-changed" }]);
+    await act(async () => {
+      r.current.keepLocal("note-x");
+      await tick();
+      await tick();
     });
     expect(engine.keepLocal).toHaveBeenCalledWith("note-x");
-    expect(engine.run).toHaveBeenCalledTimes(1); // the re-sync after resolving
-    expect(r.current.ui.phase).toBe("synced");
+    expect(r.current.ui.conflicts).toEqual([]); // removed as soon as it resolves
+    expect(r.current.ui.phase).toBe("idle"); // not "synced" — no sync actually ran
+    expect(engine.run).toHaveBeenCalledTimes(1); // only the seeding sync from mountWithConflicts
   });
 
-  it("keepLocal() still re-syncs even if resolving the conflict itself fails", async () => {
-    engine.keepLocal.mockRejectedValue(new Error("network blip"));
-    const { result: r } = await mountIdle();
+  it("schedules exactly one trailing sync after the debounce window, even after several resolves", async () => {
+    const r = await mountWithConflicts([
+      { noteId: "a", reason: "both-changed" },
+      { noteId: "b", reason: "both-changed" },
+    ]);
     await act(async () => {
-      await r.current.keepLocal("note-x");
+      r.current.keepLocal("a");
+      await tick();
+      r.current.keepLocal("b");
+      await tick(50); // well inside the 600ms debounce window
     });
-    expect(engine.run).toHaveBeenCalledTimes(1);
-    expect(r.current.ui.phase).toBe("synced");
+    expect(engine.keepLocal).toHaveBeenCalledTimes(2);
+    expect(r.current.ui.conflicts).toEqual([]);
+    expect(engine.run).toHaveBeenCalledTimes(1); // only the seeding sync — still debouncing
+
+    await act(async () => {
+      await tick(650);
+    });
+    expect(engine.run).toHaveBeenCalledTimes(2); // + exactly one trailing sync, not two
+  });
+
+  it("keepLocal() keeps the conflict and records an error on failure — no follow-up sync", async () => {
+    engine.keepLocal.mockRejectedValue(new Error("network blip"));
+    const r = await mountWithConflicts([{ noteId: "note-x", reason: "both-changed" }]);
+    await act(async () => {
+      r.current.keepLocal("note-x");
+      await tick();
+      await tick();
+    });
+    expect(r.current.ui.conflicts).toEqual([{ noteId: "note-x", reason: "both-changed" }]);
+    expect(r.current.conflictErrors["note-x"]).toMatch(/try again/i);
+
+    await act(async () => {
+      await tick(650);
+    });
+    expect(engine.run).toHaveBeenCalledTimes(1); // only the seeding sync — no follow-up was scheduled
+  });
+
+  it("keepRemote() calls the engine, removes the conflict, and notifies onChanged (content changed on disk)", async () => {
+    const onChanged = vi.fn();
+    engine.run.mockResolvedValue(result({ conflicts: [{ noteId: "note-x", reason: "both-changed" }] }));
+    const { result: r } = await mountIdle(onChanged);
+    await act(async () => {
+      await r.current.syncNow();
+    });
+    onChanged.mockClear();
+
+    await act(async () => {
+      r.current.keepRemote("note-x");
+      await tick();
+      await tick();
+    });
+    expect(engine.keepRemote).toHaveBeenCalledWith("note-x");
+    expect(engine.keepLocal).not.toHaveBeenCalled();
+    expect(r.current.ui.conflicts).toEqual([]);
+    expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it("keepAllLocal() resolves every pending conflict", async () => {
+    const r = await mountWithConflicts([
+      { noteId: "a", reason: "both-changed" },
+      { noteId: "b", reason: "both-changed" },
+      { noteId: "c", reason: "both-changed" },
+    ]);
+    await act(async () => {
+      r.current.keepAllLocal();
+      await tick();
+      await tick();
+      await tick();
+    });
+    expect(engine.keepLocal).toHaveBeenCalledTimes(3);
+    expect(engine.keepLocal).toHaveBeenCalledWith("a");
+    expect(engine.keepLocal).toHaveBeenCalledWith("b");
+    expect(engine.keepLocal).toHaveBeenCalledWith("c");
+    expect(r.current.ui.conflicts).toEqual([]);
+  });
+
+  it("ignores a second click on the same still-resolving conflict", async () => {
+    const r = await mountWithConflicts([{ noteId: "note-x", reason: "both-changed" }]);
+    await act(async () => {
+      r.current.keepLocal("note-x");
+      r.current.keepLocal("note-x"); // same tick — already marked resolving
+      await tick();
+      await tick();
+    });
+    expect(engine.keepLocal).toHaveBeenCalledTimes(1);
   });
 });

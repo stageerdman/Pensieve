@@ -46,6 +46,11 @@ export type ConflictReason = "both-changed" | "push-rejected" | "delete-rejected
 export interface SyncConflict {
   noteId: string;
   reason: ConflictReason;
+  /** When known (the "both-changed" case, detected during the pull classification
+   *  where both sides are already in hand): when each side last changed, so the
+   *  panel can show a fact instead of a flat "changed here and elsewhere." */
+  localUpdatedAt?: number;
+  remoteUpdatedAt?: number;
 }
 
 export interface SyncResult {
@@ -269,7 +274,7 @@ export async function sync(
 
     if (item.deleted) {
       if (localChanged) {
-        result.conflicts.push({ noteId: id, reason: "both-changed" });
+        result.conflicts.push({ noteId: id, reason: "both-changed", localUpdatedAt });
         conflicted.add(id);
       } else {
         localDeletes.push(id);
@@ -279,7 +284,8 @@ export async function sync(
 
     const remoteChanged = rec === undefined || rec.cTag !== item.cTag;
     if (localChanged && remoteChanged) {
-      result.conflicts.push({ noteId: id, reason: "both-changed" });
+      const remoteUpdatedAt = item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : undefined;
+      result.conflicts.push({ noteId: id, reason: "both-changed", localUpdatedAt, remoteUpdatedAt });
       conflicted.add(id);
       continue;
     }
@@ -442,6 +448,41 @@ export async function resolveKeepLocal(graph: GraphClient, vault: LocalVault, no
   log.info("sync", "conflict.keepLocal", { noteId });
 }
 
+/** Resolve a both-changed conflict by discarding THIS device's edits and taking the
+ *  remote's current copy instead — the owner's explicit choice that the other device
+ *  (or an earlier session) has the version that should win. Downloads the remote
+ *  content over local, adopts its cTag, and rehydrates any newly-referenced media the
+ *  vault doesn't already have, so the note reads as fully in sync immediately rather
+ *  than waiting on the next full sync pass. */
+export async function resolveKeepRemote(graph: GraphClient, vault: LocalVault, noteId: string): Promise<void> {
+  const state = await vault.readState();
+  if (!state.media) state.media = {};
+  const dl = await downloadNote(graph, `${noteId}.md`);
+  if (!dl) {
+    // Remote was deleted meanwhile — nothing to keep; drop the local copy and the
+    // bookkeeping record so it doesn't linger looking unresolved.
+    await vault.deleteNote(noteId);
+    delete state.notes[noteId];
+    await vault.writeState(state);
+    log.info("sync", "conflict.keepRemote", { noteId, outcome: "remote-deleted" });
+    return;
+  }
+  const remoteTime = dl.item.lastModifiedDateTime ? Date.parse(dl.item.lastModifiedDateTime) : nowMs();
+  await vault.writeNote(noteId, dl.content, { updatedAt: remoteTime });
+  const rec = state.notes[noteId];
+  state.notes[noteId] = {
+    id: noteId,
+    remoteId: dl.item.id ?? rec?.remoteId ?? "",
+    cTag: dl.item.cTag ?? "",
+    localUpdatedAt: remoteTime,
+    syncedAt: rec?.syncedAt ?? nowMs(),
+  };
+  const haveMedia = new Set(await vault.listMedia());
+  await pullReferencedMedia(graph, vault, extractMediaRefs(dl.content), haveMedia, state.media, emptyResult());
+  await vault.writeState(state);
+  log.info("sync", "conflict.keepRemote", { noteId });
+}
+
 /** Destructive full restore FROM the cloud: make this device an exact mirror of the
  *  remote Pensieve folder, throwing away ALL local changes. Every remote note is
  *  downloaded over local; any local note absent from the cloud is deleted. The sync
@@ -531,6 +572,8 @@ export function createEngine(): {
    *  "Summon Pensieve" action for a drive that wasn't set up yet. */
   summon(onProgress?: (p: SyncProgress) => void): Promise<SyncResult>;
   keepLocal(noteId: string): Promise<void>;
+  /** Discard this device's edits on a conflicted note and take the remote's copy. */
+  keepRemote(noteId: string): Promise<void>;
   /** The signed-in account + drive quota, for the sync panel. */
   info(): Promise<{ account: SyncAccount; quota: SyncQuota }>;
 } {
@@ -544,6 +587,7 @@ export function createEngine(): {
       return sync(graph, vault, onProgress);
     },
     keepLocal: (noteId: string) => resolveKeepLocal(graph, vault, noteId),
+    keepRemote: (noteId: string) => resolveKeepRemote(graph, vault, noteId),
     async info() {
       const [account, quota] = await Promise.all([getAccount(graph), getQuota(graph)]);
       return { account, quota };

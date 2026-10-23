@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import type { GraphClient, GraphFetchOptions } from "./graph";
 import type { LocalVault, LocalNoteInfo, WriteTimes } from "./vault";
 import { EMPTY_SYNC_STATE, RemoteRootMissingError, type SyncState } from "./types";
-import { sync, resolveKeepLocal, restoreFromCloud } from "./engine";
+import { sync, resolveKeepLocal, resolveKeepRemote, restoreFromCloud } from "./engine";
 import { createRoot } from "./adapter";
 
 // ---- in-memory LocalVault ----
@@ -292,7 +292,11 @@ describe("sync engine", () => {
     drive.put("x.md", "# remote wins?\n");
     vault.edit("x", "# local edit\n", 999_999_999_999);
     const r = await sync(graph, vault);
-    expect(r.conflicts).toEqual([{ noteId: "x", reason: "both-changed" }]);
+    expect(r.conflicts).toHaveLength(1);
+    expect(r.conflicts[0]).toMatchObject({ noteId: "x", reason: "both-changed" });
+    // Both sides' timestamps are captured for the panel's one-line fact.
+    expect(r.conflicts[0]?.localUpdatedAt).toBe(999_999_999_999);
+    expect(r.conflicts[0]?.remoteUpdatedAt).toBeGreaterThan(0);
     expect(await vault.readNote("x")).toBe("# local edit\n"); // not clobbered
     expect(r.pulled).toEqual([]);
     expect(r.pushed).toEqual([]);
@@ -349,6 +353,25 @@ describe("sync engine", () => {
     expect(r.pushed).toContain("x");
     expect(r.conflicts).toEqual([]);
     expect(drive.files.get("x.md")?.content).toBe("# local wins\n");
+  });
+
+  it("resolveKeepRemote discards the local edit and takes the remote copy immediately", async () => {
+    vault.edit("x", "# X\n", 5);
+    await sync(graph, vault);
+    drive.put("x.md", "# remote wins\n");
+    vault.edit("x", "# local loses\n", 1_000);
+    const c = await sync(graph, vault);
+    expect(c.conflicts[0]?.reason).toBe("both-changed");
+
+    await resolveKeepRemote(graph, vault, "x");
+    // Applied immediately — no second sync required for the local copy to flip.
+    expect(await vault.readNote("x")).toBe("# remote wins\n");
+
+    // The next ordinary sync sees it as already in sync: no push, no conflict.
+    const r = await sync(graph, vault);
+    expect(r.conflicts).toEqual([]);
+    expect(r.pushed).toEqual([]);
+    expect(r.pulled).toEqual([]);
   });
 
   it("restoreFromCloud overwrites local, deletes local-only notes, and re-baselines", async () => {

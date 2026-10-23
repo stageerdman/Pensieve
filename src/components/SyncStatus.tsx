@@ -4,7 +4,8 @@ import { SyncRune } from "./icons";
 import { SyncFlask } from "./SyncFlask";
 import { SpaceMeter } from "./SpaceMeter";
 import { RestoreFromCloud } from "./RestoreFromCloud";
-import { formatBytes } from "../lib/format";
+import { formatBytes, relativeTime } from "../lib/format";
+import type { SyncConflict } from "../lib/sync/engine";
 import { deriveSyncView } from "../lib/sync/deriveSyncView";
 import type { useSync } from "../hooks/useSync";
 import { isTauri } from "../lib/store";
@@ -23,6 +24,15 @@ type Sync = ReturnType<typeof useSync>;
 // (a media file dominating the batch) — small .md notes don't need a byte tail.
 const BIG_FILE = 512 * 1024;
 
+// A one-line fact for a conflict row, in place of a flat "changed here and
+// elsewhere" — timestamps are only known for the common "both-changed" case
+// (captured where the engine already has both sides in hand during pull).
+function conflictFact(c: SyncConflict): string {
+  if (c.remoteUpdatedAt) return `Also changed elsewhere · ${relativeTime(c.remoteUpdatedAt)}`;
+  if (c.localUpdatedAt) return `Changed here · ${relativeTime(c.localUpdatedAt)}`;
+  return "Changed here and elsewhere.";
+}
+
 export function SyncStatus({
   sync,
   titleFor,
@@ -32,7 +42,8 @@ export function SyncStatus({
   titleFor: (noteId: string) => string;
   pending?: boolean; // unsynced local changes — shows the quiet "ready to back up" nudge
 }) {
-  const { ui, connect, disconnect, syncNow, summon, keepLocal, refreshInfo, restoreFromCloud } = sync;
+  const { ui, connect, disconnect, syncNow, summon, keepLocal, keepRemote, keepAllLocal, resolvingIds, conflictErrors, refreshInfo, restoreFromCloud } =
+    sync;
   const [open, setOpen] = useState(false);
   const [justSynced, setJustSynced] = useState(false);
   const ref = useDismiss<HTMLDivElement>(() => setOpen(false), { enabled: open });
@@ -167,24 +178,50 @@ export function SyncStatus({
             </div>
           )}
 
-          {/* Conflicts */}
+          {/* Conflicts — each row resolves independently and instantly (no shared
+              lock), so clicking one never blocks or resets the others. */}
           {ui.phase === "conflicts" && (
-            <div className="mt-3 space-y-2 border-t border-border pt-3">
-              {ui.conflicts.map((c) => (
-                <div key={c.noteId} className="text-xs">
-                  <p className="truncate font-medium text-text" title={titleFor(c.noteId)}>
-                    {titleFor(c.noteId)}
-                  </p>
-                  <p className="text-text-muted">Changed here and elsewhere. Your copy is kept.</p>
-                  <button
-                    type="button"
-                    onClick={() => void keepLocal(c.noteId)}
-                    className="mt-1 text-accent hover:underline"
-                  >
-                    Keep this device&rsquo;s version
-                  </button>
-                </div>
-              ))}
+            <div className="mt-3 border-t border-border pt-3">
+              {ui.conflicts.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => keepAllLocal()}
+                  className="mb-2 text-xs text-accent hover:underline"
+                >
+                  Keep this device&rsquo;s version for all ({ui.conflicts.length})
+                </button>
+              )}
+              <div className="max-h-[40vh] space-y-2 overflow-y-auto">
+                {ui.conflicts.map((c) => {
+                  const resolving = resolvingIds.has(c.noteId);
+                  const error = conflictErrors[c.noteId];
+                  return (
+                    <div key={c.noteId} className={"text-xs" + (resolving ? " opacity-50" : "")}>
+                      <p className="truncate font-medium text-text" title={titleFor(c.noteId)}>
+                        {titleFor(c.noteId)}
+                      </p>
+                      <p className="text-text-muted">{conflictFact(c)}</p>
+                      {error && <p className="text-warn">{error}</p>}
+                      {resolving ? (
+                        <p className="mt-1 text-text-muted">Applying…</p>
+                      ) : (
+                        <div className="mt-1 flex items-center gap-3">
+                          <button type="button" onClick={() => keepLocal(c.noteId)} className="text-accent hover:underline">
+                            Keep this device&rsquo;s version
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => keepRemote(c.noteId)}
+                            className="text-text-muted hover:text-text hover:underline"
+                          >
+                            Use the other version
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 

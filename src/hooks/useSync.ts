@@ -31,6 +31,28 @@ export function useSync(onChanged?: () => void) {
   const onChangedRef = useRef(onChanged);
   onChangedRef.current = onChanged;
 
+  // Conflict resolution: per-row resolving/error state, plus a tiny serial queue so
+  // concurrent "keep local"/"keep remote" calls never race each other's state-file
+  // read-modify-write (each resolve awaits the previous one), and a debounced
+  // trailing sync chained onto that SAME queue — so it always runs strictly after
+  // every queued resolution, however many were clicked in a burst.
+  // The guard against double-firing the SAME row lives on a ref, not the `resolvingIds`
+  // state below — two clicks on the same button can land in the same React tick
+  // (before a state update commits a re-render), and a state-only guard would read
+  // the same stale "not resolving yet" snapshot for both. `resolvingIds` state exists
+  // purely to drive the UI (the spinner row).
+  const resolvingRef = useRef<Set<string>>(new Set());
+  const [resolvingIds, setResolvingIds] = useState<Set<string>>(new Set());
+  const [conflictErrors, setConflictErrors] = useState<Record<string, string>>({});
+  const resolveQueue = useRef<Promise<void>>(Promise.resolve());
+  const followUpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (followUpTimer.current) clearTimeout(followUpTimer.current);
+    },
+    [],
+  );
+
   // Account + quota for the panel. Best-effort: a failure here never changes the
   // sync phase (it's reference info, not the connection's health).
   const refreshInfo = useCallback(async () => {
@@ -158,6 +180,11 @@ export function useSync(onChanged?: () => void) {
     if (!isTauri()) return;
     await disconnectOneDrive();
     setMediaBackupEnabled(false); // no backup target → no runes
+    if (followUpTimer.current) clearTimeout(followUpTimer.current);
+    followUpTimer.current = null;
+    resolvingRef.current = new Set();
+    setResolvingIds(new Set());
+    setConflictErrors({});
     setUi({
       phase: "disconnected",
       lastSyncedAt: null,
@@ -170,20 +197,83 @@ export function useSync(onChanged?: () => void) {
     });
   }, []);
 
-  // Resolve a both-changed conflict by keeping this device's copy, then re-sync so
-  // it propagates (replacing the other device's version — the owner's choice).
-  const keepLocal = useCallback(
-    async (noteId: string) => {
-      if (!isTauri() || busy.current) return;
-      try {
-        await createEngine().keepLocal(noteId);
-      } catch (e) {
-        log.error("sync", "keepLocal.failed", { noteId, error: String(e) });
-      }
-      await syncNow();
+  // A full sync chained after every currently-queued resolution — debounced so a
+  // burst of clicks collapses into exactly one trailing sync, and appended onto
+  // `resolveQueue` (not called directly) so it only actually runs once every
+  // in-flight "keep local"/"keep remote" call has finished writing sync state.
+  const scheduleFollowUpSync = useCallback(() => {
+    if (followUpTimer.current) clearTimeout(followUpTimer.current);
+    followUpTimer.current = setTimeout(() => {
+      followUpTimer.current = null;
+      resolveQueue.current = resolveQueue.current.then(() => syncNow());
+    }, 600);
+  }, [syncNow]);
+
+  // Resolve ONE both-changed conflict — "local" keeps this device's copy, "remote"
+  // discards this device's edits and takes the other copy. Deliberately NOT routed
+  // through `runSync`/`busy`: each call is a single lightweight engine op (one note
+  // download, not a full two-way sync), so resolving several conflicts in a row
+  // never blocks on each other or freezes the rest of the panel. Concurrent calls
+  // are still serialized onto `resolveQueue` so their state-file read-modify-writes
+  // can't race; a trailing sync is scheduled only on success, after the engine's own
+  // bookkeeping already reflects the choice.
+  const resolveConflict = useCallback(
+    (noteId: string, keep: "local" | "remote") => {
+      if (!isTauri() || resolvingRef.current.has(noteId)) return;
+      resolvingRef.current.add(noteId);
+      setResolvingIds(new Set(resolvingRef.current));
+      setConflictErrors((errs) => {
+        if (!(noteId in errs)) return errs;
+        const next = { ...errs };
+        delete next[noteId];
+        return next;
+      });
+      const run = async () => {
+        try {
+          const engine = createEngine();
+          if (keep === "local") await engine.keepLocal(noteId);
+          else await engine.keepRemote(noteId);
+          setUi((u) => {
+            const conflicts = u.conflicts.filter((c) => c.noteId !== noteId);
+            return { ...u, conflicts, phase: conflicts.length > 0 ? "conflicts" : u.phase === "conflicts" ? "idle" : u.phase };
+          });
+          if (keep === "remote") onChangedRef.current?.(); // local content just changed on disk
+          scheduleFollowUpSync();
+        } catch (e) {
+          log.error("sync", "resolveConflict.failed", { noteId, keep, error: String(e) });
+          setConflictErrors((errs) => ({ ...errs, [noteId]: "Couldn't apply — try again." }));
+        } finally {
+          resolvingRef.current.delete(noteId);
+          setResolvingIds(new Set(resolvingRef.current));
+        }
+      };
+      resolveQueue.current = resolveQueue.current.then(run);
     },
-    [syncNow],
+    [scheduleFollowUpSync],
   );
 
-  return { ui, connect, disconnect, syncNow, summon, keepLocal, refreshInfo, restoreFromCloud };
+  const keepLocal = useCallback((noteId: string) => resolveConflict(noteId, "local"), [resolveConflict]);
+  const keepRemote = useCallback((noteId: string) => resolveConflict(noteId, "remote"), [resolveConflict]);
+
+  // The common single-user case after being offline a while: trust this device for
+  // everything pending rather than clicking each one — still just N queued single-note
+  // resolves + one trailing sync, not a special bulk code path.
+  const keepAllLocal = useCallback(() => {
+    for (const c of ui.conflicts) resolveConflict(c.noteId, "local");
+  }, [ui.conflicts, resolveConflict]);
+
+  return {
+    ui,
+    connect,
+    disconnect,
+    syncNow,
+    summon,
+    keepLocal,
+    keepRemote,
+    keepAllLocal,
+    resolvingIds,
+    conflictErrors,
+    refreshInfo,
+    restoreFromCloud,
+  };
 }

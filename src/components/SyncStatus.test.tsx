@@ -24,9 +24,16 @@ function mountPanel(ui: Partial<SyncUi>) {
     disconnect: vi.fn(),
     syncNow: vi.fn(),
     keepLocal: vi.fn(),
+    keepRemote: vi.fn(),
+    keepAllLocal: vi.fn(),
     refreshInfo: vi.fn(),
   };
-  const sync = { ui: { ...baseUi, ...ui }, ...fns } as unknown as Parameters<typeof SyncStatus>[0]["sync"];
+  const sync = {
+    ui: { ...baseUi, ...ui },
+    ...fns,
+    resolvingIds: new Set<string>(),
+    conflictErrors: {} as Record<string, string>,
+  } as unknown as Parameters<typeof SyncStatus>[0]["sync"];
   const r = render(<SyncStatus sync={sync} titleFor={(id) => `Title:${id}`} pending={ui.phase === "idle" && false} />);
   fireEvent.click(r.getByLabelText("OneDrive sync")); // open the panel
   return { ...r, fns };
@@ -36,7 +43,18 @@ afterEach(cleanup);
 
 describe("SyncStatus panel", () => {
   it("off-desktop (unavailable) renders nothing", () => {
-    const sync = { ui: { ...baseUi, phase: "unavailable" }, connect: vi.fn(), disconnect: vi.fn(), syncNow: vi.fn(), keepLocal: vi.fn(), refreshInfo: vi.fn() } as unknown as Parameters<typeof SyncStatus>[0]["sync"];
+    const sync = {
+      ui: { ...baseUi, phase: "unavailable" },
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      syncNow: vi.fn(),
+      keepLocal: vi.fn(),
+      keepRemote: vi.fn(),
+      keepAllLocal: vi.fn(),
+      refreshInfo: vi.fn(),
+      resolvingIds: new Set<string>(),
+      conflictErrors: {} as Record<string, string>,
+    } as unknown as Parameters<typeof SyncStatus>[0]["sync"];
     const { container } = render(<SyncStatus sync={sync} titleFor={(id) => id} />);
     expect(container.firstChild).toBeNull();
   });
@@ -100,6 +118,82 @@ describe("SyncStatus panel", () => {
     });
     expect(getByText("Title:n1")).toBeTruthy();
     fireEvent.click(getByRole("button", { name: /Keep this device/ }));
+    expect(fns.keepLocal).toHaveBeenCalledWith("n1");
+  });
+
+  it("conflicts: 'Use the other version' calls keepRemote for just that row", () => {
+    const { getByRole, fns } = mountPanel({
+      phase: "conflicts",
+      conflicts: [{ noteId: "n1", reason: "both-changed" }],
+    });
+    fireEvent.click(getByRole("button", { name: "Use the other version" }));
+    expect(fns.keepRemote).toHaveBeenCalledWith("n1");
+    expect(fns.keepLocal).not.toHaveBeenCalled();
+  });
+
+  it("conflicts: a bulk 'keep all' shortcut appears only once 2+ are pending, and resolves none individually", () => {
+    const single = mountPanel({ phase: "conflicts", conflicts: [{ noteId: "n1", reason: "both-changed" }] });
+    expect(single.queryByRole("button", { name: /for all/ })).toBeNull();
+    cleanup();
+
+    const { getByRole, fns } = mountPanel({
+      phase: "conflicts",
+      conflicts: [
+        { noteId: "n1", reason: "both-changed" },
+        { noteId: "n2", reason: "both-changed" },
+      ],
+    });
+    fireEvent.click(getByRole("button", { name: /Keep this device.*for all \(2\)/ }));
+    expect(fns.keepAllLocal).toHaveBeenCalledTimes(1);
+    expect(fns.keepLocal).not.toHaveBeenCalled();
+  });
+
+  it("conflicts: a resolving row shows 'Applying…' and hides its own action buttons (others stay live)", () => {
+    const fns = {
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      syncNow: vi.fn(),
+      keepLocal: vi.fn(),
+      keepRemote: vi.fn(),
+      keepAllLocal: vi.fn(),
+      refreshInfo: vi.fn(),
+    };
+    const sync = {
+      ui: {
+        ...baseUi,
+        phase: "conflicts",
+        conflicts: [
+          { noteId: "n1", reason: "both-changed" },
+          { noteId: "n2", reason: "both-changed" },
+        ],
+      },
+      ...fns,
+      resolvingIds: new Set(["n1"]),
+      conflictErrors: {} as Record<string, string>,
+    } as unknown as Parameters<typeof SyncStatus>[0]["sync"];
+    const { getByText, getByRole, queryByRole } = render(<SyncStatus sync={sync} titleFor={(id) => `Title:${id}`} />);
+    fireEvent.click(getByRole("button", { name: "OneDrive sync" }));
+
+    expect(getByText("Applying…")).toBeTruthy();
+    // n1's own action buttons are gone while it resolves, but n2's are still live.
+    expect(queryByRole("button", { name: "Keep this device’s version" })).toBeTruthy();
+    fireEvent.click(getByRole("button", { name: "Keep this device’s version" }));
+    expect(fns.keepLocal).toHaveBeenCalledWith("n2");
+  });
+
+  it("conflicts: a failed resolution shows an inline error and keeps the row actionable", () => {
+    const fns = { connect: vi.fn(), disconnect: vi.fn(), syncNow: vi.fn(), keepLocal: vi.fn(), keepRemote: vi.fn(), keepAllLocal: vi.fn(), refreshInfo: vi.fn() };
+    const sync = {
+      ui: { ...baseUi, phase: "conflicts", conflicts: [{ noteId: "n1", reason: "both-changed" }] },
+      ...fns,
+      resolvingIds: new Set<string>(),
+      conflictErrors: { n1: "Couldn't apply — try again." },
+    } as unknown as Parameters<typeof SyncStatus>[0]["sync"];
+    const { getByText, getByRole } = render(<SyncStatus sync={sync} titleFor={(id) => `Title:${id}`} />);
+    fireEvent.click(getByRole("button", { name: "OneDrive sync" }));
+
+    expect(getByText("Couldn't apply — try again.")).toBeTruthy();
+    fireEvent.click(getByRole("button", { name: /Keep this device/ })); // still clickable (retry)
     expect(fns.keepLocal).toHaveBeenCalledWith("n1");
   });
 });
