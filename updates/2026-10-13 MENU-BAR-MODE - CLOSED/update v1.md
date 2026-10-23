@@ -70,3 +70,6 @@ Turn Pensieve into a lightweight macOS menu-bar app:
 - Verified: `tsc` (main) clean, `cargo check` clean (global-shortcut plugin resolved), 752 JS
   tests pass. Native `tauri:build` → /Applications (verify mod-time). **Pending owner device
   re-test** of tray menu / global hotkeys / hide-to-bar on the freshly installed app.
+
+## Closed (2026-10-23)
+Owner confirmed tray menu / global hotkeys / hide-to-bar all work on the device. Folder closed.
