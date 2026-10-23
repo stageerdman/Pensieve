@@ -65,8 +65,9 @@ Per CLAUDE.md, ran two UX-expert agents in parallel before building:
 ## Status
 - [x] Phase 1 — engine + hook + UI + tests (`npm test`: 922 passed; `npx tsc
   --noEmit`: clean; `cargo check`: clean, no Rust changes).
-- [ ] Phase 2 — native build + install to /Applications, update `issues.txt`.
+- [x] Phase 2 — native build + install to /Applications (2026-10-23 17:49).
 - [ ] Owner device test: let several conflicts pile up (or simulate via editing
   the same note from two sync states) and confirm resolving one doesn't freeze
-  the others, and that a burst of "keep this device" clicks doesn't visibly
-  re-trigger a full backup pass.
+  the others, that a "Use the other version" / "keep for all" action works, and
+  that a burst of "keep this device" clicks doesn't visibly re-trigger a full
+  backup pass. Close this folder once confirmed.

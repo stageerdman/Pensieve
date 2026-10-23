@@ -1,6 +1,21 @@
 Pensieve — known issues & TODOs
 (one line per item; move resolved items out or mark done)
 
+SYNC-CONFLICT-UX — built + native app rebuilt+installed (2026-10-23), owner device
+test PENDING:
+- [x] Fixed: resolving a sync conflict ("keep this device's version") used to force
+      an immediate full two-way sync and lock the whole panel (busy flag) until it
+      finished — clicking one conflict looked like it froze and re-uploaded
+      everything, and conflicts could only be resolved one at a time.
+- [x] Each resolve is now instant + local-first (one lightweight engine call, not a
+      full sync); concurrent resolves are queued (no state-file races) with ONE
+      debounced trailing sync 600ms after the last click, so a burst of clicks
+      causes exactly one follow-up sync, not N.
+- [x] Added the missing "Use the other version" (keep-remote) action, and a "Keep
+      this device's version for all (N)" bulk shortcut once 2+ conflicts pile up.
+- [ ] Owner device test: let conflicts actually pile up and confirm the panel no
+      longer freezes/resets. See updates/2026-10-23 SYNC-CONFLICT-UX - OPEN/.
+
 LARGE-MEDIA-SYNC — SHIPPED to main (2026-10-20, native app rebuilt+installed):
 - [x] Root cause of both items below: the whole-file-as-one-base64-string PUT/GET path
       (adapter.ts uploadMedia/downloadMedia) had no real ceiling on how long it could run or
