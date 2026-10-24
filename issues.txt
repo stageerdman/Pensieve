@@ -188,9 +188,9 @@ OPEN ISSUES:
 
 PWA-CAPTURE v2 — follow-ups after real OneDrive + Cloudflare Pages hosting landed
 (2026-10-24, on update/pwa-capture, not yet merged to main):
-- [ ] manifest.webmanifest has no icons and index.html has no apple-touch-icon —
-      "Add to Home Screen" on iOS will use a generic screenshot thumbnail instead of a
-      real app icon. Cosmetic; add an icon set when there's a moment.
+- [x] manifest icons + apple-touch-icon — fixed 2026-10-24, reused the same mark
+      from src-tauri/icons/ios/ (180/192/512px) so "Add to Home Screen" matches the
+      desktop app's icon.
 - [ ] Phone media backup caps at Graph's plain ~4MB upload (no resumable chunked
       sessions like desktop's native large-media path) — a large phone photo/video
       would fail to back up silently past that size.
