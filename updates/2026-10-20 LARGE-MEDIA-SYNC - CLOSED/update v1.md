@@ -95,12 +95,5 @@ off and continuing from there, not re-uploading from scratch.
   passed), `npm run tauri:build` (built + installed to /Applications/Pensieve.app).
   `issues.txt` updated; this folder closes out.
 
-## Owner follow-up needed
-This fixes the mechanism (the hang + the 4MB ceiling) and is verified by test + a real
-native build/install, but it has **not yet been exercised against the owner's actual
-account with a real large file** — that needs the owner to open the app, let the
-pending 78 MB audio recording (and the 3.89 MB image, if it's still pending) back up,
-and confirm in the sync panel that it completes rather than sitting on "Backing up…".
-If the owner closes the app mid-upload of a large file and reopens it, the session
-should resume from wherever Graph left off rather than restarting — worth confirming
-once, since that's the core of what was asked for.
+## Owner follow-up
+Confirmed 2026-10-24 — real large file backed up successfully. Folder CLOSED.
