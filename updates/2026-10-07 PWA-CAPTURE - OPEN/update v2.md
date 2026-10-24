@@ -52,12 +52,14 @@ The existing Pensieve Azure app (`51c918c5-4039-4834-9cf8-39d3fa475ade`) only ha
 Microsoft does NOT serve CORS headers for — fine for the native app's Rust-side
 HTTP calls, but a browser `fetch()` to the token endpoint needs a **Single-page
 application** platform redirect specifically (that's what gets CORS treatment).
-**Before Phase 2 can be tested for real:** owner adds a second platform entry on
-that same app in portal.azure.com → App registrations → (the Pensieve app) →
-Authentication → Add a platform → **Single-page application** → redirect URI
-`https://<the-pages.dev-url>/auth/callback` (exact URL confirmed once Phase 5
-hosting exists; a placeholder/localhost SPA entry can be added early for local
-`npm run dev:phone` testing: `http://localhost:5173/auth/callback`).
+
+- **Done (2026-10-24):** owner added the local-dev SPA redirect
+  `http://localhost:5174/auth/callback`.
+- **Still needed, now that Phase 5 hosting is live:** add a second SPA redirect on
+  the same app for the production URL — `https://pensieve-phone.pages.dev/auth/callback`
+  — portal.azure.com → App registrations → (the Pensieve app) → Authentication →
+  Add a platform → Single-page application → that redirect URI. Connect won't work
+  on the hosted URL until this is added.
 
 ## Phased roadmap
 - **Phase 1 — Phone local vault.** IndexedDB-backed `LocalVault` (notes + sync
@@ -95,4 +97,23 @@ hosting exists; a placeholder/localhost SPA entry can be added early for local
 - 2026-10-24: v2 opened. Researched the full desktop sync stack (`src/lib/sync/*`)
   and confirmed `adapter.ts`/`engine.ts` are already injectable/portable — the only
   Tauri-specific seams are `vault.ts` (fs) and `native.ts` (secret store + loopback
-  OAuth + native HTTP transport). Starting Phase 1.
+  OAuth + native HTTP transport).
+- **Phases 1–4 done.** IndexedDB/localStorage `LocalVault` + Note↔markdown mapper;
+  browser PKCE OAuth (full-page SPA redirect, `/auth/callback`); the Wand wired to
+  the real engine (`useOneDriveSync`, auto-summon on first sync); fresh-start wipe
+  of seed data (vault + media IndexedDB + search recents) via a one-time migration
+  in `main.tsx`. **Deviation from the plan above:** the refresh token landed in
+  localStorage, not IndexedDB as originally scoped — simplicity/uniformity with the
+  rest of phone storage, matching the project's existing "secrets in a plain file,
+  not OS keychain" posture elsewhere. 974 tests passing, tsc clean, `build:phone`
+  clean. All work happened on `update/pwa-capture` (NOT main — an earlier research
+  agent had committed straight to main; moved to this branch before continuing).
+- **Phase 5 done.** Cloudflare Pages project `pensieve-phone` created and deployed
+  via `npm run deploy:phone` (`scripts/deploy-phone.sh`, reusing
+  `~/dev/html-posting/.env` creds — that token already covers Pages, no owner
+  action needed). Live at https://pensieve-phone.pages.dev. SPA fallback routing
+  confirmed (`/auth/callback` returns 200, not 404).
+- **Next:** Phase 6 — owner adds the production SPA redirect in Azure (see above),
+  then device test: open the hosted URL on the iPhone, install to home screen,
+  Connect OneDrive, confirm a note written on the phone shows up in the desktop
+  app (and vice versa) after a sync.

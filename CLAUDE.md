@@ -18,13 +18,20 @@ Planned layout — created as the project grows, kept flat until it needs folder
 ## Commands
 - Run (browser, fast iterate): `npm run dev` → http://localhost:5173
 - Run (native app): `npm run tauri dev`
+- Run (phone PWA, fast iterate): `npm run dev:phone` → http://localhost:5174
 - Test: `npm test` (Vitest; `npm run test:watch` to watch)
 - Typecheck: `npx tsc --noEmit`
-- Build (web bundle): `npm run build` · Build (native `.app`): **`npm run tauri:build`**
+- Build (web bundle): `npm run build` · Build (phone PWA): `npm run build:phone` → `dist-phone/`
+  · Build (native `.app`): **`npm run tauri:build`**
   — builds then installs the app to `/Applications` and removes the build-tree copy,
   so there is only ever ONE `Pensieve.app` (never leave the raw `tauri build` bundle
   around — Spotlight indexes it as a duplicate).
-- Deploy: n/a (local `.app`); future: notarize & distribute the build
+- Deploy (phone PWA): `npm run deploy:phone` — builds, then `wrangler pages deploy
+  dist-phone` to the Cloudflare Pages project **pensieve-phone**
+  (https://pensieve-phone.pages.dev). Reuses the Cloudflare account/token already
+  set up for erdman.xyz in the sibling project `~/dev/html-posting/.env` — Pensieve
+  has no Cloudflare credentials of its own. Desktop `.app` deploy: n/a (local only);
+  future: notarize & distribute the build.
 - Logs: query the central log store (`log.query({...})`, see Debugging) — filtered, never full dumps
 
 ## Build environment: shared Cargo target
