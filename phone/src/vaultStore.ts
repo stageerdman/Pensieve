@@ -23,7 +23,9 @@ export function loadVault(): Note[] {
     const raw = localStorage.getItem(VAULT_KEY);
     if (!raw) return createSeed();
     const v = JSON.parse(raw);
-    if (Array.isArray(v) && v.length && v.every((n) => n && typeof n.id === "string")) return v as Note[];
+    // An empty array is a valid (if boring) vault — e.g. every note deleted, or a
+    // fresh device before the first sync — and must NOT fall back to the seed demo.
+    if (Array.isArray(v) && v.every((n) => n && typeof n.id === "string")) return v as Note[];
   } catch {
     /* corrupt / absent — fall back to seed */
   }

@@ -99,6 +99,27 @@ export async function deleteMedia(ref: string): Promise<void> {
   }
 }
 
+/** Every ref currently stored — the real sync vault's backup/restore push-pull set. */
+export async function listMediaKeys(): Promise<string[]> {
+  try {
+    const keys = await tx<IDBValidKey[]>("readonly", (s) => s.getAllKeys());
+    return keys.map(String);
+  } catch {
+    return [];
+  }
+}
+
+/** Raw bytes for a ref, or null if absent — the real sync vault's upload/push path. */
+export async function getMediaBytes(ref: string): Promise<Uint8Array | null> {
+  try {
+    const blob = await tx<Blob | undefined>("readonly", (s) => s.get(ref));
+    if (!blob) return null;
+    return new Uint8Array(await blob.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
 const EXT_BY_TYPE: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/jpg": "jpg",
