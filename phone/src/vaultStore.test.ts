@@ -6,11 +6,11 @@ beforeEach(() => {
 });
 
 describe("vaultStore", () => {
-  it("falls back to the seed when nothing is stored yet", () => {
-    expect(loadVault().length).toBeGreaterThan(0);
+  it("starts empty when nothing is stored yet — no seed fallback", () => {
+    expect(loadVault()).toEqual([]);
   });
 
-  it("an explicitly empty vault stays empty — does NOT fall back to the seed", () => {
+  it("an explicitly empty vault stays empty", () => {
     persistVault([]);
     expect(loadVault()).toEqual([]);
   });
@@ -21,10 +21,10 @@ describe("vaultStore", () => {
     expect(loadVault()).toEqual([note]);
   });
 
-  it("clearVault removes the stored vault (falls back to seed again)", () => {
-    persistVault([]);
+  it("clearVault removes the stored vault", () => {
+    persistVault([{ id: "x1", t: "T", c: "B", cat: "--cat-blue", shape: "vial" as const, fill: 0.2, d: "Today", created: "Today", createdAt: 1, updatedAt: 2 }]);
     clearVault();
-    expect(loadVault().length).toBeGreaterThan(0);
+    expect(loadVault()).toEqual([]);
   });
 
   it("newId mints distinct string ids", () => {

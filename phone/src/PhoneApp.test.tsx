@@ -6,9 +6,19 @@
 
 import "./test/phoneSetup";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PhoneApp } from "./PhoneApp";
 import { GENERAL_SPELLS } from "./lib/spells/registry";
+import { persistVault } from "./vaultStore";
+import { createSeed } from "./seed";
+
+// The real app's vault starts empty (PWA-CAPTURE v2 — no seed fallback in production).
+// This suite still drives the Wand against the old 13-card fixture content (titles like
+// "lighthouse" it searches for), so seed it explicitly here rather than relying on a
+// production fallback that no longer exists.
+beforeEach(() => {
+  persistVault(createSeed());
+});
 
 afterEach(() => {
   cleanup();

@@ -85,7 +85,8 @@ function fmtNow(): string {
 
 // Recent Accio queries — the "see what you searched before" chips. Private: localStorage
 // only, never synced (journaling queries are sensitive). Last 6 distinct, most-recent-first.
-const RECENTS_KEY = "pensieve.recentQueries";
+// Exported so main.tsx's one-time fresh-start wipe can clear stale demo-seed queries too.
+export const RECENTS_KEY = "pensieve.recentQueries";
 function loadRecents(): string[] {
   try {
     const v = JSON.parse(localStorage.getItem(RECENTS_KEY) || "[]");

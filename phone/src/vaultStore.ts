@@ -8,9 +8,14 @@
 // `newId()` mirrors the desktop browser store's scheme (src/lib/store/browser.ts)
 // — a base36 time prefix + random suffix — so a note minted on the phone is a
 // globally-unique id compatible with the desktop vault's `.md` basename.
+//
+// NO seed fallback here (PWA-CAPTURE v2) — the real vault starts genuinely empty
+// until OneDrive sync or the owner's own writing fills it. `seed.ts` is now a test
+// fixture only (PhoneApp.test.tsx seeds it explicitly). See main.tsx's
+// ensureFreshStart for the one-time migration that clears demo data a device
+// already persisted from an earlier, seed-backed build.
 
 import type { Note } from "./types";
-import { createSeed } from "./seed";
 
 export function newId(): string {
   return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
@@ -21,28 +26,25 @@ const VAULT_KEY = "pensieve.phone.vault";
 export function loadVault(): Note[] {
   try {
     const raw = localStorage.getItem(VAULT_KEY);
-    if (!raw) return createSeed();
+    if (!raw) return [];
     const v = JSON.parse(raw);
-    // An empty array is a valid (if boring) vault — e.g. every note deleted, or a
-    // fresh device before the first sync — and must NOT fall back to the seed demo.
     if (Array.isArray(v) && v.every((n) => n && typeof n.id === "string")) return v as Note[];
   } catch {
-    /* corrupt / absent — fall back to seed */
+    /* corrupt — treat as empty rather than crash */
   }
-  return createSeed();
+  return [];
 }
 
 export function persistVault(data: Note[]): void {
   try {
     localStorage.setItem(VAULT_KEY, JSON.stringify(data));
   } catch {
-    /* quota / unavailable — a reload just falls back to seed, no crash */
+    /* quota / unavailable — a reload just starts from whatever was last saved */
   }
 }
 
-/** Wipe the vault (and the recent-searches sidecar) back to nothing — used once to
- *  clear the demo seed before real OneDrive data loads. Does NOT touch media bytes
- *  (IndexedDB) or the OneDrive connection/sync state. */
+/** Wipe the vault back to nothing. Does NOT touch media bytes (IndexedDB) or the
+ *  OneDrive connection/sync state. */
 export function clearVault(): void {
   try {
     localStorage.removeItem(VAULT_KEY);

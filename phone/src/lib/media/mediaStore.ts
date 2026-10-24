@@ -99,6 +99,18 @@ export async function deleteMedia(ref: string): Promise<void> {
   }
 }
 
+/** Wipe every stored blob and revoke cached object URLs — used once by the fresh-start
+ *  migration to clear demo-seed images left behind by an earlier, seed-backed build. */
+export async function clearAllMedia(): Promise<void> {
+  try {
+    await tx("readwrite", (s) => s.clear());
+  } catch {
+    /* no-op */
+  }
+  for (const url of urlCache.values()) URL.revokeObjectURL(url);
+  urlCache.clear();
+}
+
 /** Every ref currently stored — the real sync vault's backup/restore push-pull set. */
 export async function listMediaKeys(): Promise<string[]> {
   try {
