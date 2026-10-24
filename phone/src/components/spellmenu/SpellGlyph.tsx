@@ -27,53 +27,6 @@ const PATHS: Record<Exclude<IconName, "menu">, React.ReactNode> = {
   sync: (
     <path d="M12 12c-1.3-2.1-3-3.2-4.8-3.2a3.3 3.3 0 1 0 0 6.6c1.8 0 3.5-1.1 4.8-3.4c1.3 2.3 3 3.4 4.8 3.4a3.3 3.3 0 1 0 0-6.6C15 8.8 13.3 9.9 12 12Z" />
   ),
-  stir: (
-    <>
-      <path d="M20 12a8 8 0 1 1-2.4-5.7" />
-      <path d="M20 3.6v3.4h-3.4" />
-    </>
-  ),
-  pin: (
-    <>
-      <path d="M9 3.2h6l-1 2v4l3 3v1.1H7V12.2l3-3v-4l-1-2Z" />
-      <path d="M12 13.3V20.5" />
-    </>
-  ),
-  label: (
-    <>
-      <path d="M3 12.3 11.7 3.6a2 2 0 0 1 1.4-.6H19a2 2 0 0 1 2 2v5.9a2 2 0 0 1-.6 1.4L11.7 21a2 2 0 0 1-2.8 0l-5.9-5.9a2 2 0 0 1 0-2.8Z" />
-      <circle cx="16.4" cy="7.6" r="1.5" />
-    </>
-  ),
-  link: (
-    <>
-      <path d="M10.6 13.4l2.8-2.8" />
-      <path d="M10.8 13.2 8.6 15.4a3 3 0 0 1-4.2-4.2l2.6-2.6a3 3 0 0 1 4.2 0" />
-      <path d="M13.2 10.8 15.4 8.6a3 3 0 0 1 4.2 4.2l-2.6 2.6a3 3 0 0 1-4.2 0" />
-    </>
-  ),
-  highlight: (
-    // all-line (no mixed fill): two text rows + a thick "marker" underline
-    <>
-      <path d="M5 7h14M5 11h10" />
-      <path d="M5 16h11" strokeWidth="3.4" opacity="0.9" />
-    </>
-  ),
-  export: (
-    <>
-      <path d="M12 15.2V4" />
-      <path d="M8 8l4-4 4 4" />
-      <path d="M5 12.8v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" />
-    </>
-  ),
-  thread: (
-    <>
-      <circle cx="6" cy="6" r="2" />
-      <circle cx="6" cy="18" r="2" />
-      <circle cx="18" cy="12" r="2" />
-      <path d="M6 8v8M8 6h6a2 2 0 0 1 2 2v2M8 18h6a2 2 0 0 0 2-2v-2" />
-    </>
-  ),
   // a single-stroke photo frame: a bordered rect, a sun, and a rising-horizon line
   image: (
     <>

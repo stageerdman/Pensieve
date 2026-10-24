@@ -8,36 +8,30 @@ import {
 import { isScroll } from "./ringLayout";
 
 describe("registry — the General roster", () => {
-  it("has a stable most-used-first order starting with Write and Accio", () => {
-    expect(GENERAL_SPELLS[0].id).toBe("write");
-    expect(GENERAL_SPELLS[1].id).toBe("accio");
+  it("is just the three real daily spells, most-used-first", () => {
+    expect(GENERAL_SPELLS.map((s) => s.id)).toEqual(["write", "accio", "sync"]);
   });
 
-  it("is large enough to exercise the scroll ring", () => {
-    expect(isScroll(GENERAL_SPELLS.length)).toBe(true);
+  it("is small enough to render as a static ring, not a scroll ring", () => {
+    expect(isScroll(GENERAL_SPELLS.length)).toBe(false);
   });
 
-  it("gives hue-owning and window/detailed spells the right flags", () => {
+  it("gives hue-owning and window spells the right flags", () => {
     expect(spellById("accio")!.hue).toBe("violet");
     expect(spellById("sync")!.hue).toBe("gold-state");
     expect(spellById("sync")!.opensWindow).toBe(true);
     expect(spellById("write")!.longPress).toBe("speak");
-    expect(spellById("label")!.children!.length).toBeGreaterThan(0);
   });
 
-  it("indexes detailed children so they resolve by id", () => {
-    expect(spellById("label.blue")).toBeDefined();
-    expect(spellById("export.pdf")!.name).toBe("PDF");
+  it("an unknown id resolves to undefined", () => {
     expect(spellById("nope")).toBeUndefined();
   });
 });
 
 describe("registry — conditional (page-recommended) rosters", () => {
-  it("home suggests a small static-ring browsing set", () => {
-    const home = conditionalSpells("home");
-    expect(home.length).toBe(4);
-    expect(isScroll(home.length)).toBe(false);
-    expect(hasConditional("home")).toBe(true);
+  it("home has no local suggestions — the main screen shows only General", () => {
+    expect(conditionalSpells("home")).toEqual([]);
+    expect(hasConditional("home")).toBe(false);
   });
 
   it("a note offers Photo + Gallery (add a photo, or start a fresh gallery)", () => {

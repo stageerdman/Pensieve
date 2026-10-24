@@ -9,22 +9,7 @@
 //   · the radial Spell Menu overlay             — Spell / SpellMenuForm
 
 /** The glyph set (SVG lives in components/spellmenu/SpellGlyph). "menu" = the Orbit hero. */
-export type IconName =
-  | "menu"
-  | "write"
-  | "accio"
-  | "sync"
-  | "stir"
-  | "pin"
-  | "label"
-  | "link"
-  | "highlight"
-  | "export"
-  | "thread"
-  | "image"
-  | "gallery"
-  | "edit"
-  | "back";
+export type IconName = "menu" | "write" | "accio" | "sync" | "image" | "gallery" | "edit" | "back";
 
 /** Sync's live status, mirrored from lib/wand/syncMachine so the dock/menu can badge it. */
 export type SyncBadge = "synced" | "reminder" | "syncing" | "failed" | "offline";
@@ -45,7 +30,7 @@ export interface Spell {
   children?: Spell[];
   /** this spell opens a window above the ring (e.g. Sync details). */
   opensWindow?: boolean;
-  /** Write & Stir flash gold on cast (serendipity / a flask always fills). */
+  /** Write flashes gold on cast (serendipity / a flask always fills). */
   castGold?: boolean;
   /** long-press does something distinct (e.g. Write: tap = write, hold = speak). */
   longPress?: "speak";

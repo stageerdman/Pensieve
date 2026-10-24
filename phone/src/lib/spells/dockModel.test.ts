@@ -21,16 +21,16 @@ describe("placeDock — collapsed spells", () => {
       menuSlot: 3,
       spells: [
         { kind: "collapsed", id: "sync", icon: "sync" },
-        { kind: "collapsed", id: "stir", icon: "stir" },
+        { kind: "collapsed", id: "image", icon: "image" },
       ],
     };
     const placed = placeDock(layout);
     expect(placed.find((p) => p.kind === "collapsed" && p.id === "sync")).toMatchObject({ cell: 0 });
-    expect(placed.find((p) => p.kind === "collapsed" && p.id === "stir")).toMatchObject({ cell: 1 });
+    expect(placed.find((p) => p.kind === "collapsed" && p.id === "image")).toMatchObject({ cell: 1 });
   });
 
   it("places a collapsed spell to the right of a mid-row menu button", () => {
-    const placed = placeDock({ menuSlot: 1, spells: [{ kind: "collapsed", id: "pin", icon: "pin" }] });
+    const placed = placeDock({ menuSlot: 1, spells: [{ kind: "collapsed", id: "image", icon: "image" }] });
     // free cells are 0,2,3 → first spell lands in cell 0
     expect(placed.find((p) => p.kind === "collapsed")).toMatchObject({ cell: 0 });
   });
@@ -56,7 +56,7 @@ describe("placeDock — invariants", () => {
     expect(() =>
       placeDock({
         menuSlot: 3,
-        spells: [{ kind: "expanded", id: "accio" }, { kind: "collapsed", id: "pin", icon: "pin" }],
+        spells: [{ kind: "expanded", id: "accio" }, { kind: "collapsed", id: "image", icon: "image" }],
       }),
     ).toThrow(/mix/i);
   });
@@ -66,10 +66,10 @@ describe("placeDock — invariants", () => {
       placeDock({
         menuSlot: 3,
         spells: [
-          { kind: "collapsed", id: "a", icon: "pin" },
-          { kind: "collapsed", id: "b", icon: "pin" },
-          { kind: "collapsed", id: "c", icon: "pin" },
-          { kind: "collapsed", id: "d", icon: "pin" },
+          { kind: "collapsed", id: "a", icon: "image" },
+          { kind: "collapsed", id: "b", icon: "image" },
+          { kind: "collapsed", id: "c", icon: "image" },
+          { kind: "collapsed", id: "d", icon: "image" },
         ],
       }),
     ).toThrow(/at most 3/i);

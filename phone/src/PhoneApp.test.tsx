@@ -109,7 +109,7 @@ describe("PhoneApp — Accio (resident → summon)", () => {
 });
 
 describe("PhoneApp — the Spell Menu", () => {
-  it("blooms the general ring (gold) from the menu button, with a Suggested toggle", async () => {
+  it("blooms the general ring (gold) from the menu button — home has no local suggestions", async () => {
     const { container } = await boot();
     await act(async () => {
       fireEvent.click(container.querySelector<HTMLElement>(".spell-fab")!);
@@ -118,24 +118,11 @@ describe("PhoneApp — the Spell Menu", () => {
     const ring = container.querySelector(".spell-ring");
     expect(ring).toBeTruthy();
     expect(ring?.classList.contains("hue-gold")).toBe(true);
-    expect(container.querySelectorAll(".spell-node").length).toBe(GENERAL_SPELLS.length);
-    // home opens General but offers the page's suggestions ("see local")
-    expect(container.querySelector(".spell-center-label")?.textContent).toBe("see local");
-  });
-
-  it("casting a fake spell closes the menu and shows a toast", async () => {
-    const { container } = await boot();
-    await act(async () => {
-      fireEvent.click(container.querySelector<HTMLElement>(".spell-fab")!);
-    });
-    await flush();
-    // index 3 = Stir (a visible, leaf, fake spell at p=0)
-    expect(GENERAL_SPELLS[3].id).toBe("stir");
-    await act(async () => {
-      tapNode(container as HTMLElement, 3);
-    });
-    expect(container.querySelector(".spell-overlay")).toBeNull(); // menu closed
-    expect(container.querySelector(".spell-toast")?.textContent).toContain("Stir");
+    // just the three real daily spells: Write, Accio, Sync
+    expect(GENERAL_SPELLS.map((s) => s.id)).toEqual(["write", "accio", "sync"]);
+    expect(container.querySelectorAll(".spell-node").length).toBe(3);
+    // no "see local" toggle on home — there's nothing page-local to suggest
+    expect(container.querySelector(".spell-center-label")).toBeNull();
   });
 
   it("opens a window for Sync and casts the backup from it", async () => {
@@ -192,18 +179,5 @@ describe("PhoneApp — the Spell Menu", () => {
     await act(async () => {
       await new Promise((r) => setTimeout(r, 1000));
     });
-  });
-
-  it("descends into a detailed sub-ring and the center becomes Back", async () => {
-    const { container } = await boot();
-    await act(async () => {
-      fireEvent.click(container.querySelector<HTMLElement>(".spell-fab")!);
-    });
-    await flush();
-    // index 5 = Label (has children) — but at p=0 it may be in the void; scroll it up first.
-    // Simpler: assert the Label node exists with the has-more affordance.
-    const labelIdx = GENERAL_SPELLS.findIndex((s) => s.id === "label");
-    const labelNode = container.querySelector(`.spell-node[data-index="${labelIdx}"]`);
-    expect(labelNode?.querySelector(".spell-has-more")).toBeTruthy();
   });
 });
