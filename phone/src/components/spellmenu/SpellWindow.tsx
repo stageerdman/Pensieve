@@ -13,17 +13,53 @@ export interface SpellWindowProps {
   spellId: string;
   syncState: SyncStatus;
   account: string;
+  /** Is OneDrive actually connected? Before this, Sync shows a Connect prompt
+   *  instead of the backup panel — there's nothing to back up TO yet. */
+  connected: boolean;
   onClose: () => void;
   /** run the spell's primary action (Sync: cast the backup). */
   onPrimary: () => void;
   /** Sync: restore the whole vault from the cloud (destructive — confirmed inline). */
   onRestore: () => void;
+  /** Sync: start the OneDrive connect flow (navigates away). */
+  onConnect: () => void;
+  /** Sync: forget this device's OneDrive connection. */
+  onDisconnect: () => void;
 }
 
-export function SpellWindow({ spellId, syncState, account, onClose, onPrimary, onRestore }: SpellWindowProps) {
+export function SpellWindow({ spellId, syncState, account, connected, onClose, onPrimary, onRestore, onConnect, onDisconnect }: SpellWindowProps) {
   const spell = spellById(spellId);
 
   if (spellId === "sync") {
+    if (!connected) {
+      return (
+        <div className="spell-window-layer">
+          <div className="spell-window" role="dialog" aria-label="Sync">
+            <div className="sw-head">
+              <span className="sw-rune">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path className="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z" />
+                </svg>
+              </span>
+              <div className="sw-copy">
+                <div className="sw-title">Connect OneDrive</div>
+                <div className="sw-sub">Back up your memories, and read them on your other devices.</div>
+              </div>
+            </div>
+            <button className="sw-primary" onClick={onConnect}>
+              Connect
+            </button>
+            <div className="sw-foot">
+              <span />
+              <button className="sw-close" onClick={onClose}>
+                Not now
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     const copy = panelCopy(syncState);
     return (
       <div className="spell-window-layer">
@@ -49,9 +85,14 @@ export function SpellWindow({ spellId, syncState, account, onClose, onPrimary, o
           )}
           <div className="sw-foot">
             <span className="sw-acct">{account}</span>
-            <button className="sw-close" onClick={onClose}>
-              Done
-            </button>
+            <span style={{ display: "flex", gap: 12 }}>
+              <button className="sw-close" onClick={onDisconnect}>
+                Sign out
+              </button>
+              <button className="sw-close" onClick={onClose}>
+                Done
+              </button>
+            </span>
           </div>
         </div>
       </div>

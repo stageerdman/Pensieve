@@ -6,11 +6,24 @@
 
 import "./test/phoneSetup";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PhoneApp } from "./PhoneApp";
 import { GENERAL_SPELLS } from "./lib/spells/registry";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+  vi.restoreAllMocks();
+});
+
+/** Simulate an already-connected OneDrive, with `fetch` failing fast (offline) so
+ *  the real engine's network calls resolve immediately rather than hitting the
+ *  real Graph API from a test. The Sync window flow only cares that a cast
+ *  happened here, not whether it succeeded. */
+function connectOneDriveForTest() {
+  localStorage.setItem("pensieve.phone.refreshToken", "test-refresh-token");
+  vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline (test)"));
+}
 
 // let boot rAFs / conjure macrotasks fire inside act
 async function flush() {
@@ -116,6 +129,7 @@ describe("PhoneApp — the Spell Menu", () => {
   });
 
   it("opens a window for Sync and casts the backup from it", async () => {
+    connectOneDriveForTest();
     const { container } = await boot();
     await act(async () => {
       fireEvent.click(container.querySelector<HTMLElement>(".spell-fab")!);
@@ -134,9 +148,15 @@ describe("PhoneApp — the Spell Menu", () => {
     // the gold cast overlay is showing; the menu closed behind it
     expect(container.querySelector(".spell.show")).toBeTruthy();
     expect(container.querySelector(".spell-overlay")).toBeNull();
+    // drain the cast's own hide timer within this test's lifetime, rather than
+    // leaving it to fire after teardown (the real engine call behind it is async).
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1000));
+    });
   });
 
   it("restores from the cloud via the Sync window's quiet confirm", async () => {
+    connectOneDriveForTest();
     const { container } = await boot();
     await act(async () => {
       fireEvent.click(container.querySelector<HTMLElement>(".spell-fab")!);
@@ -159,6 +179,9 @@ describe("PhoneApp — the Spell Menu", () => {
     });
     expect(container.querySelector(".spell.show")).toBeTruthy();
     expect(container.querySelector(".spell-overlay")).toBeNull();
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1000));
+    });
   });
 
   it("descends into a detailed sub-ring and the center becomes Back", async () => {

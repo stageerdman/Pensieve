@@ -10,6 +10,7 @@
 import { loadVault, persistVault } from "../../vaultStore";
 import { getMediaBytes, listMediaKeys, putMedia } from "../media/mediaStore";
 import { noteFromRemoteContent, noteToRemoteContent } from "./noteFormat";
+import { EMPTY_SYNC_STATE, type SyncState } from "./types";
 
 export interface LocalNoteInfo {
   id: string;
@@ -20,29 +21,6 @@ export interface WriteTimes {
   createdAt?: number;
   updatedAt?: number;
 }
-
-// Mirrors src/lib/sync/types.ts's SyncState (duplicated: a type-only, stable shape).
-export interface NoteSyncRecord {
-  id: string;
-  remoteId: string;
-  cTag: string;
-  localUpdatedAt: number;
-  syncedAt: number;
-}
-export interface MediaSyncRecord {
-  ref: string;
-  remoteId?: string;
-  backedUp: boolean;
-  failedAt?: number;
-  uploadSession?: { uploadUrl: string; expirationDateTime: string };
-}
-export interface SyncState {
-  deltaLink: string | null;
-  notes: Record<string, NoteSyncRecord>;
-  media?: Record<string, MediaSyncRecord>;
-  lastSyncedAt: number | null;
-}
-export const EMPTY_SYNC_STATE: SyncState = { deltaLink: null, notes: {}, media: {}, lastSyncedAt: null };
 
 export interface LocalVault {
   listNotes(): Promise<LocalNoteInfo[]>;

@@ -7,6 +7,7 @@
 
 import { ReconnectNeededError, TransientSyncError } from "./errors";
 import { refreshAccessToken, TokenError, TransientAuthError } from "./oauth";
+import { log } from "../logger";
 
 const REFRESH_TOKEN_KEY = "pensieve.phone.refreshToken";
 
@@ -70,16 +71,20 @@ async function doRefresh(): Promise<string> {
   } catch (e) {
     cache = null;
     if (e instanceof TokenError && e.code === "invalid_grant") {
+      log.warn("sync", "token.refresh.expired", { code: e.code, status: e.status });
       throw new ReconnectNeededError("Your OneDrive sign-in has expired.");
     }
     if (e instanceof TransientAuthError || (e instanceof TokenError && e.status >= 500)) {
+      log.warn("sync", "token.refresh.transient", { error: String(e) });
       throw new TransientSyncError();
     }
+    log.error("sync", "token.refresh.failed", { error: String(e) });
     throw e;
   }
 
   cache = { token: res.access_token, expiresAt: Date.now() + res.expires_in * 1000 };
   if (res.refresh_token) setStoredRefreshToken(res.refresh_token);
+  log.debug("sync", "token.refresh", { expiresIn: res.expires_in, rotated: !!res.refresh_token });
   return res.access_token;
 }
 

@@ -26,6 +26,7 @@ import { useKeyboardInset } from "./hooks/useKeyboardInset";
 import { useReelFisheye } from "./hooks/useReelFisheye";
 import { useAccioSearch } from "./hooks/useAccioSearch";
 import { useSyncState } from "./hooks/useSyncState";
+import { useOneDriveSync } from "./hooks/useOneDriveSync";
 import { useCaretVisible } from "./hooks/useCaretVisible";
 import { useWordSelection } from "./hooks/useWordSelection";
 import { useAutosave } from "./hooks/useAutosave";
@@ -52,12 +53,8 @@ import { PhoneCollection } from "./components/note/PhoneCollection";
 import { mintMediaRef, registerLocalMedia } from "./lib/media/mediaStore";
 import type { MediaImage } from "./lib/media/noteMedia";
 
-const ACCOUNT = "jakub.cervenka@icloud.com";
 const DICTATION_SAMPLE =
   "I keep coming back to the idea that the phone shouldn't make me think. It should just catch the thought before it escapes.";
-// PROTOTYPE-ONLY demo fault injection so the owner can feel the red "failed" state on
-// device (same as the source ~1465). The pure syncMachine has no dice roll.
-const FAIL_RATE = 0.4;
 
 /** viewData(): the reel's list — everything, or the filtered matches. Source ~691-695. */
 function computeView(data: Note[], query: string, openedOrder: string[]): Note[] {
@@ -184,6 +181,13 @@ export function PhoneApp() {
     setSearchList(rankNotes(data, query, openedOrderRef.current));
     setCount(computeCount(query, v.length, data.length));
   }
+
+  // A real sync may have pulled/removed notes behind dataRef's back (it writes
+  // straight to the same localStorage vault) — reload from storage, then re-render.
+  const onedrive = useOneDriveSync(() => {
+    dataRef.current = loadVault();
+    renderAll(filterQueryRef.current);
+  });
 
   const autosave = useAutosave(noteBodyRef, noteSavedRef, currentRef, {
     onInsert: (note) => {
@@ -438,35 +442,28 @@ export function PhoneApp() {
   }
 
   // ---- sync actions ----
-  // One cast drives both directions in the prototype — back up (weave UP) and restore
-  // (pull DOWN) share the spell visual and the success/fail machine, differing only in
-  // copy. (The real pull lives in the desktop engine; the phone is capture-only here.)
-  function castSpell(opts?: { weaving?: string; done?: string }) {
+  // One cast drives both directions — back up (weave UP) and restore (pull DOWN)
+  // share the spell visual and the success/fail machine, differing only in copy
+  // and which real engine call runs underneath.
+  function castSpell(opts?: { weaving?: string; restore?: boolean }) {
     if (syncStatus === "syncing" || syncStatus === "offline") return;
     sync.cast();
     haptic(14);
     const castId = spell.castId + 1;
     setSpell({ show: true, castId, label: opts?.weaving ?? "Weaving to the cloud…", labelColor: "" });
-    const willFail = demoForceFail.current || Math.random() < FAIL_RATE;
-    demoForceFail.current = false;
-    setTimeout(() => {
-      setSpell((s) => ({
-        ...s,
-        label: willFail ? "Couldn't reach the cloud" : (opts?.done ?? "All memories safe · just now"),
-        labelColor: willFail ? "hsl(var(--danger))" : "hsl(var(--success))",
-      }));
-    }, 1300);
-    setTimeout(() => {
-      setSpell((s) => ({ ...s, show: false }));
-      if (willFail) {
-        sync.failed();
-        haptic(30);
-      } else {
-        sync.succeeded();
-      }
-    }, 1900);
+    const task = opts?.restore ? onedrive.restore() : onedrive.run();
+    void task.then(({ ok, message }) => {
+      setSpell((s) => ({ ...s, label: message, labelColor: ok ? "hsl(var(--success))" : "hsl(var(--danger))" }));
+      setTimeout(() => {
+        setSpell((s) => ({ ...s, show: false }));
+        if (ok) sync.succeeded();
+        else {
+          sync.failed();
+          haptic(30);
+        }
+      }, 900);
+    });
   }
-  const demoForceFail = useRef(true);
 
   // ---- spells (what each spell DOES; the registry is just data) ----
   function recordQuery(q: string) {
@@ -530,7 +527,7 @@ export function PhoneApp() {
   function syncWindowRestore() {
     if (syncStatus === "offline" || syncStatus === "syncing") return;
     menu.close();
-    castSpell({ weaving: "Pulling your memories from the cloud…", done: "Restored from the cloud · just now" });
+    castSpell({ weaving: "Pulling your memories from the cloud…", restore: true });
   }
 
   // ---- wire the fns ref (latest closures) ----
@@ -664,9 +661,12 @@ export function PhoneApp() {
         onLongCast={longCastSpell}
         onSparkle={flashSparkle}
         syncState={syncStatus}
-        account={ACCOUNT}
+        account={onedrive.account}
+        connected={onedrive.connected}
         onSyncPrimary={syncWindowPrimary}
         onSyncRestore={syncWindowRestore}
+        onSyncConnect={onedrive.connect}
+        onSyncDisconnect={onedrive.disconnect}
         reduce={reduce}
       />
       {toast ? <div className="spell-toast">{toast}</div> : null}
