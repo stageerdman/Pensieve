@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { Note } from "./types";
-import { createSeed } from "./seed";
+import { loadVault, newId, persistVault } from "./vaultStore";
 import { haptic, prefersReducedMotion } from "./util";
 import { parseQuery, passesDate, passesText } from "./lib/wand/accioQuery";
 import { rankNotes } from "./lib/wand/accioRank";
@@ -60,7 +60,7 @@ const DICTATION_SAMPLE =
 const FAIL_RATE = 0.4;
 
 /** viewData(): the reel's list — everything, or the filtered matches. Source ~691-695. */
-function computeView(data: Note[], query: string, openedOrder: number[]): Note[] {
+function computeView(data: Note[], query: string, openedOrder: string[]): Note[] {
   const { text, dates } = parseQuery(query);
   if (!text && !dates.length) return data.slice();
   return data.filter((d) => passesText(d, text) && passesDate(d, dates, openedOrder));
@@ -98,41 +98,13 @@ function loadRecents(): string[] {
   }
 }
 
-// Vault persistence — the phone prototype ran purely on in-memory seed data (reset every
-// reload). Images need a reload to actually ROUND-TRIP (the owner's device check), and the
-// photo BYTES live in IndexedDB keyed by ref, so the note TEXT (which carries those refs as
-// markdown) must persist too. We keep the whole notes array in localStorage; an absent/invalid
-// store falls back to the seed (so clearing storage restores the demo). Media bytes stay in
-// IndexedDB — never base64 in here.
-const VAULT_KEY = "pensieve.phone.vault";
-function loadVault(): Note[] {
-  try {
-    const raw = localStorage.getItem(VAULT_KEY);
-    if (!raw) return createSeed();
-    const v = JSON.parse(raw);
-    if (Array.isArray(v) && v.length && v.every((n) => n && typeof n.id === "number")) return v as Note[];
-  } catch {
-    /* corrupt / absent — fall back to seed */
-  }
-  return createSeed();
-}
-function persistVault(data: Note[]) {
-  try {
-    localStorage.setItem(VAULT_KEY, JSON.stringify(data));
-  } catch {
-    /* quota / unavailable — a reload just falls back to seed, no crash */
-  }
-}
-
-
 export function PhoneApp() {
   const reduce = prefersReducedMotion();
 
   // ---- mutable vault (the prototype's DATA) ----
   const dataRef = useRef<Note[]>();
   if (!dataRef.current) dataRef.current = loadVault();
-  const uidRef = useRef(dataRef.current.reduce((m, n) => Math.max(m, n.id), 0));
-  const openedOrderRef = useRef<number[]>([]);
+  const openedOrderRef = useRef<string[]>([]);
   const currentRef = useRef<Note | null>(null);
 
   // ---- element refs ----
@@ -255,7 +227,7 @@ export function PhoneApp() {
   const queryText = useMemo(() => parseQuery(accio.filterQuery).text, [accio.filterQuery]);
 
   // ---- note actions ----
-  function noteOpened(id: number) {
+  function noteOpened(id: string) {
     const i = openedOrderRef.current.indexOf(id);
     if (i >= 0) openedOrderRef.current.splice(i, 1);
     openedOrderRef.current.push(id);
@@ -288,8 +260,9 @@ export function PhoneApp() {
 
   function openNewNote(dictate: boolean) {
     accio.clearSearch(); // a fresh thought lands on a clean, unfiltered home
+    const now = Date.now();
     const d: Note = {
-      id: ++uidRef.current,
+      id: newId(),
       t: "",
       c: "",
       cat: randCat(),
@@ -297,6 +270,8 @@ export function PhoneApp() {
       fill: 0.18,
       d: "Just now",
       created: "Just now",
+      createdAt: now,
+      updatedAt: now,
       when: fmtNow(),
       fresh: true,
       isNew: true,

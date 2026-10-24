@@ -7,7 +7,7 @@
 
 import type { Note } from "./types";
 
-type SeedRecord = Omit<Note, "id" | "created">;
+type SeedRecord = Omit<Note, "id" | "created" | "createdAt" | "updatedAt">;
 
 // A desktop-authored gallery, so the phone proves it renders a `pensieve:gallery` fence as a
 // carousel (not raw fence text). The refs are inline SVG data URIs so the demo renders offline
@@ -40,8 +40,29 @@ const RAW: SeedRecord[] = [
   { t: "What 'extremely fast' really means", c: "Not benchmarks. It means the gap between having a thought and it being safe is near zero. Design for that gap.", cat: "--cat-blue", shape: "beaker", fill: 0.6, d: "Fri" },
 ];
 
+// Rough epoch for a seed label, just so `createdAt`/`updatedAt` (required by the real
+// sync layer) are plausible numbers — the UI still renders off the static `d`/`created`
+// strings, which this never touches. Exactness doesn't matter: seed data never syncs.
+const MIN = 60_000;
+const HOUR = 60 * MIN;
+const DAY = 24 * HOUR;
+const LABEL_AGE_MS: Record<string, number> = {
+  "Just now": MIN,
+  "2m ago": 2 * MIN,
+  Today: 3 * HOUR,
+  Yesterday: DAY + 4 * HOUR,
+  Mon: 3 * DAY,
+  Sun: 4 * DAY,
+  Sat: 5 * DAY,
+  Fri: 6 * DAY,
+};
+
 /** A fresh, mutable copy of the seed vault with ids assigned and `created` seeded
  *  from the live label (source ~638: `DATA.forEach(d => { d.id = ++uid; d.created = d.d; })`). */
 export function createSeed(): Note[] {
-  return RAW.map((r, i) => ({ ...r, id: i + 1, created: r.d }));
+  const now = Date.now();
+  return RAW.map((r, i) => {
+    const at = now - (LABEL_AGE_MS[r.d] ?? DAY);
+    return { ...r, id: `seed-${i + 1}`, created: r.d, createdAt: at, updatedAt: at };
+  });
 }
