@@ -170,16 +170,12 @@ NOTION-UX — deferred polish (non-blocking, from ux-notion-chrome.md):
 - [ ] Colour palette: the toolbar exposes BlockNote's full palette; could trim to a
       curated few if it feels like too much choice.
 
-GALLERY-PINTEREST — phone drag-to-reorder NOT fully fixed (2026-10-16, owner deferred):
-- [ ] Reorder a photo inside the full-screen collection still misbehaves on device. Symptom:
-      right-column tiles misrender on grab (vanish / jump to the left column); left column OK.
-      Tried: stable React keys (stop remount-on-reorder), then a position:fixed drag GHOST clone
-      (so the moving element leaves the CSS multi-column flow — the suspected Safari multicol+
-      transform bug). Owner reports STILL broken. Next ideas to try: replace CSS column-count
-      masonry with an explicit JS 2-column flex layout (no multicol at all) for the collection, or
-      an absolutely-positioned grid; or verify the ghost's containing block (the .ph-collection
-      will-change:transform ancestor). The reorder DATA path (controller.reorder + mediaDom
-      reorderAt) is correct and unit-tested — only the on-device gesture/render is wrong.
+GALLERY-PINTEREST — phone drag-to-reorder (2026-10-26, fix landed, awaiting device re-test):
+- [x] Replaced CSS `column-count:2` masonry with two explicit flex columns (items placed by
+      index parity) — this was the "next idea" logged 2026-10-16. Sidesteps the Safari
+      multicol+transform bug class entirely instead of working around it. Shipped to main
+      `0ec44a9`, deployed. NEEDS a device re-test of the drag-reorder gesture to confirm the
+      vanish/jump symptom is actually gone (not just theoretically fixed).
 
 OPEN ISSUES:
 - [ ] Desktop editor: adopt the phone's "title = first line = auto-H1" rule (new doc

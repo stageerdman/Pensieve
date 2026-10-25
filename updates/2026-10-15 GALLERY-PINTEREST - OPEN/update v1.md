@@ -198,3 +198,20 @@ aspect ratios** by default.
 - NEXT: owner device-tests this round (incl. re-confirming the cover→vertical-masonry tap, now that
   a fresh deploy is guaranteed current) + the zoom gesture feel. Then back to Ship-2 remainder +
   Phase 4 cleanup/close-out above.
+
+## Live status (2026-10-26 — resumed after machine restart; drag-reorder Safari fix)
+- Found uncommitted working-tree changes (survived the restart) implementing the deferred
+  drag-reorder fix from `issues.txt`: `PhoneCollection.tsx` + `wand.css` swap the CSS
+  `column-count:2` masonry for two explicit flex columns (items placed by index parity), which
+  sidesteps the Safari multicol+transform bug class that was vanishing/jumping right-column
+  tiles on grab. Also bundled: `li::marker` color fix (Safari ignores inherited text color on
+  markers → invisible bullets in dark mode), and a sync-engine backfill (`engine.ts`) that
+  rescans every local note's media refs each sync so a ref an older app version didn't
+  recognize (e.g. the `pensieve:image` fence) self-heals without a destructive full restore.
+- Verified: full suite 993 tests pass (1 unrelated flaky App.test.tsx timeout, green in
+  isolation), both apps' `tsc --noEmit` clean. Committed `0ec44a9`, pushed to main, deployed via
+  `npm run deploy:phone` (https://12d03185.pensieve-phone.pages.dev).
+- NEXT: owner device-tests the drag-reorder gesture specifically (the thing this round targeted)
+  — confirm right-column tiles no longer vanish/jump on grab. If good, close out the
+  drag-to-reorder issue in `issues.txt`. Then: Ship-2 remainder (block-level move + drag-into-
+  merge) + Phase 4 cleanup (dead `galleryLayout`/old gallery CSS) + close-out.
