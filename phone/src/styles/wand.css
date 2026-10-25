@@ -1153,13 +1153,19 @@ body {
 .note-body ol {
   margin: 0.1em 0 0.4em;
   padding-left: 1.25em;
+  /* Tailwind's Preflight (`@tailwind base`) resets ALL <ul>/<ol> to `list-style: none` app-wide
+     — with no rule anywhere re-enabling it, a plain bullet/numbered list rendered NO marker at
+     all (just the indent from padding-left above, which read as "tabbed out" with nothing to
+     show for it). Restore real markers explicitly; `.ph-check-item` below still overrides this
+     back to `none` for its own hollow/filled box glyph. */
+  list-style: revert;
 }
 .note-body li {
   margin: 0 0 0.12em;
 }
-/* Safari defaults a <li>'s ::marker to opaque black regardless of the inherited text colour
-   (a long-standing WebKit quirk) — on a dark theme that reads as an invisible bullet with just
-   the indent showing. Force it to match the body text explicitly. */
+/* Belt-and-suspenders: Safari has defaulted a <li>'s ::marker to opaque black regardless of the
+   inherited text colour on some versions (a WebKit quirk) — on a dark theme that would read as
+   an invisible bullet even with list-style restored above. Force it to match the body text. */
 .note-body li::marker {
   color: hsl(var(--text));
 }
