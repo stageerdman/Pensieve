@@ -261,6 +261,21 @@ describe("phone sync engine", () => {
     expect(r.pulledMedia).toEqual(["media/x/a.png"]);
   });
 
+  it("a note already local & unchanged (no new delta) still backfills missing media", async () => {
+    // Models the real bug: an older app version didn't recognise a ref (e.g. a
+    // pensieve:image fence) so never queued it for download, even though the note itself
+    // was already fully synced. A later app version that DOES recognise it must not need a
+    // destructive full restore to pick up the photo — the next regular sync should backfill.
+    drive.put("x.md", "A photo\n\n![](media/x/a.png)");
+    drive.files.set("media/x/a.png", { id: "m1", content: "bytes", cTag: "m1", time: new Date().toISOString(), ver: 0 });
+    await sync(graph, vault); // first sync: note + media both pulled normally
+    vault.media.delete("media/x/a.png"); // simulate the bytes never actually having landed
+    const r = await sync(graph, vault); // nothing changed remotely — no new delta for "x"
+    expect(r.pulled).toEqual([]); // the note itself was NOT re-downloaded this pass
+    expect(r.pulledMedia).toEqual(["media/x/a.png"]);
+    expect(vault.media.has("media/x/a.png")).toBe(true);
+  });
+
   it("local media not yet backed up is uploaded", async () => {
     vault.edit("x", "![](media/x/a.png)", 5);
     vault.putMedia("media/x/a.png", new Uint8Array([1, 2, 3]));

@@ -367,56 +367,70 @@ export function PhoneCollection({ onOpenMenu }: { onOpenMenu: () => void }) {
           if (s.editMode && e.target === e.currentTarget) phoneCollection.exitEditMode();
         }}
       >
-        {s.items.map((it, i) => (
-          <div className="ph-collection-tile" data-index={i} key={itemKeys[i]}>
-            <img
-              src={it.url}
-              alt={mediaAlt(it.caption)}
-              draggable={false}
-              onClick={() => {
-                if (rd.suppressClick) {
-                  rd.suppressClick = false;
-                  return; // this click is the tail of a drag — don't open the lightbox
-                }
-                if (s.editMode) return; // editing: the corner buttons own the tile, no lightbox
-                phoneLightbox.open(s.items, i);
-              }}
-            />
-            {it.caption ? <div className="ph-collection-caption">{it.caption}</div> : null}
-            {s.editMode ? (
-              <>
-                {/* Grip = the drag handle. Pressing it lifts the tile for reorder (touch here =
-                    drag; touch the photo = nothing in edit mode). touch-action:none via CSS. */}
-                <div
-                  className="ph-collection-grip"
-                  aria-label="Drag to reorder"
-                  role="button"
-                  onPointerDown={onHandleDown(i)}
-                >
-                  <GripGlyph />
+        {/* Two EXPLICIT flex columns, items placed by index parity — not a CSS `column-count`
+            masonry. Safari mis-renders multi-column + transformed children (tiles vanish or
+            jump to the wrong column, logged in issues.txt for the drag-reorder ghost); the
+            owner also hit it just viewing the board (tiles unreachable off-edge). Two real flex
+            columns have no multicol context at all, so the bug class doesn't apply. Hit-testing
+            (elementFromPoint + data-index) and the reorder DATA model are unaffected — both are
+            keyed by the tile's logical index, not by DOM nesting. */}
+        {[0, 1].map((col) => (
+          <div className="ph-collection-col" key={col}>
+            {s.items.map((it, i) => {
+              if (i % 2 !== col) return null;
+              return (
+                <div className="ph-collection-tile" data-index={i} key={itemKeys[i]}>
+                  <img
+                    src={it.url}
+                    alt={mediaAlt(it.caption)}
+                    draggable={false}
+                    onClick={() => {
+                      if (rd.suppressClick) {
+                        rd.suppressClick = false;
+                        return; // this click is the tail of a drag — don't open the lightbox
+                      }
+                      if (s.editMode) return; // editing: the corner buttons own the tile, no lightbox
+                      phoneLightbox.open(s.items, i);
+                    }}
+                  />
+                  {it.caption ? <div className="ph-collection-caption">{it.caption}</div> : null}
+                  {s.editMode ? (
+                    <>
+                      {/* Grip = the drag handle. Pressing it lifts the tile for reorder (touch here =
+                          drag; touch the photo = nothing in edit mode). touch-action:none via CSS. */}
+                      <div
+                        className="ph-collection-grip"
+                        aria-label="Drag to reorder"
+                        role="button"
+                        onPointerDown={onHandleDown(i)}
+                      >
+                        <GripGlyph />
+                      </div>
+                      <button
+                        className="ph-collection-pullout"
+                        aria-label="Pull out to note"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          phoneCollection.pullOut(i);
+                        }}
+                      >
+                        <PullOutGlyph />
+                      </button>
+                      <button
+                        className="ph-collection-remove"
+                        aria-label="Remove photo"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          phoneCollection.remove(i);
+                        }}
+                      >
+                        ×
+                      </button>
+                    </>
+                  ) : null}
                 </div>
-                <button
-                  className="ph-collection-pullout"
-                  aria-label="Pull out to note"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    phoneCollection.pullOut(i);
-                  }}
-                >
-                  <PullOutGlyph />
-                </button>
-                <button
-                  className="ph-collection-remove"
-                  aria-label="Remove photo"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    phoneCollection.remove(i);
-                  }}
-                >
-                  ×
-                </button>
-              </>
-            ) : null}
+              );
+            })}
           </div>
         ))}
       </div>

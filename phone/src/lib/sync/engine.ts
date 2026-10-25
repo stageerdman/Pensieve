@@ -209,6 +209,23 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
 
   // ---------- MEDIA BACKUP ----------
   const haveMedia = new Set(await vault.listMedia());
+  // Backfill: a note that WASN'T re-downloaded this pass (no remote delta) can still
+  // reference media the vault lacks — e.g. a ref an older app version didn't recognise yet
+  // (the pensieve:image fence fix is exactly this case) and so never queued for download.
+  // Re-scan every local note's current refs, not just the ones just pulled, so a missing
+  // photo self-heals on the very next regular sync instead of needing a destructive full
+  // restore; pullReferencedMedia no-ops (via `have`) for refs already present.
+  for (const info of localNow) {
+    const content = await vault.readNote(info.id);
+    if (content === null) continue;
+    for (const ref of extractMediaRefs(content)) {
+      // Only a ref genuinely MISSING locally — one already present is local-only, not yet
+      // confirmed on the remote, and must go through pushLocalMedia below instead. Adding it
+      // here would hit pullReferencedMedia's `have.has(ref)` branch, which marks it
+      // backedUp:true on sight — short-circuiting the push that was actually still pending.
+      if (!haveMedia.has(ref)) pulledMediaRefs.add(ref);
+    }
+  }
   await pullReferencedMedia(graph, vault, pulledMediaRefs, haveMedia, state.media!, result);
   await pushLocalMedia(graph, vault, state, result);
 

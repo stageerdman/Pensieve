@@ -1157,6 +1157,12 @@ body {
 .note-body li {
   margin: 0 0 0.12em;
 }
+/* Safari defaults a <li>'s ::marker to opaque black regardless of the inherited text colour
+   (a long-standing WebKit quirk) — on a dark theme that reads as an invisible bullet with just
+   the indent showing. Force it to match the body text explicitly. */
+.note-body li::marker {
+  color: hsl(var(--text));
+}
 /* checklist item: a hollow/filled box glyph in place of the bullet marker. */
 .note-body li.ph-check-item {
   list-style: none;
@@ -1473,7 +1479,11 @@ body {
   backdrop-filter: blur(1px);
 }
 
-/* ── full-screen collection (Pinterest board): vertical masonry via CSS columns ── */
+/* ── full-screen collection (Pinterest board): vertical masonry via 2 explicit flex columns
+   (NOT CSS `column-count` — Safari mis-renders multi-column layouts with transformed/dragged
+   children: tiles vanish or jump to the wrong column. Logged in issues.txt for the reorder
+   ghost; the owner also hit it just viewing the board. Two real flex columns sidestep the bug
+   class entirely — see PhoneCollection.tsx's render comment.) ── */
 .ph-collection {
   position: fixed;
   inset: 0;
@@ -1508,8 +1518,10 @@ body {
   -webkit-overflow-scrolling: touch;
   /* Extra bottom padding so the floating bottom action bar never covers the last photos. */
   padding: 0 10px calc(96px + env(safe-area-inset-bottom, 0px));
-  column-count: 2;
-  column-gap: 8px;
+  display: flex;
+  align-items: flex-start; /* NOT stretch — each column's natural (taller-than-viewport)
+                               height is what makes overflow-y:auto scroll correctly */
+  gap: 8px;
   overscroll-behavior: contain;
   touch-action: pan-y; /* vertical scroll is the normal mode; a lift flips this to none */
 }
@@ -1519,10 +1531,15 @@ body {
   -webkit-user-select: none;
   user-select: none;
 }
+.ph-collection-col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .ph-collection-tile {
   position: relative;
-  break-inside: avoid;
-  margin-bottom: 8px;
   border-radius: 12px;
   overflow: hidden;
   background: hsl(var(--text) / 0.06);
