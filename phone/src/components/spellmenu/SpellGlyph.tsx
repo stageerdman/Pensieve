@@ -13,6 +13,22 @@ import { SyncRune } from "../sync/SyncRune";
  *  "sync" is handled separately (SyncRune, below) — it's the one state-coloured,
  *  animated glyph, not a static stroke path like everything else here. */
 const PATHS: Record<Exclude<IconName, "menu" | "sync">, React.ReactNode> = {
+  // a camera body (with viewfinder bump) + lens ring — "take a new photo", distinct from the
+  // "image" glyph's framed-photo-with-horizon (that one means "an existing photo").
+  camera: (
+    <>
+      <path d="M9 6.2 9.9 4.6a1.4 1.4 0 0 1 1.2-.7h1.8a1.4 1.4 0 0 1 1.2.7l.9 1.6H19a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8.2a2 2 0 0 1 2-2Z" />
+      <circle cx="12" cy="12.4" r="3.4" />
+    </>
+  ),
+  // a capsule mic + stand — "record your voice", a plain single-stroke glyph.
+  mic: (
+    <>
+      <path d="M9 5.5a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0Z" />
+      <path d="M6 11a6 6 0 0 0 12 0" />
+      <path d="M12 17v3M9 20h6" />
+    </>
+  ),
   write: (
     <>
       <path d="M4 20l1.3-4L15 6.3a1.8 1.8 0 0 1 2.5 2.5L8.3 18.5 4 20Z" />

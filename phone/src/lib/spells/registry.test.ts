@@ -8,8 +8,8 @@ import {
 import { isScroll } from "./ringLayout";
 
 describe("registry — the General roster", () => {
-  it("is just the three real daily spells, most-used-first", () => {
-    expect(GENERAL_SPELLS.map((s) => s.id)).toEqual(["write", "accio", "sync"]);
+  it("is the five real daily spells, most-used-first", () => {
+    expect(GENERAL_SPELLS.map((s) => s.id)).toEqual(["write", "accio", "sync", "snap", "voice"]);
   });
 
   it("is small enough to render as a static ring, not a scroll ring", () => {

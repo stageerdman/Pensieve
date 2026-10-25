@@ -266,6 +266,47 @@ export function PhoneApp() {
     else requestAnimationFrame(() => setNoteOpen(true));
   }
 
+  /** A "Snap"/"Record" spell cast: mint a titled memory ("New Image"/"New Recording", body
+   *  "added image"/"added recording") and commit it into the vault immediately (not left
+   *  pending on the first edit) — so it exists even if the user backs out before attaching
+   *  anything. Returns the note so the caller can jump straight into capture. */
+  function openCaptureNote(title: string, bodyLine: string): Note {
+    accio.clearSearch();
+    const now = Date.now();
+    const d: Note = {
+      id: newId(),
+      t: title,
+      c: bodyLine,
+      cat: randCat(),
+      shape: SHAPES[Math.floor(Math.random() * SHAPES.length)],
+      fill: 0.18,
+      d: "Just now",
+      created: "Just now",
+      createdAt: now,
+      updatedAt: now,
+      when: fmtNow(),
+      fresh: false,
+      isNew: true,
+    };
+    conjure(threadRef.current, rootRef.current, reduce, () => {
+      openNote(d);
+      autosave.commit(); // land it in the vault right away, not on the first real edit
+    });
+    haptic(10);
+    return d;
+  }
+
+  function startCaptureImage() {
+    openCaptureNote("New Image", "added image");
+    setTimeout(() => openImagePicker("photo"), 460);
+  }
+
+  // TODO(phase 3/4): real recorder panel. Stub so "Record" is wired end-to-end for now.
+  function startCaptureVoice() {
+    openCaptureNote("New Recording", "added recording");
+    setTimeout(() => showToast("🎙️ Recording panel coming next"), 460);
+  }
+
   function openNewNote(dictate: boolean) {
     accio.clearSearch(); // a fresh thought lands on a clean, unfiltered home
     const now = Date.now();
@@ -513,6 +554,8 @@ export function PhoneApp() {
     else if (s.id === "sync") castSpell();
     else if (s.id === "image") openImagePicker("photo");
     else if (s.id === "gallery") openImagePicker("gallery");
+    else if (s.id === "snap") startCaptureImage();
+    else if (s.id === "voice") startCaptureVoice();
     else if (s.id === "edit") phoneCollection.toggleEditMode(); // board-scoped: arrange/remove mode
     else showToast(`✨ ${s.name} cast`);
   }

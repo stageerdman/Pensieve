@@ -9,7 +9,7 @@
 //   · the radial Spell Menu overlay             — Spell / SpellMenuForm
 
 /** The glyph set (SVG lives in components/spellmenu/SpellGlyph). "menu" = the Orbit hero. */
-export type IconName = "menu" | "write" | "accio" | "sync" | "image" | "gallery" | "edit" | "back";
+export type IconName = "menu" | "write" | "accio" | "sync" | "image" | "gallery" | "edit" | "back" | "camera" | "mic";
 
 /** Sync's live status, mirrored from lib/wand/syncMachine so the dock/menu can badge it. */
 export type SyncBadge = "synced" | "reminder" | "syncing" | "failed" | "offline";
