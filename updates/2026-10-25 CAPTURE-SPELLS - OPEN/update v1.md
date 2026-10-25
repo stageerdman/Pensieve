@@ -40,4 +40,7 @@ take up to that point must still end up saved on the note, not stranded.
 6. `npm run deploy:phone` + close out.
 
 ## Status
-Starting Phase 1.
+Phases 1-4 done (spells wired, engine built, panel built, all integrated). Build/typecheck/
+tests all green (241 tests). Merging to main, deploying the phone PWA, then closing out —
+real-device verification of recording/backgrounding/wake-lock behavior is still owed (noted in
+wiki.md) since nothing here can simulate that.

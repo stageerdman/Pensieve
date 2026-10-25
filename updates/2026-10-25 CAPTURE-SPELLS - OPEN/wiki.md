@@ -28,6 +28,22 @@
 - `navigator.wakeLock` only prevents *idle* auto-sleep while the app is foregrounded and visible
   — it does nothing once the user manually presses the lock button or switches apps.
 
+## Touch-guard allowlist (see [[phone-global-touch-guard-allowlist]])
+`VoiceRecorderPanel`'s `.ph-voice-overlay` is a new full-screen overlay but was deliberately
+NOT added to `PhoneApp.tsx`'s `SCROLLABLE` touchmove allowlist — it has no internal scroll
+region (a small fixed card with two buttons), so letting the document-level guard
+`preventDefault()` touchmove inside it is actually correct (blocks any accidental background
+elastic-scroll while the panel is up). Only add an overlay there if it ever grows scrollable
+content.
+
+## What's NOT verified (no real device available here)
+Build, typecheck, and the full phone test suite (241 tests) are green, and the error path
+(mic unavailable) is exercised by a real component-render test. But actual recording behavior —
+mic capture quality, pause/resume on-device, wake lock, backgrounding/lock behavior, and the
+Notification+beep — can only be verified on a real iPhone; jsdom has no MediaRecorder/
+getUserMedia and claude-in-chrome can't reach the localhost dev server (see
+[[browser-automation-localhost]]). Needs an owner device pass after deploy.
+
 ## Format/sync plumbing (already existed, no changes needed)
 - `pensieve:audio` fence + `NoteBlock{kind:"audio"}` + sync's `extractMediaRefs` already handled
   audio end-to-end — this update only had to produce the ref, never touch the format or sync
