@@ -466,3 +466,11 @@ drive connected. Check each in light AND dark where a look is involved.
     the note pulls down AND its image rehydrates from OneDrive (the photo shows, not the broken state).
 26. **Failure is quiet** — force a failure (e.g. go offline mid-sync) → the rune turns warn-coloured
     and you get exactly one toast; it auto-retries next sync (never asks you to act).
+
+## CLOSED (2026-10-26)
+All 6 phases built and shipped to main; the owner has since used images + galleries in real
+daily use and confirmed the gallery experience "working nicely" (the subsequent evolution —
+natural-ratio justified layout, phone saved-collection, drag-reorder — continued under its own
+**GALLERY-PINTEREST** update, still open for a handful of phone gesture bugs — see that folder).
+ROADMAP's `IMAGES` line was already ticked. Closing this foundational folder now; further
+image/gallery work lives in GALLERY-PINTEREST.
