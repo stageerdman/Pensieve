@@ -88,3 +88,31 @@ asked for it.
 - NEXT: owner device-tests — open a note with a voice memo (desktop-recorded), confirm the inline
   bar plays/pauses/seeks, the transcript icon appears once the sidecar lands, and the full-screen
   reader opens with continuous (not restarted) playback. Then close this folder.
+
+## Live status (2026-10-26, same day — owner device test: 3 real bugs found + fixed)
+- Bullets: owner-CONFIRMED fixed (the Tailwind-preflight round from earlier today).
+- Owner tested audio: most recordings showed 0/0 and wouldn't play; ONE played fine with a real
+  duration. **Root cause found & fixed** (`ca53e77`): `vault.ts`'s `writeMediaBytes` stored every
+  synced media blob via `new Blob([bytes])` with NO MIME type — Safari's `<audio>` needs a real
+  type to pick a decoder; one recording's container happened to still decode by content-sniffing
+  while m4a files silently failed (duration stuck, play() a no-op). `adapter.ts`'s
+  `mediaContentType` extension table only had IMAGE types (never audio) — added
+  m4a/mp3/wav/webm/ogg/aac and now pass it into the Blob on write.
+  **Caveat for the owner**: this only fixes FUTURE downloads — the two already-pulled m4a blobs
+  in IndexedDB still carry the old untyped Blob and won't self-heal from a normal sync (`have.has
+  (ref)` skips a ref already present locally). A one-time "restore from cloud" (if exposed in the
+  phone sync UI) re-pulls everything and will pick up the fix; otherwise they're stuck broken
+  until that media is cleared/re-pulled some other way.
+- Buttons made bigger (play 34→44px, transcript 28→36px, taller bar) per "make it look like it
+  expanded the row a bit more."
+- Transcript reader: owner reports not scrollable. Added a defensive `min-height:0` +
+  `touch-action:pan-y` to `.ph-reader-body` (WebKit sometimes doesn't fully honour the spec's
+  "auto min-size is 0 when overflow isn't visible" exception for a flex child) — `-webkit-
+  overflow-scrolling:touch` was already present. UNVERIFIED whether this was a real bug or a
+  short-transcript-fits-on-screen false alarm (same ambiguity as the collection scroll report
+  earlier) — no custom touch-intercepting JS on this element, unlike the collection, so there's
+  less surface area for this to be gesture-code-wrong; most likely either the CSS fix above or
+  genuinely not enough content to scroll. Needs retest with a longer transcript to know for sure.
+- Full suite 1008 tests, `tsc` (both apps) and `build:phone` clean. Deployed.
+- NEXT: owner retests on device — a FRESH recording (new m4a pull) for the duration/play fix, a
+  longer transcript for the scroll claim, and the bigger buttons for feel.
