@@ -99,6 +99,39 @@ export async function deleteMedia(ref: string): Promise<void> {
   }
 }
 
+/** Wipe every stored blob and revoke cached object URLs — used once by the fresh-start
+ *  migration to clear demo-seed images left behind by an earlier, seed-backed build. */
+export async function clearAllMedia(): Promise<void> {
+  try {
+    await tx("readwrite", (s) => s.clear());
+  } catch {
+    /* no-op */
+  }
+  for (const url of urlCache.values()) URL.revokeObjectURL(url);
+  urlCache.clear();
+}
+
+/** Every ref currently stored — the real sync vault's backup/restore push-pull set. */
+export async function listMediaKeys(): Promise<string[]> {
+  try {
+    const keys = await tx<IDBValidKey[]>("readonly", (s) => s.getAllKeys());
+    return keys.map(String);
+  } catch {
+    return [];
+  }
+}
+
+/** Raw bytes for a ref, or null if absent — the real sync vault's upload/push path. */
+export async function getMediaBytes(ref: string): Promise<Uint8Array | null> {
+  try {
+    const blob = await tx<Blob | undefined>("readonly", (s) => s.get(ref));
+    if (!blob) return null;
+    return new Uint8Array(await blob.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
 const EXT_BY_TYPE: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/jpg": "jpg",

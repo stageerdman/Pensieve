@@ -6,11 +6,34 @@
 
 import "./test/phoneSetup";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PhoneApp } from "./PhoneApp";
 import { GENERAL_SPELLS } from "./lib/spells/registry";
+import { persistVault } from "./vaultStore";
+import { createSeed } from "./seed";
 
-afterEach(cleanup);
+// The real app's vault starts empty (PWA-CAPTURE v2 — no seed fallback in production).
+// This suite still drives the Wand against the old 13-card fixture content (titles like
+// "lighthouse" it searches for), so seed it explicitly here rather than relying on a
+// production fallback that no longer exists.
+beforeEach(() => {
+  persistVault(createSeed());
+});
+
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+  vi.restoreAllMocks();
+});
+
+/** Simulate an already-connected OneDrive, with `fetch` failing fast (offline) so
+ *  the real engine's network calls resolve immediately rather than hitting the
+ *  real Graph API from a test. The Sync window flow only cares that a cast
+ *  happened here, not whether it succeeded. */
+function connectOneDriveForTest() {
+  localStorage.setItem("pensieve.phone.refreshToken", "test-refresh-token");
+  vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline (test)"));
+}
 
 // let boot rAFs / conjure macrotasks fire inside act
 async function flush() {
@@ -30,6 +53,18 @@ function tapNode(container: HTMLElement, index: number) {
   const btn = container.querySelector<HTMLElement>(`.spell-node[data-index="${index}"] .spell-btn`);
   if (!btn) throw new Error(`no spell node ${index}`);
   fireEvent.click(btn);
+}
+
+/** Hold a spell node (longPress="window"/"speak") past SpellRing's HOLD_MS — pointerdown,
+ *  then wait, no pointerup/click (the hold timer alone drives onLongCast; a real click
+ *  event is never synthesized from a bare pointerdown in jsdom). */
+async function holdNode(container: HTMLElement, index: number) {
+  const btn = container.querySelector<HTMLElement>(`.spell-node[data-index="${index}"] .spell-btn`);
+  if (!btn) throw new Error(`no spell node ${index}`);
+  await act(async () => {
+    fireEvent.pointerDown(btn, { clientX: 0, clientY: 0 });
+    await new Promise((r) => setTimeout(r, 550));
+  });
 }
 
 describe("PhoneApp — boot + the Dock", () => {
@@ -86,7 +121,7 @@ describe("PhoneApp — Accio (resident → summon)", () => {
 });
 
 describe("PhoneApp — the Spell Menu", () => {
-  it("blooms the general ring (gold) from the menu button, with a Suggested toggle", async () => {
+  it("blooms the general ring (gold) from the menu button — home has no local suggestions", async () => {
     const { container } = await boot();
     await act(async () => {
       fireEvent.click(container.querySelector<HTMLElement>(".spell-fab")!);
@@ -95,38 +130,52 @@ describe("PhoneApp — the Spell Menu", () => {
     const ring = container.querySelector(".spell-ring");
     expect(ring).toBeTruthy();
     expect(ring?.classList.contains("hue-gold")).toBe(true);
-    expect(container.querySelectorAll(".spell-node").length).toBe(GENERAL_SPELLS.length);
-    // home opens General but offers the page's suggestions ("see local")
-    expect(container.querySelector(".spell-center-label")?.textContent).toBe("see local");
+    // just the three real daily spells: Write, Accio, Sync
+    expect(GENERAL_SPELLS.map((s) => s.id)).toEqual(["write", "accio", "sync"]);
+    expect(container.querySelectorAll(".spell-node").length).toBe(3);
+    // no "see local" toggle on home — there's nothing page-local to suggest
+    expect(container.querySelector(".spell-center-label")).toBeNull();
   });
 
-  it("casting a fake spell closes the menu and shows a toast", async () => {
+  it("a quick tap on Sync casts the backup directly — no window", async () => {
+    connectOneDriveForTest();
     const { container } = await boot();
     await act(async () => {
       fireEvent.click(container.querySelector<HTMLElement>(".spell-fab")!);
     });
     await flush();
-    // index 3 = Stir (a visible, leaf, fake spell at p=0)
-    expect(GENERAL_SPELLS[3].id).toBe("stir");
-    await act(async () => {
-      tapNode(container as HTMLElement, 3);
-    });
-    expect(container.querySelector(".spell-overlay")).toBeNull(); // menu closed
-    expect(container.querySelector(".spell-toast")?.textContent).toContain("Stir");
-  });
-
-  it("opens a window for Sync and casts the backup from it", async () => {
-    const { container } = await boot();
-    await act(async () => {
-      fireEvent.click(container.querySelector<HTMLElement>(".spell-fab")!);
-    });
-    await flush();
-    // index 2 = Sync (opensWindow)
+    // index 2 = Sync
     expect(GENERAL_SPELLS[2].id).toBe("sync");
     await act(async () => {
       tapNode(container as HTMLElement, 2);
     });
+    // no window — the menu closed straight into the cast overlay
+    expect(container.querySelector(".spell-window")).toBeNull();
+    const overlay = container.querySelector(".spell.show");
+    expect(overlay).toBeTruthy();
+    expect(container.querySelector(".spell-overlay")).toBeNull();
+    // no text anywhere over the main screen during a cast — ring + rune only
+    expect(overlay?.textContent).toBe("");
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1000));
+    });
+  });
+
+  it("holding Sync opens its window instead of casting", async () => {
+    connectOneDriveForTest();
+    const { container } = await boot();
+    await act(async () => {
+      fireEvent.click(container.querySelector<HTMLElement>(".spell-fab")!);
+    });
+    await flush();
+    await holdNode(container as HTMLElement, 2);
     expect(container.querySelector(".spell-window")).toBeTruthy();
+    // the ring is still open underneath (blurred), not a full close
+    expect(container.querySelector(".spell-overlay")).toBeTruthy();
+    // Sign out is the one destructive action here — marked danger (red), not the
+    // same quiet accent colour as a plain dismiss.
+    const signOut = Array.from(container.querySelectorAll<HTMLElement>(".sw-close")).find((b) => b.textContent === "Sign out");
+    expect(signOut?.classList.contains("danger")).toBe(true);
 
     await act(async () => {
       fireEvent.click(container.querySelector<HTMLElement>(".sw-primary")!);
@@ -134,17 +183,40 @@ describe("PhoneApp — the Spell Menu", () => {
     // the gold cast overlay is showing; the menu closed behind it
     expect(container.querySelector(".spell.show")).toBeTruthy();
     expect(container.querySelector(".spell-overlay")).toBeNull();
+    // drain the cast's own hide timer within this test's lifetime, rather than
+    // leaving it to fire after teardown (the real engine call behind it is async).
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1000));
+    });
   });
 
-  it("restores from the cloud via the Sync window's quiet confirm", async () => {
+  it("tapping outside the Sync window collapses it back into the ring (no Done button)", async () => {
+    connectOneDriveForTest();
     const { container } = await boot();
     await act(async () => {
       fireEvent.click(container.querySelector<HTMLElement>(".spell-fab")!);
     });
     await flush();
+    await holdNode(container as HTMLElement, 2);
+    expect(container.querySelector(".spell-window")).toBeTruthy();
+    expect(container.querySelector(".sw-close")?.textContent).not.toBe("Done");
+
     await act(async () => {
-      tapNode(container as HTMLElement, 2); // Sync
+      fireEvent.click(container.querySelector<HTMLElement>(".spell-window-layer")!);
     });
+    // window gone, but the ring (whole overlay) is still open — not a full close
+    expect(container.querySelector(".spell-window")).toBeNull();
+    expect(container.querySelector(".spell-ring")).toBeTruthy();
+  });
+
+  it("restores from the cloud via the Sync window's quiet confirm", async () => {
+    connectOneDriveForTest();
+    const { container } = await boot();
+    await act(async () => {
+      fireEvent.click(container.querySelector<HTMLElement>(".spell-fab")!);
+    });
+    await flush();
+    await holdNode(container as HTMLElement, 2); // Sync
     // The restore line is quiet text, not the primary button; the first tap only ARMS
     // it in place ("Are you sure?") — nothing destructive yet.
     const restore = container.querySelector<HTMLElement>(".sw-restore")!;
@@ -159,18 +231,8 @@ describe("PhoneApp — the Spell Menu", () => {
     });
     expect(container.querySelector(".spell.show")).toBeTruthy();
     expect(container.querySelector(".spell-overlay")).toBeNull();
-  });
-
-  it("descends into a detailed sub-ring and the center becomes Back", async () => {
-    const { container } = await boot();
     await act(async () => {
-      fireEvent.click(container.querySelector<HTMLElement>(".spell-fab")!);
+      await new Promise((r) => setTimeout(r, 1000));
     });
-    await flush();
-    // index 5 = Label (has children) — but at p=0 it may be in the void; scroll it up first.
-    // Simpler: assert the Label node exists with the has-more affordance.
-    const labelIdx = GENERAL_SPELLS.findIndex((s) => s.id === "label");
-    const labelNode = container.querySelector(`.spell-node[data-index="${labelIdx}"]`);
-    expect(labelNode?.querySelector(".spell-has-more")).toBeTruthy();
   });
 });

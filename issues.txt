@@ -185,3 +185,19 @@ OPEN ISSUES:
 - [ ] Desktop editor: adopt the phone's "title = first line = auto-H1" rule (new doc
       opens with an empty H1 ready; Enter from the title drops to body). Phone prototype
       (updates/2026-10-08 PHONE-UX/concepts/01-the-wand-v2.html) is the reference.
+
+PWA-CAPTURE v2 — follow-ups after real OneDrive + Cloudflare Pages hosting landed
+(2026-10-24, on update/pwa-capture, not yet merged to main):
+- [x] manifest icons + apple-touch-icon — fixed 2026-10-24, reused the same mark
+      from src-tauri/icons/ios/ (180/192/512px) so "Add to Home Screen" matches the
+      desktop app's icon.
+- [ ] Phone media backup caps at Graph's plain ~4MB upload (no resumable chunked
+      sessions like desktop's native large-media path) — a large phone photo/video
+      would fail to back up silently past that size.
+- [ ] No conflict-resolution UI on phone (desktop's SYNC-CONFLICT-UX panel is
+      desktop-only) — a conflict just shows a plain "pull latest before editing"
+      message. Fine for now (single owner, phone/desktop rarely mid-edit on the same
+      note), revisit if it bites in practice.
+- [ ] Custom subdomain (pensieve.erdman.xyz) not wired — shipped on the default
+      pensieve-phone.pages.dev URL since the shared Cloudflare token has no Zone
+      DNS:Edit scope. One manual dashboard CNAME + token-scope step if ever wanted.

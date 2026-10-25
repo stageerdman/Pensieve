@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { Note } from "./types";
-import { createSeed } from "./seed";
+import { loadVault, newId, persistVault } from "./vaultStore";
 import { haptic, prefersReducedMotion } from "./util";
 import { parseQuery, passesDate, passesText } from "./lib/wand/accioQuery";
 import { rankNotes } from "./lib/wand/accioRank";
@@ -26,6 +26,7 @@ import { useKeyboardInset } from "./hooks/useKeyboardInset";
 import { useReelFisheye } from "./hooks/useReelFisheye";
 import { useAccioSearch } from "./hooks/useAccioSearch";
 import { useSyncState } from "./hooks/useSyncState";
+import { useOneDriveSync } from "./hooks/useOneDriveSync";
 import { useCaretVisible } from "./hooks/useCaretVisible";
 import { useWordSelection } from "./hooks/useWordSelection";
 import { useAutosave } from "./hooks/useAutosave";
@@ -41,6 +42,7 @@ import { SpellMenu } from "./components/spellmenu/SpellMenu";
 import { SummonBar } from "./components/accio/SummonBar";
 import { SearchSheet } from "./components/accio/SearchSheet";
 import { SyncSpell } from "./components/sync/SyncSpell";
+import { SyncRune } from "./components/sync/SyncRune";
 import { MemoryPage } from "./components/note/MemoryPage";
 import type { FmtKey } from "./components/note/NoteToolbar";
 import { ConjureThread, conjure } from "./components/ConjureThread";
@@ -52,15 +54,11 @@ import { PhoneCollection } from "./components/note/PhoneCollection";
 import { mintMediaRef, registerLocalMedia } from "./lib/media/mediaStore";
 import type { MediaImage } from "./lib/media/noteMedia";
 
-const ACCOUNT = "jakub.cervenka@icloud.com";
 const DICTATION_SAMPLE =
   "I keep coming back to the idea that the phone shouldn't make me think. It should just catch the thought before it escapes.";
-// PROTOTYPE-ONLY demo fault injection so the owner can feel the red "failed" state on
-// device (same as the source ~1465). The pure syncMachine has no dice roll.
-const FAIL_RATE = 0.4;
 
 /** viewData(): the reel's list — everything, or the filtered matches. Source ~691-695. */
-function computeView(data: Note[], query: string, openedOrder: number[]): Note[] {
+function computeView(data: Note[], query: string, openedOrder: string[]): Note[] {
   const { text, dates } = parseQuery(query);
   if (!text && !dates.length) return data.slice();
   return data.filter((d) => passesText(d, text) && passesDate(d, dates, openedOrder));
@@ -88,7 +86,8 @@ function fmtNow(): string {
 
 // Recent Accio queries — the "see what you searched before" chips. Private: localStorage
 // only, never synced (journaling queries are sensitive). Last 6 distinct, most-recent-first.
-const RECENTS_KEY = "pensieve.recentQueries";
+// Exported so main.tsx's one-time fresh-start wipe can clear stale demo-seed queries too.
+export const RECENTS_KEY = "pensieve.recentQueries";
 function loadRecents(): string[] {
   try {
     const v = JSON.parse(localStorage.getItem(RECENTS_KEY) || "[]");
@@ -98,41 +97,13 @@ function loadRecents(): string[] {
   }
 }
 
-// Vault persistence — the phone prototype ran purely on in-memory seed data (reset every
-// reload). Images need a reload to actually ROUND-TRIP (the owner's device check), and the
-// photo BYTES live in IndexedDB keyed by ref, so the note TEXT (which carries those refs as
-// markdown) must persist too. We keep the whole notes array in localStorage; an absent/invalid
-// store falls back to the seed (so clearing storage restores the demo). Media bytes stay in
-// IndexedDB — never base64 in here.
-const VAULT_KEY = "pensieve.phone.vault";
-function loadVault(): Note[] {
-  try {
-    const raw = localStorage.getItem(VAULT_KEY);
-    if (!raw) return createSeed();
-    const v = JSON.parse(raw);
-    if (Array.isArray(v) && v.length && v.every((n) => n && typeof n.id === "number")) return v as Note[];
-  } catch {
-    /* corrupt / absent — fall back to seed */
-  }
-  return createSeed();
-}
-function persistVault(data: Note[]) {
-  try {
-    localStorage.setItem(VAULT_KEY, JSON.stringify(data));
-  } catch {
-    /* quota / unavailable — a reload just falls back to seed, no crash */
-  }
-}
-
-
 export function PhoneApp() {
   const reduce = prefersReducedMotion();
 
   // ---- mutable vault (the prototype's DATA) ----
   const dataRef = useRef<Note[]>();
   if (!dataRef.current) dataRef.current = loadVault();
-  const uidRef = useRef(dataRef.current.reduce((m, n) => Math.max(m, n.id), 0));
-  const openedOrderRef = useRef<number[]>([]);
+  const openedOrderRef = useRef<string[]>([]);
   const currentRef = useRef<Note | null>(null);
 
   // ---- element refs ----
@@ -163,7 +134,7 @@ export function PhoneApp() {
   const [editingNote, setEditingNote] = useState(false);
   const [kbOpen, setKbOpen] = useState(false);
   const [micListening, setMicListening] = useState(false);
-  const [spell, setSpell] = useState({ show: false, castId: 0, label: "", labelColor: "" });
+  const [spell, setSpell] = useState({ show: false, castId: 0 });
   const [recents, setRecents] = useState<string[]>(loadRecents);
   const [toast, setToast] = useState("");
   const [sparkle, setSparkle] = useState(0); // a brief close/switch twinkle (0 = none)
@@ -213,6 +184,13 @@ export function PhoneApp() {
     setCount(computeCount(query, v.length, data.length));
   }
 
+  // A real sync may have pulled/removed notes behind dataRef's back (it writes
+  // straight to the same localStorage vault) — reload from storage, then re-render.
+  const onedrive = useOneDriveSync(() => {
+    dataRef.current = loadVault();
+    renderAll(filterQueryRef.current);
+  });
+
   const autosave = useAutosave(noteBodyRef, noteSavedRef, currentRef, {
     onInsert: (note) => {
       dataRef.current!.unshift(note);
@@ -255,7 +233,7 @@ export function PhoneApp() {
   const queryText = useMemo(() => parseQuery(accio.filterQuery).text, [accio.filterQuery]);
 
   // ---- note actions ----
-  function noteOpened(id: number) {
+  function noteOpened(id: string) {
     const i = openedOrderRef.current.indexOf(id);
     if (i >= 0) openedOrderRef.current.splice(i, 1);
     openedOrderRef.current.push(id);
@@ -288,8 +266,9 @@ export function PhoneApp() {
 
   function openNewNote(dictate: boolean) {
     accio.clearSearch(); // a fresh thought lands on a clean, unfiltered home
+    const now = Date.now();
     const d: Note = {
-      id: ++uidRef.current,
+      id: newId(),
       t: "",
       c: "",
       cat: randCat(),
@@ -297,6 +276,8 @@ export function PhoneApp() {
       fill: 0.18,
       d: "Just now",
       created: "Just now",
+      createdAt: now,
+      updatedAt: now,
       when: fmtNow(),
       fresh: true,
       isNew: true,
@@ -463,35 +444,29 @@ export function PhoneApp() {
   }
 
   // ---- sync actions ----
-  // One cast drives both directions in the prototype — back up (weave UP) and restore
-  // (pull DOWN) share the spell visual and the success/fail machine, differing only in
-  // copy. (The real pull lives in the desktop engine; the phone is capture-only here.)
-  function castSpell(opts?: { weaving?: string; done?: string }) {
+  // One cast drives both directions — back up (weave UP) and restore (pull DOWN)
+  // share the spell visual and the success/fail machine, differing only in which
+  // real engine call runs underneath. No on-screen copy for either: the header's
+  // SyncRune (reminder/syncing/offline/failed colouring) is the only status signal
+  // outside the Sync window — see sync.cast()/succeeded()/failed() below.
+  function castSpell(opts?: { restore?: boolean }) {
     if (syncStatus === "syncing" || syncStatus === "offline") return;
     sync.cast();
     haptic(14);
     const castId = spell.castId + 1;
-    setSpell({ show: true, castId, label: opts?.weaving ?? "Weaving to the cloud…", labelColor: "" });
-    const willFail = demoForceFail.current || Math.random() < FAIL_RATE;
-    demoForceFail.current = false;
-    setTimeout(() => {
-      setSpell((s) => ({
-        ...s,
-        label: willFail ? "Couldn't reach the cloud" : (opts?.done ?? "All memories safe · just now"),
-        labelColor: willFail ? "hsl(var(--danger))" : "hsl(var(--success))",
-      }));
-    }, 1300);
-    setTimeout(() => {
-      setSpell((s) => ({ ...s, show: false }));
-      if (willFail) {
-        sync.failed();
-        haptic(30);
-      } else {
-        sync.succeeded();
-      }
-    }, 1900);
+    setSpell({ show: true, castId });
+    const task = opts?.restore ? onedrive.restore() : onedrive.run();
+    void task.then(({ ok }) => {
+      setTimeout(() => {
+        setSpell((s) => ({ ...s, show: false }));
+        if (ok) sync.succeeded();
+        else {
+          sync.failed();
+          haptic(30);
+        }
+      }, 900);
+    });
   }
-  const demoForceFail = useRef(true);
 
   // ---- spells (what each spell DOES; the registry is just data) ----
   function recordQuery(q: string) {
@@ -525,23 +500,29 @@ export function PhoneApp() {
     sparkleTimer.current = setTimeout(() => setSparkle(0), 300);
   }
 
-  /** A leaf spell was cast from the ring (no children, no window). */
+  /** A leaf spell was cast from the ring (no children, no window). A quick tap on Sync
+   *  backs up immediately (see longCastSpell for the hold-to-open-panel half). */
   function castSpellAction(s: Spell) {
     flashSparkle();
     menu.close();
     if (s.id === "write") openNewNote(false);
     else if (s.id === "accio") accio.openAccio();
+    else if (s.id === "sync") castSpell();
     else if (s.id === "image") openImagePicker("photo");
     else if (s.id === "gallery") openImagePicker("gallery");
     else if (s.id === "edit") phoneCollection.toggleEditMode(); // board-scoped: arrange/remove mode
     else showToast(`✨ ${s.name} cast`);
   }
-  /** Held a spell (Write = speak). */
+  /** Held a spell: Write = speak; a "window" spell (Sync) opens its panel instead of
+   *  casting (the ring stays open underneath, same as the old tap-to-open behaviour). */
   function longCastSpell(s: Spell) {
     if (s.longPress === "speak") {
       flashSparkle();
       menu.close();
       openNewNote(true);
+    } else if (s.longPress === "window") {
+      flashSparkle();
+      menu.openWindow(s.id);
     }
   }
   /** The Sync window's primary action — cast the backup over the (closed) menu. */
@@ -555,7 +536,7 @@ export function PhoneApp() {
   function syncWindowRestore() {
     if (syncStatus === "offline" || syncStatus === "syncing") return;
     menu.close();
-    castSpell({ weaving: "Pulling your memories from the cloud…", done: "Restored from the cloud · just now" });
+    castSpell({ restore: true });
   }
 
   // ---- wire the fns ref (latest closures) ----
@@ -637,7 +618,11 @@ export function PhoneApp() {
       <div className="app">
         <div className="header">
           <h1>Pensieve</h1>
-          <span className="count">{count}</span>
+          {syncStatus === "synced" ? (
+            <span className="count">{count}</span>
+          ) : (
+            <SyncRune status={syncStatus} size={20} className="header-sync" />
+          )}
         </div>
         <Reel view={view} queryText={queryText} onOpen={openNote} reelRef={reelRef} trackRef={trackRef} />
         <Glass empty={view.length === 0} message={emptyMsg} glassRef={glassRef} />
@@ -662,7 +647,7 @@ export function PhoneApp() {
       />
 
       {/* SYNC cast animation (the gold spell) */}
-      <SyncSpell show={spell.show} castId={spell.castId} label={spell.label} labelColor={spell.labelColor} />
+      <SyncSpell show={spell.show} castId={spell.castId} />
 
       {/* ACCIO searching sheet + the summon bar — mounted ONLY while searching (openAccio
           flushSyncs `searching` true so the input exists for its in-gesture focus), so
@@ -689,9 +674,12 @@ export function PhoneApp() {
         onLongCast={longCastSpell}
         onSparkle={flashSparkle}
         syncState={syncStatus}
-        account={ACCOUNT}
+        account={onedrive.account}
+        connected={onedrive.connected}
         onSyncPrimary={syncWindowPrimary}
         onSyncRestore={syncWindowRestore}
+        onSyncConnect={onedrive.connect}
+        onSyncDisconnect={onedrive.disconnect}
         reduce={reduce}
       />
       {toast ? <div className="spell-toast">{toast}</div> : null}

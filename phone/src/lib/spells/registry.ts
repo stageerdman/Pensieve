@@ -1,43 +1,20 @@
 // registry.ts — the spell roster (DATA only; behaviour is wired in PhoneApp).
 //
-// This is the "fake spell" roster for the explorable prototype: enough spells to exercise
-// every state of the Spell Menu — scroll overflow (General = 10 → scroll ring), a static
-// ring (Conditional/home = 4), detailed sub-rings (Label, Export), a window-opening spell
-// (Sync), hue-owning spells (Accio = violet, Sync = gold+state), and the tap/hold spell
-// (Write: tap = write, hold = speak). Order = most-used first (index 0 rests at the top).
+// The General spellbook is deliberately just the three real, daily actions — the main
+// screen's menu should never show anything the owner can't actually use yet. (An earlier
+// prototype roster padded this out with fake placeholder spells — Stir/Pin/Label/Link/Mark/
+// Export/Thread — to exercise scroll-overflow and detailed-sub-ring UI states; removed once
+// real spells landed. The sub-ring descend capability itself stays in useSpellMenu/SpellRing
+// for whenever a real spell needs child options again.) Order = most-used first.
 
 import type { PageContext, Spell } from "./types";
 
-/** Category variants for the Label detailed sub-ring (fake; names match the flask palette). */
-const LABEL_VARIANTS: Spell[] = [
-  { id: "label.blue", name: "Blue", icon: "label" },
-  { id: "label.green", name: "Green", icon: "label" },
-  { id: "label.purple", name: "Purple", icon: "label" },
-  { id: "label.orange", name: "Orange", icon: "label" },
-  { id: "label.pink", name: "Pink", icon: "label" },
-  { id: "label.yellow", name: "Yellow", icon: "label" },
-  { id: "label.red", name: "Red", icon: "label" },
-];
-
-/** Export formats for the Export detailed sub-ring. */
-const EXPORT_VARIANTS: Spell[] = [
-  { id: "export.md", name: "Markdown", icon: "export" },
-  { id: "export.pdf", name: "PDF", icon: "export" },
-  { id: "export.copy", name: "Copy", icon: "export" },
-];
-
-/** The General spellbook — the daily spells, most-used first. 10 → scroll ring. */
+/** The General spellbook — the real daily spells, most-used first. */
 export const GENERAL_SPELLS: Spell[] = [
   { id: "write", name: "Write", icon: "write", castGold: true, longPress: "speak" },
   { id: "accio", name: "Accio", icon: "accio", hue: "violet" },
-  { id: "sync", name: "Sync", icon: "sync", hue: "gold-state", opensWindow: true },
-  { id: "stir", name: "Stir", icon: "stir", castGold: true },
-  { id: "pin", name: "Pin", icon: "pin" },
-  { id: "label", name: "Label", icon: "label", children: LABEL_VARIANTS },
-  { id: "link", name: "Link", icon: "link" },
-  { id: "highlight", name: "Mark", icon: "highlight" },
-  { id: "export", name: "Export", icon: "export", children: EXPORT_VARIANTS },
-  { id: "thread", name: "Thread", icon: "thread" },
+  // tap backs up immediately; hold opens the panel (account/space/conflicts/restore).
+  { id: "sync", name: "Sync", icon: "sync", hue: "gold-state", opensWindow: true, longPress: "window" },
 ];
 
 const BY_ID: Record<string, Spell> = {};
@@ -55,19 +32,13 @@ export function spellById(id: string): Spell | undefined {
 }
 
 /**
- * The page-recommended ("conditional") roster for a context. Home suggests a small
- * browsing set (4 → a clean static circle); a note suggests spells that act on the open
- * memory. Return [] when a page has no suggestions (the menu then opens General only).
+ * The page-recommended ("conditional") roster for a context. Home has none — the main
+ * screen shows only the General ring (Write/Accio/Sync), no page-local suggestions; a note
+ * or open collection suggests spells that act on what's open. Return [] when a page has no
+ * suggestions (the menu then opens General only).
  */
 export function conditionalSpells(context: PageContext): Spell[] {
-  if (context === "home") {
-    return [
-      { id: "stir", name: "Stir", icon: "stir", castGold: true },
-      { id: "sync", name: "Sync", icon: "sync", hue: "gold-state", opensWindow: true },
-      { id: "pin", name: "Pin", icon: "pin" },
-      { id: "thread", name: "Thread", icon: "thread" },
-    ];
-  }
+  if (context === "home") return [];
   // inside an open photo collection: "Edit" toggles arrange/remove mode on the board; "Photo"
   // adds a photo to THAT gallery. No "Gallery" spell here: you can't nest a gallery in a gallery.
   if (context === "collection") {

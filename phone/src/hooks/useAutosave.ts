@@ -48,6 +48,7 @@ export function useAutosave(
       current.c = content;
       current.fill = Math.min(1, Math.max(0.18, current.c.length / 220));
       current.d = "Just now";
+      current.updatedAt = Date.now();
       if (current.isNew && (current.t || current.c)) {
         current.isNew = false;
         current.fresh = false;

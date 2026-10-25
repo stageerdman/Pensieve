@@ -8,6 +8,7 @@
     "dev:phone": "vite --config phone/vite.config.ts",
     "build": "tsc && vite build",
     "build:phone": "tsc -p phone/tsconfig.json && vite build --config phone/vite.config.ts",
+    "deploy:phone": "bash scripts/deploy-phone.sh",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
