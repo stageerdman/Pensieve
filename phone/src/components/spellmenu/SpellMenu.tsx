@@ -60,6 +60,7 @@ export function SpellMenu({
         scrollPos={api.scrollPos}
         conditional={conditional}
         reduce={reduce}
+        syncState={syncState}
         onCast={onCast}
         onLongCast={onLongCast}
         // these change the ring (switch/descend/dismiss) → a quick twinkle

@@ -27,13 +27,21 @@ export interface SpellWindowProps {
   onDisconnect: () => void;
 }
 
+/** Tap OUTSIDE the card (the backdrop itself, not a bubbled click from inside it) closes
+ *  the window — it collapses back into the ring underneath, not a full menu close. */
+function onBackdropClick(onClose: () => void) {
+  return (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+}
+
 export function SpellWindow({ spellId, syncState, account, connected, onClose, onPrimary, onRestore, onConnect, onDisconnect }: SpellWindowProps) {
   const spell = spellById(spellId);
 
   if (spellId === "sync") {
     if (!connected) {
       return (
-        <div className="spell-window-layer">
+        <div className="spell-window-layer" onClick={onBackdropClick(onClose)}>
           <div className="spell-window" role="dialog" aria-label="Sync">
             <div className="sw-head">
               <span className="sw-rune">
@@ -62,7 +70,7 @@ export function SpellWindow({ spellId, syncState, account, connected, onClose, o
 
     const copy = panelCopy(syncState);
     return (
-      <div className="spell-window-layer">
+      <div className="spell-window-layer" onClick={onBackdropClick(onClose)}>
         <div className="spell-window" data-state={syncState} role="dialog" aria-label="Sync">
           <div className="sw-head">
             <span className="sw-rune">
@@ -85,14 +93,9 @@ export function SpellWindow({ spellId, syncState, account, connected, onClose, o
           )}
           <div className="sw-foot">
             <span className="sw-acct">{account}</span>
-            <span style={{ display: "flex", gap: 12 }}>
-              <button className="sw-close" onClick={onDisconnect}>
-                Sign out
-              </button>
-              <button className="sw-close" onClick={onClose}>
-                Done
-              </button>
-            </span>
+            <button className="sw-close" onClick={onDisconnect}>
+              Sign out
+            </button>
           </div>
         </div>
       </div>
@@ -101,7 +104,7 @@ export function SpellWindow({ spellId, syncState, account, connected, onClose, o
 
   // generic fallback for any other windowed spell
   return (
-    <div className="spell-window-layer">
+    <div className="spell-window-layer" onClick={onBackdropClick(onClose)}>
       <div className="spell-window" role="dialog" aria-label={spell?.name ?? "Spell"}>
         <div className="sw-title">{spell?.name ?? "Spell"}</div>
         <div className="sw-sub">This spell's window is a placeholder in the prototype.</div>

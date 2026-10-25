@@ -42,6 +42,7 @@ import { SpellMenu } from "./components/spellmenu/SpellMenu";
 import { SummonBar } from "./components/accio/SummonBar";
 import { SearchSheet } from "./components/accio/SearchSheet";
 import { SyncSpell } from "./components/sync/SyncSpell";
+import { SyncRune } from "./components/sync/SyncRune";
 import { MemoryPage } from "./components/note/MemoryPage";
 import type { FmtKey } from "./components/note/NoteToolbar";
 import { ConjureThread, conjure } from "./components/ConjureThread";
@@ -498,23 +499,29 @@ export function PhoneApp() {
     sparkleTimer.current = setTimeout(() => setSparkle(0), 300);
   }
 
-  /** A leaf spell was cast from the ring (no children, no window). */
+  /** A leaf spell was cast from the ring (no children, no window). A quick tap on Sync
+   *  backs up immediately (see longCastSpell for the hold-to-open-panel half). */
   function castSpellAction(s: Spell) {
     flashSparkle();
     menu.close();
     if (s.id === "write") openNewNote(false);
     else if (s.id === "accio") accio.openAccio();
+    else if (s.id === "sync") castSpell();
     else if (s.id === "image") openImagePicker("photo");
     else if (s.id === "gallery") openImagePicker("gallery");
     else if (s.id === "edit") phoneCollection.toggleEditMode(); // board-scoped: arrange/remove mode
     else showToast(`✨ ${s.name} cast`);
   }
-  /** Held a spell (Write = speak). */
+  /** Held a spell: Write = speak; a "window" spell (Sync) opens its panel instead of
+   *  casting (the ring stays open underneath, same as the old tap-to-open behaviour). */
   function longCastSpell(s: Spell) {
     if (s.longPress === "speak") {
       flashSparkle();
       menu.close();
       openNewNote(true);
+    } else if (s.longPress === "window") {
+      flashSparkle();
+      menu.openWindow(s.id);
     }
   }
   /** The Sync window's primary action — cast the backup over the (closed) menu. */
@@ -610,7 +617,11 @@ export function PhoneApp() {
       <div className="app">
         <div className="header">
           <h1>Pensieve</h1>
-          <span className="count">{count}</span>
+          {syncStatus === "synced" ? (
+            <span className="count">{count}</span>
+          ) : (
+            <SyncRune status={syncStatus} size={20} className="header-sync" />
+          )}
         </div>
         <Reel view={view} queryText={queryText} onOpen={openNote} reelRef={reelRef} trackRef={trackRef} />
         <Glass empty={view.length === 0} message={emptyMsg} glassRef={glassRef} />

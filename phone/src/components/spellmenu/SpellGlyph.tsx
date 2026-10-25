@@ -6,9 +6,13 @@
 // mirrors the radial menu it opens; its Conditional variant swaps the hub for a 4-point spark.
 
 import type { IconName } from "../../lib/spells/types";
+import type { SyncStatus } from "../../lib/wand/syncMachine";
+import { SyncRune } from "../sync/SyncRune";
 
-/** Line-glyph path markup, keyed by icon. 24-grid; inherits stroke from the <svg>. */
-const PATHS: Record<Exclude<IconName, "menu">, React.ReactNode> = {
+/** Line-glyph path markup, keyed by icon. 24-grid; inherits stroke from the <svg>.
+ *  "sync" is handled separately (SyncRune, below) — it's the one state-coloured,
+ *  animated glyph, not a static stroke path like everything else here. */
+const PATHS: Record<Exclude<IconName, "menu" | "sync">, React.ReactNode> = {
   write: (
     <>
       <path d="M4 20l1.3-4L15 6.3a1.8 1.8 0 0 1 2.5 2.5L8.3 18.5 4 20Z" />
@@ -23,9 +27,6 @@ const PATHS: Record<Exclude<IconName, "menu">, React.ReactNode> = {
       <path d="M14.6 14.6 19.5 19.5" />
       <path d="M8.4 8.4v2.2M7.3 9.5h2.2" />
     </g>
-  ),
-  sync: (
-    <path d="M12 12c-1.3-2.1-3-3.2-4.8-3.2a3.3 3.3 0 1 0 0 6.6c1.8 0 3.5-1.1 4.8-3.4c1.3 2.3 3 3.4 4.8 3.4a3.3 3.3 0 1 0 0-6.6C15 8.8 13.3 9.9 12 12Z" />
   ),
   // a single-stroke photo frame: a bordered rect, a sun, and a rising-horizon line
   image: (
@@ -80,9 +81,15 @@ export interface SpellGlyphProps {
   className?: string;
   /** menu glyph only: swap the hub for a 4-point spark (Conditional mode). */
   conditional?: boolean;
+  /** sync glyph only: drives the rune's colour + flow (see .sync-rune in wand.css). */
+  syncState?: SyncStatus;
 }
 
-export function SpellGlyph({ icon, size = 22, className, conditional = false }: SpellGlyphProps) {
+export function SpellGlyph({ icon, size = 22, className, conditional = false, syncState = "synced" }: SpellGlyphProps) {
+  if (icon === "sync") {
+    return <SyncRune status={syncState} size={size} className={className} />;
+  }
+
   if (icon === "menu") {
     // 32-grid: six fire-gold ember-orbs on a ring, NO hub — the glyph IS a spell-ring in
     // miniature. Transparent button; each orb is a hot white-gold core bleeding to gold.

@@ -15,6 +15,7 @@ import type { Spell } from "../../lib/spells/types";
 import { haptic } from "../../util";
 import { SpellGlyph } from "./SpellGlyph";
 import type { CenterKind, MenuHue } from "../../hooks/useSpellMenu";
+import type { SyncStatus } from "../../lib/wand/syncMachine";
 
 const HOLD_MS = 500; // long-press (Write = speak) — matches iOS default
 const DRAG_THRESHOLD = 11; // px before a press becomes a spin (thumb-drift taps still register)
@@ -77,6 +78,8 @@ export interface SpellRingProps extends SpellRingHandlers {
   scrollPos: number;
   conditional: boolean;
   reduce: boolean;
+  /** drives the Sync node's rune colour/animation (see SpellGlyph). */
+  syncState: SyncStatus;
 }
 
 function glyphTransform(pos: GlyphPos): string {
@@ -84,7 +87,7 @@ function glyphTransform(pos: GlyphPos): string {
 }
 
 export function SpellRing(props: SpellRingProps) {
-  const { spells, hue, center, scrollPos, conditional, reduce } = props;
+  const { spells, hue, center, scrollPos, conditional, reduce, syncState } = props;
   const n = spells.length;
   const spinnable = n > 1;
   const spacing = ringSpacing(n);
@@ -363,8 +366,10 @@ export function SpellRing(props: SpellRingProps) {
     const spell = spells[i];
     if (!spell || spell.disabled) return;
     haptic(10);
+    // A spell with longPress === "window" opens its panel on HOLD (handled in
+    // onPointerDown's holdTimer -> onLongCast); a quick tap casts directly instead.
     if (spell.children?.length) props.enterDetailed(spell);
-    else if (spell.opensWindow) props.openWindow(spell.id);
+    else if (spell.opensWindow && spell.longPress !== "window") props.openWindow(spell.id);
     else props.onCast(spell);
   }
 
@@ -425,13 +430,22 @@ export function SpellRing(props: SpellRingProps) {
                 type="button"
                 role="menuitem"
                 className={`spell-btn ${spellHue}`}
-                aria-label={spell.name + (spell.children?.length ? " (has options)" : spell.opensWindow ? " (opens panel)" : "")}
+                aria-label={
+                  spell.name +
+                  (spell.children?.length
+                    ? " (has options)"
+                    : spell.longPress === "window"
+                      ? " (tap to cast, hold for options)"
+                      : spell.opensWindow
+                        ? " (opens panel)"
+                        : "")
+                }
                 aria-disabled={spell.disabled || undefined}
                 onClick={() => activate(i)}
               >
-                <SpellGlyph icon={spell.icon} size={30} />
+                <SpellGlyph icon={spell.icon} size={30} syncState={syncState} />
                 {spell.children?.length ? <span className="spell-has-more" aria-hidden="true" /> : null}
-                {spell.longPress === "speak" ? <span className="spell-hold-hint" aria-hidden="true" /> : null}
+                {spell.longPress ? <span className="spell-hold-hint" aria-hidden="true" /> : null}
               </button>
             </div>
             <span className="spell-label">{spell.name}</span>

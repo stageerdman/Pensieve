@@ -55,6 +55,18 @@ function tapNode(container: HTMLElement, index: number) {
   fireEvent.click(btn);
 }
 
+/** Hold a spell node (longPress="window"/"speak") past SpellRing's HOLD_MS — pointerdown,
+ *  then wait, no pointerup/click (the hold timer alone drives onLongCast; a real click
+ *  event is never synthesized from a bare pointerdown in jsdom). */
+async function holdNode(container: HTMLElement, index: number) {
+  const btn = container.querySelector<HTMLElement>(`.spell-node[data-index="${index}"] .spell-btn`);
+  if (!btn) throw new Error(`no spell node ${index}`);
+  await act(async () => {
+    fireEvent.pointerDown(btn, { clientX: 0, clientY: 0 });
+    await new Promise((r) => setTimeout(r, 550));
+  });
+}
+
 describe("PhoneApp — boot + the Dock", () => {
   it("renders the reel with the seed cards + the header count", async () => {
     const { container } = await boot();
@@ -125,19 +137,38 @@ describe("PhoneApp — the Spell Menu", () => {
     expect(container.querySelector(".spell-center-label")).toBeNull();
   });
 
-  it("opens a window for Sync and casts the backup from it", async () => {
+  it("a quick tap on Sync casts the backup directly — no window", async () => {
     connectOneDriveForTest();
     const { container } = await boot();
     await act(async () => {
       fireEvent.click(container.querySelector<HTMLElement>(".spell-fab")!);
     });
     await flush();
-    // index 2 = Sync (opensWindow)
+    // index 2 = Sync
     expect(GENERAL_SPELLS[2].id).toBe("sync");
     await act(async () => {
       tapNode(container as HTMLElement, 2);
     });
+    // no window — the menu closed straight into the cast overlay
+    expect(container.querySelector(".spell-window")).toBeNull();
+    expect(container.querySelector(".spell.show")).toBeTruthy();
+    expect(container.querySelector(".spell-overlay")).toBeNull();
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1000));
+    });
+  });
+
+  it("holding Sync opens its window instead of casting", async () => {
+    connectOneDriveForTest();
+    const { container } = await boot();
+    await act(async () => {
+      fireEvent.click(container.querySelector<HTMLElement>(".spell-fab")!);
+    });
+    await flush();
+    await holdNode(container as HTMLElement, 2);
     expect(container.querySelector(".spell-window")).toBeTruthy();
+    // the ring is still open underneath (blurred), not a full close
+    expect(container.querySelector(".spell-overlay")).toBeTruthy();
 
     await act(async () => {
       fireEvent.click(container.querySelector<HTMLElement>(".sw-primary")!);
@@ -152,6 +183,25 @@ describe("PhoneApp — the Spell Menu", () => {
     });
   });
 
+  it("tapping outside the Sync window collapses it back into the ring (no Done button)", async () => {
+    connectOneDriveForTest();
+    const { container } = await boot();
+    await act(async () => {
+      fireEvent.click(container.querySelector<HTMLElement>(".spell-fab")!);
+    });
+    await flush();
+    await holdNode(container as HTMLElement, 2);
+    expect(container.querySelector(".spell-window")).toBeTruthy();
+    expect(container.querySelector(".sw-close")?.textContent).not.toBe("Done");
+
+    await act(async () => {
+      fireEvent.click(container.querySelector<HTMLElement>(".spell-window-layer")!);
+    });
+    // window gone, but the ring (whole overlay) is still open — not a full close
+    expect(container.querySelector(".spell-window")).toBeNull();
+    expect(container.querySelector(".spell-ring")).toBeTruthy();
+  });
+
   it("restores from the cloud via the Sync window's quiet confirm", async () => {
     connectOneDriveForTest();
     const { container } = await boot();
@@ -159,9 +209,7 @@ describe("PhoneApp — the Spell Menu", () => {
       fireEvent.click(container.querySelector<HTMLElement>(".spell-fab")!);
     });
     await flush();
-    await act(async () => {
-      tapNode(container as HTMLElement, 2); // Sync
-    });
+    await holdNode(container as HTMLElement, 2); // Sync
     // The restore line is quiet text, not the primary button; the first tap only ARMS
     // it in place ("Are you sure?") — nothing destructive yet.
     const restore = container.querySelector<HTMLElement>(".sw-restore")!;
