@@ -38,6 +38,13 @@ describe("titleFromMarkdown", () => {
     // prose after a leading fence is still found
     expect(titleFromMarkdown("```pensieve:audio\nmedia/n1/x.mp3\n```\n\nActual note text")).toBe("Actual note text");
   });
+  it("strips list marks so a note starting with a list item gets a clean title", () => {
+    expect(titleFromMarkdown("* Co tím myslíte?\n* another")).toBe("Co tím myslíte?");
+    expect(titleFromMarkdown("- dash bullet\nbody")).toBe("dash bullet");
+    expect(titleFromMarkdown("1. first step\nbody")).toBe("first step");
+    expect(titleFromMarkdown("* [ ] todo item\nbody")).toBe("todo item");
+    expect(titleFromMarkdown("* [x] done item\nbody")).toBe("done item");
+  });
 });
 
 describe("slugify", () => {

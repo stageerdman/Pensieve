@@ -1,11 +1,12 @@
 // Small pure text helpers — shared so title/slug/word-count logic lives in one place.
 
-/** The note title is the first non-empty line of PROSE, with leading markdown heading
- *  marks stripped. Media is not a title: fenced blocks (our `pensieve:audio`/`image`/
- *  `gallery` fences and any code) are skipped whole, as are bare image lines — so a
- *  recording-only or image-only note has NO title (empty string) — the UI shows nothing
- *  rather than inventing one or printing the fence marker / media file path. Mirrors
- *  excerptFromMarkdown's fence handling. */
+/** The note title is the first non-empty line of PROSE, with leading markdown heading AND
+ *  list marks stripped (a note that starts with a bullet/numbered/checklist line still gets
+ *  a clean title — not "* Co tím myslíte?" with the marker baked in). Media is not a title:
+ *  fenced blocks (our `pensieve:audio`/`image`/`gallery` fences and any code) are skipped
+ *  whole, as are bare image lines — so a recording-only or image-only note has NO title
+ *  (empty string) — the UI shows nothing rather than inventing one or printing the fence
+ *  marker / media file path. Mirrors excerptFromMarkdown's fence + mark handling. */
 export function titleFromMarkdown(md: string): string {
   let inFence = false;
   for (const raw of md.split("\n")) {
@@ -16,7 +17,11 @@ export function titleFromMarkdown(md: string): string {
     }
     if (inFence || !line) continue;
     if (/^!\[[^\]]*\]\([^)]*\)$/.test(line)) continue; // a lone image is not a title
-    const t = line.replace(/^#{1,6}\s*/, "").trim();
+    const t = line
+      .replace(/^#{1,6}\s*/, "")
+      .replace(/^[-*+]\s+(\[[ xX]\]\s+)?/, "")
+      .replace(/^\d+\.\s+/, "")
+      .trim();
     if (t) return t;
   }
   return ""; // no prose → title-less (e.g. a voice memo); callers decide how to render empty

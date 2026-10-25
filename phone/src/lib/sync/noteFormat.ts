@@ -116,7 +116,14 @@ export function splitTitleAndBody(md: string): { title: string; body: string } {
     }
     if (inFence || !line) continue;
     if (/^!\[[^\]]*\]\([^)]*\)$/.test(line)) continue; // a lone image is not a title
-    const title = line.replace(/^#{1,6}\s*/, "").trim();
+    // Strip heading AND list marks — a note whose first line is a bullet/numbered/checklist
+    // item still gets a clean title, not "* Co tím myslíte?" with the marker baked in; the
+    // whole raw line (marker included) is still removed from `rest` below either way.
+    const title = line
+      .replace(/^#{1,6}\s*/, "")
+      .replace(/^[-*+]\s+(\[[ xX]\]\s+)?/, "")
+      .replace(/^\d+\.\s+/, "")
+      .trim();
     if (!title) continue;
     const rest = lines.slice(0, i).concat(lines.slice(i + 1));
     // Drop one leading blank line left behind by the removed title, if any.

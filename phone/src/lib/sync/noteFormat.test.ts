@@ -71,6 +71,18 @@ describe("splitTitleAndBody / joinTitleAndBody", () => {
     expect(splitTitleAndBody("![alt](media/n/x.png)")).toEqual({ title: "", body: "![alt](media/n/x.png)" });
   });
 
+  it("strips a list mark from the title when the note starts with a list item", () => {
+    // Real bug: a note whose first line is a bullet showed as the literal title
+    // "* Co tím myslíte?" on the phone instead of a clean "Co tím myslíte?".
+    expect(splitTitleAndBody("* Co tím myslíte?\n* another\n  * nested")).toEqual({
+      title: "Co tím myslíte?",
+      body: "* another\n  * nested",
+    });
+    expect(splitTitleAndBody("1. first step\nbody")).toEqual({ title: "first step", body: "body" });
+    expect(splitTitleAndBody("* [ ] todo item\nbody")).toEqual({ title: "todo item", body: "body" });
+    expect(splitTitleAndBody("* [x] done item\nbody")).toEqual({ title: "done item", body: "body" });
+  });
+
   it("joinTitleAndBody is the inverse for the common cases", () => {
     expect(joinTitleAndBody("My title", "The rest.")).toBe("My title\n\nThe rest.");
     expect(joinTitleAndBody("My title", "")).toBe("My title");
