@@ -261,6 +261,23 @@ describe("phone sync engine", () => {
     expect(r.pulledMedia).toEqual(["media/x/a.png"]);
   });
 
+  it("an audio ref AND its transcript sidecar are both pulled when both exist remotely", async () => {
+    const fence = "```pensieve:audio\nmedia/x/a.m4a\n```";
+    drive.put("x.md", fence);
+    drive.files.set("media/x/a.m4a", { id: "m1", content: "", cTag: "m1", time: new Date().toISOString(), ver: 0 });
+    drive.files.set("media/x/a.m4a.transcript.json", { id: "m2", content: "{}", cTag: "m2", time: new Date().toISOString(), ver: 0 });
+    const r = await sync(graph, vault);
+    expect(r.pulledMedia.sort()).toEqual(["media/x/a.m4a", "media/x/a.m4a.transcript.json"]);
+  });
+
+  it("a recording with no transcript yet pulls just the audio, no error", async () => {
+    const fence = "```pensieve:audio\nmedia/x/a.m4a\n```";
+    drive.put("x.md", fence);
+    drive.files.set("media/x/a.m4a", { id: "m1", content: "", cTag: "m1", time: new Date().toISOString(), ver: 0 });
+    const r = await sync(graph, vault);
+    expect(r.pulledMedia).toEqual(["media/x/a.m4a"]);
+  });
+
   it("a note already local & unchanged (no new delta) still backfills missing media", async () => {
     // Models the real bug: an older app version didn't recognise a ref (e.g. a
     // pensieve:image fence) so never queued it for download, even though the note itself

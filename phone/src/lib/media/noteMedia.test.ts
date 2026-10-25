@@ -4,7 +4,9 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  AUDIO_FENCE,
   collapseImages,
+  encodeAudioNoteBlock,
   encodeImageNoteBlock,
   galleryMd,
   GALLERY_FENCE,
@@ -121,6 +123,31 @@ describe("noteMedia — pensieve:image fence (desktop resize/crop bridge)", () =
   });
 });
 
+describe("noteMedia — pensieve:audio fence (voice recording)", () => {
+  it("serializes a recording to the pensieve:audio fence, ref then caption", () => {
+    expect(encodeAudioNoteBlock({ kind: "audio", ref: "media/1/a.m4a", caption: "note to self" })).toBe(
+      "```" + AUDIO_FENCE + "\nmedia/1/a.m4a\nnote to self\n```",
+    );
+    expect(encodeAudioNoteBlock({ kind: "audio", ref: "media/1/a.m4a" })).toBe(
+      "```" + AUDIO_FENCE + "\nmedia/1/a.m4a\n```",
+    );
+  });
+
+  it("round-trips through parseNoteContent, not a raw text block", () => {
+    const fence = "```" + AUDIO_FENCE + "\nmedia/1/a.m4a\na caption\n```";
+    const blocks = parseNoteContent(fence);
+    expect(blocks).toEqual([{ kind: "audio", ref: "media/1/a.m4a", caption: "a caption" }]);
+    expect(serializeBlocks(blocks)).toBe(fence);
+  });
+
+  it("parses a recording embedded between prose", () => {
+    const fence = "```" + AUDIO_FENCE + "\nmedia/1/a.m4a\n```";
+    const body = "before\n" + fence + "\nafter";
+    const blocks = parseNoteContent(body);
+    expect(blocks.map((b) => b.kind)).toEqual(["text", "audio", "text"]);
+  });
+});
+
 describe("noteMedia — markdown lists (bullet / numbered / checklist)", () => {
   it("parses a flat bullet list and serializes it back unchanged", () => {
     const md = "* bullet one\n* bullet two";
@@ -209,5 +236,10 @@ describe("noteMedia — path + preview", () => {
   it("stripMediaForPreview also cleans a pensieve:image fence (resized image)", () => {
     const fence = "```" + IMAGE_FENCE + "\nmedia/1/a.png\nwidth=0.4 aspect=0\n```";
     expect(stripMediaForPreview(fence)).toBe("📷 Photo");
+  });
+
+  it("stripMediaForPreview turns a pensieve:audio fence into a clean marker", () => {
+    const fence = "```" + AUDIO_FENCE + "\nmedia/1/a.m4a\na caption\n```";
+    expect(stripMediaForPreview(fence)).toBe("🎙️ Recording");
   });
 });

@@ -29,6 +29,11 @@ export const MEDIA_DIR = "media";
 export const IMAGE_FENCE = "pensieve:image";
 /** Matches src/lib/md/image.ts DEFAULT_IMAGE_WIDTH — 75% of the text column. */
 export const DEFAULT_IMAGE_WIDTH = 0.75;
+/** The fence language carrying a voice recording (matches src/lib/md/audio.ts) — audio has no
+ *  plain CommonMark form, so it ALWAYS rides this fence: ref on line 1, an optional caption on
+ *  the rest. The transcript is a separate sidecar (see lib/media/transcript.ts), never written
+ *  into this fence. */
+export const AUDIO_FENCE = "pensieve:audio";
 
 /** One image: a vault-relative ref (`media/...`) or a direct url (data:/blob:/http). */
 export interface MediaImage {
@@ -52,7 +57,8 @@ export type NoteBlock =
   | { kind: "text"; text: string }
   | { kind: "image"; ref: string; caption?: string; width?: number; aspect?: number; posX?: number; posY?: number }
   | { kind: "gallery"; images: MediaImage[]; height?: number }
-  | { kind: "list"; items: ListItemNode[] };
+  | { kind: "list"; items: ListItemNode[] }
+  | { kind: "audio"; ref: string; caption?: string };
 
 /** The desktop gallery's dragged display HEIGHT rides an optional leading `h=<px>` fence line
  *  (matches src/lib/md/gallery.ts). The phone ignores it for layout but MUST round-trip it so the
@@ -126,6 +132,22 @@ function parseImageFenceLines(inner: string[]): NoteBlock | null {
     ...(aspect > 0 && Math.abs(posX - 50) > 1e-6 ? { posX } : {}),
     ...(aspect > 0 && Math.abs(posY - 50) > 1e-6 ? { posY } : {}),
   };
+}
+
+/** Serialize a voice recording block → a `pensieve:audio` fence (mirrors desktop's
+ *  encodeAudioBlock exactly: ref on line 1, the caption — if any — on the rest). */
+export function encodeAudioNoteBlock(b: Extract<NoteBlock, { kind: "audio" }>): string {
+  const text = b.caption ? `${b.ref}\n${b.caption}` : b.ref;
+  return "```" + AUDIO_FENCE + "\n" + text + "\n```";
+}
+
+/** Parse one `pensieve:audio` fence body → an audio block, or null if there's no ref line.
+ *  Mirrors desktop's reconstructAudioFence. */
+function parseAudioFenceLines(inner: string[]): NoteBlock | null {
+  const ref = (inner[0] ?? "").trim();
+  if (!ref) return null;
+  const caption = inner.slice(1).join("\n");
+  return { kind: "audio", ref, ...(caption ? { caption } : {}) };
 }
 
 // ---- markdown lists (bullet `* `, numbered `N. `, checklist `* [ ]`/`* [x]`) ----
@@ -226,6 +248,7 @@ export function parseNoteContent(content: string): NoteBlock[] {
   const lines = (content ?? "").split("\n");
   const galleryFenceOpen = "```" + GALLERY_FENCE;
   const imageFenceOpen = "```" + IMAGE_FENCE;
+  const audioFenceOpen = "```" + AUDIO_FENCE;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (line.trim() === galleryFenceOpen) {
@@ -255,6 +278,18 @@ export function parseNoteContent(content: string): NoteBlock[] {
         inner.push(lines[j]);
       }
       const block = parseImageFenceLines(inner);
+      if (block) blocks.push(block);
+      i = j;
+      continue;
+    }
+    if (line.trim() === audioFenceOpen) {
+      const inner: string[] = [];
+      let j = i + 1;
+      for (; j < lines.length; j++) {
+        if (lines[j].trim() === "```") break;
+        inner.push(lines[j]);
+      }
+      const block = parseAudioFenceLines(inner);
       if (block) blocks.push(block);
       i = j;
       continue;
@@ -290,6 +325,7 @@ export function serializeBlocks(blocks: NoteBlock[]): string {
       if (b.kind === "text") return b.text;
       if (b.kind === "image") return encodeImageNoteBlock(b);
       if (b.kind === "list") return listMd(b.items);
+      if (b.kind === "audio") return encodeAudioNoteBlock(b);
       return galleryMd(b.images, b.height);
     })
     .join("\n");
@@ -324,13 +360,16 @@ export function planInsert(images: MediaImage[]): NoteBlock | null {
 
 const GALLERY_FENCE_BLOCK = new RegExp("```" + GALLERY_FENCE + "[\\s\\S]*?```", "g");
 const IMAGE_FENCE_BLOCK = new RegExp("```" + IMAGE_FENCE + "[\\s\\S]*?```", "g");
+const AUDIO_FENCE_BLOCK = new RegExp("```" + AUDIO_FENCE + "[\\s\\S]*?```", "g");
 
 /** Strip media markdown from a body so the reel snippet shows clean prose, not raw refs.
- *  A single image becomes its caption (or a 📷 marker); a gallery becomes a 📷 marker. */
+ *  A single image becomes its caption (or a 📷 marker); a gallery becomes a 📷 marker; a
+ *  recording becomes a 🎙️ marker. */
 export function stripMediaForPreview(content: string): string {
   return (content ?? "")
     .replace(GALLERY_FENCE_BLOCK, "📷 Photos")
     .replace(IMAGE_FENCE_BLOCK, "📷 Photo")
+    .replace(AUDIO_FENCE_BLOCK, "🎙️ Recording")
     .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, cap) => (cap ? `📷 ${cap}` : "📷 Photo"))
     .replace(/\n{2,}/g, "\n")
     .trim();

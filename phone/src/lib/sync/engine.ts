@@ -27,12 +27,21 @@ import { EMPTY_SYNC_STATE, type MediaSyncRecord, type RemoteItem, type SyncAccou
 import { getAccessToken, clearTokenCache } from "./tokens";
 import { parseNoteContent } from "../media/noteMedia";
 import { isMediaPath } from "../media/noteMedia";
+import { transcriptRefFor } from "../media/transcript";
 
 function extractMediaRefs(content: string): string[] {
   const refs: string[] = [];
   for (const block of parseNoteContent(content)) {
-    if (block.kind === "image" && isMediaPath(block.ref)) refs.push(block.ref);
-    else if (block.kind === "gallery") for (const img of block.images) if (isMediaPath(img.ref)) refs.push(img.ref);
+    if (block.kind === "image" && isMediaPath(block.ref)) {
+      refs.push(block.ref);
+    } else if (block.kind === "gallery") {
+      for (const img of block.images) if (isMediaPath(img.ref)) refs.push(img.ref);
+    } else if (block.kind === "audio" && isMediaPath(block.ref)) {
+      refs.push(block.ref);
+      // Always ASK for the sidecar too — downloadMedia/404 already no-ops cleanly when a
+      // recording has no transcript yet, so this is free (no new sync machinery needed).
+      refs.push(transcriptRefFor(block.ref));
+    }
   }
   return refs;
 }

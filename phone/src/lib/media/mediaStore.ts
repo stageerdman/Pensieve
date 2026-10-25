@@ -12,6 +12,7 @@
 // they share only design tokens. A future shared `lib/` boundary could unify the two.)
 
 import { isMediaPath, MEDIA_DIR } from "./noteMedia";
+import { parseTranscript, transcriptRefFor, type Transcript } from "./transcript";
 
 const DB_NAME = "pensieve-phone-media";
 const STORE = "blobs";
@@ -127,6 +128,18 @@ export async function getMediaBytes(ref: string): Promise<Uint8Array | null> {
     const blob = await tx<Blob | undefined>("readonly", (s) => s.get(ref));
     if (!blob) return null;
     return new Uint8Array(await blob.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+/** Load an audio ref's sidecar transcript, if the sync backfill has pulled one down —
+ *  null if none exists (most recordings won't have one) or it failed to parse. */
+export async function loadTranscript(audioRef: string): Promise<Transcript | null> {
+  const bytes = await getMediaBytes(transcriptRefFor(audioRef));
+  if (!bytes) return null;
+  try {
+    return parseTranscript(new TextDecoder().decode(bytes));
   } catch {
     return null;
   }
