@@ -34,10 +34,11 @@ describe("registry — conditional (page-recommended) rosters", () => {
     expect(hasConditional("home")).toBe(false);
   });
 
-  it("a note offers Photo + Gallery (add a photo, or start a fresh gallery)", () => {
+  it("a note offers Photo + Gallery + Delete (the last rides the danger hue)", () => {
     const note = conditionalSpells("note");
-    expect(note.map((s) => s.id)).toEqual(["image", "gallery"]);
-    expect(note.map((s) => s.name)).toEqual(["Photo", "Gallery"]);
+    expect(note.map((s) => s.id)).toEqual(["image", "gallery", "delete"]);
+    expect(note.map((s) => s.name)).toEqual(["Photo", "Gallery", "Delete"]);
+    expect(note.find((s) => s.id === "delete")!.hue).toBe("danger");
     expect(isScroll(note.length)).toBe(false); // a clean static ring
     expect(hasConditional("note")).toBe(true);
   });

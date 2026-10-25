@@ -17,6 +17,9 @@ export interface RecordingSessionMeta {
   noteId: string;
   mimeType: string;
   startedAt: number;
+  /** The note's content at the exact moment recording started — lets a later zero-chunk
+   *  finalize tell "still untouched" apart from "the user added real content meanwhile". */
+  placeholderBody: string;
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null;

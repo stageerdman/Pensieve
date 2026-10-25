@@ -9,7 +9,7 @@
 //   · the radial Spell Menu overlay             — Spell / SpellMenuForm
 
 /** The glyph set (SVG lives in components/spellmenu/SpellGlyph). "menu" = the Orbit hero. */
-export type IconName = "menu" | "write" | "accio" | "sync" | "image" | "gallery" | "edit" | "back" | "camera" | "mic";
+export type IconName = "menu" | "write" | "accio" | "sync" | "image" | "gallery" | "edit" | "back" | "camera" | "mic" | "trash";
 
 /** Sync's live status, mirrored from lib/wand/syncMachine so the dock/menu can badge it. */
 export type SyncBadge = "synced" | "reminder" | "syncing" | "failed" | "offline";
@@ -24,8 +24,9 @@ export interface Spell {
   /** short label for the ring (kept ≤ ~8 chars so labels don't collide). */
   name: string;
   icon: IconName;
-  /** "violet" = Accio-owned; "gold-state" = Sync (gold + live state tint); undefined = form hue. */
-  hue?: "violet" | "gold-state";
+  /** "violet" = Accio-owned; "gold-state" = Sync (gold + live state tint); "danger" = a
+   *  destructive spell (red, regardless of form hue); undefined = form hue. */
+  hue?: "violet" | "gold-state" | "danger";
   /** detailed spell: tapping swaps the ring for a nested ring of these. */
   children?: Spell[];
   /** this spell opens a window above the ring (e.g. Sync details). */

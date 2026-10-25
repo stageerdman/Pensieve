@@ -53,6 +53,7 @@ import { PhoneLightbox } from "./components/note/PhoneLightbox";
 import { PhoneCollection } from "./components/note/PhoneCollection";
 import { PhoneTranscriptReader } from "./components/note/PhoneTranscriptReader";
 import { VoiceRecorderPanel } from "./components/note/VoiceRecorderPanel";
+import { ConfirmDeleteNote } from "./components/note/ConfirmDeleteNote";
 import { mintMediaRef, registerLocalMedia } from "./lib/media/mediaStore";
 import type { MediaImage } from "./lib/media/noteMedia";
 import { pauseAllAudio } from "./lib/media/audioController";
@@ -109,6 +110,10 @@ export function PhoneApp() {
   if (!dataRef.current) dataRef.current = loadVault();
   const openedOrderRef = useRef<string[]>([]);
   const currentRef = useRef<Note | null>(null);
+  // ids of capture notes (Snap/Record) that are open but still untouched — no image attached,
+  // no recording genuinely started, no manual edit. Backing out of one of these discards
+  // silently instead of saving an "empty" placeholder note (see exitNote/onBodyInput/onPickFiles).
+  const pendingCaptureRef = useRef<Set<string>>(new Set());
 
   // ---- element refs ----
   const rootRef = useRef<HTMLDivElement>(null);
@@ -139,7 +144,12 @@ export function PhoneApp() {
   const [kbOpen, setKbOpen] = useState(false);
   const [micListening, setMicListening] = useState(false);
   const [spell, setSpell] = useState({ show: false, castId: 0 });
-  const [voicePanel, setVoicePanel] = useState<{ open: boolean; noteId: string | null }>({ open: false, noteId: null });
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [voicePanel, setVoicePanel] = useState<{ open: boolean; noteId: string | null; placeholderBody: string }>({
+    open: false,
+    noteId: null,
+    placeholderBody: "",
+  });
   const [recents, setRecents] = useState<string[]>(loadRecents);
   const [toast, setToast] = useState("");
   const [sparkle, setSparkle] = useState(0); // a brief close/switch twinkle (0 = none)
@@ -239,6 +249,24 @@ export function PhoneApp() {
     syncPlaceholders(noteBody);
   };
   voiceDeps.toast = (msg) => showToast(msg);
+  // Panel-only (voiceCapture.ts never calls this itself): once the mic genuinely starts, the
+  // note graduates out of "pending" and commits for real — from this point on a crash/kill
+  // still has a vault row to recover the audio onto, even if the user never types a word.
+  voiceDeps.onRecordingStarted = (id) => {
+    pendingCaptureRef.current.delete(id);
+    if (currentRef.current?.id === id) autosave.commit();
+  };
+  // Engine-called when a session finalizes with zero captured chunks (recording stopped within
+  // the first flush interval) AND the note is still exactly its untouched placeholder — nothing
+  // real ever happened, so undo the early commit rather than leave an "empty" note behind.
+  voiceDeps.removeIfUntouched = (id, placeholderBody) => {
+    const idx = dataRef.current!.findIndex((n) => n.id === id);
+    if (idx === -1) return;
+    if ((dataRef.current![idx].c || "").trim() !== placeholderBody.trim()) return; // user added real content — keep it
+    dataRef.current!.splice(idx, 1);
+    persistVault(dataRef.current!);
+    renderAll(filterQueryRef.current);
+  };
 
   const accio = useAccioSearch({
     accioInputRef,
@@ -293,9 +321,10 @@ export function PhoneApp() {
   }
 
   /** A "Snap"/"Record" spell cast: mint a titled memory ("New Image"/"New Recording", body
-   *  "added image"/"added recording") and commit it into the vault immediately (not left
-   *  pending on the first edit) — so it exists even if the user backs out before attaching
-   *  anything. Returns the note so the caller can jump straight into capture. */
+   *  "added image"/"added recording") and open it. Tracked in `pendingCaptureRef` until real
+   *  content actually lands (an image attached, recording genuinely starts, or the user types)
+   *  — nothing is saved to the vault before that, so backing out of an unused capture leaves no
+   *  "empty" note behind (see exitNote). Returns the note so the caller can jump into capture. */
   function openCaptureNote(title: string, bodyLine: string): Note {
     accio.clearSearch();
     const now = Date.now();
@@ -314,22 +343,24 @@ export function PhoneApp() {
       fresh: false,
       isNew: true,
     };
-    conjure(threadRef.current, rootRef.current, reduce, () => {
-      openNote(d);
-      autosave.commit(); // land it in the vault right away, not on the first real edit
-    });
+    pendingCaptureRef.current.add(d.id);
+    conjure(threadRef.current, rootRef.current, reduce, () => openNote(d));
     haptic(10);
     return d;
   }
 
   function startCaptureImage() {
+    // Fire the picker FIRST, synchronously, in the same tap gesture — a camera-capture file
+    // input only opens instantly (no intervening action sheet) if `.click()` runs inside the
+    // original user gesture; a setTimeout-deferred click breaks that and iOS may stall or
+    // refuse it. The note's conjure animation can proceed in parallel; camera UI covers it.
+    openImagePicker("camera");
     openCaptureNote("New Image", "added image");
-    setTimeout(() => openImagePicker("photo"), 460);
   }
 
   function startCaptureVoice() {
     const d = openCaptureNote("New Recording", "added recording");
-    setTimeout(() => setVoicePanel({ open: true, noteId: d.id }), 460);
+    setTimeout(() => setVoicePanel({ open: true, noteId: d.id, placeholderBody: d.c }), 460);
   }
 
   function openNewNote(dictate: boolean) {
@@ -361,8 +392,17 @@ export function PhoneApp() {
     haptic(10);
   }
 
-  function exitNote() {
-    if (currentRef.current) autosave.commit();
+  /** Leave the open memory. `save:false` (deleteCurrentNote) skips the commit entirely — used
+   *  right after removing the note from the vault, so closing doesn't resurrect it. Otherwise,
+   *  an untouched capture note (still in `pendingCaptureRef` — nothing attached, nothing typed)
+   *  is discarded silently rather than committed as an "empty" placeholder. */
+  function exitNote(opts?: { save?: boolean }) {
+    const note = currentRef.current;
+    if (note) {
+      const wasPending = pendingCaptureRef.current.has(note.id);
+      pendingCaptureRef.current.delete(note.id);
+      if (opts?.save !== false && !wasPending) autosave.commit();
+    }
     pauseAllAudio(); // leaving the memory — any recording playing in it should stop
     setNoteOpen(false); // slides down
     setEditingNote(false);
@@ -375,8 +415,24 @@ export function PhoneApp() {
     }, reduce ? 0 : 520);
   }
 
+  /** Confirmed from the "Delete" conditional spell's popup: remove the open memory for good. */
+  function deleteCurrentNote() {
+    const note = currentRef.current;
+    if (!note) return;
+    const idx = dataRef.current!.findIndex((n) => n.id === note.id);
+    if (idx !== -1) dataRef.current!.splice(idx, 1);
+    persistVault(dataRef.current!);
+    renderAll(filterQueryRef.current);
+    setConfirmDelete(false);
+    haptic(20);
+    exitNote({ save: false });
+  }
+
   // ---- note body events ----
   function onBodyInput() {
+    // any real keystroke graduates a capture note out of "pending" — it must be saved now,
+    // same as any other note the user has actually touched.
+    if (currentRef.current) pendingCaptureRef.current.delete(currentRef.current.id);
     const noteBody = noteBodyRef.current;
     if (noteBody) syncPlaceholders(noteBody);
     autosave.scheduleSave();
@@ -411,11 +467,22 @@ export function PhoneApp() {
   // button fires on pointerdown+preventDefault; the spell path appends at the end if the caret
   // was lost. The native iOS sheet (Photo Library / Take Photo / Choose File) comes free.
   // Which action opened the picker: "photo" = add to the memory (merge into an adjacent block if
-  // any); "gallery" = the "Gallery" spell → always start a fresh, separate gallery block.
-  const pickModeRef = useRef<"photo" | "gallery">("photo");
-  function openImagePicker(mode: "photo" | "gallery" = "photo") {
+  // any); "gallery" = the "Gallery" spell → always start a fresh, separate gallery block; "camera"
+  // = the "Snap" spell → jump straight to the camera (no action-sheet detour), single shot.
+  const pickModeRef = useRef<"photo" | "gallery" | "camera">("photo");
+  function openImagePicker(mode: "photo" | "gallery" | "camera" = "photo") {
     pickModeRef.current = mode;
-    fileInputRef.current?.click();
+    const input = fileInputRef.current;
+    if (input) {
+      if (mode === "camera") {
+        input.setAttribute("capture", "environment"); // skip the Library/Take/Choose sheet
+        input.removeAttribute("multiple");
+      } else {
+        input.removeAttribute("capture");
+        input.setAttribute("multiple", "");
+      }
+    }
+    input?.click();
   }
 
   function onPickFiles(files: FileList | null) {
@@ -432,6 +499,7 @@ export function PhoneApp() {
       images.push({ ref });
     }
     if (!images.length) return;
+    pendingCaptureRef.current.delete(note.id); // real content attached — no longer "empty"
     // If the photo collection is open, the picked photos join THAT gallery (the collection's
     // "Photo" spell), not the note caret.
     if (phoneCollection.get().open) {
@@ -581,6 +649,7 @@ export function PhoneApp() {
     else if (s.id === "gallery") openImagePicker("gallery");
     else if (s.id === "snap") startCaptureImage();
     else if (s.id === "voice") startCaptureVoice();
+    else if (s.id === "delete") setConfirmDelete(true); // never deletes on the tap — confirm first
     else if (s.id === "edit") phoneCollection.toggleEditMode(); // board-scoped: arrange/remove mode
     else showToast(`✨ ${s.name} cast`);
   }
@@ -785,7 +854,6 @@ export function PhoneApp() {
           dateRef={noteDateRef}
           savedRef={noteSavedRef}
           voiceRef={voiceRef}
-          fileInputRef={fileInputRef}
           micListening={micListening}
           onBack={() => exitNote()}
           onDateClick={() => noteBodyRef.current?.blur()}
@@ -795,7 +863,6 @@ export function PhoneApp() {
           onBodyBlur={() => setEditingNote(false)}
           onFormat={applyFmt}
           onInsertImage={openImagePicker}
-          onPickFiles={onPickFiles}
           onOpenSpellMenu={() => {
             haptic(10);
             menu.openMenu();
@@ -812,10 +879,28 @@ export function PhoneApp() {
       {voicePanel.open && voicePanel.noteId ? (
         <VoiceRecorderPanel
           noteId={voicePanel.noteId}
+          placeholderBody={voicePanel.placeholderBody}
           deps={voiceDeps}
-          onClose={() => setVoicePanel({ open: false, noteId: null })}
+          onClose={() => setVoicePanel({ open: false, noteId: null, placeholderBody: "" })}
         />
       ) : null}
+      {confirmDelete ? (
+        <ConfirmDeleteNote onCancel={() => setConfirmDelete(false)} onConfirm={deleteCurrentNote} />
+      ) : null}
+
+      {/* the ONE file-picker input — always mounted (not scoped to the Memory page) so "Snap"
+          can reach it from the HOME screen too, before any memory is open. */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={(e) => {
+          onPickFiles(e.target.files);
+          e.target.value = ""; // allow re-picking the same file
+        }}
+      />
 
       <ConjureThread threadRef={threadRef} />
       <div className="home-indicator" />

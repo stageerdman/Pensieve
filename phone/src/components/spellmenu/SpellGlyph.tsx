@@ -29,6 +29,16 @@ const PATHS: Record<Exclude<IconName, "menu" | "sync">, React.ReactNode> = {
       <path d="M12 17v3M9 20h6" />
     </>
   ),
+  // a bin + lid + lid-handle — "delete this memory", the one destructive glyph (always rides
+  // the "danger" hue, never the form's own colour).
+  trash: (
+    <>
+      <path d="M5 7h14" />
+      <path d="M9 7V5.6c0-.9.7-1.6 1.6-1.6h2.8c.9 0 1.6.7 1.6 1.6V7" />
+      <path d="M7 7l.9 12.2a1.8 1.8 0 0 0 1.8 1.6h4.6a1.8 1.8 0 0 0 1.8-1.6L17 7" />
+      <path d="M10 10.5v6M14 10.5v6" />
+    </>
+  ),
   write: (
     <>
       <path d="M4 20l1.3-4L15 6.3a1.8 1.8 0 0 1 2.5 2.5L8.3 18.5 4 20Z" />

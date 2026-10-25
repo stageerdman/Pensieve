@@ -106,13 +106,16 @@ function create(src: string): Impl {
 
   // Self-heal a missing duration. MediaRecorder WebM (and fragmented mp4) often report
   // duration = Infinity/NaN with no seek index, which breaks the time display AND playback.
-  // The portable fix: once, seek far past the end so the engine scans the stream and
-  // computes the real duration + builds a seek table, then jump back to the start.
+  // A recording assembled from multiple chunks (the phone's chunked voice-recording engine)
+  // can instead report a flat 0, since the container header only ever described the live/
+  // open-ended stream it started as. The portable fix: once, seek far past the end so the
+  // engine scans the stream and computes the real duration + builds a seek table, then jump
+  // back to the start.
   let healed = false;
   const healDuration = () => {
     if (healed) return;
     const d = el.duration;
-    if (d === Infinity || Number.isNaN(d)) {
+    if (d === Infinity || Number.isNaN(d) || d === 0) {
       healed = true;
       const onTick = () => {
         el.removeEventListener("timeupdate", onTick);

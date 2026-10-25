@@ -413,7 +413,13 @@ export function SpellRing(props: SpellRingProps) {
       {spells.map((spell, i) => {
         const pos = resting[i];
         const spellHue =
-          spell.hue === "violet" ? "spell-violet" : spell.hue === "gold-state" ? "spell-syncgold" : "";
+          spell.hue === "violet"
+            ? "spell-violet"
+            : spell.hue === "gold-state"
+              ? "spell-syncgold"
+              : spell.hue === "danger"
+                ? "spell-danger"
+                : "";
         return (
           <div
             key={spell.id}

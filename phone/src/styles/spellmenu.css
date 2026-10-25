@@ -94,6 +94,10 @@
   --sh: var(--gold);
   --sh-glow: var(--gold-glow);
 }
+.spell-ring .spell-btn.spell-danger {
+  --sh: var(--danger);
+  --sh-glow: var(--danger);
+}
 
 /* the node — crisp dark disc, one bright ring, restrained glow (the reference look) */
 .spell-btn {

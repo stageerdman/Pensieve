@@ -12,7 +12,7 @@ describe("VoiceRecorderPanel — no mic available (jsdom)", () => {
       persistAndRender: () => {},
     };
     const onClose = vi.fn();
-    render(<VoiceRecorderPanel noteId="n1" deps={deps} onClose={onClose} />);
+    render(<VoiceRecorderPanel noteId="n1" placeholderBody="added recording" deps={deps} onClose={onClose} />);
 
     await waitFor(() => expect(screen.getByText(/Microphone/i)).toBeTruthy());
     screen.getByText("Close").click();

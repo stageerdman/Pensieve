@@ -51,12 +51,14 @@ export function conditionalSpells(context: PageContext): Spell[] {
       { id: "image", name: "Photo", icon: "image" },
     ];
   }
-  // a memory (note): two spells — "Photo" adds a photo to the memory (merging into an adjacent
-  // block if any); "Gallery" starts a fresh, separate gallery block to fill (multi-pick). Go back
-  // lives in the bottom action bar next to the spell-menu button, not the ring.
+  // a memory (note): "Photo" adds a photo to the memory (merging into an adjacent block if any);
+  // "Gallery" starts a fresh, separate gallery block to fill (multi-pick); "Delete" removes the
+  // memory — tapping it opens a confirm/cancel popup, it never deletes on the tap itself. Go
+  // back lives in the bottom action bar next to the spell-menu button, not the ring.
   return [
     { id: "image", name: "Photo", icon: "image" },
     { id: "gallery", name: "Gallery", icon: "gallery" },
+    { id: "delete", name: "Delete", icon: "trash", hue: "danger" },
   ];
 }
 
