@@ -129,6 +129,12 @@ const MEDIA_CONTENT_TYPES: Record<string, string> = {
   heic: "image/heic",
   heif: "image/heif",
   avif: "image/avif",
+  m4a: "audio/mp4",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  webm: "audio/webm",
+  ogg: "audio/ogg",
+  aac: "audio/aac",
 };
 
 function mediaExt(ref: string): string {

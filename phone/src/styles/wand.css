@@ -1435,16 +1435,16 @@ body {
 .ph-audio-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 14px 16px;
   border-radius: var(--radius);
   background: hsl(var(--surface-raised));
   border: 1px solid hsl(var(--border));
 }
 .ph-audio-play {
   flex: none;
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   border-radius: 999px;
   display: flex;
   align-items: center;
@@ -1454,10 +1454,14 @@ body {
   border: none;
   touch-action: none; /* tapped via wireMediaTap, not native click-scroll */
 }
+.ph-audio-play svg {
+  width: 19px;
+  height: 19px;
+}
 .ph-audio-track {
   flex: 1 1 auto;
   min-width: 0;
-  height: 4px;
+  height: 5px;
   border-radius: 999px;
   background: hsl(var(--text) / 0.12);
   position: relative;
@@ -1472,14 +1476,14 @@ body {
 }
 .ph-audio-time {
   flex: none;
-  font-size: 12px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
   color: hsl(var(--text-muted));
 }
 .ph-audio-transcript {
   flex: none;
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   border-radius: 999px;
   display: flex;
   align-items: center;
@@ -1488,6 +1492,10 @@ body {
   color: hsl(var(--text-muted));
   border: none;
   touch-action: none;
+}
+.ph-audio-transcript svg {
+  width: 18px;
+  height: 18px;
 }
 .ph-audio-caption {
   margin-top: 6px;
@@ -1541,8 +1549,14 @@ body {
 }
 .ph-reader-body {
   flex: 1;
+  /* WebKit has shipped versions that don't fully honour the spec's "auto min-size is 0 when
+     overflow isn't visible" exception for a flex child — belt-and-suspenders so the column
+     flex parent can't stretch this to fit all the text (which would leave nothing to scroll,
+     the reported "transcript isn't scrollable" symptom) instead of clipping + scrolling it. */
+  min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   padding: 4px 20px calc(110px + env(safe-area-inset-bottom, 0px));
 }
 .ph-reader-line {
