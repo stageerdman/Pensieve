@@ -116,3 +116,14 @@ asked for it.
 - Full suite 1008 tests, `tsc` (both apps) and `build:phone` clean. Deployed.
 - NEXT: owner retests on device — a FRESH recording (new m4a pull) for the duration/play fix, a
   longer transcript for the scroll claim, and the bigger buttons for feel.
+
+## Live status (2026-10-26, later same day — scroll fix found, shared with GALLERY-PINTEREST)
+- Owner correctly guessed the transcript-scroll report was "the same problem as the gallery."
+  It was: found a single global touch guard in `PhoneApp.tsx` that only allows scroll/swipe
+  inside `.reel`/`.note`/`.search-results` — the reader (`.ph-reader`), like the lightbox and
+  collection, is mounted as a SIBLING of `.note` at the app root, so it never matched and every
+  touch inside it was blocked. Fixed `7503e2e` (added `.ph-reader` to the allowlist) — full
+  detail + the shared history with the gallery's scroll/swipe bugs is in GALLERY-PINTEREST's
+  2026-10-26 entry and memory [[phone-global-touch-guard-allowlist]]. The defensive
+  `min-height:0`/`touch-action` CSS added earlier today was harmless but NOT the actual fix.
+- NEXT: same device retest as above, now including the reader's scroll specifically.

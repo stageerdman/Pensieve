@@ -238,3 +238,21 @@ aspect ratios** by default.
   Mac) to get real telemetry on all three gesture issues at once, since static code review found
   no obvious blocker in any of them — same "looks correct in code, wrong on device" pattern as
   the earlier two failed reorder attempts.
+
+## Live status (2026-10-26, later same day — the REAL root cause found)
+- Found it, no Web Inspector session needed: `PhoneApp.tsx` has ONE global document-level
+  `touchmove` guard (elastic-scroll prevention) with a hardcoded allowlist
+  (`.reel`/`.note`/`.search-results`). The collection and lightbox are mounted as SIBLINGS of
+  `.note` at the app root, so every touch inside them was silently `preventDefault()`'d by this
+  guard — native scrolling blocked outright, swipe-to-next (which relies on native scroll-snap)
+  killed before it ever reached the component. Shared root cause of the collection-scroll AND
+  lightbox-swipe reports (and later the transcript reader's scroll, once that existed — see
+  PHONE-AUDIO-TRANSCRIPT). Fixed `7503e2e`: added `.ph-lightbox,.ph-collection,.ph-reader` to the
+  allowlist. See memory [[phone-global-touch-guard-allowlist]].
+- The Safari multicol→flex fix (`0ec44a9`, above) was a real, separate bug and the correct fix
+  for IT — it just wasn't the thing actually blocking scroll. Two prior reorder-specific attempts
+  (stable keys, drag-ghost) also missed this because they were investigating the gallery's own
+  code, not a global guard in an unrelated file.
+- NEXT: owner retests drag-reorder, collection scroll, AND lightbox swipe now that the real
+  blocker is gone — all three may just work now. If reorder is still broken after this, THAT
+  would finally be a genuine component-level bug worth a Web Inspector session.

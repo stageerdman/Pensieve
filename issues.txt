@@ -170,26 +170,26 @@ NOTION-UX — deferred polish (non-blocking, from ux-notion-chrome.md):
 - [ ] Colour palette: the toolbar exposes BlockNote's full palette; could trim to a
       curated few if it feels like too much choice.
 
-GALLERY-PINTEREST — phone drag-to-reorder (2026-10-26, fix landed, owner re-tested — STILL broken):
+GALLERY-PINTEREST — phone drag-to-reorder + scroll/swipe (2026-10-26, REAL root cause found):
 - [x] Replaced CSS `column-count:2` masonry with two explicit flex columns (items placed by
-      index parity) — this was the "next idea" logged 2026-10-16. Sidesteps the Safari
-      multicol+transform bug class entirely instead of working around it. Shipped to main
-      `0ec44a9`, deployed.
-- [ ] Owner re-test (2026-10-26) on real device: reorder STILL doesn't really work. Also found
-      TWO more gesture bugs in the same surface, deliberately DEFERRED by owner ("not as
-      important... log it, resolve later"):
-      (a) collection vertical scroll feels dead/unresponsive — owner isn't fully sure if this is
-          a real bug or just hitting the end of a short photo list (bounce-back read as "stuck");
-          needs a retest with a collection of 10+ photos to know for sure.
-      (b) lightbox swipe-left/right between photos has NEVER worked, not a new regression from
-          this round — pre-existing, never previously verified on device.
-      Static code review of PhoneCollection.tsx/PhoneLightbox.tsx/wand.css found no obvious
-      blocker for any of the three (touch-action, overflow, pointer-event early-returns all
-      look correct) — same pattern as the reorder bug's first two "looks right" attempts that
-      also failed on device. Two prior code-only fix rounds for reorder alone have already
-      failed this way. NEXT real fix attempt should use Safari Web Inspector (iPhone plugged
-      into the Mac) to see actual console/touch output instead of guessing blind again —
-      owner declined that session for now; revisit when picking this back up.
+      index parity) — the Safari multicol+transform bug fix, correct but NOT the thing that was
+      actually blocking scroll/swipe (see below). Shipped `0ec44a9`.
+- [x] **Found the real cause of the collection-scroll + lightbox-swipe reports** (and, once the
+      transcript reader existed, its scroll too): a single global elastic-scroll touch guard in
+      `PhoneApp.tsx` (one document-level `touchmove` listener, `{passive:false}`) only allowed
+      touch movement inside `.reel`/`.note`/`.search-results` — `preventDefault()` on everything
+      else, including every full-screen overlay mounted as a SIBLING of `.note` at the app root
+      (lightbox, collection, transcript reader). Their scroll/swipe either IS native browser
+      scrolling (which preventDefault blocks outright) or sits downstream of a blocked native
+      touchmove. Fixed `7503e2e`: added `.ph-lightbox,.ph-collection,.ph-reader` to the allowlist.
+      Two prior "looks correct" code attempts at the collection/lightbox specifically (stable
+      keys, then a drag-ghost clone, then the multicol→flex swap) all missed this because they
+      were investigating the WRONG layer (CSS/layout) — the actual blocker was a global JS guard
+      several files away with no connection to the gallery code itself.
+- [ ] STILL NEEDS a device re-test now that the real blocker is gone: does drag-to-reorder work
+      now that scrolling/touch isn't being globally eaten? (The reorder gesture itself is custom
+      pointer logic, not native scroll, so it may have been fine all along and just felt broken
+      because the SURROUNDING board felt "dead.") Confirm lightbox swipe-between-photos too.
 
 OPEN ISSUES:
 - [ ] Desktop editor: adopt the phone's "title = first line = auto-H1" rule (new doc
