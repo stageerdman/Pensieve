@@ -594,12 +594,21 @@ export function PhoneApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // elastic-scroll guard: only the reel, note, and search-results may move under a
-  // finger (HARD constraint #4 — native listener, {passive:false}). Source ~1540-1542.
+  // elastic-scroll guard: only the reel, note, search-results, and the full-screen media
+  // overlays (lightbox / collection / transcript reader — mounted as SIBLINGS of .note at
+  // the app root, so .closest(".note") never matches inside them) may move under a finger
+  // (HARD constraint #4 — native listener, {passive:false}). Source ~1540-1542.
+  //
+  // This one allowlist was the real cause behind three reports that looked unrelated: the
+  // collection wouldn't scroll, the lightbox wouldn't swipe between photos, and the
+  // transcript reader wouldn't scroll — all three are full-screen overlays outside .note,
+  // so every touchmove inside them hit this guard's preventDefault(). Add any FUTURE
+  // full-screen overlay here too, or it will look identically "dead" on a real device.
   useEffect(() => {
+    const SCROLLABLE = ".reel,.note,.search-results,.ph-lightbox,.ph-collection,.ph-reader";
     const onTouchMove = (e: TouchEvent) => {
       const t = e.target as Element | null;
-      if (!t || !t.closest(".reel,.note,.search-results")) e.preventDefault();
+      if (!t || !t.closest(SCROLLABLE)) e.preventDefault();
     };
     document.addEventListener("touchmove", onTouchMove, { passive: false });
     return () => document.removeEventListener("touchmove", onTouchMove);
