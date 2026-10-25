@@ -151,8 +151,11 @@ describe("PhoneApp — the Spell Menu", () => {
     });
     // no window — the menu closed straight into the cast overlay
     expect(container.querySelector(".spell-window")).toBeNull();
-    expect(container.querySelector(".spell.show")).toBeTruthy();
+    const overlay = container.querySelector(".spell.show");
+    expect(overlay).toBeTruthy();
     expect(container.querySelector(".spell-overlay")).toBeNull();
+    // no text anywhere over the main screen during a cast — ring + rune only
+    expect(overlay?.textContent).toBe("");
     await act(async () => {
       await new Promise((r) => setTimeout(r, 1000));
     });
@@ -169,6 +172,10 @@ describe("PhoneApp — the Spell Menu", () => {
     expect(container.querySelector(".spell-window")).toBeTruthy();
     // the ring is still open underneath (blurred), not a full close
     expect(container.querySelector(".spell-overlay")).toBeTruthy();
+    // Sign out is the one destructive action here — marked danger (red), not the
+    // same quiet accent colour as a plain dismiss.
+    const signOut = Array.from(container.querySelectorAll<HTMLElement>(".sw-close")).find((b) => b.textContent === "Sign out");
+    expect(signOut?.classList.contains("danger")).toBe(true);
 
     await act(async () => {
       fireEvent.click(container.querySelector<HTMLElement>(".sw-primary")!);

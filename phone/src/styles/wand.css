@@ -766,15 +766,6 @@ body {
     opacity: 0;
   }
 }
-.spell .label {
-  position: absolute;
-  bottom: 180px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.4px;
-  color: hsl(var(--gold));
-}
-
 /* ===========================================================================
    ACCIO — the summon bar filters the home reel in place.
    =========================================================================== */

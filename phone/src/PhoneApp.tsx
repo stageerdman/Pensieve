@@ -134,7 +134,7 @@ export function PhoneApp() {
   const [editingNote, setEditingNote] = useState(false);
   const [kbOpen, setKbOpen] = useState(false);
   const [micListening, setMicListening] = useState(false);
-  const [spell, setSpell] = useState({ show: false, castId: 0, label: "", labelColor: "" });
+  const [spell, setSpell] = useState({ show: false, castId: 0 });
   const [recents, setRecents] = useState<string[]>(loadRecents);
   const [toast, setToast] = useState("");
   const [sparkle, setSparkle] = useState(0); // a brief close/switch twinkle (0 = none)
@@ -445,17 +445,18 @@ export function PhoneApp() {
 
   // ---- sync actions ----
   // One cast drives both directions — back up (weave UP) and restore (pull DOWN)
-  // share the spell visual and the success/fail machine, differing only in copy
-  // and which real engine call runs underneath.
-  function castSpell(opts?: { weaving?: string; restore?: boolean }) {
+  // share the spell visual and the success/fail machine, differing only in which
+  // real engine call runs underneath. No on-screen copy for either: the header's
+  // SyncRune (reminder/syncing/offline/failed colouring) is the only status signal
+  // outside the Sync window — see sync.cast()/succeeded()/failed() below.
+  function castSpell(opts?: { restore?: boolean }) {
     if (syncStatus === "syncing" || syncStatus === "offline") return;
     sync.cast();
     haptic(14);
     const castId = spell.castId + 1;
-    setSpell({ show: true, castId, label: opts?.weaving ?? "Weaving to the cloud…", labelColor: "" });
+    setSpell({ show: true, castId });
     const task = opts?.restore ? onedrive.restore() : onedrive.run();
-    void task.then(({ ok, message }) => {
-      setSpell((s) => ({ ...s, label: message, labelColor: ok ? "hsl(var(--success))" : "hsl(var(--danger))" }));
+    void task.then(({ ok }) => {
       setTimeout(() => {
         setSpell((s) => ({ ...s, show: false }));
         if (ok) sync.succeeded();
@@ -535,7 +536,7 @@ export function PhoneApp() {
   function syncWindowRestore() {
     if (syncStatus === "offline" || syncStatus === "syncing") return;
     menu.close();
-    castSpell({ weaving: "Pulling your memories from the cloud…", restore: true });
+    castSpell({ restore: true });
   }
 
   // ---- wire the fns ref (latest closures) ----
@@ -646,7 +647,7 @@ export function PhoneApp() {
       />
 
       {/* SYNC cast animation (the gold spell) */}
-      <SyncSpell show={spell.show} castId={spell.castId} label={spell.label} labelColor={spell.labelColor} />
+      <SyncSpell show={spell.show} castId={spell.castId} />
 
       {/* ACCIO searching sheet + the summon bar — mounted ONLY while searching (openAccio
           flushSyncs `searching` true so the input exists for its in-gesture focus), so

@@ -93,7 +93,7 @@ export function SpellWindow({ spellId, syncState, account, connected, onClose, o
           )}
           <div className="sw-foot">
             <span className="sw-acct">{account}</span>
-            <button className="sw-close" onClick={onDisconnect}>
+            <button className="sw-close danger" onClick={onDisconnect}>
               Sign out
             </button>
           </div>
