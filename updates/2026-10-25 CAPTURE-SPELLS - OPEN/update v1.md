@@ -40,9 +40,22 @@ take up to that point must still end up saved on the note, not stranded.
 6. `npm run deploy:phone` + close out.
 
 ## Status
-SHIPPED: merged to `main`, phone PWA deployed (pensieve-phone.pages.dev). Build/typecheck/tests
-all green (240 tests) throughout. Folder CLOSED.
+Phases 1-5 SHIPPED (merge `659951a`, deployed). REOPENED for owner-reported fixes (Phase 6):
 
-Owed: a real-device pass. Nothing in this environment can simulate iOS mic capture,
-backgrounding/lock behavior, wake lock, or the Notification+beep — see wiki.md "What's NOT
-verified."
+6. Owner feedback after a real-device pass:
+   - Snap wasn't instant (action-sheet detour, deferred click broke the gesture) → camera opens
+     directly now, triggered synchronously in the tap handler.
+   - A finished recording showed a stuck "0:00 / 0:00" → two real bugs fixed: the final Blob's
+     mimeType could mismatch what the browser actually encoded (stamped with our requested
+     candidate instead of `recorder.mimeType`'s negotiated value), and the audio player's
+     existing Infinity/NaN duration self-heal didn't also cover a flat `duration === 0` (which
+     is what a chunk-assembled recording reports).
+   - "Empty" placeholder notes (Snap/Record cancelled or denied) were getting saved because the
+     original design committed them eagerly, on note creation, regardless of outcome — now
+     nothing commits until real content exists (an image attaches, the mic genuinely starts, or
+     the user types), see wiki.md "Empty-note discard".
+   - New: a "Delete" spell in the note's Conditional ring (red/danger hue) — confirm/cancel
+     popup, never deletes on the tap itself.
+
+Build/typecheck/tests green throughout (240 phone + 1008 desktop). Re-closing once merged +
+deployed. Still owed: a real-device pass on these specific fixes.

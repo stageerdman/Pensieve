@@ -99,13 +99,15 @@ function create(src: string): Impl {
   el.addEventListener("loadedmetadata", () => emit(c, "durationchange"));
 
   // Self-heal a missing duration (MediaRecorder WebM / fragmented mp4 sometimes report
-  // Infinity/NaN with no seek index) — seek far past the end once to force the engine to
-  // scan + build a seek table, then jump back to the start.
+  // Infinity/NaN with no seek index — and a recording ASSEMBLED FROM MULTIPLE CHUNKS, like the
+  // phone's chunked voice-recording engine, can report a flat 0 instead, since the container's
+  // header only ever described the live/open-ended stream it started as) — seek far past the
+  // end once to force the engine to scan + build a seek table, then jump back to the start.
   let healed = false;
   const healDuration = () => {
     if (healed) return;
     const d = el.duration;
-    if (d === Infinity || Number.isNaN(d)) {
+    if (d === Infinity || Number.isNaN(d) || d === 0) {
       healed = true;
       const onTick = () => {
         el.removeEventListener("timeupdate", onTick);

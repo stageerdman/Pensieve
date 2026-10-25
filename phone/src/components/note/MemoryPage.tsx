@@ -8,10 +8,9 @@
 // (Internal class names + refs still use the legacy `note*` prefix — a cosmetic rename
 // deferred to keep this change surgical.)
 //
-// Media: a hidden <input type=file accept=image/* multiple> (NO capture attr → the native
-// iOS sheet: Photo Library / Take Photo / Choose File) is the ONE picker both reach-points
-// drive — the NoteToolbar photo button (keyboard-up) and the "Photo" spell (keyboard-down,
-// via the gold spell-menu opener in the BOTTOM action bar — see the phone control standard).
+// Media: the hidden file-picker input now lives at the PhoneApp root (not here) — the "Snap"
+// spell must reach it from the HOME screen too, before any memory is open, so it can't be
+// scoped to this page's own DOM.
 
 import { NoteBody } from "./NoteBody";
 import { NoteToolbar, type FmtKey } from "./NoteToolbar";
@@ -26,7 +25,6 @@ export function MemoryPage({
   dateRef,
   savedRef,
   voiceRef,
-  fileInputRef,
   micListening,
   onBack,
   onDateClick,
@@ -36,7 +34,6 @@ export function MemoryPage({
   onBodyBlur,
   onFormat,
   onInsertImage,
-  onPickFiles,
   onOpenSpellMenu,
   onVoice,
   onDone,
@@ -48,7 +45,6 @@ export function MemoryPage({
   dateRef: React.RefObject<HTMLDivElement>;
   savedRef: React.RefObject<HTMLDivElement>;
   voiceRef: React.RefObject<HTMLButtonElement>;
-  fileInputRef: React.RefObject<HTMLInputElement>;
   micListening: boolean;
   onBack: () => void;
   onDateClick: () => void;
@@ -58,7 +54,6 @@ export function MemoryPage({
   onBodyBlur: () => void;
   onFormat: (f: FmtKey) => void;
   onInsertImage: () => void;
-  onPickFiles: (files: FileList | null) => void;
   onOpenSpellMenu: () => void;
   onVoice: () => void;
   onDone: () => void;
@@ -94,18 +89,6 @@ export function MemoryPage({
       {/* Bottom control bar = the 4-cell Dock (phone standard): Back beside the Spell Menu opener
           (Conditional "Photo"), bottom-right. Hides while editing — the keyboard toolbar takes over. */}
       <NoteActions onBack={onBack} onOpenMenu={onOpenSpellMenu} />
-      {/* the ONE picker: native iOS sheet (no `capture` → Photo Library / Take Photo / Choose File) */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        hidden
-        onChange={(e) => {
-          onPickFiles(e.target.files);
-          e.target.value = ""; // allow re-picking the same file
-        }}
-      />
     </div>
   );
 }

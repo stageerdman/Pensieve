@@ -41,6 +41,13 @@ export interface VoiceCaptureDeps {
   /** Best-effort user feedback. Omit the call entirely when there's nothing worth saying
    *  (e.g. the app wasn't visible to see it). */
   toast?: (msg: string) => void;
+  /** Called by the UI panel (never by this engine) right after the mic genuinely starts —
+   *  carried on this same deps bag purely so PhoneApp has one seam, not two. */
+  onRecordingStarted?: (noteId: string) => void;
+  /** A session finalized with ZERO captured chunks (stopped within the first flush interval)
+   *  — if the note's content still exactly matches what it was when recording started (nothing
+   *  else happened meanwhile), undo the early commit rather than leave an empty note behind. */
+  removeIfUntouched?: (noteId: string, placeholderBody: string) => void;
 }
 
 // Prefer M4A/AAC (audio/mp4) — Safari/WebKit (both the desktop app's WKWebView and iOS Safari,
@@ -133,6 +140,9 @@ interface ActiveState {
   audioCtx: AudioContext | null;
   state: VoiceRecorderState;
   wakeLock: { release: () => Promise<void> } | null;
+  /** The most recently scheduled chunk write — awaited before finalize reads chunks back, so
+   *  the LAST chunk's fire-and-forget IndexedDB write can never lose a race with finalize. */
+  lastAppend: Promise<void>;
 }
 
 let active: ActiveState | null = null;
@@ -149,6 +159,7 @@ function describeMicError(e: unknown): string {
 async function finalizeAndCleanup(session: RecordingSessionMeta, deps: VoiceCaptureDeps, toastMsg?: string): Promise<void> {
   const chunks = await readChunksOrdered(session.id);
   if (chunks.length === 0) {
+    deps.removeIfUntouched?.(session.noteId, session.placeholderBody);
     await deleteSession(session.id);
     return;
   }
@@ -180,19 +191,22 @@ function teardownStream(a: ActiveState) {
   }
 }
 
-/** Stop the live MediaRecorder and wait for its final chunk to flush — resolves even if
- *  `onstop` never fires (a stalled mic/device), so callers never hang indefinitely. */
+/** Stop the live MediaRecorder and wait for its final chunk to flush AND durably land in
+ *  IndexedDB — resolves even if `onstop` never fires (a stalled mic/device), so callers never
+ *  hang indefinitely. Without the trailing `lastAppend` wait, finalize could read chunks back
+ *  before the very last `appendChunk` write (fired from `onstop`'s own `ondataavailable`) had
+ *  actually committed — a race that would silently drop the tail of the recording. */
 function flushAndStopRecorder(a: ActiveState): Promise<void> {
   return new Promise((resolve) => {
     if (a.recorder.state === "inactive") {
-      resolve();
+      void a.lastAppend.finally(resolve);
       return;
     }
     let done = false;
     const finish = () => {
       if (done) return;
       done = true;
-      resolve();
+      void a.lastAppend.finally(resolve);
     };
     a.recorder.onstop = finish;
     try {
@@ -291,9 +305,16 @@ export function isRecording(): boolean {
   return active !== null;
 }
 
-/** Start capturing into `noteId`. Resolves `{ok:false}` if the mic can't be opened — the caller
- *  shows that as an inline error, no note mutation happens. */
-export async function startRecording(noteId: string, deps: VoiceCaptureDeps): Promise<{ ok: true } | { ok: false; error: string }> {
+/** Start capturing into `noteId`. `placeholderBody` is the note's untouched content at this
+ *  exact moment — stored on the session so a later zero-chunk finalize can tell "still
+ *  untouched" apart from "the user added real content while this was running" (see
+ *  VoiceCaptureDeps.removeIfUntouched). Resolves `{ok:false}` if the mic can't be opened — the
+ *  caller shows that as an inline error, no note mutation happens. */
+export async function startRecording(
+  noteId: string,
+  placeholderBody: string,
+  deps: VoiceCaptureDeps,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   if (active) return { ok: false, error: "A recording is already in progress." };
   let stream: MediaStream;
   try {
@@ -318,20 +339,26 @@ export async function startRecording(noteId: string, deps: VoiceCaptureDeps): Pr
     data = null;
   }
 
-  const mimeType = pickMimeType();
-  const session: RecordingSessionMeta = { id: mintSessionId(), noteId, mimeType, startedAt: Date.now() };
+  const requested = pickMimeType();
+  const recorder = new MediaRecorder(stream, requested ? { mimeType: requested } : undefined);
+  // The blob we eventually build MUST be tagged with what the browser actually encoded, not
+  // what we asked for — `recorder.mimeType` is the browser's own negotiated value (it can
+  // differ from `requested`, e.g. when requested is "" and it picks its platform default).
+  // Stamping the final Blob with the wrong type is a real way to get an undecodable file that
+  // shows as a stuck "0:00 / 0:00" player despite the bytes being perfectly fine.
+  const mimeType = recorder.mimeType || requested;
+  const session: RecordingSessionMeta = { id: mintSessionId(), noteId, mimeType, startedAt: Date.now(), placeholderBody };
   await createSession(session);
 
-  const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
   const clock = new RecordingClock();
-  const a: ActiveState = { session, deps, stream, recorder, seq: 0, clock, analyser, data, audioCtx, state: "recording", wakeLock: null };
+  const a: ActiveState = { session, deps, stream, recorder, seq: 0, clock, analyser, data, audioCtx, state: "recording", wakeLock: null, lastAppend: Promise.resolve() };
   active = a;
 
   recorder.ondataavailable = (e: BlobEvent) => {
     if (active !== a) return;
     if (e.data && e.data.size > 0) {
       const seq = a.seq++;
-      void appendChunk(a.session.id, seq, e.data);
+      a.lastAppend = appendChunk(a.session.id, seq, e.data);
     }
   };
   recorder.onerror = () => void handleRecorderFailure();

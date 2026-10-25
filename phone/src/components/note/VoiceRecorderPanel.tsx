@@ -20,6 +20,10 @@ import {
 
 export interface VoiceRecorderPanelProps {
   noteId: string;
+  /** The note's untouched content right now (its "New Recording"/"added recording" placeholder)
+   *  — handed to the engine so a near-instant stop with nothing captured can tell "still
+   *  untouched" apart from "the user typed something while this was running". */
+  placeholderBody: string;
   deps: VoiceCaptureDeps;
   /** Always fires once the take is safely saved (or, on a mic error, once dismissed). */
   onClose: () => void;
@@ -28,7 +32,7 @@ export interface VoiceRecorderPanelProps {
 type Phase = "requesting" | "live" | "error";
 const BAR_COUNT = 7;
 
-export function VoiceRecorderPanel({ noteId, deps, onClose }: VoiceRecorderPanelProps) {
+export function VoiceRecorderPanel({ noteId, placeholderBody, deps, onClose }: VoiceRecorderPanelProps) {
   const [phase, setPhase] = useState<Phase>("requesting");
   const [error, setError] = useState("");
   const [elapsed, setElapsed] = useState(0);
@@ -48,7 +52,7 @@ export function VoiceRecorderPanel({ noteId, deps, onClose }: VoiceRecorderPanel
 
   useEffect(() => {
     let alive = true;
-    void startRecording(noteId, deps).then((r) => {
+    void startRecording(noteId, placeholderBody, deps).then((r) => {
       if (!alive) return;
       if (!r.ok) {
         setPhase("error");
@@ -56,6 +60,7 @@ export function VoiceRecorderPanel({ noteId, deps, onClose }: VoiceRecorderPanel
         return;
       }
       setPhase("live");
+      deps.onRecordingStarted?.(noteId);
       haptic(10);
       const loop = () => {
         const snap = activeSnapshot();

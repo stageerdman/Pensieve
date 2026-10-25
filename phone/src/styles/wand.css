@@ -2136,6 +2136,69 @@ body {
   color: hsl(var(--text));
 }
 
+/* ── "Delete this memory?" confirm/cancel popup (Conditional "Delete" spell) ── */
+.ph-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 195;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px;
+  background: hsl(var(--surface) / 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: ph-fade 0.18s var(--ease);
+}
+.ph-confirm-card {
+  width: 100%;
+  max-width: 320px;
+  border-radius: var(--radius);
+  padding: 22px 20px;
+  background: hsl(var(--surface-raised) / 0.96);
+  border: 1px solid hsl(var(--text) / 0.08);
+  box-shadow: 0 30px 90px -24px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.ph-confirm-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: hsl(var(--text));
+}
+.ph-confirm-body {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: hsl(var(--text-muted));
+}
+.ph-confirm-actions {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+}
+.ph-confirm-cancel,
+.ph-confirm-delete {
+  flex: 1;
+  padding: 13px 0;
+  border-radius: var(--radius);
+  border: none;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ph-confirm-cancel {
+  background: hsl(var(--text) / 0.08);
+  color: hsl(var(--text));
+}
+.ph-confirm-delete {
+  background: hsl(var(--danger));
+  color: hsl(0 0% 100%);
+}
+
 .thread {
   position: absolute;
   inset: 0;
