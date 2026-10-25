@@ -113,7 +113,19 @@ application** platform redirect specifically (that's what gets CORS treatment).
   `~/dev/html-posting/.env` creds — that token already covers Pages, no owner
   action needed). Live at https://pensieve-phone.pages.dev. SPA fallback routing
   confirmed (`/auth/callback` returns 200, not 404).
-- **Next:** Phase 6 — owner adds the production SPA redirect in Azure (see above),
-  then device test: open the hosted URL on the iPhone, install to home screen,
-  Connect OneDrive, confirm a note written on the phone shows up in the desktop
-  app (and vice versa) after a sync.
+- **Phase 6 done — owner-confirmed on device (2026-10-25).** Owner added the
+  production Azure SPA redirect, installed the hosted PWA to the home screen,
+  connected OneDrive, and confirmed sync works end-to-end. Three follow-up polish
+  rounds landed after that first confirmation, all owner-reviewed:
+  1. Desktop-parity sync UI: shared `SyncRune` component (exact lemniscate glyph +
+     flow animation as `src/components/icons.tsx`), header swaps "N memories" for
+     the rune whenever sync needs attention (reminder/syncing/offline/failed), Spell
+     Menu's Sync glyph recoloured by live state, Spell Menu trimmed to the three
+     real spells (Write/Accio/Sync — no leftover prototype placeholders), tap-to-
+     cast/hold-to-open-panel on Sync, backdrop-tap dismiss (no "Done" button).
+  2. Fixed: long-press on Sync was triggering iOS's text-selection/copy callout on
+     the popup (`.spell-overlay` now disables user-select/touch-callout); "Sign
+     out" recoloured red (the one destructive action in that footer); the
+     center-screen cast overlay no longer shows any text (ring + rune only) — the
+     header rune is the sole status signal outside the Sync window.
+  - **CLOSED 2026-10-25.** Merged `update/pwa-capture` into `main`, branch pruned.
