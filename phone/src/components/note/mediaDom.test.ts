@@ -6,7 +6,7 @@
 import "../../test/phoneSetup";
 import { describe, expect, it } from "vitest";
 import { commitMove, insertImages, renderNoteBody, serializeNoteBody } from "./mediaDom";
-import { galleryMd, IMAGE_FENCE, mediaAlt } from "../../lib/media/noteMedia";
+import { AUDIO_FENCE, galleryMd, IMAGE_FENCE, mediaAlt } from "../../lib/media/noteMedia";
 
 const ctx = { onChange: () => {} };
 
@@ -100,6 +100,16 @@ describe("mediaDom — render <-> serialize", () => {
     const el = body();
     renderNoteBody(el, "T", content, ctx);
     expect(el.querySelector("ol.ph-list")).toBeTruthy();
+    expect(serializeNoteBody(el).content).toBe(content);
+  });
+
+  it("a pensieve:audio fence renders as a real play bar, not raw fence text, and round-trips", () => {
+    const content = "```" + AUDIO_FENCE + "\nmedia/1/a.m4a\na caption\n```";
+    const el = body();
+    renderNoteBody(el, "T", content, ctx);
+    expect(el.textContent).not.toContain(AUDIO_FENCE);
+    expect(el.querySelector(".ph-media.ph-audio .ph-audio-bar")).toBeTruthy();
+    expect(el.querySelector(".ph-audio-caption")?.textContent).toBe("a caption");
     expect(serializeNoteBody(el).content).toBe(content);
   });
 

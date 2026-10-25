@@ -1429,6 +1429,177 @@ body {
   }
 }
 
+/* ── voice recording: a quiet inline bar (reuses the desktop AudioBar's visual language —
+   play/pause, progress, time, a transcript icon — no waveform/menu/record, which stay
+   desktop-only; phone capture is a separate future update) ── */
+.ph-audio-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: hsl(var(--surface-raised));
+  border: 1px solid hsl(var(--border));
+}
+.ph-audio-play {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: hsl(var(--accent));
+  color: hsl(var(--surface));
+  border: none;
+  touch-action: none; /* tapped via wireMediaTap, not native click-scroll */
+}
+.ph-audio-track {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 4px;
+  border-radius: 999px;
+  background: hsl(var(--text) / 0.12);
+  position: relative;
+  touch-action: none;
+}
+.ph-audio-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0%;
+  border-radius: 999px;
+  background: hsl(var(--accent));
+}
+.ph-audio-time {
+  flex: none;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--text-muted));
+}
+.ph-audio-transcript {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: hsl(var(--text-muted));
+  border: none;
+  touch-action: none;
+}
+.ph-audio-caption {
+  margin-top: 6px;
+  font-size: 12px;
+  color: hsl(var(--text-muted));
+}
+.ph-media.ph-audio.is-broken .ph-audio-bar {
+  background: hsl(var(--warn) / 0.08);
+  border-color: hsl(var(--warn) / 0.3);
+}
+.ph-audio-broken {
+  font-size: 13px;
+  color: hsl(var(--warn));
+}
+
+/* ── full-screen transcript reader (Spotify-style): pinned mini player + scrollable text ── */
+.ph-reader {
+  position: fixed;
+  inset: 0;
+  z-index: 175; /* above the collection (145), below the single-photo lightbox (180) */
+  display: flex;
+  flex-direction: column;
+  background: hsl(var(--surface));
+}
+.ph-reader-top {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: max(14px, env(safe-area-inset-top, 0px)) 16px 10px;
+}
+.ph-reader-close {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: hsl(var(--text) / 0.08);
+  color: hsl(var(--text));
+  border: none;
+}
+.ph-reader-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: hsl(var(--text-muted));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ph-reader-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 20px calc(110px + env(safe-area-inset-bottom, 0px));
+}
+.ph-reader-line {
+  font-size: 17px;
+  line-height: 1.6;
+  margin: 0 0 1em;
+  color: hsl(var(--text));
+}
+.ph-reader-speaker {
+  color: hsl(var(--text-muted));
+  font-weight: 600;
+}
+.ph-reader-player {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, hsl(var(--surface)) 60%, hsl(var(--surface) / 0));
+}
+.ph-reader-play {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: hsl(var(--accent));
+  color: hsl(var(--surface));
+  border: none;
+}
+.ph-reader-track {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 4px;
+  border-radius: 999px;
+  background: hsl(var(--text) / 0.12);
+  position: relative;
+}
+.ph-reader-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0%;
+  border-radius: 999px;
+  background: hsl(var(--accent));
+}
+.ph-reader-time {
+  flex: none;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--text-muted));
+}
+
 /* gallery = a Pinterest "saved collection": a composite cover → full-screen masonry */
 .ph-gallery {
   position: relative;

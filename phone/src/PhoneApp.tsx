@@ -51,8 +51,10 @@ import { insertImages, renderNoteBody, type MediaCtx } from "./components/note/m
 import { phoneCollection } from "./lib/media/collectionController";
 import { PhoneLightbox } from "./components/note/PhoneLightbox";
 import { PhoneCollection } from "./components/note/PhoneCollection";
+import { PhoneTranscriptReader } from "./components/note/PhoneTranscriptReader";
 import { mintMediaRef, registerLocalMedia } from "./lib/media/mediaStore";
 import type { MediaImage } from "./lib/media/noteMedia";
+import { pauseAllAudio } from "./lib/media/audioController";
 
 const DICTATION_SAMPLE =
   "I keep coming back to the idea that the phone shouldn't make me think. It should just catch the thought before it escapes.";
@@ -295,6 +297,7 @@ export function PhoneApp() {
 
   function exitNote() {
     if (currentRef.current) autosave.commit();
+    pauseAllAudio(); // leaving the memory — any recording playing in it should stop
     setNoteOpen(false); // slides down
     setEditingNote(false);
     currentRef.current = null;
@@ -720,6 +723,7 @@ export function PhoneApp() {
       {/* THE LIGHTBOX — full-screen image viewer (summoned imperatively from a media block) */}
       <PhoneLightbox />
       <PhoneCollection onOpenMenu={() => { haptic(10); menu.openMenu(); }} />
+      <PhoneTranscriptReader />
 
       <ConjureThread threadRef={threadRef} />
       <div className="home-indicator" />

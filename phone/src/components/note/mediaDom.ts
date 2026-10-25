@@ -16,6 +16,7 @@
 import { esc, haptic } from "../../util";
 import {
   collapseImages,
+  encodeAudioNoteBlock,
   encodeImageNoteBlock,
   galleryMd,
   mediaAlt,
@@ -24,9 +25,11 @@ import {
   type MediaImage,
   type NoteBlock,
 } from "../../lib/media/noteMedia";
-import { cachedMediaUrl, resolveMediaUrl } from "../../lib/media/mediaStore";
+import { cachedMediaUrl, loadTranscript, resolveMediaUrl } from "../../lib/media/mediaStore";
 import { phoneLightbox } from "../../lib/media/lightboxController";
 import { phoneCollection } from "../../lib/media/collectionController";
+import { fmtTime, getController } from "../../lib/media/audioController";
+import { phoneTranscriptReader } from "../../lib/media/transcriptReaderController";
 
 export interface MediaCtx {
   /** fired after any media mutation so the app can schedule an autosave. */
@@ -89,7 +92,7 @@ function appendGrip(el: HTMLElement) {
  *  A scroll (finger moved past the threshold) is left untouched so the page still scrolls when the
  *  drag starts on a photo. Mouse/desktop falls through to `click`. */
 const TAP_SLOP_PX = 10;
-function wireMediaTap(el: HTMLElement, onTap: () => void) {
+function wireMediaTap(el: HTMLElement, onTap: (clientX: number) => void) {
   let sx = 0;
   let sy = 0;
   let moved = false;
@@ -122,14 +125,14 @@ function wireMediaTap(el: HTMLElement, onTap: () => void) {
       if (e.cancelable) e.preventDefault(); // stop iOS focusing the editable + the ghost click
       lastTouchTapAt = Date.now();
       blurActive();
-      onTap();
+      onTap(sx);
     },
     { passive: false },
   );
-  el.addEventListener("click", () => {
+  el.addEventListener("click", (e) => {
     if (Date.now() - lastTouchTapAt < 700) return; // the touchend tap already handled this
     blurActive();
-    onTap();
+    onTap((e as MouseEvent).clientX);
   });
 }
 
@@ -198,6 +201,105 @@ function buildImageEl(block: Extract<NoteBlock, { kind: "image" }>, ctx: MediaCt
   });
   appendGrip(el);
   void ctx; // image block has no in-place mutation (remove/caption handled at gallery level)
+  return el;
+}
+
+// ---- voice recording block ----
+//
+// Reuses the desktop AudioBar's visual language (play/pause, progress, time, a transcript
+// icon) in a quieter phone-sized bar — no waveform/menu/record, which are desktop-only (phone
+// capture is a separate future update). The transcript icon is absent until a sidecar resolves
+// present; tapping it hands off to the full-screen reader (transcriptReaderController), which
+// shares THIS block's playback controller by ref so the audio never restarts or duplicates.
+
+const PLAY_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a.75.75 0 0 0 1.14.64l10.5-6.5a.75.75 0 0 0 0-1.28L9.14 4.86A.75.75 0 0 0 8 5.5Z"/></svg>';
+const PAUSE_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5" width="3.6" height="14" rx="1"/><rect x="13.9" y="5" width="3.6" height="14" rx="1"/></svg>';
+const TRANSCRIPT_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6h14"/><path d="M5 10h10"/><path d="M5 14h14"/><path d="M5 18h8"/></svg>';
+
+function buildAudioEl(block: Extract<NoteBlock, { kind: "audio" }>, ctx: MediaCtx): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "ph-media ph-audio";
+  el.contentEditable = "false";
+  writeBlock(el, block);
+  void ctx; // no in-place mutation yet (remove/replace are a future fast-follow, like images)
+
+  const bar = document.createElement("div");
+  bar.className = "ph-audio-bar";
+
+  const playBtn = document.createElement("button");
+  playBtn.type = "button";
+  playBtn.className = "ph-audio-play";
+  playBtn.setAttribute("aria-label", "Play");
+  playBtn.innerHTML = PLAY_SVG;
+
+  const track = document.createElement("div");
+  track.className = "ph-audio-track";
+  const fill = document.createElement("div");
+  fill.className = "ph-audio-fill";
+  track.appendChild(fill);
+
+  const time = document.createElement("span");
+  time.className = "ph-audio-time";
+  time.textContent = "0:00 / 0:00";
+
+  const transcriptBtn = document.createElement("button");
+  transcriptBtn.type = "button";
+  transcriptBtn.className = "ph-audio-transcript";
+  transcriptBtn.setAttribute("aria-label", "Transcript");
+  transcriptBtn.innerHTML = TRANSCRIPT_SVG;
+  transcriptBtn.hidden = true; // shown only once a sidecar resolves present
+
+  bar.append(playBtn, track, time, transcriptBtn);
+  el.appendChild(bar);
+  if (block.caption) {
+    const cap = document.createElement("div");
+    cap.className = "ph-audio-caption";
+    cap.textContent = block.caption;
+    el.appendChild(cap);
+  }
+  appendGrip(el);
+
+  const ref = block.ref;
+  void resolveMediaUrl(ref).then((url) => {
+    if (!url) {
+      el.classList.add("is-broken");
+      bar.innerHTML = "";
+      const broken = document.createElement("span");
+      broken.className = "ph-audio-broken";
+      broken.textContent = "Recording missing";
+      bar.appendChild(broken);
+      return;
+    }
+    const c = getController(ref, url);
+    const render = () => {
+      playBtn.innerHTML = c.playing ? PAUSE_SVG : PLAY_SVG;
+      playBtn.setAttribute("aria-label", c.playing ? "Pause" : "Play");
+      const dur = c.duration;
+      const frac = Number.isFinite(dur) && dur > 0 ? c.currentTime / dur : 0;
+      fill.style.width = `${Math.min(1, Math.max(0, frac)) * 100}%`;
+      time.textContent = `${fmtTime(c.currentTime)} / ${fmtTime(dur)}`;
+    };
+    render();
+    c.on("play", render);
+    c.on("pause", render);
+    c.on("time", render);
+    c.on("durationchange", render);
+
+    wireMediaTap(playBtn, () => c.toggle());
+    wireMediaTap(track, (clientX) => {
+      const r = track.getBoundingClientRect();
+      c.seekFrac(Math.min(1, Math.max(0, (clientX - r.left) / r.width)));
+    });
+
+    void loadTranscript(ref).then((t) => {
+      if (!t) return;
+      transcriptBtn.hidden = false;
+      wireMediaTap(transcriptBtn, () => {
+        phoneTranscriptReader.open({ ref, src: url, transcript: t, caption: block.caption });
+      });
+    });
+  });
+
   return el;
 }
 
@@ -396,6 +498,7 @@ function buildBlockEl(block: NoteBlock, ctx: MediaCtx, noteBody: HTMLElement): H
   if (block.kind === "image") return buildImageEl(block, ctx);
   if (block.kind === "gallery") return buildGalleryEl(block, ctx, noteBody);
   if (block.kind === "list") return buildListGroup(block.items);
+  if (block.kind === "audio") return buildAudioEl(block, ctx);
   // text
   const div = document.createElement("div");
   div.innerHTML = block.text.trim() ? esc(block.text) : "<br>";
@@ -458,6 +561,7 @@ export function serializeNoteBody(noteBody: HTMLElement): { title: string; conte
       const b = readBlock(el);
       if (b?.kind === "image") parts.push(encodeImageNoteBlock(b));
       else if (b?.kind === "gallery") parts.push(galleryMd(b.images, b.height));
+      else if (b?.kind === "audio") parts.push(encodeAudioNoteBlock(b));
     } else if (el.tagName === "UL" || el.tagName === "OL") {
       parts.push(serializeListEl(el).join("\n"));
     } else {
