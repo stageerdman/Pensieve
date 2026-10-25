@@ -40,7 +40,9 @@ take up to that point must still end up saved on the note, not stranded.
 6. `npm run deploy:phone` + close out.
 
 ## Status
-Phases 1-4 done (spells wired, engine built, panel built, all integrated). Build/typecheck/
-tests all green (241 tests). Merging to main, deploying the phone PWA, then closing out —
-real-device verification of recording/backgrounding/wake-lock behavior is still owed (noted in
-wiki.md) since nothing here can simulate that.
+SHIPPED: merged to `main`, phone PWA deployed (pensieve-phone.pages.dev). Build/typecheck/tests
+all green (240 tests) throughout. Folder CLOSED.
+
+Owed: a real-device pass. Nothing in this environment can simulate iOS mic capture,
+backgrounding/lock behavior, wake lock, or the Notification+beep — see wiki.md "What's NOT
+verified."
