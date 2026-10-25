@@ -178,3 +178,31 @@ function mintMediaId(): string {
 export function mintMediaRef(noteId: number | string, file: File): string {
   return `${MEDIA_DIR}/${noteId}/${mintMediaId()}.${extForFile(file)}`;
 }
+
+// Mirrors desktop src/components/editor/media/insertAudio.ts's AUDIO_MIME_EXT (duplicated on
+// purpose — the two apps are deliberately decoupled, see this file's header).
+const AUDIO_EXT_BY_MIME: Record<string, string> = {
+  "audio/mp4": "m4a",
+  "audio/x-m4a": "m4a",
+  "audio/aac": "aac",
+  "audio/mpeg": "mp3",
+  "audio/mp3": "mp3",
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+  "audio/webm": "webm",
+  "audio/ogg": "ogg",
+};
+
+/** A recorded blob's mime carries codec params ("audio/webm;codecs=opus") — strip them before
+ *  the lookup, else it falls through to the default. */
+export function audioExtForMime(mimeType: string): string {
+  const bare = (mimeType || "").split(";")[0].trim().toLowerCase();
+  return AUDIO_EXT_BY_MIME[bare] ?? "m4a";
+}
+
+/** Mint a stable vault-relative ref for a freshly recorded take — same `media/<noteId>/<id>.
+ *  <ext>` shape as `mintMediaRef`, but driven by a MIME string (a MediaRecorder Blob has no
+ *  File.name to infer the extension from). */
+export function mintAudioRef(noteId: string, mimeType: string): string {
+  return `${MEDIA_DIR}/${noteId}/${mintMediaId()}.${audioExtForMime(mimeType)}`;
+}
