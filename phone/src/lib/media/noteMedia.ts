@@ -21,6 +21,14 @@ export const GALLERY_FENCE = "pensieve:gallery";
 export const GALLERY_SEP = " | ";
 /** The single vault subfolder all media lives under (matches src/lib/media/ref.ts). */
 export const MEDIA_DIR = "media";
+/** The fence language carrying a single image with a non-default width/crop (matches
+ *  src/lib/md/image.ts) — bare `![]()` can't carry those, so desktop bridges through this
+ *  fence whenever an image was resized or cropped in the editor. The phone never creates one
+ *  (it has no per-image resize UI) but MUST parse + round-trip it losslessly, or a note that
+ *  merely passes through the phone silently loses the desktop's sizing/crop. */
+export const IMAGE_FENCE = "pensieve:image";
+/** Matches src/lib/md/image.ts DEFAULT_IMAGE_WIDTH — 75% of the text column. */
+export const DEFAULT_IMAGE_WIDTH = 0.75;
 
 /** One image: a vault-relative ref (`media/...`) or a direct url (data:/blob:/http). */
 export interface MediaImage {
@@ -28,11 +36,23 @@ export interface MediaImage {
   caption?: string;
 }
 
+/** One list item, in the markdown-list tree (nesting = indentation on disk, matches the
+ *  desktop's BlockNote exporter: `* ` bullets, `N. ` ordered, `* [ ]`/`* [x]` checklists,
+ *  2-space indent per nested level). */
+export interface ListItemNode {
+  ordered: boolean;
+  /** Present only for a checklist item. */
+  checked?: boolean;
+  text: string;
+  children: ListItemNode[];
+}
+
 /** A parsed note body is a list of these blocks, in order. */
 export type NoteBlock =
   | { kind: "text"; text: string }
-  | { kind: "image"; ref: string; caption?: string }
-  | { kind: "gallery"; images: MediaImage[]; height?: number };
+  | { kind: "image"; ref: string; caption?: string; width?: number; aspect?: number; posX?: number; posY?: number }
+  | { kind: "gallery"; images: MediaImage[]; height?: number }
+  | { kind: "list"; items: ListItemNode[] };
 
 /** The desktop gallery's dragged display HEIGHT rides an optional leading `h=<px>` fence line
  *  (matches src/lib/md/gallery.ts). The phone ignores it for layout but MUST round-trip it so the
@@ -51,6 +71,121 @@ const IMAGE_LINE = /^!\[([^\]]*)\]\(([^)]+)\)$/;
 /** Serialize one image → its markdown line. */
 export function imageMd(ref: string, caption?: string): string {
   return `![${caption ?? ""}](${ref})`;
+}
+
+function isDefaultWidth(w: number | undefined): boolean {
+  return w === undefined || Math.abs(w - DEFAULT_IMAGE_WIDTH) < 1e-6;
+}
+function isNaturalAspect(a: number | undefined): boolean {
+  return !a || a <= 0;
+}
+
+/** Serialize a single-image block → markdown: the plain `![caption](ref)` line when it has
+ *  default width and natural (uncropped) aspect, else a `pensieve:image` fence carrying the
+ *  size/crop (mirrors desktop's encodeImageBlock exactly, so a note that merely passes
+ *  through the phone keeps the desktop's sizing byte-for-byte). */
+export function encodeImageNoteBlock(b: Extract<NoteBlock, { kind: "image" }>): string {
+  if (isDefaultWidth(b.width) && isNaturalAspect(b.aspect)) return imageMd(b.ref, b.caption);
+  const parts = [`width=${b.width ?? DEFAULT_IMAGE_WIDTH}`, `aspect=${b.aspect ?? 0}`];
+  if (b.posX !== undefined && Math.abs(b.posX - 50) > 1e-6) parts.push(`posX=${b.posX}`);
+  if (b.posY !== undefined && Math.abs(b.posY - 50) > 1e-6) parts.push(`posY=${b.posY}`);
+  const text = `${b.ref}\n${parts.join(" ")}${b.caption ? `\n${b.caption}` : ""}`;
+  return "```" + IMAGE_FENCE + "\n" + text + "\n```";
+}
+
+/** Parse one `pensieve:image` fence body (the lines between the ``` fences) → an image block,
+ *  or null if there's no ref line. Mirrors desktop's reconstructImageFence. */
+function parseImageFenceLines(inner: string[]): NoteBlock | null {
+  const ref = (inner[0] ?? "").trim();
+  if (!ref) return null;
+  const paramLine = inner[1] ?? "";
+  let width = DEFAULT_IMAGE_WIDTH;
+  let aspect = 0;
+  let posX = 50;
+  let posY = 50;
+  if (paramLine.includes("=")) {
+    const w = /width=([\d.]+)/.exec(paramLine);
+    const a = /aspect=([\d.]+)/.exec(paramLine);
+    const px = /posX=([\d.]+)/.exec(paramLine);
+    const py = /posY=([\d.]+)/.exec(paramLine);
+    if (w) width = Number(w[1]);
+    if (a) aspect = Number(a[1]);
+    if (px) posX = Number(px[1]);
+    if (py) posY = Number(py[1]);
+  } else {
+    const w = Number(paramLine);
+    if (Number.isFinite(w)) width = w;
+  }
+  const caption = inner.slice(2).join("\n");
+  return {
+    kind: "image",
+    ref,
+    ...(caption ? { caption } : {}),
+    ...(!isDefaultWidth(width) ? { width } : {}),
+    ...(aspect > 0 ? { aspect } : {}),
+    ...(aspect > 0 && Math.abs(posX - 50) > 1e-6 ? { posX } : {}),
+    ...(aspect > 0 && Math.abs(posY - 50) > 1e-6 ? { posY } : {}),
+  };
+}
+
+// ---- markdown lists (bullet `* `, numbered `N. `, checklist `* [ ]`/`* [x]`) ----
+
+interface RawListLine {
+  indent: number;
+  ordered: boolean;
+  checked?: boolean;
+  text: string;
+}
+
+const LIST_CHECK_LINE = /^(\s*)[*-]\s+\[([ xX])\]\s+(.*)$/;
+const LIST_NUMBER_LINE = /^(\s*)\d+\.\s+(.*)$/;
+const LIST_BULLET_LINE = /^(\s*)[*-]\s+(.*)$/;
+
+function matchListLine(line: string): RawListLine | null {
+  let m = LIST_CHECK_LINE.exec(line);
+  if (m) return { indent: m[1].length, ordered: false, checked: /x/i.test(m[2]), text: m[3] };
+  m = LIST_NUMBER_LINE.exec(line);
+  if (m) return { indent: m[1].length, ordered: true, text: m[2] };
+  m = LIST_BULLET_LINE.exec(line);
+  if (m) return { indent: m[1].length, ordered: false, text: m[2] };
+  return null;
+}
+
+/** Fold a flat, indent-tagged run of list lines into a nesting tree (stack-based: a line
+ *  nests under the most recent still-shallower line). */
+function buildListTree(lines: RawListLine[]): ListItemNode[] {
+  const root: ListItemNode[] = [];
+  const stack: { indent: number; node: ListItemNode }[] = [];
+  for (const line of lines) {
+    const node: ListItemNode = {
+      ordered: line.ordered,
+      text: line.text,
+      children: [],
+      ...(line.checked !== undefined ? { checked: line.checked } : {}),
+    };
+    while (stack.length && stack[stack.length - 1].indent >= line.indent) stack.pop();
+    (stack.length ? stack[stack.length - 1].node.children : root).push(node);
+    stack.push({ indent: line.indent, node });
+  }
+  return root;
+}
+
+/** Inverse of buildListTree: a nesting tree → markdown lines (2-space indent per level,
+ *  ordered items renumbered sequentially per sibling run — matches the desktop exporter). */
+function flattenListTree(nodes: ListItemNode[], depth = 0): string[] {
+  const out: string[] = [];
+  nodes.forEach((n, i) => {
+    const indent = "  ".repeat(depth);
+    const marker = n.checked !== undefined ? `* [${n.checked ? "x" : " "}] ` : n.ordered ? `${i + 1}. ` : "* ";
+    out.push(indent + marker + n.text);
+    out.push(...flattenListTree(n.children, depth + 1));
+  });
+  return out;
+}
+
+/** Serialize a list block back to its markdown lines (joined). */
+export function listMd(items: ListItemNode[]): string {
+  return flattenListTree(items).join("\n");
 }
 
 /** Accessible alt/aria-label for an image: the caption, or a plain "Image" fallback (never
@@ -85,14 +220,15 @@ function parseGalleryLines(lines: string[]): MediaImage[] {
     });
 }
 
-/** Parse a note body string → an ordered block list (text / image / gallery). */
+/** Parse a note body string → an ordered block list (text / image / gallery / list). */
 export function parseNoteContent(content: string): NoteBlock[] {
   const blocks: NoteBlock[] = [];
   const lines = (content ?? "").split("\n");
-  const fenceOpen = "```" + GALLERY_FENCE;
+  const galleryFenceOpen = "```" + GALLERY_FENCE;
+  const imageFenceOpen = "```" + IMAGE_FENCE;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (line.trim() === fenceOpen) {
+    if (line.trim() === galleryFenceOpen) {
       // collect until the closing ``` (or EOF)
       const inner: string[] = [];
       let j = i + 1;
@@ -111,10 +247,35 @@ export function parseNoteContent(content: string): NoteBlock[] {
       i = j; // skip past the closing fence
       continue;
     }
+    if (line.trim() === imageFenceOpen) {
+      const inner: string[] = [];
+      let j = i + 1;
+      for (; j < lines.length; j++) {
+        if (lines[j].trim() === "```") break;
+        inner.push(lines[j]);
+      }
+      const block = parseImageFenceLines(inner);
+      if (block) blocks.push(block);
+      i = j;
+      continue;
+    }
     const m = line.trim().match(IMAGE_LINE);
     if (m) {
       const caption = m[1] || undefined;
       blocks.push({ kind: "image", ref: m[2].trim(), ...(caption ? { caption } : {}) });
+      continue;
+    }
+    const first = matchListLine(line);
+    if (first) {
+      const raw: RawListLine[] = [first];
+      let j = i + 1;
+      for (; j < lines.length; j++) {
+        const next = matchListLine(lines[j]);
+        if (!next) break;
+        raw.push(next);
+      }
+      blocks.push({ kind: "list", items: buildListTree(raw) });
+      i = j - 1; // the loop's i++ advances to j
       continue;
     }
     blocks.push({ kind: "text", text: line });
@@ -127,7 +288,8 @@ export function serializeBlocks(blocks: NoteBlock[]): string {
   return blocks
     .map((b) => {
       if (b.kind === "text") return b.text;
-      if (b.kind === "image") return imageMd(b.ref, b.caption);
+      if (b.kind === "image") return encodeImageNoteBlock(b);
+      if (b.kind === "list") return listMd(b.items);
       return galleryMd(b.images, b.height);
     })
     .join("\n");
@@ -161,12 +323,14 @@ export function planInsert(images: MediaImage[]): NoteBlock | null {
 // ---- preview stripping (for the reel snippet, matches desktop src/lib/text.ts intent) ----
 
 const GALLERY_FENCE_BLOCK = new RegExp("```" + GALLERY_FENCE + "[\\s\\S]*?```", "g");
+const IMAGE_FENCE_BLOCK = new RegExp("```" + IMAGE_FENCE + "[\\s\\S]*?```", "g");
 
 /** Strip media markdown from a body so the reel snippet shows clean prose, not raw refs.
  *  A single image becomes its caption (or a 📷 marker); a gallery becomes a 📷 marker. */
 export function stripMediaForPreview(content: string): string {
   return (content ?? "")
     .replace(GALLERY_FENCE_BLOCK, "📷 Photos")
+    .replace(IMAGE_FENCE_BLOCK, "📷 Photo")
     .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, cap) => (cap ? `📷 ${cap}` : "📷 Photo"))
     .replace(/\n{2,}/g, "\n")
     .trim();

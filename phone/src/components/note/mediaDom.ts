@@ -16,10 +16,11 @@
 import { esc, haptic } from "../../util";
 import {
   collapseImages,
+  encodeImageNoteBlock,
   galleryMd,
-  imageMd,
   mediaAlt,
   parseNoteContent,
+  type ListItemNode,
   type MediaImage,
   type NoteBlock,
 } from "../../lib/media/noteMedia";
@@ -167,9 +168,17 @@ function buildImageEl(block: Extract<NoteBlock, { kind: "image" }>, ctx: MediaCt
   writeBlock(el, block);
 
   const fig = document.createElement("figure");
+  // A desktop resize/crop rides the pensieve:image fence (width/aspect/posX/posY) — the phone
+  // has no per-image resize UI, but it still HONOURS the desktop's sizing when displaying it.
+  if (block.width !== undefined) fig.style.maxWidth = `${Math.round(block.width * 100)}%`;
   const img = document.createElement("img");
   img.alt = mediaAlt(block.caption);
   img.draggable = false;
+  if (block.aspect && block.aspect > 0) {
+    img.style.aspectRatio = String(block.aspect);
+    img.style.objectFit = "cover";
+    img.style.objectPosition = `${block.posX ?? 50}% ${block.posY ?? 50}%`;
+  }
   attachImg(img, block.ref);
   fig.appendChild(img);
   if (block.caption) {
@@ -318,11 +327,75 @@ function pullOutAt(el: HTMLElement, index: number, ctx: MediaCtx) {
   setGalleryImages(el, images.filter((_, i) => i !== index), ctx); // drop from the gallery + persist
 }
 
+// ---- markdown list rendering (bullet / numbered / checklist) ----
+//
+// The DOM <ul>/<ol>/<li> tree IS the model here (unlike media, which needs a data-media
+// payload because refs aren't visible in the DOM) — nesting = actual nested lists, ordered =
+// tag name, a checklist item carries `data-checked` on its <li>. That also means a list the
+// user builds with the toolbar's native `execCommand("insertUnorderedList")` serializes the
+// same way as one loaded from markdown, with no extra bookkeeping.
+
+/** Build a `<ul>`/`<ol>` from a sibling run of list items (recursing into children). The
+ *  group's tag follows its first item — markdown doesn't really support mixing ordered/
+ *  unordered at the same level, so this matches what was actually written. */
+function buildListGroup(items: ListItemNode[]): HTMLElement {
+  const ordered = items[0]?.ordered ?? false;
+  const listEl = document.createElement(ordered ? "ol" : "ul");
+  listEl.className = "ph-list";
+  for (const n of items) {
+    const li = document.createElement("li");
+    if (n.checked !== undefined) {
+      li.classList.add("ph-check-item");
+      li.dataset.checked = n.checked ? "true" : "false";
+      const mark = document.createElement("span");
+      mark.className = "ph-check-mark";
+      mark.contentEditable = "false";
+      mark.setAttribute("aria-hidden", "true");
+      li.appendChild(mark);
+    }
+    li.appendChild(document.createTextNode(n.text || ""));
+    if (n.children.length) li.appendChild(buildListGroup(n.children));
+    listEl.appendChild(li);
+  }
+  return listEl;
+}
+
+/** A `<li>`'s own text, excluding its nested sub-list and checklist glyph. */
+function liOwnText(li: HTMLElement): string {
+  const clone = li.cloneNode(true) as HTMLElement;
+  Array.from(clone.children).forEach((c) => {
+    const child = c as HTMLElement;
+    if (child.tagName === "UL" || child.tagName === "OL" || child.classList.contains("ph-check-mark")) child.remove();
+  });
+  return (clone.textContent || "").trim();
+}
+
+/** Serialize a `<ul>`/`<ol>` (and its nested sub-lists) → markdown list lines. Generic over
+ *  ANY such element, so a list the user built via the toolbar's native list command
+ *  serializes identically to one we rendered from markdown. */
+function serializeListEl(listEl: HTMLElement, depth = 0): string[] {
+  const ordered = listEl.tagName === "OL";
+  const out: string[] = [];
+  let idx = 0;
+  for (const child of Array.from(listEl.children)) {
+    const li = child as HTMLElement;
+    if (li.tagName !== "LI") continue;
+    idx++;
+    const indent = "  ".repeat(depth);
+    const marker = li.dataset.checked !== undefined ? `* [${li.dataset.checked === "true" ? "x" : " "}] ` : ordered ? `${idx}. ` : "* ";
+    out.push(indent + marker + liOwnText(li));
+    const nested = (Array.from(li.children) as HTMLElement[]).find((c) => c.tagName === "UL" || c.tagName === "OL");
+    if (nested) out.push(...serializeListEl(nested, depth + 1));
+  }
+  return out;
+}
+
 // ---- body render + serialize ----
 
 function buildBlockEl(block: NoteBlock, ctx: MediaCtx, noteBody: HTMLElement): HTMLElement {
   if (block.kind === "image") return buildImageEl(block, ctx);
   if (block.kind === "gallery") return buildGalleryEl(block, ctx, noteBody);
+  if (block.kind === "list") return buildListGroup(block.items);
   // text
   const div = document.createElement("div");
   div.innerHTML = block.text.trim() ? esc(block.text) : "<br>";
@@ -383,8 +456,10 @@ export function serializeNoteBody(noteBody: HTMLElement): { title: string; conte
     const el = children[i];
     if (isMediaEl(el)) {
       const b = readBlock(el);
-      if (b?.kind === "image") parts.push(imageMd(b.ref, b.caption));
+      if (b?.kind === "image") parts.push(encodeImageNoteBlock(b));
       else if (b?.kind === "gallery") parts.push(galleryMd(b.images, b.height));
+    } else if (el.tagName === "UL" || el.tagName === "OL") {
+      parts.push(serializeListEl(el).join("\n"));
     } else {
       parts.push(el.textContent || "");
     }

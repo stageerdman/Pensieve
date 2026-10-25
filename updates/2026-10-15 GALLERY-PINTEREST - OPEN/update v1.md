@@ -154,3 +154,47 @@ aspect ratios** by default.
   the note; drag a single image onto a gallery to merge) — these are MORE touch-drag gestures, held
   until the collection reorder gesture/render is sorted (same multicol/gesture risk). Then Phase 4
   cleanup + close-out.
+
+## Live status (2026-10-25 — owner bug report: 3 phone rendering gaps, all fixed)
+- Owner reported, from the live device: (a) gallery images "saved horizontally" with no way to
+  scroll through them, wanted vertical Pinterest scroll; (b) a resized/cropped image shows as raw
+  ```pensieve:image``` code instead of a photo; (c) bullet lists show a literal `*` instead of a
+  bullet.
+- (a) **Investigated, no bug found**: the composite COVER → tap → full-screen vertical masonry
+  (`PhoneCollection.tsx`, CSS `column-count:2`) already does exactly this, built in the 2026-10-16
+  round above. The cover itself is a static (non-scrolling) preview tile by design — tapping it
+  opens the vertical board. Likely either a stale installed PWA (pre-dated this round's
+  `deploy:phone`) or the owner hadn't tried tapping the cover yet. Re-verify on device after this
+  deploy; if still wrong, it's a NEW bug, not this one.
+- (b) **Real bug, fixed**: desktop bridges a resized/cropped image through a `pensieve:image` fence
+  (`src/lib/md/image.ts`) — the phone's `noteMedia.ts` only ever understood the `pensieve:gallery`
+  fence, so a resized image fell through to a raw text block. Added full fence parse/encode
+  (width/aspect/posX/posY, mirroring desktop's encode/reconstruct logic exactly) + `buildImageEl`
+  now applies the width/crop when rendering. A note that merely passes through the phone keeps the
+  desktop's sizing byte-for-byte.
+- (c) **Real bug, fixed**: BlockNote's markdown exporter writes bullets as `* text`, numbered as
+  `N. text`, checklists as `* [ ]`/`* [x] text` (2-space indent per nesting level) — the phone's
+  note body treated every non-media line as flat escaped text, so the raw markdown leaked through
+  visually. Added list-line parsing (`noteMedia.ts`: `matchListLine` + indent-stack tree builder)
+  and DOM rendering (`mediaDom.ts`: real `<ul>/<ol>/<li>`, checklist via `data-checked` + a CSS
+  glyph). Serialization walks ANY top-level `<ul>/<ol>` generically, so a list built with the
+  toolbar's native `insertUnorderedList` round-trips the same way as one loaded from markdown —
+  this was a latent round-trip gap on the write side too (textContent would have silently flattened
+  a native list into one run-on line).
+- Also fixed in passing: `stripMediaForPreview` (the reel snippet) didn't know about the
+  `pensieve:image` fence either — now shows "📷 Photo" like every other image form.
+- **Zoom** (owner asked to zoom into a lightbox photo): the lightbox's old comment said "pinch-zoom
+  is the OS gesture" — untrue in practice, since `index.html`'s viewport is pinned to
+  `maximum-scale=1.0` (required so double-tap stays free for word-selection elsewhere —
+  `useWordSelection`). Rather than loosen the global viewport (risking that conflict), built a
+  self-contained pinch + double-tap zoom + pan INSIDE `PhoneLightbox.tsx` (imperative CSS transform
+  on the active frame's `<img>`, same pattern as the existing swipe-down-to-dismiss — no React
+  re-render mid-gesture). Below 2x a single finger still drives the existing swipe-to-next/
+  swipe-down-to-dismiss unchanged; above 1x it pans instead.
+- Tests: +6 noteMedia (fence + list parse/serialize round-trips), +6 mediaDom (fence render + list
+  render/serialize, incl. a native-`<ul>` round-trip). Full suite 992 passed, `tsc` (both apps) and
+  `build:phone` clean. Zoom/pinch/pan is gesture code — per this file's own convention (see
+  mediaDom.test.ts's comment), needs a device check; everything else is unit-verified.
+- NEXT: owner device-tests this round (incl. re-confirming the cover→vertical-masonry tap, now that
+  a fresh deploy is guaranteed current) + the zoom gesture feel. Then back to Ship-2 remainder +
+  Phase 4 cleanup/close-out above.

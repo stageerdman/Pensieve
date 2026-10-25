@@ -5,15 +5,19 @@
 import { describe, expect, it } from "vitest";
 import {
   collapseImages,
+  encodeImageNoteBlock,
   galleryMd,
   GALLERY_FENCE,
+  IMAGE_FENCE,
   imageMd,
   isMediaPath,
+  listMd,
   parseNoteContent,
   planInsert,
   reorderImages,
   serializeBlocks,
   stripMediaForPreview,
+  type ListItemNode,
   type NoteBlock,
 } from "./noteMedia";
 
@@ -89,6 +93,106 @@ describe("noteMedia — emergent gallery helpers", () => {
   });
 });
 
+describe("noteMedia — pensieve:image fence (desktop resize/crop bridge)", () => {
+  it("a default-size image stays the plain ![]() line", () => {
+    expect(encodeImageNoteBlock({ kind: "image", ref: "media/1/a.png", caption: "c" })).toBe("![c](media/1/a.png)");
+  });
+
+  it("a resized image round-trips through a pensieve:image fence, not raw text", () => {
+    const fence = "```" + IMAGE_FENCE + "\n" + "media/1/a.png\nwidth=0.5 aspect=0\n" + "\n```";
+    const blocks = parseNoteContent(fence);
+    expect(blocks).toEqual([{ kind: "image", ref: "media/1/a.png", width: 0.5 }]);
+    expect(encodeImageNoteBlock(blocks[0] as Extract<NoteBlock, { kind: "image" }>)).toBe(
+      "```" + IMAGE_FENCE + "\nmedia/1/a.png\nwidth=0.5 aspect=0\n```",
+    );
+  });
+
+  it("a cropped image keeps aspect + posX/posY and a caption", () => {
+    const fence = ["```" + IMAGE_FENCE, "media/1/b.png", "width=0.75 aspect=1.5 posX=30 posY=70", "a caption", "```"].join("\n");
+    const blocks = parseNoteContent(fence);
+    expect(blocks).toEqual([{ kind: "image", ref: "media/1/b.png", caption: "a caption", aspect: 1.5, posX: 30, posY: 70 }]);
+    const out = serializeBlocks(blocks);
+    expect(out).toBe(fence);
+  });
+
+  it("never falls back to a raw text block for a recognised fence", () => {
+    const fence = "```" + IMAGE_FENCE + "\nmedia/1/a.png\nwidth=0.4 aspect=0\n```";
+    expect(parseNoteContent(fence).map((b) => b.kind)).toEqual(["image"]);
+  });
+});
+
+describe("noteMedia — markdown lists (bullet / numbered / checklist)", () => {
+  it("parses a flat bullet list and serializes it back unchanged", () => {
+    const md = "* bullet one\n* bullet two";
+    const blocks = parseNoteContent(md);
+    expect(blocks).toEqual([
+      {
+        kind: "list",
+        items: [
+          { ordered: false, text: "bullet one", children: [] },
+          { ordered: false, text: "bullet two", children: [] },
+        ],
+      },
+    ]);
+    expect(serializeBlocks(blocks)).toBe(md);
+  });
+
+  it("parses a numbered list", () => {
+    const md = "1. first\n2. second";
+    const blocks = parseNoteContent(md);
+    expect(blocks).toEqual([
+      {
+        kind: "list",
+        items: [
+          { ordered: true, text: "first", children: [] },
+          { ordered: true, text: "second", children: [] },
+        ],
+      },
+    ]);
+    expect(serializeBlocks(blocks)).toBe(md);
+  });
+
+  it("parses a checklist (undone + done)", () => {
+    const md = "* [ ] todo undone\n* [x] todo done";
+    const blocks = parseNoteContent(md);
+    expect(blocks).toEqual([
+      {
+        kind: "list",
+        items: [
+          { ordered: false, checked: false, text: "todo undone", children: [] },
+          { ordered: false, checked: true, text: "todo done", children: [] },
+        ],
+      },
+    ]);
+    expect(serializeBlocks(blocks)).toBe(md);
+  });
+
+  it("keeps a 3-level nested bullet list stable (matches the desktop's 2-space indent)", () => {
+    const md = "* l1\n  * l2\n    * l3";
+    const blocks = parseNoteContent(md);
+    const items = (blocks[0] as Extract<NoteBlock, { kind: "list" }>).items;
+    expect(items[0].text).toBe("l1");
+    expect(items[0].children[0].text).toBe("l2");
+    expect(items[0].children[0].children[0].text).toBe("l3");
+    expect(serializeBlocks(blocks)).toBe(md);
+  });
+
+  it("never falls back to raw text — lines never show a literal leading *", () => {
+    const blocks = parseNoteContent("* a bullet");
+    expect(blocks.map((b) => b.kind)).toEqual(["list"]);
+  });
+
+  it("a list embedded between prose round-trips the whole body", () => {
+    const body = ["before", "* a", "* b", "after"].join("\n");
+    expect(serializeBlocks(parseNoteContent(body))).toBe(body);
+  });
+
+  it("listMd mirrors flattenListTree for a tree built elsewhere", () => {
+    const items: ListItemNode[] = [{ ordered: false, text: "x", children: [] }];
+    expect(listMd(items)).toBe("* x");
+  });
+});
+
 describe("noteMedia — path + preview", () => {
   it("isMediaPath: vault refs yes, direct urls no", () => {
     expect(isMediaPath("media/7/a.png")).toBe(true);
@@ -100,5 +204,10 @@ describe("noteMedia — path + preview", () => {
     expect(stripMediaForPreview("hello\n![a cat](media/1/a.png)")).toBe("hello\n📷 a cat");
     expect(stripMediaForPreview("![](media/1/a.png)")).toBe("📷 Photo");
     expect(stripMediaForPreview(galleryMd([{ ref: "a" }, { ref: "b" }]))).toBe("📷 Photos");
+  });
+
+  it("stripMediaForPreview also cleans a pensieve:image fence (resized image)", () => {
+    const fence = "```" + IMAGE_FENCE + "\nmedia/1/a.png\nwidth=0.4 aspect=0\n```";
+    expect(stripMediaForPreview(fence)).toBe("📷 Photo");
   });
 });

@@ -1149,12 +1149,48 @@ body {
 .note-body p {
   margin: 0 0 0.15em;
 }
-.note-body ul {
+.note-body ul,
+.note-body ol {
   margin: 0.1em 0 0.4em;
   padding-left: 1.25em;
 }
 .note-body li {
   margin: 0 0 0.12em;
+}
+/* checklist item: a hollow/filled box glyph in place of the bullet marker. */
+.note-body li.ph-check-item {
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+}
+.note-body li.ph-check-item .ph-check-mark {
+  flex: none;
+  width: 1em;
+  height: 1em;
+  margin-top: 0.15em;
+  border-radius: 4px;
+  border: 1.6px solid hsl(var(--text-muted) / 0.55);
+  position: relative;
+}
+.note-body li.ph-check-item[data-checked="true"] .ph-check-mark {
+  background: hsl(var(--accent));
+  border-color: hsl(var(--accent));
+}
+.note-body li.ph-check-item[data-checked="true"] .ph-check-mark::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0px;
+  width: 5px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(40deg);
+}
+.note-body li.ph-check-item[data-checked="true"] {
+  color: hsl(var(--text-muted));
+  text-decoration: line-through;
 }
 .note-body.title-empty > h1:first-child::before {
   content: "Title";
@@ -1706,10 +1742,15 @@ body {
   width: 100%;
   height: 100%;
   overflow-x: auto;
+  overflow-y: hidden;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   touch-action: pan-x pan-y pinch-zoom;
   transition: transform 0.2s var(--ease), opacity 0.2s var(--ease);
+}
+.ph-lightbox-img {
+  transform-origin: 50% 50%;
+  will-change: transform;
 }
 .ph-lightbox-track::-webkit-scrollbar {
   display: none;

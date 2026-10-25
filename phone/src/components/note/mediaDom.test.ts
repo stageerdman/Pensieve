@@ -6,7 +6,7 @@
 import "../../test/phoneSetup";
 import { describe, expect, it } from "vitest";
 import { commitMove, insertImages, renderNoteBody, serializeNoteBody } from "./mediaDom";
-import { galleryMd, mediaAlt } from "../../lib/media/noteMedia";
+import { galleryMd, IMAGE_FENCE, mediaAlt } from "../../lib/media/noteMedia";
 
 const ctx = { onChange: () => {} };
 
@@ -50,6 +50,74 @@ describe("mediaDom — render <-> serialize", () => {
     expect(mediaAlt("a caption")).toBe("a caption");
     expect(mediaAlt("  ")).toBe("Image");
     expect(mediaAlt(undefined)).toBe("Image");
+  });
+
+  it("a desktop-resized image (pensieve:image fence) renders as a real <img>, not raw text", () => {
+    const content = ["```" + IMAGE_FENCE, "media/1/a.png", "width=0.5 aspect=0", "```"].join("\n");
+    const el = body();
+    renderNoteBody(el, "T", content, ctx);
+    // No fence text leaks through as a plain row.
+    expect(el.textContent).not.toContain(IMAGE_FENCE);
+    const img = el.querySelector(".ph-media.ph-image img");
+    expect(img).toBeTruthy();
+    const fig = el.querySelector(".ph-media.ph-image figure") as HTMLElement;
+    expect(fig.style.maxWidth).toBe("50%");
+    expect(serializeNoteBody(el).content).toBe(content);
+  });
+
+  it("a bullet list renders as a real <ul><li>, not a literal '*' line", () => {
+    const content = "* bullet one\n* bullet two";
+    const el = body();
+    renderNoteBody(el, "T", content, ctx);
+    expect(el.textContent).not.toContain("*");
+    const ul = el.querySelector("ul.ph-list");
+    expect(ul?.querySelectorAll("li").length).toBe(2);
+    expect(ul?.querySelectorAll("li")[0].textContent).toBe("bullet one");
+    expect(serializeNoteBody(el).content).toBe(content);
+  });
+
+  it("a checklist renders checkbox state via data-checked and round-trips", () => {
+    const content = "* [ ] todo undone\n* [x] todo done";
+    const el = body();
+    renderNoteBody(el, "T", content, ctx);
+    const items = Array.from(el.querySelectorAll("li.ph-check-item")) as HTMLElement[];
+    expect(items.map((li) => li.dataset.checked)).toEqual(["false", "true"]);
+    expect(serializeNoteBody(el).content).toBe(content);
+  });
+
+  it("a nested bullet list round-trips its 2-space indent", () => {
+    const content = "* l1\n  * l2\n    * l3";
+    const el = body();
+    renderNoteBody(el, "T", content, ctx);
+    const top = el.querySelector("ul.ph-list") as HTMLElement;
+    const nested = top.querySelector("li > ul.ph-list");
+    expect(nested).toBeTruthy();
+    expect(serializeNoteBody(el).content).toBe(content);
+  });
+
+  it("a numbered list renders as <ol> and round-trips", () => {
+    const content = "1. first\n2. second";
+    const el = body();
+    renderNoteBody(el, "T", content, ctx);
+    expect(el.querySelector("ol.ph-list")).toBeTruthy();
+    expect(serializeNoteBody(el).content).toBe(content);
+  });
+
+  it("a plain <ul><li> from the toolbar's native list command serializes the same way", () => {
+    // Simulates document.execCommand("insertUnorderedList") output — no ph-list class, no
+    // data-media payload, just a bare browser list.
+    const el = body();
+    const h = document.createElement("h1");
+    h.textContent = "T";
+    el.appendChild(h);
+    const ul = document.createElement("ul");
+    const li1 = document.createElement("li");
+    li1.textContent = "one";
+    const li2 = document.createElement("li");
+    li2.textContent = "two";
+    ul.append(li1, li2);
+    el.appendChild(ul);
+    expect(serializeNoteBody(el).content).toBe("* one\n* two");
   });
 });
 
