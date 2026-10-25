@@ -631,6 +631,18 @@ export function insertImages(noteBody: HTMLElement, images: MediaImage[], ctx: M
   ctx.onChange();
 }
 
+/** Patch a freshly finalized recording straight into the live note body — used when the
+ *  Record spell's engine (voiceCapture.ts) finishes while this exact note is open. The vault
+ *  write already happened (finalize mutates `Note.c` directly), so this is DISPLAY-only: no
+ *  `ctx.onChange()` here, or the next debounced autosave would re-serialize the DOM right back
+ *  on top of a note that's already correct, for no benefit. Always appends at the end — a
+ *  recording isn't tied to wherever the caret happened to be. */
+export function insertAudio(noteBody: HTMLElement, block: Extract<NoteBlock, { kind: "audio" }>, ctx: MediaCtx) {
+  const el = buildAudioEl(block, ctx);
+  noteBody.appendChild(el);
+  ensureTrailingTextRow(noteBody);
+}
+
 function mergeInto(mediaEl: HTMLElement, add: MediaImage[], ctx: MediaCtx, noteBody: HTMLElement) {
   const existing = readBlock(mediaEl);
   if (!existing) return;

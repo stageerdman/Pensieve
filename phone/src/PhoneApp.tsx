@@ -47,14 +47,16 @@ import { MemoryPage } from "./components/note/MemoryPage";
 import type { FmtKey } from "./components/note/NoteToolbar";
 import { ConjureThread, conjure } from "./components/ConjureThread";
 import { currentBlock, focusTitle, placeCaret, syncPlaceholders } from "./components/note/noteEditing";
-import { insertImages, renderNoteBody, type MediaCtx } from "./components/note/mediaDom";
+import { insertAudio, insertImages, renderNoteBody, type MediaCtx } from "./components/note/mediaDom";
 import { phoneCollection } from "./lib/media/collectionController";
 import { PhoneLightbox } from "./components/note/PhoneLightbox";
 import { PhoneCollection } from "./components/note/PhoneCollection";
 import { PhoneTranscriptReader } from "./components/note/PhoneTranscriptReader";
+import { VoiceRecorderPanel } from "./components/note/VoiceRecorderPanel";
 import { mintMediaRef, registerLocalMedia } from "./lib/media/mediaStore";
 import type { MediaImage } from "./lib/media/noteMedia";
 import { pauseAllAudio } from "./lib/media/audioController";
+import { recoverOrphanedRecordings, type VoiceCaptureDeps } from "./lib/media/voiceCapture";
 
 const DICTATION_SAMPLE =
   "I keep coming back to the idea that the phone shouldn't make me think. It should just catch the thought before it escapes.";
@@ -137,6 +139,7 @@ export function PhoneApp() {
   const [kbOpen, setKbOpen] = useState(false);
   const [micListening, setMicListening] = useState(false);
   const [spell, setSpell] = useState({ show: false, castId: 0 });
+  const [voicePanel, setVoicePanel] = useState<{ open: boolean; noteId: string | null }>({ open: false, noteId: null });
   const [recents, setRecents] = useState<string[]>(loadRecents);
   const [toast, setToast] = useState("");
   const [sparkle, setSparkle] = useState(0); // a brief close/switch twinkle (0 = none)
@@ -213,6 +216,29 @@ export function PhoneApp() {
   // render so it always calls the latest autosave.
   const mediaCtx = useRef<MediaCtx>({ onChange: () => {} }).current;
   mediaCtx.onChange = () => autosave.scheduleSave();
+
+  // The Record spell's engine (voiceCapture.ts) reads/writes the vault directly (it must work
+  // identically from a clean Stop, a background-hide, or a startup recovery sweep — none of
+  // which can assume the note is open) — this is its one seam into PhoneApp's state. Kept on a
+  // stable ref object (voiceCapture captures it once per recording) with fresh closures each
+  // render, same pattern as mediaCtx above.
+  const voiceDeps = useRef<VoiceCaptureDeps>({
+    getNote: () => undefined,
+    persistAndRender: () => {},
+  }).current;
+  voiceDeps.getNote = (id) => dataRef.current!.find((n) => n.id === id);
+  voiceDeps.persistAndRender = () => {
+    persistVault(dataRef.current!);
+    renderAll(filterQueryRef.current);
+  };
+  voiceDeps.patchLiveNote = (id, block) => {
+    if (currentRef.current?.id !== id) return;
+    const noteBody = noteBodyRef.current;
+    if (!noteBody) return;
+    insertAudio(noteBody, block, mediaCtx);
+    syncPlaceholders(noteBody);
+  };
+  voiceDeps.toast = (msg) => showToast(msg);
 
   const accio = useAccioSearch({
     accioInputRef,
@@ -301,10 +327,9 @@ export function PhoneApp() {
     setTimeout(() => openImagePicker("photo"), 460);
   }
 
-  // TODO(phase 3/4): real recorder panel. Stub so "Record" is wired end-to-end for now.
   function startCaptureVoice() {
-    openCaptureNote("New Recording", "added recording");
-    setTimeout(() => showToast("🎙️ Recording panel coming next"), 460);
+    const d = openCaptureNote("New Recording", "added recording");
+    setTimeout(() => setVoicePanel({ open: true, noteId: d.id }), 460);
   }
 
   function openNewNote(dictate: boolean) {
@@ -625,6 +650,14 @@ export function PhoneApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Startup recovery sweep: finalize any voice-recording session left behind by a harder kill
+  // than the background-hide handler could catch (OS killed the page outright) — "saved just
+  // in case." Cheap no-op when there's nothing to recover.
+  useEffect(() => {
+    void recoverOrphanedRecordings(voiceDeps);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Track the photo collection's open state so the Spell Menu context switches to "collection"
   // (only "Photo") while the board is up, and back to "note" (Photo + Gallery) when it closes.
   useEffect(() => phoneCollection.subscribe((s) => setCollectionOpen(s.open)), []);
@@ -776,6 +809,13 @@ export function PhoneApp() {
       <PhoneLightbox />
       <PhoneCollection onOpenMenu={() => { haptic(10); menu.openMenu(); }} />
       <PhoneTranscriptReader />
+      {voicePanel.open && voicePanel.noteId ? (
+        <VoiceRecorderPanel
+          noteId={voicePanel.noteId}
+          deps={voiceDeps}
+          onClose={() => setVoicePanel({ open: false, noteId: null })}
+        />
+      ) : null}
 
       <ConjureThread threadRef={threadRef} />
       <div className="home-indicator" />

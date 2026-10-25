@@ -2027,6 +2027,115 @@ body {
   padding: 0;
 }
 
+/* ── the Record spell's floating panel — timer, live level bars, Pause/Done ── */
+.ph-voice-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 190;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 16px calc(28px + env(safe-area-inset-bottom));
+  background: hsl(var(--surface) / 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: ph-fade 0.18s var(--ease);
+}
+.ph-voice-card {
+  width: 100%;
+  max-width: 360px;
+  border-radius: var(--radius);
+  padding: 22px 20px calc(18px + env(safe-area-inset-bottom) * 0);
+  background: hsl(var(--surface-raised) / 0.96);
+  border: 1px solid hsl(var(--text) / 0.08);
+  box-shadow: 0 30px 90px -24px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.ph-voice-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: hsl(var(--text-muted));
+}
+.ph-voice-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: hsl(var(--danger));
+  animation: ph-voice-pulse 1.4s var(--ease) infinite;
+}
+.ph-voice-dot.is-paused {
+  background: hsl(var(--text-muted));
+  animation: none;
+}
+@keyframes ph-voice-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.ph-voice-time {
+  font-size: 34px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: hsl(var(--text));
+}
+.ph-voice-wave {
+  width: 100%;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.ph-voice-bar {
+  flex: 1;
+  max-width: 6px;
+  height: 100%;
+  border-radius: 3px;
+  background: hsl(var(--gold));
+  transform-origin: center;
+  transition: transform 0.08s linear;
+}
+.ph-voice-controls {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+.ph-voice-pause,
+.ph-voice-primary {
+  flex: 1;
+  padding: 13px 0;
+  border-radius: var(--radius);
+  border: none;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ph-voice-pause {
+  background: hsl(var(--text) / 0.08);
+  color: hsl(var(--text));
+}
+.ph-voice-primary {
+  background: hsl(var(--gold));
+  color: hsl(222 20% 12%);
+}
+.ph-voice-pause:disabled,
+.ph-voice-primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ph-voice-error {
+  margin: 0;
+  text-align: center;
+  font-size: 14px;
+  color: hsl(var(--text));
+}
+
 .thread {
   position: absolute;
   inset: 0;
