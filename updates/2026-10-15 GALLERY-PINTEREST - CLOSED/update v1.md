@@ -256,3 +256,18 @@ aspect ratios** by default.
 - NEXT: owner retests drag-reorder, collection scroll, AND lightbox swipe now that the real
   blocker is gone — all three may just work now. If reorder is still broken after this, THAT
   would finally be a genuine component-level bug worth a Web Inspector session.
+
+## CLOSED (2026-10-26) — owner-confirmed: "perfect, working."
+Desktop ratio-preserving justified gallery (Phase 1), the phone saved-collection with composite
+cover + full-screen masonry (Phase 3), drag-to-reorder, and the long-standing scroll/swipe dead
+zone (collection + lightbox, traced to a stale global touch-guard allowlist) are all shipped to
+main and confirmed working on device. Phase 2 (manual per-image reshape) was dropped by the
+owner early on — natural ratios are the look.
+
+**Deferred to a future update, not lost** (moved to `issues.txt`):
+- Ship-2 remainder: phone block-level drag (move an image/gallery block among the note's
+  blocks; drag a single image onto a gallery to merge).
+- Phase 4 dead-code cleanup: unused desktop `galleryModel.galleryLayout`/`galleryColumns` + old
+  `.pensieve-gallery-grid`/`-cover` CSS + the dropped phone carousel CSS.
+
+Closing this folder now per the owner's call.

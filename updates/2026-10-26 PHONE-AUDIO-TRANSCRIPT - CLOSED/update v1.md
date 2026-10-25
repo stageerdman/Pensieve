@@ -127,3 +127,17 @@ asked for it.
   2026-10-26 entry and memory [[phone-global-touch-guard-allowlist]]. The defensive
   `min-height:0`/`touch-action` CSS added earlier today was harmless but NOT the actual fix.
 - NEXT: same device retest as above, now including the reader's scroll specifically.
+
+## CLOSED (2026-10-26) — owner-confirmed: "perfect, working."
+Phone now plays a desktop-recorded voice memo inline (play/pause, tap-to-seek, time) and opens
+a full-screen Spotify-style transcript reader once a sidecar transcript is found — both
+confirmed working on device after fixing the untyped-Blob audio bug and the shared global
+touch-guard allowlist bug (see GALLERY-PINTEREST's close-out for that one; it affected the
+reader's scroll too).
+
+**Deliberately NOT built** (per the owner's "something simple" brief, not deferred/forgotten):
+phone audio capture/recording, a waveform, a download/replace/remove menu, drag-to-scrub
+seeking, live word/segment highlighting in the reader, desktop's split view. All explicit
+fast-follows if ever wanted — see the Decisions section above.
+
+Closing this folder now per the owner's call.

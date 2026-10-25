@@ -170,26 +170,24 @@ NOTION-UX — deferred polish (non-blocking, from ux-notion-chrome.md):
 - [ ] Colour palette: the toolbar exposes BlockNote's full palette; could trim to a
       curated few if it feels like too much choice.
 
-GALLERY-PINTEREST — phone drag-to-reorder + scroll/swipe (2026-10-26, REAL root cause found):
+GALLERY-PINTEREST — phone drag-to-reorder + scroll/swipe — RESOLVED, owner-confirmed 2026-10-26:
 - [x] Replaced CSS `column-count:2` masonry with two explicit flex columns (items placed by
-      index parity) — the Safari multicol+transform bug fix, correct but NOT the thing that was
-      actually blocking scroll/swipe (see below). Shipped `0ec44a9`.
-- [x] **Found the real cause of the collection-scroll + lightbox-swipe reports** (and, once the
-      transcript reader existed, its scroll too): a single global elastic-scroll touch guard in
-      `PhoneApp.tsx` (one document-level `touchmove` listener, `{passive:false}`) only allowed
-      touch movement inside `.reel`/`.note`/`.search-results` — `preventDefault()` on everything
-      else, including every full-screen overlay mounted as a SIBLING of `.note` at the app root
-      (lightbox, collection, transcript reader). Their scroll/swipe either IS native browser
-      scrolling (which preventDefault blocks outright) or sits downstream of a blocked native
-      touchmove. Fixed `7503e2e`: added `.ph-lightbox,.ph-collection,.ph-reader` to the allowlist.
-      Two prior "looks correct" code attempts at the collection/lightbox specifically (stable
-      keys, then a drag-ghost clone, then the multicol→flex swap) all missed this because they
-      were investigating the WRONG layer (CSS/layout) — the actual blocker was a global JS guard
-      several files away with no connection to the gallery code itself.
-- [ ] STILL NEEDS a device re-test now that the real blocker is gone: does drag-to-reorder work
-      now that scrolling/touch isn't being globally eaten? (The reorder gesture itself is custom
-      pointer logic, not native scroll, so it may have been fine all along and just felt broken
-      because the SURROUNDING board felt "dead.") Confirm lightbox swipe-between-photos too.
+      index parity) — the Safari multicol+transform bug fix. Shipped `0ec44a9`.
+- [x] Found + fixed the real cause of the collection-scroll + lightbox-swipe reports: a global
+      elastic-scroll touch guard in `PhoneApp.tsx` only allowed touch movement inside
+      `.reel`/`.note`/`.search-results`, `preventDefault()`-ing every full-screen overlay mounted
+      as a SIBLING of `.note` (lightbox, collection, transcript reader). Fixed `7503e2e`. See
+      memory `phone-global-touch-guard-allowlist` for the full story.
+- [x] Owner-confirmed working on device: "perfect, working." Closing.
+
+GALLERY-PINTEREST — deferred to a future round (not shipped, intentionally cut from this update):
+- [ ] Ship-2 remainder: phone block-level drag (move an image/gallery block up/down among the
+      note's blocks; drag a single image onto a gallery to merge it in). The reorder-WITHIN-a-
+      collection gesture shipped; this is a different, bigger gesture (moving whole blocks) held
+      since it shares the same touch-drag risk class.
+- [ ] Phase 4 dead-code cleanup: desktop's unused `galleryModel.galleryLayout`/`galleryColumns`
+      (superseded by the justified packer) + old `.pensieve-gallery-grid`/`-cover` CSS + the
+      dropped phone carousel CSS (`.ph-gallery-track`/`.ph-frame`/`.ph-dots`/long-press edit).
 
 OPEN ISSUES:
 - [ ] Desktop editor: adopt the phone's "title = first line = auto-H1" rule (new doc
