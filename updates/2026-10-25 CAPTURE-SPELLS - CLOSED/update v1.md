@@ -57,5 +57,8 @@ Phases 1-5 SHIPPED (merge `659951a`, deployed). REOPENED for owner-reported fixe
    - New: a "Delete" spell in the note's Conditional ring (red/danger hue) — confirm/cancel
      popup, never deletes on the tap itself.
 
-Build/typecheck/tests green throughout (240 phone + 1008 desktop). Re-closing once merged +
-deployed. Still owed: a real-device pass on these specific fixes.
+SHIPPED: merged to `main` (`cd79c32`), phone PWA redeployed. Build/typecheck/tests green
+throughout (240 phone + 1008 desktop, each verified in isolation). Folder CLOSED again.
+
+Still owed: a real-device pass on these specific fixes (instant camera, audio playback
+duration, empty-note discard, the new Delete spell).
