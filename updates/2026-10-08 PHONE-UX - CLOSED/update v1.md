@@ -397,3 +397,28 @@ deep blue-black stone, the magical-blue accent and gold. Magical AND highly prac
   smooth on-device (the one thing jsdom can't measure). Earlier rounds' device notes
   (searching, reopen, Adjust, word-selection) still pending. Then lock the Wand spec →
   Phase 3 (wire to the real vault + PWA-CAPTURE runtime).
+
+## CLOSED (2026-10-25) — the full brief shipped, owner-confirmed
+Every item in the original brief is live and device-confirmed:
+- **Capture is the hero** — the Write spell (tap = write, hold = speak), Apple-Notes-feel
+  editor, not BlockNote/Notion blocks.
+- **Accio search** — thumb-reachable resident bar → summon bar → live-filtered reel +
+  results sheet, exactly as specced.
+- **The flask reel + magnification** — round-16's inertia + LOUPE (the real magnifying-glass
+  metaphor, row-deform instead of hide-behind) shipped and has been running in every build
+  since; `lib/wand/{loupeFisheye,scrollSettle}.ts` are load-bearing, tested code today.
+  Earlier device-feel notes in this doc (jank, glass clipping, settle snap) were all
+  resolved in later rounds not re-transcribed here — the current build is the answer.
+- **Sync looks like a spell** — shipped originally as the gold cast overlay, and taken
+  further in PWA-CAPTURE v2 (desktop-parity `SyncRune`, state-coloured, tap-to-cast/
+  hold-for-details).
+- **Speech to text** — `startDictation()`, wired to Write's hold gesture.
+
+**Superseded, not abandoned:** the Wheel control scheme described in early rounds of this
+doc (Adjust/Accio/New/Sync seats, `WheelButton.tsx`/`useWheelGesture.ts`) was replaced by
+the **Spell Menu** (Dock + radial ring) — see memory `phone-ux-the-wand` / the
+PHONE-FEED-ACCIO-FIX update. Those two files are now dead code, left in place rather than
+deleted mid-unrelated-work; worth a cleanup pass if anyone's in that area.
+
+Real data, real sync, and hosting landed separately in
+[[../2026-10-07 PWA-CAPTURE - CLOSED/update v2]]. Folder CLOSED.
