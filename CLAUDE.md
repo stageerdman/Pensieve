@@ -1,10 +1,10 @@
 # CLAUDE.md
 
 ## Project
-Pensieve is one place to log every thought and memory — the ultimate tool for thinkers. It captures input in any form (typed/rich text, images, handwritten pages, voice, video), saves the original media locally, auto-generates transcripts so AI can work with it, and organizes everything with correct labels. Journaling is the core: over time it surfaces past lessons and acts as an AI coach that reads your thoughts and tells you what matters for your goals. It must be **extremely lightweight and fast**, local-first, and easy to integrate into a bigger project later. Currently single-user (the owner). AI is a **desktop-only** capability for organizing, planning, and deep reflection — **not** for daily logging, and **not** on mobile (the future iPhone app is capture-only). See `VISION.md` (full vision) and `ROADMAP.md` (roadmap of updates).
+Pensieve is one place to log every thought and memory — the ultimate tool for thinkers. It captures input in any form (typed/rich text, images, handwritten pages, voice, video), saves the original media locally, auto-generates transcripts so AI can work with it, and organizes everything with correct labels. Journaling is the core: over time it surfaces past lessons and acts as an AI coach that reads your thoughts and tells you what matters for your goals. It must be **extremely lightweight and fast**, local-first, and easy to integrate into a bigger project later. Currently single-user (the owner). AI is a **desktop-only** capability for organizing, planning, and deep reflection — **not** for daily logging, and **not** on mobile (the phone PWA — the Wand — is for daily capture/browsing/journaling, not AI). See `VISION.md` (full vision) and `ROADMAP.md` (roadmap of updates).
 
 **Stack:** Tauri (Rust shell + web UI) · React + TypeScript + Tailwind + shadcn/ui · BlockNote 0.55 (block editor on ProseMirror/TipTap) serializing to Markdown · local files (`.md` + original media) with a SQLite index · whisper.cpp (local transcription) · Claude Code CLI for AI (coach / labeling / transcript editing) — uses the logged-in Claude account, no API key, while running on the computer · OneDrive (Microsoft Graph) backup adapter.
-**Runs on / deploys to:** a native desktop `.app` (macOS first). Future: an iPhone capture app syncing to the main app via our own sync logic. No web server.
+**Runs on / deploys to:** a native desktop `.app` (macOS first) + a phone PWA (the Wand, installable to the home screen, syncing to the desktop app via our own OneDrive-backed sync logic) hosted at pensieve-phone.pages.dev. No web server of our own (Cloudflare Pages serves the phone build as static assets).
 
 ## Map
 Planned layout — created as the project grows, kept flat until it needs folders (STRUCTURE.md).
@@ -30,8 +30,11 @@ Planned layout — created as the project grows, kept flat until it needs folder
   dist-phone` to the Cloudflare Pages project **pensieve-phone**
   (https://pensieve-phone.pages.dev). Reuses the Cloudflare account/token already
   set up for erdman.xyz in the sibling project `~/dev/html-posting/.env` — Pensieve
-  has no Cloudflare credentials of its own. Desktop `.app` deploy: n/a (local only);
-  future: notarize & distribute the build.
+  has no Cloudflare credentials of its own. **Run this after every `phone/` UI/UX
+  change** — the owner's installed PWA only updates when redeployed, same as a
+  desktop change needs `tauri:build` before it's on the installed `.app` (see
+  Workflow → Committing). Desktop `.app` deploy: n/a (local only); future:
+  notarize & distribute the build.
 - Logs: query the central log store (`log.query({...})`, see Debugging) — filtered, never full dumps
 
 ## Build environment: shared Cargo target
@@ -55,6 +58,7 @@ Cargo builds go to a **shared target dir** (`~/.cargo-shared-target`, set global
 5. **Agents.** Act as an orchestrator: decompose and delegate to focused agents in parallel; always bring in UX experts for user-facing work. Synthesize their output.
 6. **Testing.** Most phases end with tests that lock in what they built (core logic, risky paths, silent-regression risks — skip trivial glue). Then verify by running the actual thing, not just a green test. If the user tests, rely on logs, not only their feedback.
 7. **Committing.** Commit AND push after every working change — small, focused, one logical unit; never batch unrelated edits; never commit `.env`/secrets. Branches: `main` = stable. `update/<name>` = copy of `main` + the update; when built and verified, merge into `main`, then prune it. Rename the update folder `- OPEN` → `- CLOSED`. Everything lives on GitHub — if it isn't backed up yet, fix that first.
+8. **Shipping it live.** A change to `phone/` isn't done until it's deployed — run `npm run deploy:phone` as part of the same working change (not a separate, skippable step), so the owner's installed PWA always reflects `main`. This is the phone equivalent of `npm run tauri:build` for desktop changes: code merged but not deployed/built is not yet "done."
 
 ## Updates Folder
 - `update vX.md`: goal, phased roadmap, live status (done, decisions, next). Starts at v1; bump when substantially reworked.
