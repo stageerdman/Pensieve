@@ -170,12 +170,26 @@ NOTION-UX — deferred polish (non-blocking, from ux-notion-chrome.md):
 - [ ] Colour palette: the toolbar exposes BlockNote's full palette; could trim to a
       curated few if it feels like too much choice.
 
-GALLERY-PINTEREST — phone drag-to-reorder (2026-10-26, fix landed, awaiting device re-test):
+GALLERY-PINTEREST — phone drag-to-reorder (2026-10-26, fix landed, owner re-tested — STILL broken):
 - [x] Replaced CSS `column-count:2` masonry with two explicit flex columns (items placed by
       index parity) — this was the "next idea" logged 2026-10-16. Sidesteps the Safari
       multicol+transform bug class entirely instead of working around it. Shipped to main
-      `0ec44a9`, deployed. NEEDS a device re-test of the drag-reorder gesture to confirm the
-      vanish/jump symptom is actually gone (not just theoretically fixed).
+      `0ec44a9`, deployed.
+- [ ] Owner re-test (2026-10-26) on real device: reorder STILL doesn't really work. Also found
+      TWO more gesture bugs in the same surface, deliberately DEFERRED by owner ("not as
+      important... log it, resolve later"):
+      (a) collection vertical scroll feels dead/unresponsive — owner isn't fully sure if this is
+          a real bug or just hitting the end of a short photo list (bounce-back read as "stuck");
+          needs a retest with a collection of 10+ photos to know for sure.
+      (b) lightbox swipe-left/right between photos has NEVER worked, not a new regression from
+          this round — pre-existing, never previously verified on device.
+      Static code review of PhoneCollection.tsx/PhoneLightbox.tsx/wand.css found no obvious
+      blocker for any of the three (touch-action, overflow, pointer-event early-returns all
+      look correct) — same pattern as the reorder bug's first two "looks right" attempts that
+      also failed on device. Two prior code-only fix rounds for reorder alone have already
+      failed this way. NEXT real fix attempt should use Safari Web Inspector (iPhone plugged
+      into the Mac) to see actual console/touch output instead of guessing blind again —
+      owner declined that session for now; revisit when picking this back up.
 
 OPEN ISSUES:
 - [ ] Desktop editor: adopt the phone's "title = first line = auto-H1" rule (new doc

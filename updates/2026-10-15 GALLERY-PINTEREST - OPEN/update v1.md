@@ -215,3 +215,26 @@ aspect ratios** by default.
   — confirm right-column tiles no longer vanish/jump on grab. If good, close out the
   drag-to-reorder issue in `issues.txt`. Then: Ship-2 remainder (block-level move + drag-into-
   merge) + Phase 4 cleanup (dead `galleryLayout`/old gallery CSS) + close-out.
+
+## Live status (2026-10-26, same day — owner device-tested, 3 gesture bugs still open + 1 real fix)
+- Owner retested on device. Found via real content in the vault (not device-reported): a note
+  whose first line was a bullet (`* Co tím myslíte?`) showed that literal marker baked into the
+  phone's `<h1>` title — `titleFromMarkdown`/`splitTitleAndBody` only stripped heading marks (`#`),
+  never list marks. **Fixed and shipped** (`728f1b7`, deployed): both now strip bullet/checklist/
+  numbered marks too, same precedent as heading-demotion. This was the literal-asterisk bug the
+  owner reported ("no bulletpoints... instead of *"). Confirmed against the real note.
+  Sync self-heal (from the prior round) owner-CONFIRMED "worked perfectly".
+- Drag-reorder fix (flex-column swap, above) did NOT resolve the symptom on device — owner says
+  "reordering doesn't work there really." Third code-only attempt would risk the same outcome as
+  the first two; logged in `issues.txt` with a recommendation to debug via Safari Web Inspector
+  (real console/touch telemetry) rather than guess again.
+- TWO more gesture bugs surfaced in the same collection/lightbox surface, both DEFERRED by owner
+  explicitly ("not as important... log it, resolve later"):
+  - Collection vertical scroll feels dead — unclear if real (needs retest with 10+ photos; a
+    short list hitting its natural scroll-end can look identical to "stuck").
+  - Lightbox swipe-left/right between photos has NEVER worked (confirmed by owner — not a
+    regression from any recent round, a pre-existing unverified feature).
+- NEXT (when owner picks this back up): a Safari Web Inspector session (iPhone plugged into the
+  Mac) to get real telemetry on all three gesture issues at once, since static code review found
+  no obvious blocker in any of them — same "looks correct in code, wrong on device" pattern as
+  the earlier two failed reorder attempts.
