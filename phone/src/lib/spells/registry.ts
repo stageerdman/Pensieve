@@ -15,6 +15,10 @@ export const GENERAL_SPELLS: Spell[] = [
   { id: "accio", name: "Accio", icon: "accio", hue: "violet" },
   // tap backs up immediately; hold opens the panel (account/space/conflicts/restore).
   { id: "sync", name: "Sync", icon: "sync", hue: "gold-state", opensWindow: true, longPress: "window" },
+  // each mints a brand-new memory (title "New Image"/"New Recording") then jumps straight into
+  // capture — distinct from the Conditional "Photo"/"Gallery" spells, which add to an OPEN one.
+  { id: "snap", name: "Snap", icon: "camera" },
+  { id: "voice", name: "Record", icon: "mic" },
 ];
 
 const BY_ID: Record<string, Spell> = {};
