@@ -44,6 +44,6 @@ this fix are affected by it. The owner was told this directly.
 - [x] Implemented segment-rotation engine in `voiceCapture.ts`
 - [x] Added visible/logged error state for undecodable audio (`audioController.ts` + `mediaDom.ts`)
 - [x] Typecheck + full test suite green (1015 tests)
+- [x] Merged to main + phone PWA deployed
 - [ ] Owner device verification (nothing in this dev environment can exercise real
       MediaRecorder/mic capture — same limitation as CAPTURE-SPELLS)
-- [ ] Merge to main + deploy phone PWA
