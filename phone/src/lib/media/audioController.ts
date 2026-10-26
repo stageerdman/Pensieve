@@ -9,7 +9,7 @@
 // can never share a ref, so this is simpler and still gives every recording its own playhead.
 // Framework-free (plain events).
 
-export type AudioEvent = "time" | "play" | "pause" | "seek" | "ended" | "durationchange";
+export type AudioEvent = "time" | "play" | "pause" | "seek" | "ended" | "durationchange" | "error";
 
 export interface AudioController {
   readonly src: string;
@@ -21,6 +21,9 @@ export interface AudioController {
   readonly currentTime: number;
   readonly duration: number; // NaN until metadata loads
   readonly playing: boolean;
+  /** Set once the element fires a decode/network `error` — the file is NOT going to play. A
+   *  caller should swap to a "can't play" state rather than leave a player silently stuck. */
+  readonly errorCode: number | null; // MediaError.code (1-4), see MDN
   on(ev: AudioEvent, cb: () => void): () => void;
 }
 
@@ -62,6 +65,9 @@ function create(src: string): Impl {
     get playing() {
       return !el.paused;
     },
+    get errorCode() {
+      return el.error ? el.error.code : null;
+    },
     play() {
       pauseOthers(c);
       void el.play().catch(() => {/* autoplay/user-gesture guards — harmless */});
@@ -97,6 +103,7 @@ function create(src: string): Impl {
   el.addEventListener("ended", () => emit(c, "ended"));
   el.addEventListener("durationchange", () => emit(c, "durationchange"));
   el.addEventListener("loadedmetadata", () => emit(c, "durationchange"));
+  el.addEventListener("error", () => emit(c, "error"));
 
   // Self-heal a missing duration (MediaRecorder WebM / fragmented mp4 sometimes report
   // Infinity/NaN with no seek index — and a recording ASSEMBLED FROM MULTIPLE CHUNKS, like the

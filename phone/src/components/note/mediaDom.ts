@@ -29,6 +29,7 @@ import { cachedMediaUrl, loadTranscript, resolveMediaUrl } from "../../lib/media
 import { phoneLightbox } from "../../lib/media/lightboxController";
 import { phoneCollection } from "../../lib/media/collectionController";
 import { fmtTime, getController } from "../../lib/media/audioController";
+import { log } from "../../lib/logger";
 import { phoneTranscriptReader } from "../../lib/media/transcriptReaderController";
 
 export interface MediaCtx {
@@ -271,7 +272,20 @@ function buildAudioEl(block: Extract<NoteBlock, { kind: "audio" }>, ctx: MediaCt
       return;
     }
     const c = getController(ref, url);
+    const showBroken = () => {
+      log.warn("audio", "playback.undecodable", { ref, errorCode: c.errorCode });
+      el.classList.add("is-broken");
+      bar.innerHTML = "";
+      const broken = document.createElement("span");
+      broken.className = "ph-audio-broken";
+      broken.textContent = "Can't play this recording";
+      bar.appendChild(broken);
+    };
     const render = () => {
+      if (c.errorCode) {
+        showBroken();
+        return;
+      }
       playBtn.innerHTML = c.playing ? PAUSE_SVG : PLAY_SVG;
       playBtn.setAttribute("aria-label", c.playing ? "Pause" : "Play");
       const dur = c.duration;
@@ -284,6 +298,7 @@ function buildAudioEl(block: Extract<NoteBlock, { kind: "audio" }>, ctx: MediaCt
     c.on("pause", render);
     c.on("time", render);
     c.on("durationchange", render);
+    c.on("error", render);
 
     wireMediaTap(playBtn, () => c.toggle());
     wireMediaTap(track, (clientX) => {
