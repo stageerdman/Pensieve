@@ -15,7 +15,13 @@ const CHUNK_STORE = "chunks";
 export interface RecordingSessionMeta {
   id: string;
   noteId: string;
+  /** Always "audio/wav" — every chunk is raw PCM16 bytes, finalized into one WAV (see
+   *  voiceCapture.ts / pcmWav.ts). Kept as a field rather than hardcoded at the call site so a
+   *  session recovered from a future format change (if any) can still self-describe. */
   mimeType: string;
+  /** The PCM sample rate every stored chunk was captured at — needed to build the WAV header
+   *  at finalize time. */
+  sampleRate: number;
   startedAt: number;
   /** The note's content at the exact moment recording started — lets a later zero-chunk
    *  finalize tell "still untouched" apart from "the user added real content meanwhile". */
