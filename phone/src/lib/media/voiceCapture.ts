@@ -1,18 +1,32 @@
 // voiceCapture.ts — the voice-recording engine + session lifecycle.
 //
-// Owns: the live MediaRecorder + analyser (for the waveform), a RecordingClock (ported
+// Owns: a live Web Audio capture graph + analyser (for the waveform), a RecordingClock (ported
 // verbatim from desktop src/lib/audio/recorder.ts — duplicated on purpose; the two apps are
 // deliberately decoupled, see mediaStore.ts's header), chunked persistence via
-// recordingStore.ts, and FINALIZE (session chunks -> a vault media ref -> a `pensieve:audio`
-// block appended to the note). Exactly one recording can be active at a time (the UI only ever
-// opens one panel), so this is module-level state, not a class instantiated per caller.
+// recordingStore.ts, and FINALIZE (session chunks -> one WAV vault media ref -> a single
+// `pensieve:audio` block appended to the note). Exactly one recording can be active at a time
+// (the UI only ever opens one panel), so this is module-level state, not a class instantiated
+// per caller.
 //
-// Reliability model: every chunk is durably written the instant MediaRecorder hands it over.
-// Finalize ALWAYS re-reads chunks from recordingStore (never trusts an in-memory array), so it
-// behaves identically whether called from a clean Stop, the visibilitychange hidden-handler
-// (phone locked / app backgrounded), or next launch's recovery sweep over an orphaned session.
-// iOS Safari gives a home-screen PWA no real background mic capture, so "hidden" is treated as
-// an immediate stop+save+notify rather than a pretend-pause — see wiki.md "Platform limits".
+// Why no MediaRecorder: WebKit's audio/mp4 MediaRecorder only produces a reliably decodable
+// file when started once and stopped once with no timeslice — a timesliced recording's chunks
+// are fragments that silently fail to decode once concatenated, and even "fixing" that by
+// restarting MediaRecorder every N seconds (VOICE-PLAYBACK-FIX, 2026-10-26) just traded
+// undecodable fragments for a take getting split into several standalone "Part N of M" blocks,
+// plus a real WebKit data race where the FIRST segment's final `dataavailable` can land after
+// the recorder has already been swapped for the next segment and gets silently dropped.
+// Recording raw PCM via a ScriptProcessorNode instead sidesteps all of it: PCM chunks have no
+// container framing, so writing them to IndexedDB in order and concatenating them at finalize
+// time behind one WAV header always yields exactly one playable file — there is no decodability
+// boundary to protect, so pause/resume doesn't need to tear down and rebuild anything either; it
+// just gates whether incoming samples get written.
+//
+// Reliability model: every chunk is durably written the instant it's captured. Finalize ALWAYS
+// re-reads chunks from recordingStore (never trusts an in-memory array), so it behaves
+// identically whether called from a clean Stop, the visibilitychange hidden-handler (phone
+// locked / app backgrounded), or next launch's recovery sweep over an orphaned session. iOS
+// Safari gives a home-screen PWA no real background mic capture, so "hidden" is treated as an
+// immediate stop+save+notify rather than a pretend-pause — see wiki.md "Platform limits".
 
 import {
   createSession,
@@ -24,6 +38,7 @@ import {
 } from "./recordingStore";
 import { mintAudioRef, putMedia } from "./mediaStore";
 import { parseNoteContent, serializeBlocks, type NoteBlock } from "./noteMedia";
+import { TARGET_SAMPLE_RATE, createResampleState, resampleTo, floatTo16BitPCM, buildWavBlob, type ResampleState } from "./pcmWav";
 import type { Note } from "../../types";
 
 export type VoiceRecorderState = "recording" | "paused" | "stopping";
@@ -50,31 +65,10 @@ export interface VoiceCaptureDeps {
   removeIfUntouched?: (noteId: string, placeholderBody: string) => void;
 }
 
-// Prefer M4A/AAC (audio/mp4) — Safari/WebKit (both the desktop app's WKWebView and iOS Safari,
-// which is what actually runs this PWA) record straight to mp4/aac with correct duration and
-// seeking; Chromium-only engines fall back to WebM/Opus. Mirrors desktop's recorder.ts exactly.
-const MIME_CANDIDATES = ["audio/mp4", "audio/aac", "audio/webm;codecs=opus", "audio/webm", ""];
-
-// Crash-safety granularity: every SEGMENT_MS, the live MediaRecorder is cleanly stopped and a
-// fresh one started on the same stream, instead of using a timeslice. This is NOT cosmetic —
-// WebKit's audio/mp4 MediaRecorder only produces a reliably decodable file when `start()` is
-// called with no timeslice and `stop()` is called with no preceding `requestData()`; a
-// timesliced recording's chunks are fragments that silently fail to decode once concatenated
-// (confirmed independently, not just a hunch — see wiki.md for the write-up and sources). Each
-// SEGMENT_MS-sized piece is therefore a fully standalone, independently playable file in its own
-// right. A crash/kill loses at most the currently-open segment (worse granularity than the old
-// 3s timeslice, but the old scheme produced files that silently never played at all — regardless
-// of chunking, undecodable is strictly worse than "lost a bit more on a crash").
-const SEGMENT_MS = 30000;
-
-function pickMimeType(): string {
-  const MR = typeof MediaRecorder !== "undefined" ? MediaRecorder : undefined;
-  if (!MR || typeof MR.isTypeSupported !== "function") return "";
-  for (const m of MIME_CANDIDATES) {
-    if (m === "" || MR.isTypeSupported(m)) return m;
-  }
-  return "";
-}
+// A ScriptProcessorNode callback at a typical mobile buffer size (4096 samples) fires every
+// ~85-100ms — plenty fine-grained for crash safety (a kill loses at most one callback's worth
+// of audio) without the per-chunk bookkeeping a MediaRecorder timeslice needed.
+const PROCESSOR_BUFFER_SIZE = 4096;
 
 const clockNow = (): number => (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now());
 
@@ -143,25 +137,28 @@ interface ActiveState {
   session: RecordingSessionMeta;
   deps: VoiceCaptureDeps;
   stream: MediaStream;
-  /** The CURRENT segment's recorder — replaced wholesale every SEGMENT_MS (or on pause/resume),
-   *  never timesliced. See SEGMENT_MS's comment for why. */
-  recorder: MediaRecorder;
-  seq: number;
-  clock: RecordingClock;
+  audioCtx: AudioContext;
+  source: MediaStreamAudioSourceNode;
+  /** Continuous for the WHOLE session — never torn down/rebuilt on pause/resume, since raw PCM
+   *  has no decodability boundary to protect (that's what made MediaRecorder's segment dance
+   *  necessary). Routed through a zero-gain node to a destination so WebKit keeps delivering
+   *  callbacks without the mic being audibly echoed back to the speaker. */
+  processor: ScriptProcessorNode;
+  silentGain: GainNode;
   analyser: AnalyserNode | null;
   data: Uint8Array<ArrayBuffer> | null;
-  audioCtx: AudioContext | null;
+  resample: ResampleState;
+  seq: number;
+  clock: RecordingClock;
   state: VoiceRecorderState;
   wakeLock: { release: () => Promise<void> } | null;
-  /** The most recently scheduled chunk write for the CURRENT segment — awaited before finalize
-   *  reads chunks back, so the fire-and-forget IndexedDB write can never lose a race. */
+  /** Gates whether `onaudioprocess` callbacks get written to IndexedDB — false while paused.
+   *  The mic/stream/graph all stay live through a pause (matches the old behavior), only the
+   *  write path is gated, so resume needs no setup at all. */
+  capturing: boolean;
+  /** The most recently scheduled chunk write — awaited before finalize reads chunks back, so
+   *  the fire-and-forget IndexedDB write can never lose a race. */
   lastAppend: Promise<void>;
-  /** Fires the next segment rotation; cleared on pause/stop (a pause or stop is itself a
-   *  checkpoint, no need for the timer to also fire). */
-  rotateTimer: ReturnType<typeof setTimeout> | null;
-  /** Serializes stop-segment/start-segment operations so a rotation firing mid-pause (or a
-   *  rapid pause/resume tap) can never run two MediaRecorder transitions concurrently. */
-  opChain: Promise<void>;
 }
 
 let active: ActiveState | null = null;
@@ -175,19 +172,15 @@ function describeMicError(e: unknown): string {
   return "Microphone unavailable.";
 }
 
-// Each stored chunk is now a fully standalone, independently finalized segment file (see
-// SEGMENT_MS) — NOT a fragment that needs concatenating. A take longer than one segment becomes
-// several sequential `pensieve:audio` blocks ("Part 1 of 3", etc.) rather than one glued blob;
-// that's what makes every single one of them guaranteed-playable instead of betting the whole
-// take on fragile byte-level concatenation. `pensieve:audio` already supports multiple blocks
-// per note (you can already record twice into the same note) — this just uses that existing path.
-async function finalizeAndCleanup(session: RecordingSessionMeta, deps: VoiceCaptureDeps, toastMsg?: string): Promise<void> {
-  const chunks = await readChunksOrdered(session.id);
-  if (chunks.length === 0) {
-    deps.removeIfUntouched?.(session.noteId, session.placeholderBody);
-    await deleteSession(session.id);
-    return;
-  }
+/** A session orphaned by a crash that happened on the PREVIOUS (MediaRecorder-segment) build,
+ *  still sitting in IndexedDB when this build's recovery sweep runs. Each stored chunk there is
+ *  already an independently-playable segment file in its own right (never raw PCM), so it must
+ *  be finalized the old way — one block per chunk, "Part N of M" when there's more than one —
+ *  NOT run through buildWavBlob, which would silently produce a corrupt file. Drop once enough
+ *  time has passed that no pre-upgrade session could still be orphaned (every session this
+ *  build creates has mimeType "audio/wav").
+ */
+async function finalizeLegacySegments(session: RecordingSessionMeta, deps: VoiceCaptureDeps, chunks: Blob[], toastMsg?: string): Promise<void> {
   const note = deps.getNote(session.noteId);
   if (note) {
     const blocks: NoteBlock[] = parseNoteContent(note.c || "");
@@ -209,12 +202,55 @@ async function finalizeAndCleanup(session: RecordingSessionMeta, deps: VoiceCapt
     deps.persistAndRender();
     if (toastMsg) deps.toast?.(toastMsg);
   }
+}
+
+// Always exactly ONE `pensieve:audio` block — every stored chunk is raw PCM16 audio at the
+// session's sample rate, concatenated behind a single WAV header (see pcmWav.ts). No "Part N of
+// M" splitting: that was only ever needed to work around MediaRecorder segment boundaries,
+// which don't exist in this pipeline.
+async function finalizeAndCleanup(session: RecordingSessionMeta, deps: VoiceCaptureDeps, toastMsg?: string): Promise<void> {
+  const chunks = await readChunksOrdered(session.id);
+  if (chunks.length === 0) {
+    deps.removeIfUntouched?.(session.noteId, session.placeholderBody);
+    await deleteSession(session.id);
+    return;
+  }
+  if (session.mimeType !== "audio/wav") {
+    // Pre-upgrade orphan — see finalizeLegacySegments.
+    await finalizeLegacySegments(session, deps, chunks, toastMsg);
+    await deleteSession(session.id);
+    return;
+  }
+  const note = deps.getNote(session.noteId);
+  if (note) {
+    const blocks: NoteBlock[] = parseNoteContent(note.c || "");
+    const wav = buildWavBlob(chunks, session.sampleRate);
+    const ref = mintAudioRef(session.noteId, session.mimeType);
+    await putMedia(ref, wav);
+    const audioBlock: Extract<NoteBlock, { kind: "audio" }> = { kind: "audio", ref };
+    blocks.push(audioBlock);
+    deps.patchLiveNote?.(session.noteId, audioBlock);
+    note.c = serializeBlocks(blocks);
+    note.updatedAt = Date.now();
+    note.d = "Just now";
+    deps.persistAndRender();
+    if (toastMsg) deps.toast?.(toastMsg);
+  }
   await deleteSession(session.id);
 }
 
 function teardownStream(a: ActiveState) {
+  a.processor.onaudioprocess = null;
+  try {
+    a.processor.disconnect();
+    a.source.disconnect();
+    a.silentGain.disconnect();
+    a.analyser?.disconnect();
+  } catch {
+    /* already disconnected */
+  }
   a.stream.getTracks().forEach((t) => t.stop());
-  if (a.audioCtx && a.audioCtx.state !== "closed") void a.audioCtx.close();
+  if (a.audioCtx.state !== "closed") void a.audioCtx.close();
   try {
     void a.wakeLock?.release();
   } catch {
@@ -222,64 +258,18 @@ function teardownStream(a: ActiveState) {
   }
 }
 
-function bindRecorder(a: ActiveState, recorder: MediaRecorder, seq: number) {
-  recorder.ondataavailable = (e: BlobEvent) => {
-    if (active !== a || a.recorder !== recorder) return;
-    if (e.data && e.data.size > 0) a.lastAppend = appendChunk(a.session.id, seq, e.data);
+function bindProcessor(a: ActiveState) {
+  a.processor.onaudioprocess = (e: AudioProcessingEvent) => {
+    if (active !== a || !a.capturing) return;
+    const input = e.inputBuffer.getChannelData(0);
+    const resampled = resampleTo(input, a.audioCtx.sampleRate, TARGET_SAMPLE_RATE, a.resample);
+    if (resampled.length === 0) return;
+    const pcm16 = floatTo16BitPCM(resampled);
+    const seq = a.seq++;
+    // pcm16 always owns a fresh, non-shared ArrayBuffer (`new Int16Array(length)` above) —
+    // the cast just works around TS's overly-general ArrayBufferLike/BlobPart typing.
+    a.lastAppend = appendChunk(a.session.id, seq, new Blob([pcm16.buffer as ArrayBuffer]));
   };
-  recorder.onerror = () => void handleRecorderFailure();
-}
-
-/** Cleanly stop the CURRENT segment's MediaRecorder (no `requestData()` beforehand — see
- *  SEGMENT_MS) and wait for its one-and-only `dataavailable` to durably land in IndexedDB.
- *  Resolves even if `onstop` never fires (a stalled mic/device), so callers never hang. */
-function stopCurrentSegment(a: ActiveState): Promise<void> {
-  return new Promise((resolve) => {
-    const recorder = a.recorder;
-    if (recorder.state === "inactive") {
-      void a.lastAppend.finally(resolve);
-      return;
-    }
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      void a.lastAppend.finally(resolve);
-    };
-    recorder.onstop = finish;
-    try {
-      recorder.stop();
-    } catch {
-      finish();
-    }
-    setTimeout(finish, 4000);
-  });
-}
-
-function scheduleRotateTimer(a: ActiveState) {
-  a.rotateTimer = setTimeout(() => {
-    a.opChain = a.opChain.then(() => rotateSegment(a)).catch(() => {});
-  }, SEGMENT_MS);
-}
-
-/** Start a brand-new segment on the SAME stream — the counterpart to `stopCurrentSegment`.
- *  No-ops if the engine moved on (paused/stopped) while this was queued behind `opChain`. */
-function startNewSegment(a: ActiveState): Promise<void> {
-  if (active !== a || a.state !== "recording") return Promise.resolve();
-  const seq = a.seq++;
-  const recorder = new MediaRecorder(a.stream, a.session.mimeType ? { mimeType: a.session.mimeType } : undefined);
-  a.recorder = recorder;
-  a.lastAppend = Promise.resolve();
-  bindRecorder(a, recorder, seq);
-  recorder.start(); // deliberately no timeslice — see SEGMENT_MS
-  scheduleRotateTimer(a);
-  return Promise.resolve();
-}
-
-async function rotateSegment(a: ActiveState): Promise<void> {
-  if (active !== a || a.state !== "recording") return;
-  await stopCurrentSegment(a);
-  await startNewSegment(a);
 }
 
 function playBeep() {
@@ -326,10 +316,9 @@ async function onBackgrounded() {
   const a = active;
   const elapsed = a.clock.elapsedSec(clockNow());
   notifyBackgroundStop(elapsed);
-  if (a.rotateTimer) clearTimeout(a.rotateTimer);
   a.state = "stopping";
-  a.opChain = a.opChain.then(() => stopCurrentSegment(a)).catch(() => {});
-  await a.opChain;
+  a.capturing = false;
+  await a.lastAppend;
   await finalizeAndCleanup(a.session, a.deps); // no toast — the app isn't visible to see it
   teardownStream(a);
   if (active === a) active = null;
@@ -352,11 +341,11 @@ async function requestWakeLock(a: ActiveState) {
   }
 }
 
-async function handleRecorderFailure() {
+async function handleCaptureFailure() {
   if (!active) return;
   const a = active;
-  if (a.rotateTimer) clearTimeout(a.rotateTimer);
   active = null;
+  a.capturing = false;
   await finalizeAndCleanup(a.session, a.deps, "Recording stopped — a problem interrupted the mic, saved what we had");
   teardownStream(a);
 }
@@ -385,30 +374,42 @@ export async function startRecording(
     return { ok: false, error: describeMicError(e) };
   }
 
+  const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  const audioCtx = new AC();
+  const source = audioCtx.createMediaStreamSource(stream);
+
   let analyser: AnalyserNode | null = null;
   let data: Uint8Array<ArrayBuffer> | null = null;
-  let audioCtx: AudioContext | null = null;
   try {
-    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    audioCtx = new AC();
-    const srcNode = audioCtx.createMediaStreamSource(stream);
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = 512;
     data = new Uint8Array(analyser.fftSize);
-    srcNode.connect(analyser);
+    source.connect(analyser);
   } catch {
     analyser = null;
     data = null;
   }
 
-  const requested = pickMimeType();
-  const recorder = new MediaRecorder(stream, requested ? { mimeType: requested } : undefined);
-  // The blob we eventually build MUST be tagged with what the browser actually encoded, not
-  // what we asked for — `recorder.mimeType` is the browser's own negotiated value (it can
-  // differ from `requested`, e.g. when requested is "" and it picks its platform default).
-  // Stamping a final Blob with the wrong type is a real way to get an undecodable file.
-  const mimeType = recorder.mimeType || requested;
-  const session: RecordingSessionMeta = { id: mintSessionId(), noteId, mimeType, startedAt: Date.now(), placeholderBody };
+  // `createScriptProcessor` is deprecated in favor of AudioWorklet, but it needs no separate
+  // module file to ship/load and runs fine for this: short, foreground-only sessions (iOS gives
+  // a backgrounded PWA no real mic capture anyway, so there's no long-running-worklet case to
+  // optimize for). Mono in, mono (silent) out.
+  const processor = audioCtx.createScriptProcessor(PROCESSOR_BUFFER_SIZE, 1, 1);
+  const silentGain = audioCtx.createGain();
+  silentGain.gain.value = 0; // keep the callback alive without echoing the mic to the speaker
+  source.connect(processor);
+  processor.connect(silentGain);
+  silentGain.connect(audioCtx.destination);
+
+  const mimeType = "audio/wav";
+  const session: RecordingSessionMeta = {
+    id: mintSessionId(),
+    noteId,
+    mimeType,
+    sampleRate: TARGET_SAMPLE_RATE,
+    startedAt: Date.now(),
+    placeholderBody,
+  };
   await createSession(session);
 
   const clock = new RecordingClock();
@@ -416,23 +417,25 @@ export async function startRecording(
     session,
     deps,
     stream,
-    recorder,
-    seq: 0,
-    clock,
+    audioCtx,
+    source,
+    processor,
+    silentGain,
     analyser,
     data,
-    audioCtx,
+    resample: createResampleState(),
+    seq: 0,
+    clock,
     state: "recording",
     wakeLock: null,
+    capturing: true,
     lastAppend: Promise.resolve(),
-    rotateTimer: null,
-    opChain: Promise.resolve(),
   };
   active = a;
-
-  bindRecorder(a, recorder, a.seq++);
-  recorder.start(); // deliberately no timeslice — see SEGMENT_MS
-  scheduleRotateTimer(a);
+  bindProcessor(a);
+  // ScriptProcessorNode has no 'error' event — the one real failure mode worth catching here is
+  // the mic track itself dying mid-session (device unplugged, OS revokes permission, etc).
+  stream.getAudioTracks()[0]?.addEventListener("ended", () => void handleCaptureFailure());
   clock.start(clockNow());
 
   installVisibilityHandlerOnce();
@@ -441,20 +444,15 @@ export async function startRecording(
   return { ok: true };
 }
 
-/** Pause: cleanly stops the current segment first, so a pause point is itself a safe,
- *  guaranteed-playable checkpoint — "if never resumed, it's just saved just in case." Resume
- *  starts a brand-new segment rather than resuming the old MediaRecorder in place, same reason
- *  as SEGMENT_MS: a resumed recorder behaves like a timeslice for decodability purposes. */
+/** Pause: just stops writing incoming samples — the mic/stream/audio graph stay live so resume
+ *  needs no setup. The paused span is silently absent from the output (not recorded as
+ *  silence), matching elapsedSec's "actual captured time" accounting. */
 export function pauseRecording(): void {
   if (!active || active.state !== "recording") return;
   const a = active;
-  if (a.rotateTimer) {
-    clearTimeout(a.rotateTimer);
-    a.rotateTimer = null;
-  }
   a.clock.pause(clockNow());
   a.state = "paused";
-  a.opChain = a.opChain.then(() => stopCurrentSegment(a)).catch(() => {});
+  a.capturing = false;
 }
 
 export function resumeRecording(): void {
@@ -462,17 +460,16 @@ export function resumeRecording(): void {
   const a = active;
   a.clock.resume(clockNow());
   a.state = "recording";
-  a.opChain = a.opChain.then(() => startNewSegment(a)).catch(() => {});
+  a.capturing = true;
 }
 
-/** Manual stop — finalize into the note and tear down. Resolves once the note has the block(s). */
+/** Manual stop — finalize into the note and tear down. Resolves once the note has the block. */
 export async function stopRecording(): Promise<void> {
   if (!active) return;
   const a = active;
-  if (a.rotateTimer) clearTimeout(a.rotateTimer);
   a.state = "stopping";
-  a.opChain = a.opChain.then(() => stopCurrentSegment(a)).catch(() => {});
-  await a.opChain;
+  a.capturing = false;
+  await a.lastAppend;
   await finalizeAndCleanup(a.session, a.deps, "Recording saved");
   teardownStream(a);
   if (active === a) active = null;
