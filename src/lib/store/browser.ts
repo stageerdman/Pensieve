@@ -36,6 +36,7 @@ function readNote(id: string): Note | null {
     tags: n.tags ?? [],
     links: n.links ?? [],
     pinned: n.pinned ?? false,
+    starred: n.starred ?? false,
     addedAt: n.addedAt ?? n.createdAt, // back-compat for notes predating addedAt
   };
 }
@@ -61,6 +62,7 @@ export class BrowserStore implements Store {
         tags: n.tags,
         icon: n.icon,
         pinned: n.pinned,
+        starred: n.starred,
         openCount: n.openCount ?? 0,
         lastOpenedAt: n.lastOpenedAt,
         links: n.links,
@@ -118,6 +120,7 @@ export class BrowserStore implements Store {
       tags: [],
       links: [],
       pinned: false,
+      starred: false,
     };
     localStorage.setItem(NOTE_PREFIX + note.id, JSON.stringify(note));
     log.info("store", "create", { id: note.id });
@@ -136,6 +139,14 @@ export class BrowserStore implements Store {
     // Write pinned straight to storage — not via save() — so updatedAt is untouched.
     localStorage.setItem(NOTE_PREFIX + id, JSON.stringify({ ...note, pinned }));
     log.debug("store", "pin", { id, pinned });
+  }
+
+  async setStarred(id: string, starred: boolean): Promise<void> {
+    const note = readNote(id);
+    if (!note) return;
+    // Same non-edit contract as setPinned — write straight to storage.
+    localStorage.setItem(NOTE_PREFIX + id, JSON.stringify({ ...note, starred }));
+    log.debug("store", "star", { id, starred });
   }
 
   async markOpened(id: string): Promise<void> {

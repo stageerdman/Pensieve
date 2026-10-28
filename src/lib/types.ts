@@ -28,7 +28,11 @@ export interface NoteMeta {
   icon?: NoteIcon;
   // Surfaced into the fast-list sidecar so the sidebar can render pin state and a
   // preview without reading note bodies (see lib/sidebar). Not in .md frontmatter.
-  pinned?: boolean; // user-pinned to the top of the sidebar
+  pinned?: boolean; // user-pinned to the top of the sidebar (the "workbench")
+  // A permanently-important memory — distinct from pinned (ephemeral working set).
+  // Weighs heavily in search ranking and renders with a brighter visual treatment.
+  // Sidecar-only, same reasoning as pinned (see Store.setStarred).
+  starred?: boolean;
   excerpt?: string; // Markdown-stripped first ~140 chars of the body, for previews
   chars?: number; // non-space content char count (drives the flask fill level)
   // --- Engagement signals (for future search ranking; not shown in the UI yet) ---
@@ -53,6 +57,7 @@ export interface Note extends NoteMeta {
   links: string[]; // ids of related notes
   icon?: NoteIcon; // chosen flask; undefined until the owner picks one
   pinned: boolean; // pinned to the top of the sidebar
+  starred: boolean; // a permanently-important memory (see NoteMeta.starred)
 }
 
 /** The user-editable metadata carried in frontmatter. */
@@ -96,6 +101,8 @@ export interface Store {
   // Pin/unpin without touching the body or updatedAt — pinning is not an edit, so
   // it must not reorder a list sorted by update time.
   setPinned(id: string, pinned: boolean): Promise<void>;
+  // Star/unstar — same non-edit contract as setPinned (see NoteMeta.starred).
+  setStarred(id: string, starred: boolean): Promise<void>;
   // Record one deliberate open: bump openCount and stamp lastOpenedAt in the sidecar,
   // without touching the body or updatedAt (opening is not an edit).
   markOpened(id: string): Promise<void>;

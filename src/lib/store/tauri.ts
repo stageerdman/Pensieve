@@ -53,6 +53,8 @@ interface Meta {
   // Pin state lives in the fast-list sidecar so setPinned can toggle it without
   // rewriting the .md. (The preview excerpt is computed live in list(), not stored.)
   pinned?: boolean;
+  // Same sidecar-only contract as pinned — see NoteMeta.starred.
+  starred?: boolean;
   // Engagement signals — sidecar-only (never .md), bumped by markOpened and preserved
   // across saves. See NoteMeta.openCount.
   openCount?: number;
@@ -92,6 +94,7 @@ export class TauriStore implements Store {
         tags: m.tags ?? [],
         icon: parsed?.fields.icon,
         pinned: m.pinned ?? false,
+        starred: m.starred ?? false,
         openCount: m.openCount ?? 0,
         lastOpenedAt: m.lastOpenedAt,
         links: parsed?.fields.links ?? [],
@@ -149,6 +152,7 @@ export class TauriStore implements Store {
       links: fields.links,
       icon: fields.icon,
       pinned: m.pinned ?? false,
+      starred: m.starred ?? false,
     };
   }
 
@@ -166,6 +170,7 @@ export class TauriStore implements Store {
       categories: note.categories,
       tags: note.tags,
       pinned: note.pinned,
+      starred: note.starred,
       openCount: prev?.openCount,
       lastOpenedAt: prev?.lastOpenedAt,
     };
@@ -191,6 +196,7 @@ export class TauriStore implements Store {
       tags: [],
       links: [],
       pinned: false,
+      starred: false,
     };
     await this.save(note);
     log.info("store", "create", { id: note.id });
@@ -212,6 +218,15 @@ export class TauriStore implements Store {
     const m = JSON.parse(raw) as Meta;
     await writeText(metaPath(id), JSON.stringify({ ...m, pinned }));
     log.debug("store", "pin", { id, pinned });
+  }
+
+  async setStarred(id: string, starred: boolean): Promise<void> {
+    // Same non-edit, sidecar-only contract as setPinned.
+    const raw = await readText(metaPath(id));
+    if (!raw) return;
+    const m = JSON.parse(raw) as Meta;
+    await writeText(metaPath(id), JSON.stringify({ ...m, starred }));
+    log.debug("store", "star", { id, starred });
   }
 
   async markOpened(id: string): Promise<void> {

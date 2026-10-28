@@ -12,7 +12,7 @@ const AUDIO_REF = "media/n1/rec-9.mp3";
 function note(markdown: string): Note {
   return {
     id: "n1", title: "Call", createdAt: 1, addedAt: 1, updatedAt: 1,
-    markdown, categories: [], tags: [], links: [], pinned: false,
+    markdown, categories: [], tags: [], links: [], pinned: false, starred: false,
   };
 }
 
