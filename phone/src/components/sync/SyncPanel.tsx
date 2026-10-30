@@ -5,7 +5,7 @@
 // data-state drives the themed colours (CSS). Copy derivation is a small pure function
 // so there is one source of truth for each phase's wording.
 
-import type { SyncStatus } from "../../lib/wand/syncMachine";
+import type { SyncFailReason, SyncStatus } from "../../lib/wand/syncMachine";
 
 interface PanelCopy {
   title: string;
@@ -14,8 +14,10 @@ interface PanelCopy {
   primaryDisabled: boolean;
 }
 
-/** Source ~1472-1480. */
-export function panelCopy(status: SyncStatus): PanelCopy {
+/** Source ~1472-1480. `failReason`/`failMessage` only matter while status is
+ *  "failed" — they tell a dead sign-in (must reconnect, "Try again" can never
+ *  work) apart from a network blip (retry is the right move). */
+export function panelCopy(status: SyncStatus, failReason?: SyncFailReason, failMessage?: string): PanelCopy {
   switch (status) {
     case "synced":
       return { title: "Everything's backed up.", sub: "Your memories are safe in the cloud.", primary: "Back up now", primaryDisabled: false };
@@ -24,7 +26,15 @@ export function panelCopy(status: SyncStatus): PanelCopy {
     case "syncing":
       return { title: "Backing up…", sub: "Weaving your memories to the cloud.", primary: "Backing up…", primaryDisabled: true };
     case "failed":
-      return { title: "Backup didn't finish.", sub: "Something interrupted the cast. Your memories are safe on this device — give it another try.", primary: "Try again", primaryDisabled: false };
+      if (failReason === "reconnect") {
+        return { title: "Sign-in expired.", sub: failMessage || "Your OneDrive sign-in has expired — reconnect to keep backing up.", primary: "Reconnect", primaryDisabled: false };
+      }
+      return {
+        title: "Backup didn't finish.",
+        sub: failMessage ? `${failMessage} Your memories are safe on this device.` : "Something interrupted the cast. Your memories are safe on this device — give it another try.",
+        primary: "Try again",
+        primaryDisabled: false,
+      };
     case "offline":
       return { title: "You're offline.", sub: "Everything's saved here. It'll back up on its own once you're connected.", primary: "Waiting for connection", primaryDisabled: true };
   }

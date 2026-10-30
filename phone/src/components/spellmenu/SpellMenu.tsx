@@ -5,7 +5,7 @@
 // collapse motion replays. A windowed spell (e.g. Sync) renders a window above the ring
 // and blurs it behind; closing the window returns INTO the menu, not the page.
 
-import type { SyncStatus } from "../../lib/wand/syncMachine";
+import type { SyncFailReason, SyncStatus } from "../../lib/wand/syncMachine";
 import type { Spell } from "../../lib/spells/types";
 import type { SpellMenuApi } from "../../hooks/useSpellMenu";
 import { SpellRing } from "./SpellRing";
@@ -18,6 +18,9 @@ export interface SpellMenuProps {
   /** a brief twinkle when the ring is dismissed / switched / descended. */
   onSparkle: () => void;
   syncState: SyncStatus;
+  /** Only meaningful while syncState === "failed" — see syncMachine.ts. */
+  syncFailReason?: SyncFailReason;
+  syncFailMessage?: string;
   account: string;
   connected: boolean;
   onSyncPrimary: () => void;
@@ -33,6 +36,8 @@ export function SpellMenu({
   onLongCast,
   onSparkle,
   syncState,
+  syncFailReason,
+  syncFailMessage,
   account,
   connected,
   onSyncPrimary,
@@ -80,6 +85,8 @@ export function SpellMenu({
         <SpellWindow
           spellId={api.windowSpellId!}
           syncState={syncState}
+          syncFailReason={syncFailReason}
+          syncFailMessage={syncFailMessage}
           account={account}
           connected={connected}
           onClose={api.closeWindow}

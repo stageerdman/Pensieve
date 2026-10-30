@@ -593,12 +593,12 @@ export function PhoneApp() {
     const castId = spell.castId + 1;
     setSpell({ show: true, castId });
     const task = opts?.restore ? onedrive.restore() : onedrive.run();
-    void task.then(({ ok }) => {
+    void task.then(({ ok, reason, message }) => {
       setTimeout(() => {
         setSpell((s) => ({ ...s, show: false }));
         if (ok) sync.succeeded();
         else {
-          sync.failed();
+          sync.failed(reason ?? "error", message);
           haptic(30);
         }
       }, 900);
@@ -665,10 +665,17 @@ export function PhoneApp() {
       menu.openWindow(s.id);
     }
   }
-  /** The Sync window's primary action — cast the backup over the (closed) menu. */
+  /** The Sync window's primary action — cast the backup over the (closed) menu.
+   *  Exception: a dead sign-in (ReconnectNeededError) can NEVER be fixed by
+   *  retrying the same cast — route that one case to reconnect instead, so
+   *  "Try again" is never a dead-end loop. */
   function syncWindowPrimary() {
     if (syncStatus === "offline" || syncStatus === "syncing") return;
     menu.close();
+    if (syncStatus === "failed" && sync.state.failReason === "reconnect") {
+      onedrive.connect();
+      return;
+    }
     castSpell();
   }
   /** The Sync window's restore — pull the whole vault down from the cloud (confirmed
@@ -831,6 +838,8 @@ export function PhoneApp() {
         onLongCast={longCastSpell}
         onSparkle={flashSparkle}
         syncState={syncStatus}
+        syncFailReason={sync.state.failReason}
+        syncFailMessage={sync.state.failMessage}
         account={onedrive.account}
         connected={onedrive.connected}
         onSyncPrimary={syncWindowPrimary}

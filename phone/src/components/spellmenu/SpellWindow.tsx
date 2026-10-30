@@ -4,7 +4,7 @@
 // up now"); the ring stays mounted but blurred behind it, and closing returns INTO the
 // menu (not the page). Other windowed spells fall back to a simple confirmation card.
 
-import type { SyncStatus } from "../../lib/wand/syncMachine";
+import type { SyncFailReason, SyncStatus } from "../../lib/wand/syncMachine";
 import { panelCopy } from "../sync/SyncPanel";
 import { RestoreFromCloud } from "../sync/RestoreFromCloud";
 import { spellById } from "../../lib/spells/registry";
@@ -12,6 +12,9 @@ import { spellById } from "../../lib/spells/registry";
 export interface SpellWindowProps {
   spellId: string;
   syncState: SyncStatus;
+  /** Only meaningful while syncState === "failed" — see syncMachine.ts. */
+  syncFailReason?: SyncFailReason;
+  syncFailMessage?: string;
   account: string;
   /** Is OneDrive actually connected? Before this, Sync shows a Connect prompt
    *  instead of the backup panel — there's nothing to back up TO yet. */
@@ -35,7 +38,7 @@ function onBackdropClick(onClose: () => void) {
   };
 }
 
-export function SpellWindow({ spellId, syncState, account, connected, onClose, onPrimary, onRestore, onConnect, onDisconnect }: SpellWindowProps) {
+export function SpellWindow({ spellId, syncState, syncFailReason, syncFailMessage, account, connected, onClose, onPrimary, onRestore, onConnect, onDisconnect }: SpellWindowProps) {
   const spell = spellById(spellId);
 
   if (spellId === "sync") {
@@ -68,7 +71,7 @@ export function SpellWindow({ spellId, syncState, account, connected, onClose, o
       );
     }
 
-    const copy = panelCopy(syncState);
+    const copy = panelCopy(syncState, syncFailReason, syncFailMessage);
     return (
       <div className="spell-window-layer" onClick={onBackdropClick(onClose)}>
         <div className="spell-window" data-state={syncState} role="dialog" aria-label="Sync">

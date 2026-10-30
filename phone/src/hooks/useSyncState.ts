@@ -7,7 +7,7 @@
 // is intentionally NOT here (stripped in syncMachine) — the caller decides success.
 
 import { useEffect, useReducer } from "react";
-import { initialSyncState, syncReducer, type SyncEvent, type SyncState } from "../lib/wand/syncMachine";
+import { initialSyncState, syncReducer, type SyncEvent, type SyncFailReason, type SyncState } from "../lib/wand/syncMachine";
 
 export interface SyncApi {
   state: SyncState;
@@ -16,7 +16,7 @@ export interface SyncApi {
   /** Begin a cast (guarded: no-op while syncing/offline). */
   cast: () => void;
   succeeded: () => void;
-  failed: () => void;
+  failed: (reason: SyncFailReason, message?: string) => void;
 }
 
 export function useSyncState(): SyncApi {
@@ -43,6 +43,6 @@ export function useSyncState(): SyncApi {
     edit: () => fire("EDIT"),
     cast: () => fire("CAST"),
     succeeded: () => fire("SYNC_SUCCEEDED"),
-    failed: () => fire("SYNC_FAILED"),
+    failed: (reason, message) => dispatch({ type: "SYNC_FAILED", reason, message }),
   };
 }

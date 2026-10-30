@@ -9,14 +9,27 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { disconnectOneDrive, startConnect } from "../lib/sync/connect";
 import { createEngine } from "../lib/sync/engine";
-import { RemoteRootMissingError } from "../lib/sync/errors";
+import { ReconnectNeededError, RemoteRootMissingError, TransientSyncError } from "../lib/sync/errors";
 import { isConnected } from "../lib/sync/tokens";
 import { phoneVault } from "../lib/sync/vault";
 import { log } from "../lib/logger";
+import type { SyncFailReason } from "../lib/wand/syncMachine";
 
 export interface SyncOutcome {
   ok: boolean;
   message: string;
+  /** Only set when !ok — which kind of failure, so the UI can offer the right
+   *  recovery action instead of a "Try again" that can never succeed. */
+  reason?: SyncFailReason;
+}
+
+/** Map a thrown sync error to the UI-facing reason + message. Typed errors (see
+ *  lib/sync/errors.ts) already know whether this is "sign in again" vs. "just
+ *  retry" — this is the one place that distinction must survive to the screen. */
+function describeFailure(e: unknown): { reason: SyncFailReason; message: string } {
+  if (e instanceof ReconnectNeededError) return { reason: "reconnect", message: e.message };
+  if (e instanceof TransientSyncError) return { reason: "transient", message: e.message };
+  return { reason: "error", message: e instanceof Error ? e.message : "Couldn't reach the cloud" };
 }
 
 export interface OneDriveSync {
@@ -80,11 +93,12 @@ export function useOneDriveSync(onChanged?: () => void): OneDriveSync {
           return { ok: true, message: "Pensieve is set up · all memories safe" };
         } catch (e2) {
           log.error("sync", "summon.failed", { error: String(e2) });
-          return { ok: false, message: "Couldn't set up Pensieve on this OneDrive" };
+          return { ok: false, message: "Couldn't set up Pensieve on this OneDrive", reason: "error" };
         }
       }
-      log.error("sync", "run.failed", { error: String(e) });
-      return { ok: false, message: e instanceof Error ? e.message : "Couldn't reach the cloud" };
+      const { reason, message } = describeFailure(e);
+      log.error("sync", "run.failed", { error: String(e), reason });
+      return { ok: false, message, reason };
     }
   }, []);
 
@@ -94,8 +108,9 @@ export function useOneDriveSync(onChanged?: () => void): OneDriveSync {
       onChangedRef.current?.();
       return { ok: true, message: "Restored from the cloud · just now" };
     } catch (e) {
-      log.error("sync", "restore.failed", { error: String(e) });
-      return { ok: false, message: e instanceof Error ? e.message : "Couldn't reach the cloud" };
+      const { reason, message } = describeFailure(e);
+      log.error("sync", "restore.failed", { error: String(e), reason });
+      return { ok: false, message, reason };
     }
   }, []);
 

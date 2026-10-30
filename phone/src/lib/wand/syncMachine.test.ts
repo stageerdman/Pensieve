@@ -53,9 +53,26 @@ describe("syncReducer", () => {
 
   it("SYNC_FAILED moves to failed and stays dirty (retry is offered)", () => {
     const syncing: SyncState = { status: "syncing", dirty: true, online: true };
-    const s = syncReducer(syncing, { type: "SYNC_FAILED" });
+    const s = syncReducer(syncing, { type: "SYNC_FAILED", reason: "transient", message: "Can't reach OneDrive right now." });
     expect(s.status).toBe("failed");
     expect(s.dirty).toBe(true);
+    expect(s.failReason).toBe("transient");
+    expect(s.failMessage).toBe("Can't reach OneDrive right now.");
+  });
+
+  it("SYNC_FAILED with reason=reconnect carries that through so the UI can offer reconnect, not a doomed retry", () => {
+    const syncing: SyncState = { status: "syncing", dirty: true, online: true };
+    const s = syncReducer(syncing, { type: "SYNC_FAILED", reason: "reconnect", message: "Your OneDrive sign-in has expired." });
+    expect(s.failReason).toBe("reconnect");
+    expect(s.failMessage).toBe("Your OneDrive sign-in has expired.");
+  });
+
+  it("a fresh CAST after a failure clears the stale fail reason/message", () => {
+    const failed: SyncState = { status: "failed", dirty: true, online: true, failReason: "reconnect", failMessage: "expired" };
+    const s = syncReducer(failed, { type: "CAST" });
+    expect(s.status).toBe("syncing");
+    expect(s.failReason).toBeUndefined();
+    expect(s.failMessage).toBeUndefined();
   });
 
   it("WENT_ONLINE goes to reminder if dirty, synced otherwise", () => {

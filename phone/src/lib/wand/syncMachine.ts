@@ -16,12 +16,20 @@
 
 export type SyncStatus = "synced" | "reminder" | "syncing" | "failed" | "offline";
 
+/** Why the last cast failed — determines the panel's copy AND its primary action.
+ *  "reconnect" is the one case where "Try again" can never succeed: the sign-in
+ *  itself is dead, so the primary button must trigger reconnect instead of retry. */
+export type SyncFailReason = "reconnect" | "transient" | "error";
+
 export interface SyncState {
   status: SyncStatus;
   /** Unsaved edits exist since the last successful back-up. */
   dirty: boolean;
   /** Real device connectivity (navigator.onLine in the original). */
   online: boolean;
+  /** Only meaningful while status === "failed". */
+  failReason?: SyncFailReason;
+  failMessage?: string;
 }
 
 export type SyncEvent =
@@ -33,8 +41,9 @@ export type SyncEvent =
   /** The in-flight cast finished successfully. Source ~1503-1507 (else branch). */
   | { type: "SYNC_SUCCEEDED" }
   /** The in-flight cast failed. Source ~1503-1507 (if branch) — stays dirty so a
-   *  retry is still offered. */
-  | { type: "SYNC_FAILED" }
+   *  retry is still offered. Carries WHY it failed so the panel can tell a dead
+   *  sign-in (must reconnect) apart from a network blip (just retry). */
+  | { type: "SYNC_FAILED"; reason: SyncFailReason; message?: string }
   /** `window.addEventListener("online", ...)`, source ~1488. */
   | { type: "WENT_ONLINE" }
   /** `window.addEventListener("offline", ...)`, source ~1489. */
@@ -57,15 +66,15 @@ export function syncReducer(state: SyncState, event: SyncEvent): SyncState {
     case "CAST": {
       // castSpell(): if(syncState==="syncing" || syncState==="offline") return; setSync("syncing");
       if (state.status === "syncing" || state.status === "offline") return state;
-      return { ...state, status: "syncing" };
+      return { ...state, status: "syncing", failReason: undefined, failMessage: undefined };
     }
     case "SYNC_SUCCEEDED": {
       // dirty=false; setSync(navigator.onLine ? "synced" : "offline");
-      return { ...state, dirty: false, status: state.online ? "synced" : "offline" };
+      return { ...state, dirty: false, status: state.online ? "synced" : "offline", failReason: undefined, failMessage: undefined };
     }
     case "SYNC_FAILED": {
-      // setSync("failed") — stays dirty, tap sync to retry.
-      return { ...state, status: "failed" };
+      // setSync("failed") — stays dirty, tap sync to retry (or reconnect, see reason).
+      return { ...state, status: "failed", failReason: event.reason, failMessage: event.message };
     }
     case "WENT_ONLINE": {
       // setSync(dirty ? "reminder" : "synced");
