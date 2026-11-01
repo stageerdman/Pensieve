@@ -97,6 +97,41 @@ export async function _debugBlobMeta(ref: string): Promise<{ size: number; type:
   }
 }
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const CHUNK = 0x8000; // spreading the whole array into String.fromCharCode at once can blow the call stack
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
+/** Resolve an audio ref straight to a `data:` URI instead of a `blob:` object URL. iOS WebKit's
+ *  <audio>/<video> loading is backed by AVFoundation, which — unlike the plain image decoder
+ *  <img> blob: URLs go through — has a long history of flatly refusing (readyState never
+ *  advancing past HAVE_NOTHING, MediaError SRC_NOT_SUPPORTED) to even attempt loading a blob:
+ *  URL for a locally-constructed Blob in a standalone "Add to Home Screen" PWA, regardless of
+ *  the blob's actual content/size/type being correct (confirmed on-device: err=4/ready=0/net=3
+ *  on a verified-valid, correctly-sized, correctly-typed audio/wav blob — see
+ *  VOICE-FINALIZE-TEARDOWN-ORDER memory). A `data:` URI sidesteps blob: URL resolution
+ *  entirely — the bytes are inline in the src attribute, nothing for AVFoundation to fail to
+ *  fetch. Recordings here are capped small (~1.9MB/min at 16kHz mono), so the ~33% base64
+ *  overhead is a non-issue. */
+export async function resolveAudioDataUrl(ref: string): Promise<string | null> {
+  if (!ref) return null;
+  if (!isMediaPath(ref)) return ref;
+  try {
+    const blob = await tx<Blob | undefined>("readonly", (s) => s.get(ref));
+    if (!blob) return null;
+    const buf = await blob.arrayBuffer();
+    const base64 = arrayBufferToBase64(buf);
+    return `data:${blob.type || "audio/wav"};base64,${base64}`;
+  } catch {
+    return null;
+  }
+}
+
 /** Synchronous peek at the url cache (for instant same-session display). */
 export function cachedMediaUrl(ref: string): string | null {
   if (!isMediaPath(ref)) return ref;

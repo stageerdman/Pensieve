@@ -25,7 +25,7 @@ import {
   type MediaImage,
   type NoteBlock,
 } from "../../lib/media/noteMedia";
-import { _debugBlobMeta, cachedMediaUrl, loadTranscript, resolveMediaUrl } from "../../lib/media/mediaStore";
+import { _debugBlobMeta, cachedMediaUrl, loadTranscript, resolveAudioDataUrl, resolveMediaUrl } from "../../lib/media/mediaStore";
 import { phoneLightbox } from "../../lib/media/lightboxController";
 import { phoneCollection } from "../../lib/media/collectionController";
 import { _debugRegistrySize, fmtTime, getController } from "../../lib/media/audioController";
@@ -261,7 +261,7 @@ function buildAudioEl(block: Extract<NoteBlock, { kind: "audio" }>, ctx: MediaCt
   appendGrip(el);
 
   const ref = block.ref;
-  void resolveMediaUrl(ref).then((url) => {
+  void resolveAudioDataUrl(ref).then((url) => {
     if (!url) {
       el.classList.add("is-broken");
       bar.innerHTML = "";
