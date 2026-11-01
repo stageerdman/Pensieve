@@ -958,11 +958,16 @@ export function PhoneApp() {
         }}
       />
 
-      {/* the audio-upload input — the "Voice" conditional spell's Upload option. */}
+      {/* the audio-upload input — the "Voice" conditional spell's Upload option. A bare
+          "audio/*" wildcard sometimes leaves iOS unable to resolve a confident UTI, so it falls
+          back to the full Photo Library/Camera/Browse sheet; an explicit mime+extension list
+          (the same formats mintAudioRef already recognizes) gets WebKit to skip straight to
+          Browse instead. There's no web API to pre-target the Voice Memos folder inside Browse
+          — that's native-only, not exposed to a web view. */}
       <input
         ref={audioInputRef}
         type="file"
-        accept="audio/*"
+        accept="audio/x-m4a,audio/mp4,audio/aac,audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/webm,audio/ogg,.m4a,.caf,.aac,.mp3,.wav,.ogg"
         hidden
         onChange={(e) => {
           onPickAudioFile(e.target.files);
