@@ -87,6 +87,14 @@ const PATHS: Record<Exclude<IconName, "menu" | "sync">, React.ReactNode> = {
       <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11" />
     </>
   ),
+  // an upward arrow feeding an open tray — "bring in an existing file", distinct from the
+  // mic (which means "capture a new take").
+  upload: (
+    <>
+      <path d="M12 15V4M8.3 7.5 12 4l3.7 3.5" />
+      <path d="M5 15.5v2.7a1.8 1.8 0 0 0 1.8 1.8h10.4a1.8 1.8 0 0 0 1.8-1.8v-2.7" />
+    </>
+  ),
 };
 
 /** Six fire-gold ember-orbs on a ring (12 o'clock clockwise), 32-grid, radius 11 — no hub. */

@@ -34,13 +34,19 @@ describe("registry — conditional (page-recommended) rosters", () => {
     expect(hasConditional("home")).toBe(false);
   });
 
-  it("a note offers Photo + Gallery + Delete (the last rides the danger hue)", () => {
+  it("a note offers Photo + Gallery + Voice + Delete (the last rides the danger hue)", () => {
     const note = conditionalSpells("note");
-    expect(note.map((s) => s.id)).toEqual(["image", "gallery", "delete"]);
-    expect(note.map((s) => s.name)).toEqual(["Photo", "Gallery", "Delete"]);
+    expect(note.map((s) => s.id)).toEqual(["image", "gallery", "record", "delete"]);
+    expect(note.map((s) => s.name)).toEqual(["Photo", "Gallery", "Voice", "Delete"]);
     expect(note.find((s) => s.id === "delete")!.hue).toBe("danger");
     expect(isScroll(note.length)).toBe(false); // a clean static ring
     expect(hasConditional("note")).toBe(true);
+  });
+
+  it("Voice is a detailed spell offering Record (new take) + Upload (existing file)", () => {
+    const voice = conditionalSpells("note").find((s) => s.id === "record")!;
+    expect(voice.children!.map((s) => s.id)).toEqual(["record-new", "record-upload"]);
+    expect(voice.children!.map((s) => s.name)).toEqual(["Record", "Upload"]);
   });
 
   it("an open collection offers Edit + Photo (no nesting a gallery in a gallery)", () => {

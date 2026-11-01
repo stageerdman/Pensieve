@@ -54,7 +54,7 @@ import { PhoneCollection } from "./components/note/PhoneCollection";
 import { PhoneTranscriptReader } from "./components/note/PhoneTranscriptReader";
 import { VoiceRecorderPanel } from "./components/note/VoiceRecorderPanel";
 import { ConfirmDeleteNote } from "./components/note/ConfirmDeleteNote";
-import { mintMediaRef, registerLocalMedia } from "./lib/media/mediaStore";
+import { mintAudioRef, mintMediaRef, registerLocalMedia } from "./lib/media/mediaStore";
 import type { MediaImage } from "./lib/media/noteMedia";
 import { pauseAllAudio } from "./lib/media/audioController";
 import { recoverOrphanedRecordings, type VoiceCaptureDeps } from "./lib/media/voiceCapture";
@@ -114,6 +114,12 @@ export function PhoneApp() {
   // no recording genuinely started, no manual edit. Backing out of one of these discards
   // silently instead of saving an "empty" placeholder note (see exitNote/onBodyInput/onPickFiles).
   const pendingCaptureRef = useRef<Set<string>>(new Set());
+  // ids minted by openCaptureNote (Snap/Record-from-home) — unlike pendingCaptureRef this is
+  // NEVER cleared once the mic genuinely starts, so removeIfUntouched (below) can still tell "a
+  // fresh capture note that turned out empty" apart from an existing memory the user opened and
+  // chose to add a take to (that one must never be silently deleted just because a take captured
+  // nothing — see the "Voice" conditional spell's record-new branch in castSpellAction).
+  const captureFlowRef = useRef<Set<string>>(new Set());
 
   // ---- element refs ----
   const rootRef = useRef<HTMLDivElement>(null);
@@ -132,6 +138,7 @@ export function PhoneApp() {
   const voiceRef = useRef<HTMLButtonElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
 
   // ---- React state (drives re-renders only; NOT the 60fps loops) ----
   const [view, setView] = useState<Note[]>(() => computeView(dataRef.current!, "", []));
@@ -260,6 +267,7 @@ export function PhoneApp() {
   // the first flush interval) AND the note is still exactly its untouched placeholder — nothing
   // real ever happened, so undo the early commit rather than leave an "empty" note behind.
   voiceDeps.removeIfUntouched = (id, placeholderBody) => {
+    if (!captureFlowRef.current.has(id)) return; // only a fresh Snap/Record capture note may be silently undone
     const idx = dataRef.current!.findIndex((n) => n.id === id);
     if (idx === -1) return;
     if ((dataRef.current![idx].c || "").trim() !== placeholderBody.trim()) return; // user added real content — keep it
@@ -344,6 +352,7 @@ export function PhoneApp() {
       isNew: true,
     };
     pendingCaptureRef.current.add(d.id);
+    captureFlowRef.current.add(d.id);
     conjure(threadRef.current, rootRef.current, reduce, () => openNote(d));
     haptic(10);
     return d;
@@ -361,6 +370,15 @@ export function PhoneApp() {
   function startCaptureVoice() {
     const d = openCaptureNote("New Recording", "added recording");
     setTimeout(() => setVoicePanel({ open: true, noteId: d.id, placeholderBody: d.c }), 460);
+  }
+
+  /** The "Voice" conditional spell's Record option: unlike startCaptureVoice (which mints a
+   *  brand-new "New Recording" memory from Home), this attaches a take to the memory that's
+   *  ALREADY open — same recorder engine, just not a captureFlow id (see removeIfUntouched). */
+  function startVoiceInCurrentNote() {
+    const note = currentRef.current;
+    if (!note) return;
+    setVoicePanel({ open: true, noteId: note.id, placeholderBody: note.c ?? "" });
   }
 
   function openNewNote(dictate: boolean) {
@@ -515,6 +533,33 @@ export function PhoneApp() {
     haptic(10);
   }
 
+  // ---- audio upload (the "Voice" conditional spell's Upload option) ----
+  // A second hidden input, separate from the image one above: iOS's native picker reads
+  // `accept` to decide which sources it offers (Photos vs Files/iCloud Drive), and this is the
+  // path to an existing Voice Memos take — Safari has no API into the Voice Memos app itself,
+  // but a recording saved to Files (via its own Share sheet) or synced through iCloud Drive
+  // shows up in the standard file browser.
+  function openAudioPicker() {
+    audioInputRef.current?.click();
+  }
+
+  function onPickAudioFile(files: FileList | null) {
+    const file = files?.[0];
+    const noteBody = noteBodyRef.current;
+    const note = currentRef.current;
+    if (!file || !noteBody || !note) return;
+    // store the file exactly as picked — no re-encode; the browser already knows how to play
+    // whatever format it is, and mintAudioRef/EXT_BY_TYPE already covers the common voice-memo
+    // containers (m4a/aac/mp3/wav).
+    const ref = mintAudioRef(note.id, file.type || "audio/mp4");
+    registerLocalMedia(ref, file);
+    pendingCaptureRef.current.delete(note.id);
+    insertAudio(noteBody, { kind: "audio", ref }, mediaCtx);
+    syncPlaceholders(noteBody);
+    autosave.scheduleSave();
+    haptic(10);
+  }
+
   function applyFmt(f: FmtKey) {
     const noteBody = noteBodyRef.current;
     if (!noteBody) return;
@@ -649,6 +694,8 @@ export function PhoneApp() {
     else if (s.id === "gallery") openImagePicker("gallery");
     else if (s.id === "snap") startCaptureImage();
     else if (s.id === "voice") startCaptureVoice();
+    else if (s.id === "record-new") startVoiceInCurrentNote();
+    else if (s.id === "record-upload") openAudioPicker();
     else if (s.id === "delete") setConfirmDelete(true); // never deletes on the tap — confirm first
     else if (s.id === "edit") phoneCollection.toggleEditMode(); // board-scoped: arrange/remove mode
     else showToast(`✨ ${s.name} cast`);
@@ -908,6 +955,18 @@ export function PhoneApp() {
         onChange={(e) => {
           onPickFiles(e.target.files);
           e.target.value = ""; // allow re-picking the same file
+        }}
+      />
+
+      {/* the audio-upload input — the "Voice" conditional spell's Upload option. */}
+      <input
+        ref={audioInputRef}
+        type="file"
+        accept="audio/*"
+        hidden
+        onChange={(e) => {
+          onPickAudioFile(e.target.files);
+          e.target.value = "";
         }}
       />
 
