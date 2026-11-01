@@ -239,6 +239,10 @@ async function finalizeAndCleanup(session: RecordingSessionMeta, deps: VoiceCapt
   await deleteSession(session.id);
 }
 
+// Every finalize call site runs this BEFORE finalizeAndCleanup, not after: finalize patches the
+// note's DOM with a fresh <audio> element that starts decoding the just-built WAV blob
+// immediately, and WebKit's decoder flakes (silently, permanently — see audioController.ts's
+// registry caching) when that happens while the mic's capture AudioContext/stream is still open.
 function teardownStream(a: ActiveState) {
   a.processor.onaudioprocess = null;
   try {
@@ -319,8 +323,8 @@ async function onBackgrounded() {
   a.state = "stopping";
   a.capturing = false;
   await a.lastAppend;
-  await finalizeAndCleanup(a.session, a.deps); // no toast — the app isn't visible to see it
   teardownStream(a);
+  await finalizeAndCleanup(a.session, a.deps); // no toast — the app isn't visible to see it
   if (active === a) active = null;
 }
 
@@ -346,8 +350,8 @@ async function handleCaptureFailure() {
   const a = active;
   active = null;
   a.capturing = false;
-  await finalizeAndCleanup(a.session, a.deps, "Recording stopped — a problem interrupted the mic, saved what we had");
   teardownStream(a);
+  await finalizeAndCleanup(a.session, a.deps, "Recording stopped — a problem interrupted the mic, saved what we had");
 }
 
 /** True while a recording is active (recording or paused) — the UI uses this to decide whether
@@ -470,8 +474,8 @@ export async function stopRecording(): Promise<void> {
   a.state = "stopping";
   a.capturing = false;
   await a.lastAppend;
-  await finalizeAndCleanup(a.session, a.deps, "Recording saved");
   teardownStream(a);
+  await finalizeAndCleanup(a.session, a.deps, "Recording saved");
   if (active === a) active = null;
 }
 
