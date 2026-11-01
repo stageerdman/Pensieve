@@ -30,5 +30,8 @@ file (new file-picker path, so a Voice Memos recording saved to Files can be att
    `npm run deploy:phone` per CLAUDE.md workflow §8 (a phone/ change isn't done until deployed).
 
 ## Status
-- Done: planning, architecture survey (see wiki.md).
-- Next: implement phases 1–4, then build/deploy.
+- Done: all 4 phases implemented + verified (`npm test` 1029/1029, `tsc`, `build:phone`), shipped
+  to main `fe108fa`, deployed to https://pensieve-phone.pages.dev (build `cb8194bc`).
+- Next: owner device confirmation — tap the "Voice" spell on an open memory, try both Record
+  (adds a take to that memory, doesn't mint a new one) and Upload (pick an audio file — ideally
+  one already saved to Files from Voice Memos). Keep folder OPEN until confirmed on-device.
