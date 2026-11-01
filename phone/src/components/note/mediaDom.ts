@@ -25,10 +25,10 @@ import {
   type MediaImage,
   type NoteBlock,
 } from "../../lib/media/noteMedia";
-import { cachedMediaUrl, loadTranscript, resolveMediaUrl } from "../../lib/media/mediaStore";
+import { _debugBlobMeta, cachedMediaUrl, loadTranscript, resolveMediaUrl } from "../../lib/media/mediaStore";
 import { phoneLightbox } from "../../lib/media/lightboxController";
 import { phoneCollection } from "../../lib/media/collectionController";
-import { fmtTime, getController } from "../../lib/media/audioController";
+import { _debugRegistrySize, fmtTime, getController } from "../../lib/media/audioController";
 import { log } from "../../lib/logger";
 import { phoneTranscriptReader } from "../../lib/media/transcriptReaderController";
 
@@ -272,14 +272,39 @@ function buildAudioEl(block: Extract<NoteBlock, { kind: "audio" }>, ctx: MediaCt
       return;
     }
     const c = getController(ref, url);
+    // DEBUG (VOICE-PLAYBACK investigation, 2026-11-01): a visible, on-device diagnostic line —
+    // no remote debugging session available, so this surfaces the MediaError code, media
+    // element state, stored blob size, and the controller registry's live-slot count directly
+    // where the owner can read (or screenshot) it. Remove once that investigation is closed.
     const showBroken = () => {
-      log.warn("audio", "playback.undecodable", { ref, errorCode: c.errorCode });
+      const errCode = c.errorCode;
+      const ERR_NAMES: Record<number, string> = { 1: "ABORTED", 2: "NETWORK", 3: "DECODE", 4: "SRC_NOT_SUPPORTED" };
+      log.warn("audio", "playback.undecodable", {
+        ref,
+        errorCode: errCode,
+        errorName: errCode ? ERR_NAMES[errCode] : null,
+        errorMessage: c.errorMessage,
+        readyState: c.readyState,
+        networkState: c.networkState,
+        registrySize: _debugRegistrySize(),
+      });
       el.classList.add("is-broken");
       bar.innerHTML = "";
       const broken = document.createElement("span");
       broken.className = "ph-audio-broken";
       broken.textContent = "Can't play this recording";
       bar.appendChild(broken);
+      const diag = document.createElement("span");
+      diag.className = "ph-audio-diag";
+      diag.style.display = "block";
+      diag.style.fontSize = "11px";
+      diag.style.opacity = "0.65";
+      diag.style.fontFamily = "monospace";
+      diag.textContent = `err=${errCode}(${errCode ? ERR_NAMES[errCode] : "?"}) ready=${c.readyState} net=${c.networkState} slots=${_debugRegistrySize()}/5`;
+      bar.appendChild(diag);
+      void _debugBlobMeta(ref).then((meta) => {
+        diag.textContent += meta ? ` size=${meta.size}B type=${meta.type || "?"}` : " size=MISSING";
+      });
     };
     const render = () => {
       if (c.errorCode) {

@@ -84,6 +84,19 @@ export async function resolveMediaUrl(ref: string): Promise<string | null> {
   }
 }
 
+/** DEBUG ONLY (VOICE-PLAYBACK investigation, 2026-11-01) — size/type of the stored blob for a
+ *  ref, straight from IndexedDB (no object URL / cache involved), so a "Can't play this
+ *  recording" state can show whether the bytes even made it to the store intact. Remove once
+ *  that investigation is closed. */
+export async function _debugBlobMeta(ref: string): Promise<{ size: number; type: string } | null> {
+  try {
+    const blob = await tx<Blob | undefined>("readonly", (s) => s.get(ref));
+    return blob ? { size: blob.size, type: blob.type } : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Synchronous peek at the url cache (for instant same-session display). */
 export function cachedMediaUrl(ref: string): string | null {
   if (!isMediaPath(ref)) return ref;

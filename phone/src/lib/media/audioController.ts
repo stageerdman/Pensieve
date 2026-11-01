@@ -24,6 +24,9 @@ export interface AudioController {
   /** Set once the element fires a decode/network `error` — the file is NOT going to play. A
    *  caller should swap to a "can't play" state rather than leave a player silently stuck. */
   readonly errorCode: number | null; // MediaError.code (1-4), see MDN
+  readonly errorMessage: string; // MediaError.message — often empty on WebKit, kept anyway
+  readonly readyState: number; // HTMLMediaElement.readyState (0-4)
+  readonly networkState: number; // HTMLMediaElement.networkState (0-3)
   on(ev: AudioEvent, cb: () => void): () => void;
 }
 
@@ -68,6 +71,13 @@ function evictLRUIfFull(): void {
   registry.delete(oldestKey);
 }
 
+/** DEBUG ONLY (VOICE-PLAYBACK investigation, 2026-11-01) — how many live controllers this
+ *  session currently holds, to directly confirm/rule out the registry-cap theory on-device
+ *  without needing a remote debugging session. Remove once that investigation is closed. */
+export function _debugRegistrySize(): number {
+  return registry.size;
+}
+
 function emit(c: Impl, ev: AudioEvent) {
   const set = c._subs.get(ev);
   if (set) for (const cb of set) cb();
@@ -101,6 +111,15 @@ function create(src: string): Impl {
     },
     get errorCode() {
       return el.error ? el.error.code : null;
+    },
+    get errorMessage() {
+      return el.error?.message ?? "";
+    },
+    get readyState() {
+      return el.readyState;
+    },
+    get networkState() {
+      return el.networkState;
     },
     play() {
       c._lastUsedAt = Date.now();
