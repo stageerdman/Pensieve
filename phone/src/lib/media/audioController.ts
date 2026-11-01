@@ -31,9 +31,42 @@ interface Impl extends AudioController {
   _el: HTMLAudioElement;
   _subs: Map<AudioEvent, Set<() => void>>;
   _refs: number;
+  _lastUsedAt: number;
 }
 
+// iOS WebKit silently fails to load/decode a NEW <audio>/<video> element once a page already
+// has too many concurrently "loaded" media elements (an unofficial but widely observed budget,
+// commonly ~4-6) — elements that already failed to decode still count against it. Nothing in
+// this app ever calls `releaseController` (every caller just lets React/DOM teardown happen),
+// so without a cap this registry grows by one permanent <audio> element per distinct recording
+// ever viewed in a session — browse a reel full of old recordings, or retry a few failed plays,
+// and the budget is gone for the rest of the session; only a full reload (fresh budget) frees
+// it. Capping it here, independent of any caller remembering to release, is what makes a
+// brand-new recording's OWN controller always get a live slot.
+const MAX_LIVE_CONTROLLERS = 5;
+
 const registry = new Map<string, Impl>();
+
+/** Evict the least-recently-touched controller (never one currently playing) to make room for
+ *  a new one. No-op under the cap. */
+function evictLRUIfFull(): void {
+  if (registry.size < MAX_LIVE_CONTROLLERS) return;
+  let oldestKey: string | null = null;
+  let oldestAt = Infinity;
+  for (const [key, c] of registry) {
+    if (!c._el.paused) continue;
+    if (c._lastUsedAt < oldestAt) {
+      oldestAt = c._lastUsedAt;
+      oldestKey = key;
+    }
+  }
+  if (oldestKey === null) return; // everything in the registry is somehow playing — nothing safe to evict
+  const c = registry.get(oldestKey)!;
+  c._el.pause();
+  c._el.removeAttribute("src");
+  c._el.load();
+  registry.delete(oldestKey);
+}
 
 function emit(c: Impl, ev: AudioEvent) {
   const set = c._subs.get(ev);
@@ -56,6 +89,7 @@ function create(src: string): Impl {
     _el: el,
     _subs: subs,
     _refs: 0,
+    _lastUsedAt: Date.now(),
     get currentTime() {
       return el.currentTime;
     },
@@ -69,6 +103,7 @@ function create(src: string): Impl {
       return el.error ? el.error.code : null;
     },
     play() {
+      c._lastUsedAt = Date.now();
       pauseOthers(c);
       void el.play().catch(() => {/* autoplay/user-gesture guards — harmless */});
     },
@@ -151,8 +186,12 @@ function create(src: string): Impl {
  *  (the resolved blob url). Ref-counted via `release`. */
 export function getController(key: string, src: string = key): AudioController {
   let c = registry.get(key);
-  if (!c) registry.set(key, (c = create(src)));
+  if (!c) {
+    evictLRUIfFull();
+    registry.set(key, (c = create(src)));
+  }
   c._refs++;
+  c._lastUsedAt = Date.now();
   return c;
 }
 

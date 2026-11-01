@@ -239,17 +239,6 @@ async function finalizeAndCleanup(session: RecordingSessionMeta, deps: VoiceCapt
   await deleteSession(session.id);
 }
 
-// Every finalize call site AWAITS this BEFORE finalizeAndCleanup, not after: finalize patches
-// the note's DOM with a fresh <audio> element that starts decoding the just-built WAV blob
-// immediately, and that fails (silently, permanently — see audioController.ts's registry
-// caching) if it happens while the mic's capture session is still live. Closing the
-// AudioContext/stream isn't enough on its own — on iOS the OS-level audio session category
-// ("record" -> "playback") doesn't finish swapping the instant `close()` resolves, so a settle
-// delay after teardown is what actually gives a fresh <audio> element a working session to
-// decode into (confirmed by: it always works after a full app relaunch, which gives that
-// transition unlimited time to finish; it did NOT reliably work from reorder alone).
-const AUDIO_SESSION_SETTLE_MS = 350;
-
 async function teardownStream(a: ActiveState): Promise<void> {
   a.processor.onaudioprocess = null;
   try {
@@ -271,7 +260,6 @@ async function teardownStream(a: ActiveState): Promise<void> {
   } catch {
     /* already released */
   }
-  await new Promise((r) => setTimeout(r, AUDIO_SESSION_SETTLE_MS));
 }
 
 function bindProcessor(a: ActiveState) {
