@@ -45,6 +45,32 @@ function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T
   );
 }
 
+/** Read a stored blob's CONTENT (not just its `.size`/`.type` metadata) by ref. Safari/WebKit
+ *  invalidates a Blob handed back from an IndexedDB `get()` for content reads
+ *  (`.arrayBuffer()`/`.slice()`/FileReader — throws `NotFoundError: "The object can't be found
+ *  here."`) once that transaction auto-commits, which can happen before an `await`-chained
+ *  continuation gets to touch it — `tx()`'s extra `.then()`/Promise-wrapper hops are exactly
+ *  enough delay to hit this on-device. Metadata reads (`.size`/`.type`) are unaffected, which
+ *  is why `_debugBlobMeta` always "sees" the blob fine even when this throws. Fix: call
+ *  `.arrayBuffer()` synchronously inside the transaction's OWN `onsuccess`, not via `tx()`. */
+function getBlobBytes(ref: string): Promise<{ bytes: ArrayBuffer; type: string } | null> {
+  return openDb().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const req = db.transaction(STORE, "readonly").objectStore(STORE).get(ref);
+        req.onsuccess = () => {
+          const blob = req.result as Blob | undefined;
+          if (!blob) {
+            resolve(null);
+            return;
+          }
+          blob.arrayBuffer().then((bytes) => resolve({ bytes, type: blob.type })).catch(reject);
+        };
+        req.onerror = () => reject(req.error);
+      }),
+  );
+}
+
 // ref -> object URL, so a resolved image is reused and a just-inserted one is instant.
 const urlCache = new Map<string, string>();
 
@@ -124,11 +150,10 @@ export async function resolveAudioDataUrl(ref: string): Promise<AudioDataUrlResu
   if (!ref) return { url: null, reason: "empty-ref" };
   if (!isMediaPath(ref)) return { url: ref };
   try {
-    const blob = await tx<Blob | undefined>("readonly", (s) => s.get(ref));
-    if (!blob) return { url: null, reason: "not-found-in-idb" };
-    const buf = await blob.arrayBuffer();
-    const base64 = arrayBufferToBase64(buf);
-    return { url: `data:${blob.type || "audio/wav"};base64,${base64}` };
+    const content = await getBlobBytes(ref);
+    if (!content) return { url: null, reason: "not-found-in-idb" };
+    const base64 = arrayBufferToBase64(content.bytes);
+    return { url: `data:${content.type || "audio/wav"};base64,${base64}` };
   } catch (e) {
     return { url: null, reason: `exception:${e instanceof Error ? e.message : String(e)}` };
   }
@@ -175,9 +200,8 @@ export async function listMediaKeys(): Promise<string[]> {
 /** Raw bytes for a ref, or null if absent — the real sync vault's upload/push path. */
 export async function getMediaBytes(ref: string): Promise<Uint8Array | null> {
   try {
-    const blob = await tx<Blob | undefined>("readonly", (s) => s.get(ref));
-    if (!blob) return null;
-    return new Uint8Array(await blob.arrayBuffer());
+    const content = await getBlobBytes(ref);
+    return content ? new Uint8Array(content.bytes) : null;
   } catch {
     return null;
   }
