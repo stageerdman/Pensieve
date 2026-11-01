@@ -118,17 +118,19 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
  *  entirely — the bytes are inline in the src attribute, nothing for AVFoundation to fail to
  *  fetch. Recordings here are capped small (~1.9MB/min at 16kHz mono), so the ~33% base64
  *  overhead is a non-issue. */
-export async function resolveAudioDataUrl(ref: string): Promise<string | null> {
-  if (!ref) return null;
-  if (!isMediaPath(ref)) return ref;
+export type AudioDataUrlResult = { url: string; reason?: undefined } | { url: null; reason: string };
+
+export async function resolveAudioDataUrl(ref: string): Promise<AudioDataUrlResult> {
+  if (!ref) return { url: null, reason: "empty-ref" };
+  if (!isMediaPath(ref)) return { url: ref };
   try {
     const blob = await tx<Blob | undefined>("readonly", (s) => s.get(ref));
-    if (!blob) return null;
+    if (!blob) return { url: null, reason: "not-found-in-idb" };
     const buf = await blob.arrayBuffer();
     const base64 = arrayBufferToBase64(buf);
-    return `data:${blob.type || "audio/wav"};base64,${base64}`;
-  } catch {
-    return null;
+    return { url: `data:${blob.type || "audio/wav"};base64,${base64}` };
+  } catch (e) {
+    return { url: null, reason: `exception:${e instanceof Error ? e.message : String(e)}` };
   }
 }
 

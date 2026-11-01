@@ -261,16 +261,36 @@ function buildAudioEl(block: Extract<NoteBlock, { kind: "audio" }>, ctx: MediaCt
   appendGrip(el);
 
   const ref = block.ref;
-  void resolveAudioDataUrl(ref).then((url) => {
-    if (!url) {
+  // DEBUG (VOICE-PLAYBACK investigation, 2026-11-01): see the matching comment below — same
+  // "surface it on-screen, there's no remote debugging session" reasoning. Remove once closed.
+  const appendDiag = (text: string) => {
+    const diag = document.createElement("span");
+    diag.className = "ph-audio-diag";
+    diag.style.display = "block";
+    diag.style.fontSize = "11px";
+    diag.style.opacity = "0.65";
+    diag.style.fontFamily = "monospace";
+    diag.textContent = text;
+    bar.appendChild(diag);
+    return diag;
+  };
+
+  void resolveAudioDataUrl(ref).then((result) => {
+    if (!result.url) {
+      log.warn("audio", "playback.missing", { ref, reason: result.reason });
       el.classList.add("is-broken");
       bar.innerHTML = "";
       const broken = document.createElement("span");
       broken.className = "ph-audio-broken";
       broken.textContent = "Recording missing";
       bar.appendChild(broken);
+      const diag = appendDiag(`reason=${result.reason}`);
+      void _debugBlobMeta(ref).then((meta) => {
+        diag.textContent += meta ? ` (yet found in IDB: ${meta.size}B ${meta.type || "?"})` : " (confirmed absent from IndexedDB)";
+      });
       return;
     }
+    const url = result.url;
     const c = getController(ref, url);
     // DEBUG (VOICE-PLAYBACK investigation, 2026-11-01): a visible, on-device diagnostic line —
     // no remote debugging session available, so this surfaces the MediaError code, media
@@ -294,14 +314,9 @@ function buildAudioEl(block: Extract<NoteBlock, { kind: "audio" }>, ctx: MediaCt
       broken.className = "ph-audio-broken";
       broken.textContent = "Can't play this recording";
       bar.appendChild(broken);
-      const diag = document.createElement("span");
-      diag.className = "ph-audio-diag";
-      diag.style.display = "block";
-      diag.style.fontSize = "11px";
-      diag.style.opacity = "0.65";
-      diag.style.fontFamily = "monospace";
-      diag.textContent = `err=${errCode}(${errCode ? ERR_NAMES[errCode] : "?"}) ready=${c.readyState} net=${c.networkState} slots=${_debugRegistrySize()}/5`;
-      bar.appendChild(diag);
+      const diag = appendDiag(
+        `err=${errCode}(${errCode ? ERR_NAMES[errCode] : "?"}) ready=${c.readyState} net=${c.networkState} slots=${_debugRegistrySize()}/5`,
+      );
       void _debugBlobMeta(ref).then((meta) => {
         diag.textContent += meta ? ` size=${meta.size}B type=${meta.type || "?"}` : " size=MISSING";
       });
