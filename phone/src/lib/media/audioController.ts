@@ -103,7 +103,21 @@ function create(src: string): Impl {
   el.addEventListener("ended", () => emit(c, "ended"));
   el.addEventListener("durationchange", () => emit(c, "durationchange"));
   el.addEventListener("loadedmetadata", () => emit(c, "durationchange"));
-  el.addEventListener("error", () => emit(c, "error"));
+  // One silent retry before surfacing an error to subscribers: a fresh recording's playback
+  // element can fail its first decode attempt on iOS if the OS audio session hasn't finished
+  // swapping from "record" (mic capture) to "playback" yet (see voiceCapture.ts's
+  // AUDIO_SESSION_SETTLE_MS) — `el.load()` re-attempts against the same src and normally
+  // succeeds once that settles. Without this, that one transient failure was permanent for the
+  // rest of the session (this registry caches one controller per ref, never recreated).
+  let retriedAfterError = false;
+  el.addEventListener("error", () => {
+    if (!retriedAfterError) {
+      retriedAfterError = true;
+      setTimeout(() => el.load(), 300);
+      return;
+    }
+    emit(c, "error");
+  });
 
   // Self-heal a missing duration (MediaRecorder WebM / fragmented mp4 sometimes report
   // Infinity/NaN with no seek index — and a recording ASSEMBLED FROM MULTIPLE CHUNKS, like the

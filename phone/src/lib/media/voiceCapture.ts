@@ -239,11 +239,18 @@ async function finalizeAndCleanup(session: RecordingSessionMeta, deps: VoiceCapt
   await deleteSession(session.id);
 }
 
-// Every finalize call site runs this BEFORE finalizeAndCleanup, not after: finalize patches the
-// note's DOM with a fresh <audio> element that starts decoding the just-built WAV blob
-// immediately, and WebKit's decoder flakes (silently, permanently — see audioController.ts's
-// registry caching) when that happens while the mic's capture AudioContext/stream is still open.
-function teardownStream(a: ActiveState) {
+// Every finalize call site AWAITS this BEFORE finalizeAndCleanup, not after: finalize patches
+// the note's DOM with a fresh <audio> element that starts decoding the just-built WAV blob
+// immediately, and that fails (silently, permanently — see audioController.ts's registry
+// caching) if it happens while the mic's capture session is still live. Closing the
+// AudioContext/stream isn't enough on its own — on iOS the OS-level audio session category
+// ("record" -> "playback") doesn't finish swapping the instant `close()` resolves, so a settle
+// delay after teardown is what actually gives a fresh <audio> element a working session to
+// decode into (confirmed by: it always works after a full app relaunch, which gives that
+// transition unlimited time to finish; it did NOT reliably work from reorder alone).
+const AUDIO_SESSION_SETTLE_MS = 350;
+
+async function teardownStream(a: ActiveState): Promise<void> {
   a.processor.onaudioprocess = null;
   try {
     a.processor.disconnect();
@@ -254,12 +261,17 @@ function teardownStream(a: ActiveState) {
     /* already disconnected */
   }
   a.stream.getTracks().forEach((t) => t.stop());
-  if (a.audioCtx.state !== "closed") void a.audioCtx.close();
   try {
-    void a.wakeLock?.release();
+    if (a.audioCtx.state !== "closed") await a.audioCtx.close();
+  } catch {
+    /* already closed */
+  }
+  try {
+    await a.wakeLock?.release();
   } catch {
     /* already released */
   }
+  await new Promise((r) => setTimeout(r, AUDIO_SESSION_SETTLE_MS));
 }
 
 function bindProcessor(a: ActiveState) {
@@ -323,7 +335,7 @@ async function onBackgrounded() {
   a.state = "stopping";
   a.capturing = false;
   await a.lastAppend;
-  teardownStream(a);
+  await teardownStream(a);
   await finalizeAndCleanup(a.session, a.deps); // no toast — the app isn't visible to see it
   if (active === a) active = null;
 }
@@ -350,7 +362,7 @@ async function handleCaptureFailure() {
   const a = active;
   active = null;
   a.capturing = false;
-  teardownStream(a);
+  await teardownStream(a);
   await finalizeAndCleanup(a.session, a.deps, "Recording stopped — a problem interrupted the mic, saved what we had");
 }
 
@@ -474,7 +486,7 @@ export async function stopRecording(): Promise<void> {
   a.state = "stopping";
   a.capturing = false;
   await a.lastAppend;
-  teardownStream(a);
+  await teardownStream(a);
   await finalizeAndCleanup(a.session, a.deps, "Recording saved");
   if (active === a) active = null;
 }
