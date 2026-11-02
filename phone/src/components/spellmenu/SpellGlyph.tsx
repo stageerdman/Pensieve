@@ -87,6 +87,14 @@ const PATHS: Record<Exclude<IconName, "menu" | "sync">, React.ReactNode> = {
       <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11" />
     </>
   ),
+  // a camera body + the trapezoid viewfinder flap of a classic video camera — "take a new
+  // video", distinct from the "camera" glyph's lens-circle (that one means "a new photo").
+  video: (
+    <>
+      <rect x="3" y="6" width="13" height="12" rx="2" />
+      <path d="M16 10.3 20.3 7.6a1 1 0 0 1 1.5.85v7.1a1 1 0 0 1-1.5.85L16 13.7" />
+    </>
+  ),
   // an upward arrow feeding an open tray — "bring in an existing file", distinct from the
   // mic (which means "capture a new take").
   upload: (

@@ -40,14 +40,37 @@ committed as app code, kept as design docs.
       `GalleryVideoElement.tsx` + a poster-card component mirroring `WaveformCard.tsx`,
       one more branch in `GalleryTile.tsx`.
 - [ ] Phase 4 — Rust: confirm `transcribe.rs` has no extension gate (expect no change).
-- [ ] Phase 5 — Phone: `pensieve:video` fence + `NoteBlock` kind in `noteMedia.ts`; Film
-      (General ring) + Video (Conditional, detailed: Film/Upload) spells in `registry.ts` +
-      `PhoneApp.tsx`; render the block in the note body; reuse the existing audio transcript
-      reader verbatim.
-- [ ] Phase 6 — Phone: save-to-Photos via `navigator.share({ files })`, feature-detected,
-      fired right after a Film capture.
-- [ ] Phase 7 — Tests (`npm test`, `npx tsc --noEmit`), targeted new tests mirroring the
-      existing audio/image/gallery test files, commit + push per phase.
+- [x] Phase 5 — Phone: `pensieve:video` fence + `NoteBlock` kind in `noteMedia.ts` (+
+      `mediaDom.ts`'s `buildVideoEl`/`insertVideo`, `audioController.ts` generalized to
+      `HTMLMediaElement`); Film (General ring) + Video (Conditional, detailed: Film/Upload)
+      spells in `registry.ts` + `PhoneApp.tsx`; renders in the note body; reuses the existing
+      full-screen transcript reader verbatim (keyed by ref, not media kind).
+- [x] Phase 6 — Phone: save-to-Photos via `navigator.share({ files })` in
+      `lib/media/saveToPhotos.ts`, feature-detected, fired right after a Film capture only
+      (never Upload). **Platform ceiling, stated plainly**: this is ONE required tap on
+      "Save Video" in the native share sheet, not a silent auto-save — there is no
+      programmatic write-to-Photos API for web content on iOS. Unverified: whether
+      `navigator.share` still carries user-activation by the time a file-input's `onChange`
+      fires (needs an on-device check, same caveat every phone capture feature in this repo
+      has carried — see CAPTURE-SPELLS's wiki).
+- [x] Phase 7 — Tests + typecheck: `npx vitest run` (1047 passed), `npx tsc --noEmit` clean
+      on both desktop and phone. New test files: `src/lib/md/video.test.ts`,
+      `phone/src/lib/media/noteMedia.test.ts` (video fence cases added),
+      `phone/src/lib/media/saveToPhotos.test.ts`, `phone/src/lib/spells/registry.test.ts`
+      (updated for Film/Video). Committed + pushed per phase throughout.
+
+## Deferred (not started this pass)
+- **Phase 3 — desktop gallery mixing** (video as a third `GalleryImage.kind`, alongside the
+  existing image/audio precedent). Correctly designed in `video-capture-design.html`'s
+  "Video in a gallery" section, but not built — this session prioritized the phone
+  capture + save-to-Photos ask over gallery polish. Small, well-scoped follow-up.
+- **Phone Accio transcript search** — explicitly out of scope per the owner's call (desktop
+  Accio already gets it for free via the generic `extractMediaRefs`/`buildSearchBody` fold).
+- **Owner on-device pass** — nothing in this dev environment can exercise the iOS camera
+  handoff, the share-sheet gesture-context question above, or real playback on a device.
+  Flag this update for a real-device check before closing it out, same as every other
+  phone capture feature in this repo.
 
 ## Status
-Starting Phase 1.
+Phases 0, 1, 2, 4, 5, 6, 7 done and pushed to main. Phase 3 (desktop gallery) deferred —
+see above. OPEN pending an owner device pass.

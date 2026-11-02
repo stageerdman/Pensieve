@@ -8,8 +8,8 @@ import {
 import { isScroll } from "./ringLayout";
 
 describe("registry — the General roster", () => {
-  it("is the five real daily spells, most-used-first", () => {
-    expect(GENERAL_SPELLS.map((s) => s.id)).toEqual(["write", "accio", "sync", "snap", "voice"]);
+  it("is the six real daily spells, most-used-first", () => {
+    expect(GENERAL_SPELLS.map((s) => s.id)).toEqual(["write", "accio", "sync", "snap", "voice", "film"]);
   });
 
   it("is small enough to render as a static ring, not a scroll ring", () => {
@@ -34,10 +34,10 @@ describe("registry — conditional (page-recommended) rosters", () => {
     expect(hasConditional("home")).toBe(false);
   });
 
-  it("a note offers Photo + Gallery + Voice + Delete (the last rides the danger hue)", () => {
+  it("a note offers Photo + Gallery + Voice + Video + Delete (the last rides the danger hue)", () => {
     const note = conditionalSpells("note");
-    expect(note.map((s) => s.id)).toEqual(["image", "gallery", "record", "delete"]);
-    expect(note.map((s) => s.name)).toEqual(["Photo", "Gallery", "Voice", "Delete"]);
+    expect(note.map((s) => s.id)).toEqual(["image", "gallery", "record", "clip", "delete"]);
+    expect(note.map((s) => s.name)).toEqual(["Photo", "Gallery", "Voice", "Video", "Delete"]);
     expect(note.find((s) => s.id === "delete")!.hue).toBe("danger");
     expect(isScroll(note.length)).toBe(false); // a clean static ring
     expect(hasConditional("note")).toBe(true);
@@ -47,6 +47,12 @@ describe("registry — conditional (page-recommended) rosters", () => {
     const voice = conditionalSpells("note").find((s) => s.id === "record")!;
     expect(voice.children!.map((s) => s.id)).toEqual(["record-new", "record-upload"]);
     expect(voice.children!.map((s) => s.name)).toEqual(["Record", "Upload"]);
+  });
+
+  it("Video is a detailed spell offering Film (new clip) + Upload (existing file)", () => {
+    const clip = conditionalSpells("note").find((s) => s.id === "clip")!;
+    expect(clip.children!.map((s) => s.id)).toEqual(["clip-film", "clip-upload"]);
+    expect(clip.children!.map((s) => s.name)).toEqual(["Film", "Upload"]);
   });
 
   it("an open collection offers Edit + Photo (no nesting a gallery in a gallery)", () => {

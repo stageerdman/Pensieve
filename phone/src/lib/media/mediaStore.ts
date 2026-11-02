@@ -280,3 +280,27 @@ export function audioExtForMime(mimeType: string): string {
 export function mintAudioRef(noteId: string, mimeType: string): string {
   return `${MEDIA_DIR}/${noteId}/${mintMediaId()}.${audioExtForMime(mimeType)}`;
 }
+
+// Mirrors desktop src/components/editor/media/insertVideo.ts's VIDEO_MIME_EXT.
+const VIDEO_EXT_BY_MIME: Record<string, string> = {
+  "video/quicktime": "mov",
+  "video/mp4": "mp4",
+  "video/webm": "webm",
+  "video/ogg": "ogv",
+  "video/x-matroska": "mkv",
+};
+
+/** A picked/filmed video's extension (from name, else mime — iOS's camera hands back a real
+ *  .mov File with both, but a Files/Photos pick might have only the mime). */
+export function videoExtForFile(file: File): string {
+  const dot = file.name.lastIndexOf(".");
+  if (dot > 0 && dot < file.name.length - 1) return file.name.slice(dot + 1).toLowerCase();
+  const bare = (file.type || "").split(";")[0].trim().toLowerCase();
+  return VIDEO_EXT_BY_MIME[bare] ?? "mov";
+}
+
+/** Mint a stable vault-relative ref for a picked/filmed video — same shape as mintMediaRef,
+ *  but via the video extension map (extForFile defaults unknown types to "png", wrong here). */
+export function mintVideoRef(noteId: string, file: File): string {
+  return `${MEDIA_DIR}/${noteId}/${mintMediaId()}.${videoExtForFile(file)}`;
+}

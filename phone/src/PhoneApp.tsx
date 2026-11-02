@@ -47,14 +47,15 @@ import { MemoryPage } from "./components/note/MemoryPage";
 import type { FmtKey } from "./components/note/NoteToolbar";
 import { ConjureThread, conjure } from "./components/ConjureThread";
 import { currentBlock, focusTitle, placeCaret, syncPlaceholders } from "./components/note/noteEditing";
-import { insertAudio, insertImages, renderNoteBody, type MediaCtx } from "./components/note/mediaDom";
+import { insertAudio, insertImages, insertVideo, renderNoteBody, type MediaCtx } from "./components/note/mediaDom";
 import { phoneCollection } from "./lib/media/collectionController";
 import { PhoneLightbox } from "./components/note/PhoneLightbox";
 import { PhoneCollection } from "./components/note/PhoneCollection";
 import { PhoneTranscriptReader } from "./components/note/PhoneTranscriptReader";
 import { VoiceRecorderPanel } from "./components/note/VoiceRecorderPanel";
 import { ConfirmDeleteNote } from "./components/note/ConfirmDeleteNote";
-import { mintAudioRef, mintMediaRef, registerLocalMedia } from "./lib/media/mediaStore";
+import { mintAudioRef, mintMediaRef, mintVideoRef, registerLocalMedia } from "./lib/media/mediaStore";
+import { offerSaveToPhotos } from "./lib/media/saveToPhotos";
 import type { MediaImage } from "./lib/media/noteMedia";
 import { pauseAllAudio } from "./lib/media/audioController";
 import { recoverOrphanedRecordings, type VoiceCaptureDeps } from "./lib/media/voiceCapture";
@@ -139,6 +140,7 @@ export function PhoneApp() {
   const threadRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   // ---- React state (drives re-renders only; NOT the 60fps loops) ----
   const [view, setView] = useState<Note[]>(() => computeView(dataRef.current!, "", []));
@@ -381,6 +383,26 @@ export function PhoneApp() {
     setVoicePanel({ open: true, noteId: note.id, placeholderBody: note.c ?? "" });
   }
 
+  /** The "Film" spell (Home, General ring): same native-camera-HANDOFF trick as Snap, not a
+   *  custom in-page recorder like Record — iOS's own camera writes the file, so none of
+   *  Voice's WebKit MediaRecorder problems apply here. Mints "New Video" first. */
+  function startCaptureVideo() {
+    openVideoPicker("film");
+    openCaptureNote("New Video", "added video");
+  }
+
+  /** The "Video" conditional spell's Film option: attaches a clip to the memory that's
+   *  ALREADY open (mirrors startVoiceInCurrentNote's relationship to startCaptureVoice). */
+  function filmIntoCurrentNote() {
+    openVideoPicker("film");
+  }
+
+  /** The "Video" conditional spell's Upload option: pick an existing video file (no camera
+   *  handoff) — never offered the save-to-Photos share sheet (see onPickVideoFile). */
+  function uploadVideoIntoCurrentNote() {
+    openVideoPicker("upload");
+  }
+
   function openNewNote(dictate: boolean) {
     accio.clearSearch(); // a fresh thought lands on a clean, unfiltered home
     const now = Date.now();
@@ -560,6 +582,41 @@ export function PhoneApp() {
     haptic(10);
   }
 
+  // ---- video capture/upload (the "Film" spell + the "Video" conditional spell) ----
+  // A third hidden input, separate from image/audio: "film" sets `capture` so the native
+  // camera opens straight to video mode (same instant-handoff rule as Snap — the `.click()`
+  // in openVideoPicker must fire synchronously inside the tap, see startCaptureVideo); "upload"
+  // clears it so the standard Photos/Files picker shows instead.
+  const pickVideoModeRef = useRef<"film" | "upload">("film");
+  function openVideoPicker(mode: "film" | "upload") {
+    pickVideoModeRef.current = mode;
+    const input = videoInputRef.current;
+    if (input) {
+      if (mode === "film") input.setAttribute("capture", "environment");
+      else input.removeAttribute("capture");
+    }
+    input?.click();
+  }
+
+  function onPickVideoFile(files: FileList | null) {
+    const file = files?.[0];
+    const noteBody = noteBodyRef.current;
+    const note = currentRef.current;
+    const mode = pickVideoModeRef.current;
+    pickVideoModeRef.current = "film";
+    if (!file || !noteBody || !note) return;
+    const ref = mintVideoRef(note.id, file);
+    registerLocalMedia(ref, file);
+    pendingCaptureRef.current.delete(note.id);
+    insertVideo(noteBody, { kind: "video", ref }, mediaCtx);
+    syncPlaceholders(noteBody);
+    autosave.scheduleSave();
+    haptic(10);
+    // WhatsApp-style "also keep a copy in Photos" — a freshly FILMED clip only (an uploaded
+    // file is presumably already somewhere on the device; re-offering to save it is noise).
+    if (mode === "film") void offerSaveToPhotos(file);
+  }
+
   function applyFmt(f: FmtKey) {
     const noteBody = noteBodyRef.current;
     if (!noteBody) return;
@@ -696,6 +753,9 @@ export function PhoneApp() {
     else if (s.id === "voice") startCaptureVoice();
     else if (s.id === "record-new") startVoiceInCurrentNote();
     else if (s.id === "record-upload") openAudioPicker();
+    else if (s.id === "film") startCaptureVideo();
+    else if (s.id === "clip-film") filmIntoCurrentNote();
+    else if (s.id === "clip-upload") uploadVideoIntoCurrentNote();
     else if (s.id === "delete") setConfirmDelete(true); // never deletes on the tap — confirm first
     else if (s.id === "edit") phoneCollection.toggleEditMode(); // board-scoped: arrange/remove mode
     else showToast(`✨ ${s.name} cast`);
@@ -971,6 +1031,21 @@ export function PhoneApp() {
         hidden
         onChange={(e) => {
           onPickAudioFile(e.target.files);
+          e.target.value = "";
+        }}
+      />
+
+      {/* the video input — mounted at the root (not scoped to the Memory page) exactly like
+          the image input, so "Film" can reach it from Home before any memory is open.
+          `capture` toggles between the native video camera (Film) and the standard
+          Photos/Files browse sheet (Upload) — see openVideoPicker. */}
+      <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/*"
+        hidden
+        onChange={(e) => {
+          onPickVideoFile(e.target.files);
           e.target.value = "";
         }}
       />

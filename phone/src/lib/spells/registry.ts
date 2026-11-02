@@ -15,10 +15,14 @@ export const GENERAL_SPELLS: Spell[] = [
   { id: "accio", name: "Accio", icon: "accio", hue: "violet" },
   // tap backs up immediately; hold opens the panel (account/space/conflicts/restore).
   { id: "sync", name: "Sync", icon: "sync", hue: "gold-state", opensWindow: true, longPress: "window" },
-  // each mints a brand-new memory (title "New Image"/"New Recording") then jumps straight into
-  // capture — distinct from the Conditional "Photo"/"Gallery" spells, which add to an OPEN one.
+  // each mints a brand-new memory (title "New Image"/"New Recording"/"New Video") then jumps
+  // straight into capture — distinct from the Conditional "Photo"/"Gallery"/"Video" spells,
+  // which add to an OPEN one. Film hands off to the native video camera (like Snap, NOT a
+  // custom in-page recorder like Record — there's no WebKit MediaRecorder-on-video problem
+  // to dodge for video the way there was for voice, since iOS's own camera writes the file).
   { id: "snap", name: "Snap", icon: "camera" },
   { id: "voice", name: "Record", icon: "mic" },
+  { id: "film", name: "Film", icon: "video" },
 ];
 
 const BY_ID: Record<string, Spell> = {};
@@ -69,6 +73,15 @@ export function conditionalSpells(context: PageContext): Spell[] {
       children: [
         { id: "record-new", name: "Record", icon: "mic" },
         { id: "record-upload", name: "Upload", icon: "upload" },
+      ],
+    },
+    {
+      id: "clip",
+      name: "Video",
+      icon: "video",
+      children: [
+        { id: "clip-film", name: "Film", icon: "video" },
+        { id: "clip-upload", name: "Upload", icon: "upload" },
       ],
     },
     { id: "delete", name: "Delete", icon: "trash", hue: "danger" },
