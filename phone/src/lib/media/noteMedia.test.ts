@@ -8,6 +8,7 @@ import {
   collapseImages,
   encodeAudioNoteBlock,
   encodeImageNoteBlock,
+  encodeVideoNoteBlock,
   galleryMd,
   GALLERY_FENCE,
   IMAGE_FENCE,
@@ -19,6 +20,7 @@ import {
   reorderImages,
   serializeBlocks,
   stripMediaForPreview,
+  VIDEO_FENCE,
   type ListItemNode,
   type NoteBlock,
 } from "./noteMedia";
@@ -148,6 +150,37 @@ describe("noteMedia — pensieve:audio fence (voice recording)", () => {
   });
 });
 
+describe("noteMedia — pensieve:video fence (video clip)", () => {
+  it("serializes a clip to the pensieve:video fence, ref then caption, default width omitted", () => {
+    expect(encodeVideoNoteBlock({ kind: "video", ref: "media/1/a.mov", caption: "the quarry" })).toBe(
+      "```" + VIDEO_FENCE + "\nmedia/1/a.mov\nthe quarry\n```",
+    );
+    expect(encodeVideoNoteBlock({ kind: "video", ref: "media/1/a.mov" })).toBe(
+      "```" + VIDEO_FENCE + "\nmedia/1/a.mov\n```",
+    );
+  });
+
+  it("carries a non-default width on its own line, before the caption", () => {
+    expect(encodeVideoNoteBlock({ kind: "video", ref: "media/1/a.mov", caption: "c", width: 0.5 })).toBe(
+      "```" + VIDEO_FENCE + "\nmedia/1/a.mov\nwidth=0.5\nc\n```",
+    );
+  });
+
+  it("round-trips through parseNoteContent, not a raw text block", () => {
+    const fence = "```" + VIDEO_FENCE + "\nmedia/1/a.mov\na caption\n```";
+    const blocks = parseNoteContent(fence);
+    expect(blocks).toEqual([{ kind: "video", ref: "media/1/a.mov", caption: "a caption" }]);
+    expect(serializeBlocks(blocks)).toBe(fence);
+  });
+
+  it("parses a clip embedded between prose", () => {
+    const fence = "```" + VIDEO_FENCE + "\nmedia/1/a.mov\n```";
+    const body = "before\n" + fence + "\nafter";
+    const blocks = parseNoteContent(body);
+    expect(blocks.map((b) => b.kind)).toEqual(["text", "video", "text"]);
+  });
+});
+
 describe("noteMedia — markdown lists (bullet / numbered / checklist)", () => {
   it("parses a flat bullet list and serializes it back unchanged", () => {
     const md = "* bullet one\n* bullet two";
@@ -241,5 +274,10 @@ describe("noteMedia — path + preview", () => {
   it("stripMediaForPreview turns a pensieve:audio fence into a clean marker", () => {
     const fence = "```" + AUDIO_FENCE + "\nmedia/1/a.m4a\na caption\n```";
     expect(stripMediaForPreview(fence)).toBe("🎙️ Recording");
+  });
+
+  it("stripMediaForPreview turns a pensieve:video fence into a clean marker", () => {
+    const fence = "```" + VIDEO_FENCE + "\nmedia/1/a.mov\na caption\n```";
+    expect(stripMediaForPreview(fence)).toBe("🎬 Video");
   });
 });

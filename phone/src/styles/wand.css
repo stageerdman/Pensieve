@@ -1511,6 +1511,83 @@ body {
   color: hsl(var(--warn));
 }
 
+/* ── video clip: a poster-frame <video> with a play overlay, same bar underneath as audio ── */
+.ph-video-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: hsl(0 0% 4%);
+}
+.ph-video-el {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: hsl(0 0% 4%);
+}
+.ph-video-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: hsl(0 0% 100% / 0.92);
+  color: hsl(0 0% 7%);
+  border: none;
+  touch-action: none;
+  transition: opacity 150ms var(--ease);
+}
+.ph-video-play.is-playing {
+  opacity: 0;
+}
+.ph-video-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px 0;
+}
+.ph-video-time {
+  flex: 1 1 auto;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--text-muted));
+}
+.ph-video-transcript {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: hsl(var(--text-muted));
+  border: none;
+  touch-action: none;
+}
+.ph-video-transcript svg {
+  width: 18px;
+  height: 18px;
+}
+.ph-video-caption {
+  margin-top: 6px;
+  font-size: 12px;
+  color: hsl(var(--text-muted));
+}
+.ph-media.ph-video.is-broken .ph-video-frame {
+  display: none;
+}
+.ph-video-broken {
+  font-size: 13px;
+  color: hsl(var(--warn));
+}
+
 /* ── full-screen transcript reader (Spotify-style): pinned mini player + scrollable text ── */
 .ph-reader {
   position: fixed;

@@ -34,6 +34,11 @@ export const DEFAULT_IMAGE_WIDTH = 0.75;
  *  the rest. The transcript is a separate sidecar (see lib/media/transcript.ts), never written
  *  into this fence. */
 export const AUDIO_FENCE = "pensieve:audio";
+/** The fence language carrying a video clip (matches src/lib/md/video.ts) — same shape as
+ *  audio (ref, optional `width=` line, optional caption), always fenced. */
+export const VIDEO_FENCE = "pensieve:video";
+/** Matches src/lib/md/video.ts DEFAULT_VIDEO_WIDTH. */
+export const DEFAULT_VIDEO_WIDTH = 0.75;
 
 /** One image: a vault-relative ref (`media/...`) or a direct url (data:/blob:/http). */
 export interface MediaImage {
@@ -58,7 +63,8 @@ export type NoteBlock =
   | { kind: "image"; ref: string; caption?: string; width?: number; aspect?: number; posX?: number; posY?: number }
   | { kind: "gallery"; images: MediaImage[]; height?: number }
   | { kind: "list"; items: ListItemNode[] }
-  | { kind: "audio"; ref: string; caption?: string };
+  | { kind: "audio"; ref: string; caption?: string }
+  | { kind: "video"; ref: string; caption?: string; width?: number };
 
 /** The desktop gallery's dragged display HEIGHT rides an optional leading `h=<px>` fence line
  *  (matches src/lib/md/gallery.ts). The phone ignores it for layout but MUST round-trip it so the
@@ -148,6 +154,31 @@ function parseAudioFenceLines(inner: string[]): NoteBlock | null {
   if (!ref) return null;
   const caption = inner.slice(1).join("\n");
   return { kind: "audio", ref, ...(caption ? { caption } : {}) };
+}
+
+/** Serialize a video block → a `pensieve:video` fence (mirrors desktop's encodeVideoBlock:
+ *  ref on line 1, an optional `width=` line when non-default, the caption on the rest). */
+export function encodeVideoNoteBlock(b: Extract<NoteBlock, { kind: "video" }>): string {
+  const lines = [b.ref];
+  if (!isDefaultWidth(b.width)) lines.push(`width=${b.width}`);
+  if (b.caption) lines.push(b.caption);
+  return "```" + VIDEO_FENCE + "\n" + lines.join("\n") + "\n```";
+}
+
+/** Parse one `pensieve:video` fence body → a video block, or null if there's no ref line.
+ *  Mirrors desktop's reconstructVideoFence. */
+function parseVideoFenceLines(inner: string[]): NoteBlock | null {
+  const ref = (inner[0] ?? "").trim();
+  if (!ref) return null;
+  let width: number | undefined;
+  let captionStart = 1;
+  const widthMatch = /^width=([\d.]+)$/.exec(inner[1] ?? "");
+  if (widthMatch) {
+    width = Number(widthMatch[1]);
+    captionStart = 2;
+  }
+  const caption = inner.slice(captionStart).join("\n");
+  return { kind: "video", ref, ...(caption ? { caption } : {}), ...(width !== undefined ? { width } : {}) };
 }
 
 // ---- markdown lists (bullet `* `, numbered `N. `, checklist `* [ ]`/`* [x]`) ----
@@ -249,6 +280,7 @@ export function parseNoteContent(content: string): NoteBlock[] {
   const galleryFenceOpen = "```" + GALLERY_FENCE;
   const imageFenceOpen = "```" + IMAGE_FENCE;
   const audioFenceOpen = "```" + AUDIO_FENCE;
+  const videoFenceOpen = "```" + VIDEO_FENCE;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (line.trim() === galleryFenceOpen) {
@@ -294,6 +326,18 @@ export function parseNoteContent(content: string): NoteBlock[] {
       i = j;
       continue;
     }
+    if (line.trim() === videoFenceOpen) {
+      const inner: string[] = [];
+      let j = i + 1;
+      for (; j < lines.length; j++) {
+        if (lines[j].trim() === "```") break;
+        inner.push(lines[j]);
+      }
+      const block = parseVideoFenceLines(inner);
+      if (block) blocks.push(block);
+      i = j;
+      continue;
+    }
     const m = line.trim().match(IMAGE_LINE);
     if (m) {
       const caption = m[1] || undefined;
@@ -326,6 +370,7 @@ export function serializeBlocks(blocks: NoteBlock[]): string {
       if (b.kind === "image") return encodeImageNoteBlock(b);
       if (b.kind === "list") return listMd(b.items);
       if (b.kind === "audio") return encodeAudioNoteBlock(b);
+      if (b.kind === "video") return encodeVideoNoteBlock(b);
       return galleryMd(b.images, b.height);
     })
     .join("\n");
@@ -361,15 +406,17 @@ export function planInsert(images: MediaImage[]): NoteBlock | null {
 const GALLERY_FENCE_BLOCK = new RegExp("```" + GALLERY_FENCE + "[\\s\\S]*?```", "g");
 const IMAGE_FENCE_BLOCK = new RegExp("```" + IMAGE_FENCE + "[\\s\\S]*?```", "g");
 const AUDIO_FENCE_BLOCK = new RegExp("```" + AUDIO_FENCE + "[\\s\\S]*?```", "g");
+const VIDEO_FENCE_BLOCK = new RegExp("```" + VIDEO_FENCE + "[\\s\\S]*?```", "g");
 
 /** Strip media markdown from a body so the reel snippet shows clean prose, not raw refs.
  *  A single image becomes its caption (or a 📷 marker); a gallery becomes a 📷 marker; a
- *  recording becomes a 🎙️ marker. */
+ *  recording becomes a 🎙️ marker; a video becomes a 🎬 marker. */
 export function stripMediaForPreview(content: string): string {
   return (content ?? "")
     .replace(GALLERY_FENCE_BLOCK, "📷 Photos")
     .replace(IMAGE_FENCE_BLOCK, "📷 Photo")
     .replace(AUDIO_FENCE_BLOCK, "🎙️ Recording")
+    .replace(VIDEO_FENCE_BLOCK, "🎬 Video")
     .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, cap) => (cap ? `📷 ${cap}` : "📷 Photo"))
     .replace(/\n{2,}/g, "\n")
     .trim();

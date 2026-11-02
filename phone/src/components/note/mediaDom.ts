@@ -18,6 +18,7 @@ import {
   collapseImages,
   encodeAudioNoteBlock,
   encodeImageNoteBlock,
+  encodeVideoNoteBlock,
   galleryMd,
   mediaAlt,
   parseNoteContent,
@@ -358,6 +359,124 @@ function buildAudioEl(block: Extract<NoteBlock, { kind: "audio" }>, ctx: MediaCt
   return el;
 }
 
+// ---- video block ----
+//
+// Behaves like the audio block for everything playback/transcript-related (same shared
+// controller, same data: url resolution — iOS WKWebView refuses blob: for <video> in a
+// standalone PWA exactly like it does for <audio>, see resolveAudioDataUrl's doc comment —
+// same full-screen transcript reader), but shows real pixels: a poster-frame <video> with a
+// play overlay, muted by default (a silent moving photo until you actually tap play, so a
+// reel of clips never autoplays sound). No recording control — Film (the camera-handoff
+// spell) is how a video gets captured; this only ever renders an ALREADY-captured clip.
+
+function buildVideoEl(block: Extract<NoteBlock, { kind: "video" }>, ctx: MediaCtx): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "ph-media ph-video";
+  el.contentEditable = "false";
+  writeBlock(el, block);
+  void ctx;
+
+  const frame = document.createElement("div");
+  frame.className = "ph-video-frame";
+  const videoEl = document.createElement("video");
+  videoEl.className = "ph-video-el";
+  videoEl.setAttribute("playsinline", "");
+  videoEl.muted = true;
+  frame.appendChild(videoEl);
+
+  const playBtn = document.createElement("button");
+  playBtn.type = "button";
+  playBtn.className = "ph-video-play";
+  playBtn.setAttribute("aria-label", "Play");
+  playBtn.innerHTML = PLAY_SVG;
+  frame.appendChild(playBtn);
+
+  const bar = document.createElement("div");
+  bar.className = "ph-video-bar";
+  const time = document.createElement("span");
+  time.className = "ph-video-time";
+  time.textContent = "0:00 / 0:00";
+  const transcriptBtn = document.createElement("button");
+  transcriptBtn.type = "button";
+  transcriptBtn.className = "ph-video-transcript";
+  transcriptBtn.setAttribute("aria-label", "Transcript");
+  transcriptBtn.innerHTML = TRANSCRIPT_SVG;
+  transcriptBtn.hidden = true;
+  bar.append(time, transcriptBtn);
+
+  el.append(frame, bar);
+  if (block.caption) {
+    const cap = document.createElement("div");
+    cap.className = "ph-video-caption";
+    cap.textContent = block.caption;
+    el.appendChild(cap);
+  }
+  appendGrip(el);
+
+  const ref = block.ref;
+  void resolveAudioDataUrl(ref).then((result) => {
+    if (!result.url) {
+      log.warn("video", "playback.missing", { ref, reason: result.reason });
+      el.classList.add("is-broken");
+      frame.innerHTML = "";
+      bar.innerHTML = "";
+      const broken = document.createElement("span");
+      broken.className = "ph-video-broken";
+      broken.textContent = "Video missing";
+      bar.appendChild(broken);
+      return;
+    }
+    const url = result.url;
+    const c = getController(ref, url, "video");
+    // Mount the ONE shared element's pixels here (same relocation trick as desktop's
+    // useMediaSurface — appendChild on a live <video> moves it without restarting playback).
+    c.el.className = "ph-video-el";
+    c.el.setAttribute("playsinline", "");
+    if (c.el.parentElement !== frame) {
+      videoEl.remove();
+      frame.insertBefore(c.el, playBtn);
+    }
+
+    const render = () => {
+      if (c.errorCode) {
+        el.classList.add("is-broken");
+        frame.innerHTML = "";
+        bar.innerHTML = "";
+        const broken = document.createElement("span");
+        broken.className = "ph-video-broken";
+        broken.textContent = "Can't play this video";
+        bar.appendChild(broken);
+        return;
+      }
+      playBtn.innerHTML = c.playing ? PAUSE_SVG : PLAY_SVG;
+      playBtn.classList.toggle("is-playing", c.playing);
+      const dur = c.duration;
+      time.textContent = `${fmtTime(c.currentTime)} / ${fmtTime(dur)}`;
+    };
+    render();
+    c.on("play", render);
+    c.on("pause", render);
+    c.on("time", render);
+    c.on("durationchange", render);
+    c.on("error", render);
+
+    wireMediaTap(playBtn, () => {
+      c.el.muted = false; // the first real tap-to-play un-mutes (autoplay-style preview ends)
+      c.toggle();
+    });
+
+    void loadTranscript(ref).then((t) => {
+      if (!t) return;
+      transcriptBtn.hidden = false;
+      wireMediaTap(transcriptBtn, () => {
+        phoneTranscriptReader.open({ ref, src: url, transcript: t, caption: block.caption });
+      });
+    });
+  });
+
+  return el;
+}
+
 // ---- gallery block (Pinterest "saved collection": composite cover → full-screen masonry) ----
 
 function buildGalleryEl(block: Extract<NoteBlock, { kind: "gallery" }>, ctx: MediaCtx, noteBody: HTMLElement): HTMLElement {
@@ -554,6 +673,7 @@ function buildBlockEl(block: NoteBlock, ctx: MediaCtx, noteBody: HTMLElement): H
   if (block.kind === "gallery") return buildGalleryEl(block, ctx, noteBody);
   if (block.kind === "list") return buildListGroup(block.items);
   if (block.kind === "audio") return buildAudioEl(block, ctx);
+  if (block.kind === "video") return buildVideoEl(block, ctx);
   // text
   const div = document.createElement("div");
   div.innerHTML = block.text.trim() ? esc(block.text) : "<br>";
@@ -617,6 +737,7 @@ export function serializeNoteBody(noteBody: HTMLElement): { title: string; conte
       if (b?.kind === "image") parts.push(encodeImageNoteBlock(b));
       else if (b?.kind === "gallery") parts.push(galleryMd(b.images, b.height));
       else if (b?.kind === "audio") parts.push(encodeAudioNoteBlock(b));
+      else if (b?.kind === "video") parts.push(encodeVideoNoteBlock(b));
     } else if (el.tagName === "UL" || el.tagName === "OL") {
       parts.push(serializeListEl(el).join("\n"));
     } else {
@@ -696,6 +817,16 @@ export function insertAudio(noteBody: HTMLElement, block: Extract<NoteBlock, { k
   const el = buildAudioEl(block, ctx);
   noteBody.appendChild(el);
   ensureTrailingTextRow(noteBody);
+}
+
+/** Append a video block at the end of the body — the Film spell's equivalent of insertAudio
+ *  (a video is captured via the camera handoff, not a live in-page recorder, so there's no
+ *  "patch into a live note while recording" case to mirror; this is the one insertion path). */
+export function insertVideo(noteBody: HTMLElement, block: Extract<NoteBlock, { kind: "video" }>, ctx: MediaCtx) {
+  const el = buildVideoEl(block, ctx);
+  noteBody.appendChild(el);
+  ensureTrailingTextRow(noteBody);
+  ctx.onChange();
 }
 
 function mergeInto(mediaEl: HTMLElement, add: MediaImage[], ctx: MediaCtx, noteBody: HTMLElement) {

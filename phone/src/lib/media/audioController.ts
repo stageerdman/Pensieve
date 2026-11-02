@@ -10,9 +10,14 @@
 // Framework-free (plain events).
 
 export type AudioEvent = "time" | "play" | "pause" | "seek" | "ended" | "durationchange" | "error";
+export type MediaKind = "audio" | "video";
 
 export interface AudioController {
   readonly src: string;
+  readonly kind: MediaKind;
+  /** The underlying element. Audio callers never need this (headless); a video face
+   *  mounts it to show pixels — see components/video/useMediaSurface (mirrors desktop). */
+  readonly el: HTMLMediaElement;
   play(): void;
   pause(): void;
   toggle(): void;
@@ -31,7 +36,7 @@ export interface AudioController {
 }
 
 interface Impl extends AudioController {
-  _el: HTMLAudioElement;
+  _el: HTMLMediaElement;
   _subs: Map<AudioEvent, Set<() => void>>;
   _refs: number;
   _lastUsedAt: number;
@@ -89,13 +94,15 @@ function pauseOthers(keep: Impl) {
   }
 }
 
-function create(src: string): Impl {
-  const el = new Audio();
+function create(src: string, kind: MediaKind): Impl {
+  const el: HTMLMediaElement = kind === "video" ? document.createElement("video") : new Audio();
   el.preload = "metadata";
   el.src = src;
   const subs = new Map<AudioEvent, Set<() => void>>();
   const c: Impl = {
     src,
+    kind,
+    el,
     _el: el,
     _subs: subs,
     _refs: 0,
@@ -201,13 +208,14 @@ function create(src: string): Impl {
   return c;
 }
 
-/** Get (or create) the shared controller stored under `key` (the audio ref), playing `src`
- *  (the resolved blob url). Ref-counted via `release`. */
-export function getController(key: string, src: string = key): AudioController {
+/** Get (or create) the shared controller stored under `key` (the media ref), playing `src`
+ *  (the resolved data: url). `kind` picks audio vs. video on first creation only. Ref-counted
+ *  via `release`. */
+export function getController(key: string, src: string = key, kind: MediaKind = "audio"): AudioController {
   let c = registry.get(key);
   if (!c) {
     evictLRUIfFull();
-    registry.set(key, (c = create(src)));
+    registry.set(key, (c = create(src, kind)));
   }
   c._refs++;
   c._lastUsedAt = Date.now();
