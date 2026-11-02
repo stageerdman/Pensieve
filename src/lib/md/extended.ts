@@ -130,6 +130,7 @@ export function mapBlocks(blocks: Block[], fn: (items: Inline[]) => Inline[]): B
 import { encodeImageBlock, isImageBlock, reconstructImageFence, resolveImageUrls } from "./image";
 import { encodeImageGroupBlock, isImageGroupBlock, reconstructGalleryFence } from "./gallery";
 import { encodeAudioBlock, isAudioBlock, reconstructAudioFence } from "./audio";
+import { encodeVideoBlock, isVideoBlock, reconstructVideoFence } from "./video";
 
 const LIST_TYPES = new Set(["bulletListItem", "numberedListItem", "checkListItem"]);
 
@@ -190,6 +191,10 @@ async function encodeStructure(editor: MdEditor, blocks: Block[]): Promise<Block
       // url → ref, carried on a pensieve:audio fence (see lib/md/audio). The transcript
       // is a separate sidecar, deliberately NOT written into the .md.
       out.push(encodeAudioBlock(b));
+    } else if (isVideoBlock(b)) {
+      // Same shape as audio — url → ref on a pensieve:video fence; its transcript sidecar
+      // is keyed off the same ref, so it's reused unchanged (see lib/md/video).
+      out.push(encodeVideoBlock(b));
     } else if (b.type === "toggleListItem") {
       const summary = await inlineToMd(editor, b.content);
       const body = children.length ? (await blocksToExtendedMd(editor, children)).replace(/\n+$/, "") : "";
@@ -226,6 +231,11 @@ async function reconstructStructure(editor: MdEditor, blocks: Block[]): Promise<
     const audio = reconstructAudioFence(b);
     if (audio) {
       out.push(audio);
+      continue;
+    }
+    const video = reconstructVideoFence(b);
+    if (video) {
+      out.push(video);
       continue;
     }
     const lang = langOf(b);

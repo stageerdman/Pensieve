@@ -18,6 +18,7 @@ import { refForUrl, resolveMediaUrl } from "../media/url";
 import { isMediaPath, parseMediaPath } from "../media/ref";
 import { isImageGroupBlock, resolveGalleryBlock } from "./gallery";
 import { isAudioBlock } from "./audio";
+import { isVideoBlock } from "./video";
 
 /** The default display width — 75% of the text column (wiki "Desktop single image"). */
 export const DEFAULT_IMAGE_WIDTH = 0.75;
@@ -126,9 +127,9 @@ export async function resolveImageUrls(blocks: Block[]): Promise<Block[]> {
   const out: Block[] = [];
   for (const b of blocks) {
     let nb: Block = b;
-    if ((isImageBlock(b) || isAudioBlock(b)) && isMediaPath(b.props?.url ?? "")) {
-      // Same seam for audio: ref → loadable url before mount (missing file keeps the ref →
-      // the bar shows its broken state; the ref still round-trips on the next save).
+    if ((isImageBlock(b) || isAudioBlock(b) || isVideoBlock(b)) && isMediaPath(b.props?.url ?? "")) {
+      // Same seam for audio and video: ref → loadable url before mount (missing file keeps
+      // the ref → the bar shows its broken state; the ref still round-trips on the next save).
       const resolved = await resolveMediaUrl(b.props!.url!);
       nb = { ...b, props: { ...b.props, url: resolved ?? b.props!.url } };
     } else if (isImageGroupBlock(b)) {

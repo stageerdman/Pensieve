@@ -24,3 +24,7 @@ Thumbs.db
 
 # phone PWA build output
 dist-phone/
+
+# python bytecode cache (src-tauri/engine)
+__pycache__/
+*.pyc

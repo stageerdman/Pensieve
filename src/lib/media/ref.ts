@@ -1,19 +1,19 @@
-// The media reference model — the data seam for all media (images now; audio/video
-// later). A reference is a small typed object; its canonical serialized form is the
-// vault-relative path `media/<noteId>/<mediaId>.<ext>`, which is what lands in the .md.
+// The media reference model — the data seam for all media (images, audio, video). A
+// reference is a small typed object; its canonical serialized form is the vault-relative
+// path `media/<noteId>/<mediaId>.<ext>`, which is what lands in the .md.
 
 /** In-memory reference to one piece of media.
  *
- *  `kind` and `timecode` are present-but-unused on purpose — they are the FUTURE seam:
- *  - `kind` lets audio/video slot in next to 'image' with no schema migration.
- *  - `timecode` lets a reference point at a moment inside a video/audio clip (and, with
- *    @-mentions, lets a note reference a specific time-point of another note's media).
- *  Nothing reads them this update; do not drop them just because they're unused. */
+ *  `timecode` is present-but-unused on purpose — it lets a reference point at a moment
+ *  inside a video/audio clip (and, with @-mentions, lets a note reference a specific
+ *  time-point of another note's media). Nothing reads it this update; do not drop it just
+ *  because it's unused. `kind` now covers all three media blocks (image/audio/video) — the
+ *  schema migration this comment used to promise never had to happen. */
 export interface MediaRef {
   mediaId: string;
-  kind: "image";
+  kind: "image" | "audio" | "video";
   caption?: string;
-  width?: number; // display width hint (e.g. 0.25/0.5/0.75/1 of the text column); Phase 1
+  width?: number; // display width hint (e.g. 0.25/0.5/0.75/1 of the text column); images only
   timecode?: number; // FUTURE: seconds into a clip; unused for images
 }
 

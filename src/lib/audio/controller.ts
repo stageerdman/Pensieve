@@ -1,18 +1,30 @@
-// The shared playback engine. One HTMLAudioElement per KEY, kept in a module-level
+// The shared playback engine. One HTMLMediaElement per KEY, kept in a module-level
 // registry so that:
 //   • the several faces of ONE recording (an inline bar + its docked player in a transcript
 //     view + its dropdown reader) share ONE playhead — two faces, one controller;
 //   • starting ANY recording pauses every other one on the page (one-plays-at-a-time).
 // The registry is keyed by a caller-supplied KEY (the owning block's id), NOT by the raw
-// url — otherwise two SEPARATE audio blocks that happen to reference the same file (e.g. a
+// url — otherwise two SEPARATE blocks that happen to reference the same file (e.g. a
 // duplicated block) would collide onto one playhead and scrub each other. `src` is just the
-// loadable url handed to the <audio> element.
+// loadable url handed to the element.
 // Framework-free (plain events) so React, and later the phone app, just subscribe.
+//
+// Audio and video share this engine (an <audio>/<video> element expose the identical
+// play/pause/currentTime/duration surface) — `kind` picks which tag `create()` builds.
+// Video additionally exposes its raw element (`el`) so a visual face can actually show its
+// pixels: see components/video/useMediaSurface, which mounts/moves that ONE element into
+// whichever face currently needs to render it (an inline block vs. the transcript split's
+// dock never both need it at once, so this is a relocation, not a duplicate decode).
 
 export type AudioEvent = "time" | "play" | "pause" | "seek" | "ended" | "durationchange";
+export type MediaKind = "audio" | "video";
 
 export interface AudioController {
   readonly src: string;
+  readonly kind: MediaKind;
+  /** The underlying element. Audio callers never need this (headless); a video face
+   *  mounts it to show pixels — see useMediaSurface. */
+  readonly el: HTMLMediaElement;
   play(): void;
   pause(): void;
   toggle(): void;
@@ -28,7 +40,7 @@ export interface AudioController {
 }
 
 interface Impl extends AudioController {
-  _el: HTMLAudioElement;
+  _el: HTMLMediaElement;
   _subs: Map<AudioEvent, Set<() => void>>;
   _refs: number;
 }
@@ -47,15 +59,17 @@ function pauseOthers(keep: Impl) {
   }
 }
 
-function create(src: string): Impl {
+function create(src: string, kind: MediaKind): Impl {
   // `src` here is the loadable url (what the element plays / what `.src` reports); the
   // registry key under which this controller is stored is a separate caller concern.
-  const el = new Audio();
+  const el: HTMLMediaElement = kind === "video" ? document.createElement("video") : new Audio();
   el.preload = "metadata";
   el.src = src;
   const subs = new Map<AudioEvent, Set<() => void>>();
   const c: Impl = {
     src,
+    kind,
+    el,
     _el: el,
     _subs: subs,
     _refs: 0,
@@ -137,10 +151,12 @@ function create(src: string): Impl {
 /** Get (or create) the shared controller stored under `key`, playing `src`. All the faces
  *  of one recording pass the SAME key (the owning block's id) so they share a playhead;
  *  distinct blocks pass distinct keys so they stay independent even on the same file.
- *  `src` defaults to `key` for simple single-face callers/tests. Ref-counted via `release`. */
-export function getController(key: string, src: string = key): AudioController {
+ *  `src` defaults to `key` for simple single-face callers/tests. `kind` picks audio vs.
+ *  video on first creation only — a later call with a different kind for an existing key
+ *  is a caller bug and is ignored (the first kind wins). Ref-counted via `release`. */
+export function getController(key: string, src: string = key, kind: MediaKind = "audio"): AudioController {
   let c = registry.get(key);
-  if (!c) registry.set(key, (c = create(src)));
+  if (!c) registry.set(key, (c = create(src, kind)));
   c._refs++;
   return c;
 }
