@@ -250,6 +250,26 @@ def transcribe_whisper(audio, language: str, checkpoint: str | None = None) -> l
     return segments
 
 
+def _write_temp_wav(audio) -> str:
+    """Write a decoded float32 mono 16kHz array to a temp .wav path (caller deletes it).
+    parakeet_mlx reads its OWN path argument with its own loader, not the array
+    `load_audio` (ffmpeg-backed) already decoded above — that loader isn't guaranteed to
+    demux a video container the way ffmpeg does. Handing it a plain WAV built from the
+    SAME decode removes that risk instead of hoping parakeet's loader also shells to ffmpeg."""
+    import tempfile
+    import wave
+    import numpy as np
+    fd, path = tempfile.mkstemp(suffix=".wav")
+    os.close(fd)
+    pcm16 = (np.clip(audio, -1.0, 1.0) * 32767.0).astype(np.int16)
+    with wave.open(path, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(VAD_SR)
+        w.writeframes(pcm16.tobytes())
+    return path
+
+
 def transcribe_parakeet(audio_path: str) -> list[dict]:
     from parakeet_mlx import from_pretrained
 
@@ -406,7 +426,13 @@ def main() -> int:
         raw_segments = transcribe_whisper(audio, language, args.checkpoint)
         model_label = "czech-whisper"
     else:
-        raw_segments = transcribe_parakeet(audio_path)  # single-shot; no checkpoint
+        is_plain_wav = Path(audio_path).suffix.lower() in (".wav", ".wave")
+        parakeet_path = audio_path if is_plain_wav else _write_temp_wav(audio)
+        try:
+            raw_segments = transcribe_parakeet(parakeet_path)  # single-shot; no checkpoint
+        finally:
+            if not is_plain_wav:
+                Path(parakeet_path).unlink(missing_ok=True)
         model_label = "parakeet"
         language = language or None
 
