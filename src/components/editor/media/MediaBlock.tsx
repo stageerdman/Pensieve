@@ -45,6 +45,13 @@ export interface MediaBlockProps {
   placeholder?: ReactNode;
   /** The caption slot BELOW the frame — editable input (selected) or static text. */
   caption?: ReactNode;
+  /** Replaces the default `<img>` when the media isn't a plain image (e.g. VideoBlock's
+   *  poster + playback surface) — the frame/placeholder/overlay/caption machinery around
+   *  it is identical either way, which is the whole point of this being "the shared visual
+   *  base for ALL inline media." Only rendered while `showImg` would otherwise render. */
+  media?: ReactNode;
+  /** Broken-state label; defaults to "Image missing" (VideoBlock passes "Video missing"). */
+  missingLabel?: string;
 }
 
 // A muted "image" glyph for the broken/missing state (stroke, currentColor — matches icons.tsx).
@@ -60,7 +67,7 @@ function BrokenGlyph() {
 }
 
 export const MediaBlock = forwardRef<HTMLDivElement, MediaBlockProps>(function MediaBlock(
-  { url, alt, width, aspect, objectPosition, state, filename, selected, focused, onImgLoad, onImgError, onLocate, onActivate, overlay, placeholder, caption },
+  { url, alt, width, aspect, objectPosition, state, filename, selected, focused, onImgLoad, onImgError, onLocate, onActivate, overlay, placeholder, caption, media, missingLabel },
   ref,
 ) {
   const broken = state === "broken";
@@ -91,10 +98,10 @@ export const MediaBlock = forwardRef<HTMLDivElement, MediaBlockProps>(function M
         style={ratio ? { aspectRatio: String(ratio) } : undefined}
         onDoubleClick={onActivate && showImg ? () => onActivate() : undefined}
       >
-        {showImg && (
+        {showImg && (media ?? (
           // eslint-disable-next-line jsx-a11y/alt-text
           <img src={url!} alt={mediaAlt(alt)} className="pensieve-media-img" style={objectPosition ? { objectPosition } : undefined} onLoad={onImgLoad} onError={onImgError} draggable={false} />
-        )}
+        ))}
         {empty && <div className="pensieve-media-placeholder">{placeholder}</div>}
         {state === "loading" && <div className="pensieve-media-shim" aria-hidden="true" />}
         {state === "saving" && <div className="pensieve-media-progress" aria-hidden="true" />}
@@ -102,7 +109,7 @@ export const MediaBlock = forwardRef<HTMLDivElement, MediaBlockProps>(function M
           <div className="pensieve-media-broken">
             <BrokenGlyph />
             <div className="pensieve-media-broken-text">
-              <span>Image missing</span>
+              <span>{missingLabel ?? "Image missing"}</span>
               {filename && <span className="pensieve-media-filename">{filename}</span>}
             </div>
             {onLocate && (

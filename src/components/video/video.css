@@ -1,0 +1,180 @@
+/* Video element styles — mirrors audio.css's control vocabulary (iconbtn, ⋯ menu, time)
+   so the two feel like one family; the frame/poster/scrub rows are the genuinely new part
+   video needs that audio never did (audio is headless; video has real pixels to show). */
+
+.pensieve-video-host {
+  --video-icon-btn: 28px;
+  width: 100%;
+}
+
+.pensieve-video-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px 10px 0 0;
+  overflow: hidden;
+  background: hsl(var(--text) / 0.9);
+  display: grid;
+  place-items: center;
+}
+.pensieve-video-el {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: hsl(var(--text) / 0.9);
+}
+.pensieve-video-playbtn {
+  position: relative;
+  z-index: 2;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  display: grid;
+  place-items: center;
+  background: hsl(0 0% 100% / 0.92);
+  color: hsl(0 0% 7%);
+  cursor: pointer;
+  transition: transform 120ms ease, opacity 120ms ease;
+}
+.pensieve-video-playbtn:hover { transform: scale(1.06); }
+.pensieve-video-playbtn.is-playing {
+  /* Playing: fade the overlay button away so it doesn't sit on top of the picture;
+     it reappears on hover/pause via the frame's own :hover rule below. */
+  opacity: 0;
+}
+.pensieve-video-frame:hover .pensieve-video-playbtn.is-playing { opacity: 1; }
+
+.pensieve-video-ctrlbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 10px;
+  background: hsl(var(--surface-sunken));
+  border: 1px solid hsl(var(--border));
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+}
+
+.pensieve-video-time {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: hsl(var(--text-muted));
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.pensieve-video-time .cur { color: hsl(var(--text)); }
+.pensieve-video-time .sep { margin: 0 3px; opacity: 0.6; }
+
+.pensieve-video-scrub {
+  flex: 1;
+  height: 4px;
+  border-radius: 3px;
+  background: hsl(var(--text-muted) / 0.25);
+  position: relative;
+  cursor: pointer;
+}
+.pensieve-video-scrub-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  height: 100%;
+  border-radius: 3px;
+  background: hsl(var(--accent));
+}
+.pensieve-video-scrub:focus-visible { box-shadow: 0 0 0 2px hsl(var(--accent) / 0.5); border-radius: 4px; }
+
+.pensieve-video-iconbtn {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: var(--video-icon-btn);
+  height: var(--video-icon-btn);
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: hsl(var(--text-muted));
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.pensieve-video-iconbtn:hover { background: hsl(var(--accent) / 0.12); color: hsl(var(--text)); }
+.pensieve-video-iconbtn:focus-visible { box-shadow: 0 0 0 2px hsl(var(--accent) / 0.5); }
+.pensieve-video-iconbtn:disabled { cursor: default; }
+
+.pensieve-video-transcript.is-present { color: hsl(var(--accent)); }
+.pensieve-video-transcript.is-absent { color: hsl(var(--text-muted) / 0.55); }
+.pensieve-video-transcript.is-transcribing { color: hsl(var(--text-muted)); animation: pensieve-video-pulse 1.6s ease-in-out infinite; }
+@keyframes pensieve-video-pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+.pensieve-video-menu-wrap { position: relative; flex: 0 0 auto; }
+.pensieve-video-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 190px;
+  padding: 4px;
+  background: hsl(var(--surface-raised));
+  border: 1px solid hsl(var(--border));
+  border-radius: 10px;
+  box-shadow: 0 8px 28px -8px hsl(var(--text) / 0.25);
+}
+.pensieve-video-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: hsl(var(--text));
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  line-height: 1.2;
+}
+.pensieve-video-menu-item svg { flex: 0 0 auto; color: hsl(var(--text-muted)); }
+.pensieve-video-menu-item:hover:not(:disabled) { background: hsl(var(--accent) / 0.12); }
+.pensieve-video-menu-item:disabled { color: hsl(var(--text-muted)); cursor: default; }
+.pensieve-video-menu-item.is-danger:hover { background: hsl(var(--danger) / 0.12); color: hsl(var(--danger)); }
+.pensieve-video-menu-item.is-danger:hover svg { color: hsl(var(--danger)); }
+.pensieve-video-menu-sep { height: 1px; margin: 4px 2px; background: hsl(var(--border)); }
+
+/* ── broken (missing file) ────────────────────────────────────────────────── */
+.pensieve-video-bar.is-broken {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: hsl(var(--danger) / 0.08);
+  border: 1px solid hsl(var(--danger) / 0.3);
+  border-radius: 10px;
+  color: hsl(var(--danger));
+  font-size: 13px;
+}
+.pensieve-video-filename { font-family: var(--font-mono); opacity: 0.8; }
+.pensieve-video-locate {
+  margin-left: auto;
+  flex: 0 0 auto;
+  border: none;
+  background: hsl(var(--danger) / 0.15);
+  color: hsl(var(--danger));
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+/* ── docked atop a transcript split (no border, sits flush) ─────────────────── */
+.pensieve-video-host.is-dock .pensieve-video-frame,
+.pensieve-video-host.is-dock .pensieve-video-ctrlbar {
+  border-radius: 0;
+}
+.pensieve-video-host.is-dock .pensieve-video-ctrlbar {
+  border-left: none;
+  border-right: none;
+}

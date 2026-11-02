@@ -25,8 +25,9 @@ import { ImagePasteDrop, setImageDropHandlers } from "./media/imagePasteDrop";
 import { setMediaNoteId } from "./media/mediaContext";
 import { makeUploadFile } from "./media/insertImage";
 import { insertImagesSmart, type GroupEditor } from "./media/insertGroup";
+import { insertVideoFromFile, type InsertEditor as VideoInsertEditor } from "./media/insertVideo";
 import { mediaToast } from "./media/mediaToast";
-import { Image as ImageIcon, Images as ImagesIcon, AudioLines as AudioIcon } from "../icons";
+import { Image as ImageIcon, Images as ImagesIcon, AudioLines as AudioIcon, VideoIcon } from "../icons";
 import { GutterHandle } from "./GutterHandle";
 import { makeSlashMenu } from "./SlashMenu";
 import { useBlockMarquee } from "./useBlockMarquee";
@@ -212,6 +213,12 @@ export function Editor({
   useEffect(() => {
     setImageDropHandlers(
       (files, atBlockId) => {
+        // A video drop never merges/groups — imagePasteDrop.ts already routes a video-only
+        // drop here separately from image/audio, so this check is really just "is it video."
+        if (files[0] && files[0].type.startsWith("video/")) {
+          void insertVideoFromFile(editor as unknown as VideoInsertEditor, selfId, files[0], atBlockId ?? undefined);
+          return;
+        }
         void insertImagesSmart(editor as unknown as GroupEditor, selfId, files, atBlockId);
       },
       (reason) => mediaToast(reason),
@@ -386,6 +393,17 @@ export function Editor({
                   // Insert an EMPTY audio block — a placeholder to choose a file (recording = P4).
                   onItemClick: () =>
                     insertOrUpdateBlockForSlashMenu(editor, { type: "audio", props: {} } as never),
+                },
+                {
+                  title: "Video",
+                  aliases: ["video", "clip", "movie", "film"],
+                  group: "Media",
+                  icon: <VideoIcon size={18} />,
+                  subtext: "A video clip",
+                  // Insert an EMPTY video block — a placeholder to upload/drop a file. No
+                  // desktop camera control (no media kind gets one here — see video-capture-design).
+                  onItemClick: () =>
+                    insertOrUpdateBlockForSlashMenu(editor, { type: "video", props: {} } as never),
                 },
               ],
               query,

@@ -50,6 +50,17 @@ export const AudioLines = (p: IconProps) =>
     p,
   );
 
+// A camera body + play triangle — video recordings (the `/video` slash item).
+export const VideoIcon = (p: IconProps) =>
+  svg(
+    <>
+      <rect x="2" y="5" width="14" height="14" rx="2" />
+      <path d="M16 10l5.5-3.2a1 1 0 0 1 1.5.87v8.66a1 1 0 0 1-1.5.87L16 14" />
+      <path d="M8 9.5v5l4-2.5z" fill="currentColor" stroke="none" />
+    </>,
+    p,
+  );
+
 // Six-dot grip — the drag handle in the editor gutter (Notion-style).
 export const GripVertical = (p: IconProps) =>
   svg(

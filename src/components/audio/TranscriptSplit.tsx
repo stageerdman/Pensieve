@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { transcriptPane, type TranscriptOpenReq } from "./transcriptController";
 import { AudioBar } from "./AudioBar";
+import { VideoBar } from "../video/VideoBar";
 import { TranscriptView } from "./TranscriptView";
 
 // The desktop "Split to Transcript" pane — a resizable right pane (editor left, transcript
@@ -60,7 +61,11 @@ export function TranscriptSplit() {
         {/* No header row: the "Transcript" title + collapse icon are gone — the Note-details
             button in the app header now owns collapsing this split (App.tsx). */}
         <div className="pensieve-transcript-dock">
-          <AudioBar src={req.src} playerKey={req.playerKey} dock transcriptState="present" />
+          {req.kind === "video" ? (
+            <VideoBar src={req.src} playerKey={req.playerKey} dock transcriptState="present" />
+          ) : (
+            <AudioBar src={req.src} playerKey={req.playerKey} dock transcriptState="present" />
+          )}
         </div>
         <TranscriptView src={req.src} playerKey={req.playerKey} transcript={req.transcript} seekTo={req.seekTo} />
       </div>

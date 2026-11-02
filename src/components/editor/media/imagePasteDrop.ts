@@ -56,6 +56,17 @@ const audioFrom = (dt: DataTransfer | null): File[] => {
   return out;
 };
 
+// Video files from a drop — same reasoning/shape as audioFrom (dropped onto blank editor
+// space, or onto an existing media block).
+const videoFrom = (dt: DataTransfer | null): File[] => {
+  if (!dt) return [];
+  const out: File[] = [];
+  const add = (f: File | null) => { if (f && f.type.startsWith("video/")) out.push(f); };
+  Array.from(dt.files).forEach(add);
+  if (!out.length) Array.from(dt.items ?? []).forEach((it) => { if (it.kind === "file") add(it.getAsFile()); });
+  return out;
+};
+
 const hasFiles = (dt: DataTransfer | null): boolean =>
   !!dt &&
   (Array.from(dt.types).includes("Files") ||
@@ -134,19 +145,21 @@ export const ImagePasteDrop = Extension.create({
               const onMedia = !!over?.closest(".pensieve-gallery, .pensieve-media");
               const images = imagesFrom(event.dataTransfer);
               const audio = audioFrom(event.dataTransfer);
+              const video = videoFrom(event.dataTransfer);
               log.debug("media", "drop.received", {
                 files: Array.from(event.dataTransfer?.files ?? []).map((f) => `${f.name}:${f.type || "?"}`),
                 images: images.length,
                 audio: audio.length,
+                video: video.length,
                 onMedia,
                 overClass: over?.className?.toString().slice(0, 60) ?? null,
                 target,
               });
 
-              // A drop ONTO a media block (image / gallery) is that block's own gesture. Images
-              // are handled by the block's React onDrop (works) — so bail. But audio can't ride
-              // that path reliably, so WE route it (onFiles → insertImagesSmart merges it into
-              // the gallery as a waveform card).
+              // A drop ONTO a media block (image / gallery / video) is that block's own
+              // gesture for image and video (their own React onDrop handles it) — so bail.
+              // Audio can't ride that path reliably, so WE route it (onFiles →
+              // insertImagesSmart merges it into the gallery as a waveform card).
               if (onMedia) {
                 if (audio.length) {
                   log.info("media", "drop.audio-onto-media", { target, audio: audio.length });
@@ -159,13 +172,19 @@ export const ImagePasteDrop = Extension.create({
                 return false;
               }
 
-              // Open editor space: handle image + audio file drops here (audio alone → an audio
-              // block; mixed/2+ → a gallery). Only a genuinely unsupported file type is rejected.
+              // Open editor space: handle image + audio + video file drops here (a lone video
+              // → a video block, same as a lone audio file; mixed/2+ images → a gallery; a
+              // video is never folded into a gallery). Only a genuinely unsupported file type
+              // is rejected.
               event.preventDefault();
               clearCaret(view);
+              if (video.length) {
+                onFiles?.(video, target);
+                return true;
+              }
               const media = [...images, ...audio];
               if (!media.length) {
-                onReject?.("That file isn’t an image or recording.");
+                onReject?.("That file isn’t an image, video, or recording.");
                 return true;
               }
               onFiles?.(media, target);

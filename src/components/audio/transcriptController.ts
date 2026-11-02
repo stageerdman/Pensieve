@@ -6,8 +6,10 @@
 import type { Transcript } from "../../lib/transcripts/types";
 
 export interface TranscriptOpenReq {
-  /** The audio's loadable src. */
+  /** The recording's loadable src. */
   src: string;
+  /** Which player the dock shows — defaults to "audio" (every existing caller is audio). */
+  kind?: "audio" | "video";
   /** Shared-controller key (the opening block's id) so the pane + that block's inline bar
    *  drive ONE playhead — while a duplicate block on the same file stays independent. */
   playerKey?: string;
