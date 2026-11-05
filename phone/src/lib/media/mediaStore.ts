@@ -45,25 +45,45 @@ function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T
   );
 }
 
-/** Read a stored blob's CONTENT (not just its `.size`/`.type` metadata) by ref. Safari/WebKit
- *  invalidates a Blob handed back from an IndexedDB `get()` for content reads
- *  (`.arrayBuffer()`/`.slice()`/FileReader — throws `NotFoundError: "The object can't be found
- *  here."`) once that transaction auto-commits, which can happen before an `await`-chained
- *  continuation gets to touch it — `tx()`'s extra `.then()`/Promise-wrapper hops are exactly
- *  enough delay to hit this on-device. Metadata reads (`.size`/`.type`) are unaffected, which
- *  is why `_debugBlobMeta` always "sees" the blob fine even when this throws. Fix: call
- *  `.arrayBuffer()` synchronously inside the transaction's OWN `onsuccess`, not via `tx()`. */
-function getBlobBytes(ref: string): Promise<{ bytes: ArrayBuffer; type: string } | null> {
+/** IDB record shape for every ref's bytes. We store the raw `ArrayBuffer` + mime `type`
+ *  directly — NOT a `Blob` — because Safari/WebKit's IndexedDB Blob support has a
+ *  size-dependent bug: a `Blob` handed back from `get()` is only safe to read
+ *  (`.arrayBuffer()`/`.slice()`/FileReader) while its backing transaction is still alive.
+ *  WebKit keeps small blobs' bytes inlined in the result (readable forever), but once a blob
+ *  is large enough it stores them file-backed and reads lazily — and that lazy read throws
+ *  `NotFoundError: "The object can't be found here."` once the (already auto-committed)
+ *  transaction is gone. This is exactly the "works for a short recording, breaks past ~tens of
+ *  seconds" symptom reported on-device 2026-11-05 — calling `.arrayBuffer()` synchronously
+ *  inside the transaction's own `onsuccess` (the previous fix here) only delayed the bug to a
+ *  larger size, it didn't close it. A plain `ArrayBuffer` is copied directly into the
+ *  structured-clone record (no lazy file-backed blob, no live-transaction requirement), so
+ *  this class of bug can't happen at any size. */
+type StoredBytes = { type: string; bytes: ArrayBuffer };
+
+function isStoredBytes(v: unknown): v is StoredBytes {
+  return !!v && typeof v === "object" && "bytes" in (v as object) && (v as StoredBytes).bytes instanceof ArrayBuffer;
+}
+
+/** Normalize an IDB record to `{ bytes, type }` regardless of which shape wrote it. Pre-fix
+ *  records already on a device are stored as a raw `Blob` (old `putMedia`) — fall back to the
+ *  same "read synchronously inside this transaction's onsuccess" trick for those so existing
+ *  recordings don't regress; every NEW write goes through the ArrayBuffer path above. */
+function readRecord(ref: string): Promise<StoredBytes | null> {
   return openDb().then(
     (db) =>
       new Promise((resolve, reject) => {
         const req = db.transaction(STORE, "readonly").objectStore(STORE).get(ref);
         req.onsuccess = () => {
-          const blob = req.result as Blob | undefined;
-          if (!blob) {
+          const value = req.result as StoredBytes | Blob | undefined;
+          if (!value) {
             resolve(null);
             return;
           }
+          if (isStoredBytes(value)) {
+            resolve(value);
+            return;
+          }
+          const blob = value as Blob;
           blob.arrayBuffer().then((bytes) => resolve({ bytes, type: blob.type })).catch(reject);
         };
         req.onerror = () => reject(req.error);
@@ -71,13 +91,19 @@ function getBlobBytes(ref: string): Promise<{ bytes: ArrayBuffer; type: string }
   );
 }
 
+function getBlobBytes(ref: string): Promise<{ bytes: ArrayBuffer; type: string } | null> {
+  return readRecord(ref);
+}
+
 // ref -> object URL, so a resolved image is reused and a just-inserted one is instant.
 const urlCache = new Map<string, string>();
 
-/** Persist bytes for a ref (background write). Swallows failures (quota / no IndexedDB). */
+/** Persist bytes for a ref (background write). Swallows failures (quota / no IndexedDB).
+ *  Stores the raw bytes, not the `Blob` itself — see `StoredBytes` above for why. */
 export async function putMedia(ref: string, blob: Blob): Promise<void> {
   try {
-    await tx("readwrite", (s) => s.put(blob, ref));
+    const bytes = await blob.arrayBuffer();
+    await tx("readwrite", (s) => s.put({ type: blob.type, bytes }, ref));
   } catch {
     /* no IndexedDB (jsdom) or quota — the in-memory object URL still shows this session */
   }
@@ -100,9 +126,9 @@ export async function resolveMediaUrl(ref: string): Promise<string | null> {
   const cached = urlCache.get(ref);
   if (cached) return cached;
   try {
-    const blob = await tx<Blob | undefined>("readonly", (s) => s.get(ref));
-    if (!blob) return null;
-    const url = URL.createObjectURL(blob);
+    const record = await readRecord(ref);
+    if (!record) return null;
+    const url = URL.createObjectURL(new Blob([record.bytes], { type: record.type }));
     urlCache.set(ref, url);
     return url;
   } catch {
@@ -110,14 +136,14 @@ export async function resolveMediaUrl(ref: string): Promise<string | null> {
   }
 }
 
-/** DEBUG ONLY (VOICE-PLAYBACK investigation, 2026-11-01) — size/type of the stored blob for a
+/** DEBUG ONLY (VOICE-PLAYBACK investigation, 2026-11-01) — size/type of the stored bytes for a
  *  ref, straight from IndexedDB (no object URL / cache involved), so a "Can't play this
  *  recording" state can show whether the bytes even made it to the store intact. Remove once
  *  that investigation is closed. */
 export async function _debugBlobMeta(ref: string): Promise<{ size: number; type: string } | null> {
   try {
-    const blob = await tx<Blob | undefined>("readonly", (s) => s.get(ref));
-    return blob ? { size: blob.size, type: blob.type } : null;
+    const record = await readRecord(ref);
+    return record ? { size: record.bytes.byteLength, type: record.type } : null;
   } catch {
     return null;
   }
