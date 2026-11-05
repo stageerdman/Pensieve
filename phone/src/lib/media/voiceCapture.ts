@@ -70,6 +70,20 @@ export interface VoiceCaptureDeps {
 // of audio) without the per-chunk bookkeeping a MediaRecorder timeslice needed.
 const PROCESSOR_BUFFER_SIZE = 4096;
 
+// Writing a fresh IndexedDB transaction on EVERY ~85ms callback (one per PROCESSOR_BUFFER_SIZE
+// worth of samples) was the write rate for a while — each `put()` is its own transaction, and
+// readwrite transactions on the same object store can't overlap, so they queue up. On-device
+// IDB transaction overhead apparently exceeds that ~85ms budget, so the write queue falls
+// behind in real time and the backlog grows for as long as the recording runs — which is
+// exactly the "Done doesn't finish until N extra seconds, scaling with recording length"
+// symptom reported 2026-11-05 (stopRecording awaits the backlog draining before it can
+// finalize). Batching callbacks into ~1s chunks before writing cuts the transaction count (and
+// thus the per-callback IDB overhead this backlog comes from) by roughly 12x at a typical
+// 48kHz/4096-sample callback rate, while keeping the crash-loss window ("a kill loses at most
+// one flush's worth of audio") at the same "a few seconds" scale this module already documents
+// as acceptable.
+const FLUSH_INTERVAL_SAMPLES = TARGET_SAMPLE_RATE; // ~1s of resampled audio per IDB write
+
 const clockNow = (): number => (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now());
 
 function mintSessionId(): string {
@@ -156,6 +170,11 @@ interface ActiveState {
    *  The mic/stream/graph all stay live through a pause (matches the old behavior), only the
    *  write path is gated, so resume needs no setup at all. */
   capturing: boolean;
+  /** Resampled PCM16 buffers accumulated since the last IDB write, and their total sample
+   *  count — see FLUSH_INTERVAL_SAMPLES above for why this is batched instead of one write per
+   *  ScriptProcessorNode callback. */
+  pendingChunks: Int16Array[];
+  pendingSampleCount: number;
   /** The most recently scheduled chunk write — awaited before finalize reads chunks back, so
    *  the fire-and-forget IndexedDB write can never lose a race. */
   lastAppend: Promise<void>;
@@ -262,6 +281,23 @@ async function teardownStream(a: ActiveState): Promise<void> {
   }
 }
 
+/** Concatenate whatever's accumulated since the last write into ONE IDB chunk, if anything has.
+ *  Called both from the audioprocess callback (once ~1s has built up) and right before a
+ *  stop/pause/background teardown (so at most ~1s of tail audio is ever still in memory only). */
+function flushPending(a: ActiveState): void {
+  if (a.pendingSampleCount === 0) return;
+  const merged = new Int16Array(a.pendingSampleCount);
+  let offset = 0;
+  for (const part of a.pendingChunks) {
+    merged.set(part, offset);
+    offset += part.length;
+  }
+  a.pendingChunks = [];
+  a.pendingSampleCount = 0;
+  const seq = a.seq++;
+  a.lastAppend = appendChunk(a.session.id, seq, new Blob([merged.buffer as ArrayBuffer]));
+}
+
 function bindProcessor(a: ActiveState) {
   a.processor.onaudioprocess = (e: AudioProcessingEvent) => {
     if (active !== a || !a.capturing) return;
@@ -269,10 +305,9 @@ function bindProcessor(a: ActiveState) {
     const resampled = resampleTo(input, a.audioCtx.sampleRate, TARGET_SAMPLE_RATE, a.resample);
     if (resampled.length === 0) return;
     const pcm16 = floatTo16BitPCM(resampled);
-    const seq = a.seq++;
-    // pcm16 always owns a fresh, non-shared ArrayBuffer (`new Int16Array(length)` above) —
-    // the cast just works around TS's overly-general ArrayBufferLike/BlobPart typing.
-    a.lastAppend = appendChunk(a.session.id, seq, new Blob([pcm16.buffer as ArrayBuffer]));
+    a.pendingChunks.push(pcm16);
+    a.pendingSampleCount += pcm16.length;
+    if (a.pendingSampleCount >= FLUSH_INTERVAL_SAMPLES) flushPending(a);
   };
 }
 
@@ -322,6 +357,7 @@ async function onBackgrounded() {
   notifyBackgroundStop(elapsed);
   a.state = "stopping";
   a.capturing = false;
+  flushPending(a);
   await a.lastAppend;
   await teardownStream(a);
   await finalizeAndCleanup(a.session, a.deps); // no toast — the app isn't visible to see it
@@ -350,6 +386,8 @@ async function handleCaptureFailure() {
   const a = active;
   active = null;
   a.capturing = false;
+  flushPending(a);
+  await a.lastAppend;
   await teardownStream(a);
   await finalizeAndCleanup(a.session, a.deps, "Recording stopped — a problem interrupted the mic, saved what we had");
 }
@@ -433,6 +471,8 @@ export async function startRecording(
     state: "recording",
     wakeLock: null,
     capturing: true,
+    pendingChunks: [],
+    pendingSampleCount: 0,
     lastAppend: Promise.resolve(),
   };
   active = a;
@@ -457,6 +497,7 @@ export function pauseRecording(): void {
   a.clock.pause(clockNow());
   a.state = "paused";
   a.capturing = false;
+  flushPending(a); // don't leave up to ~1s of audio only in memory for an open-ended pause
 }
 
 export function resumeRecording(): void {
@@ -473,6 +514,7 @@ export async function stopRecording(): Promise<void> {
   const a = active;
   a.state = "stopping";
   a.capturing = false;
+  flushPending(a);
   await a.lastAppend;
   await teardownStream(a);
   await finalizeAndCleanup(a.session, a.deps, "Recording saved");
