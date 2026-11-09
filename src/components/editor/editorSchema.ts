@@ -4,6 +4,7 @@ import { ImageBlock } from "./media/ImageBlock";
 import { ImageGroupBlock } from "./media/ImageGroupBlock";
 import { AudioBlock } from "./media/AudioBlock";
 import { VideoBlock } from "./media/VideoBlock";
+import { JournalBlock } from "./media/JournalBlock";
 
 // The shared BlockNote schema: the default blocks/styles plus our custom "noteLink"
 // inline content and our custom "image"/"audio"/"video" blocks (all round-tripped through
@@ -21,6 +22,6 @@ import { VideoBlock } from "./media/VideoBlock";
 const { file: _file, ...baseBlockSpecs } = defaultBlockSpecs;
 
 export const editorSchema = BlockNoteSchema.create({
-  blockSpecs: { ...baseBlockSpecs, image: ImageBlock, imageGroup: ImageGroupBlock, audio: AudioBlock, video: VideoBlock },
+  blockSpecs: { ...baseBlockSpecs, image: ImageBlock, imageGroup: ImageGroupBlock, audio: AudioBlock, video: VideoBlock, journal: JournalBlock },
   inlineContentSpecs: { ...defaultInlineContentSpecs, noteLink: NoteLink },
 });

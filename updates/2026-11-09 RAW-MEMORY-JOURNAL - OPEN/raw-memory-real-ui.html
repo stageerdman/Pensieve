@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html class="dark">
+<head>
+<meta charset="UTF-8">
+<title>Raw Memory — real-UI reference (v2)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- The real phone stylesheets, linked in place — not copied, not reinvented.
+     Every class below (.screen, .reel, .card, .dock, .spell-ring, .ph-collection*,
+     .ph-voice-*, .ph-confirm-*) is the ACTUAL class the shipped app uses. -->
+<link rel="stylesheet" href="../../phone/src/styles/tokens.css">
+<link rel="stylesheet" href="../../phone/src/styles/wand.css">
+<link rel="stylesheet" href="../../phone/src/styles/dock.css">
+<link rel="stylesheet" href="../../phone/src/styles/spellmenu.css">
+
+<style>
+  /* ---- outer page chrome only — NOT app UI. Plain document styling. ---- */
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #f4f5f7;
+    color: #1b1e24;
+    font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+    padding: 40px 20px 120px;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #0e1116; color: #d7dae0; }
+  }
+  .page { max-width: 980px; margin: 0 auto; }
+  .page h1 { font-size: 26px; margin: 0 0 6px; }
+  .page .lede { color: #6b7280; max-width: 720px; line-height: 1.5; font-size: 14.5px; }
+  @media (prefers-color-scheme: dark) { .page .lede { color: #9aa1ad; } }
+  .legend {
+    margin: 18px 0 48px;
+    padding: 14px 18px;
+    border-radius: 10px;
+    background: rgba(100,120,160,0.08);
+    border: 1px solid rgba(100,120,160,0.18);
+    font-size: 13px;
+    line-height: 1.55;
+    max-width: 760px;
+  }
+  .legend b { font-weight: 600; }
+  .changelog {
+    margin: 0 0 40px; padding: 12px 18px; border-radius: 10px;
+    background: rgba(220,170,60,0.10); border: 1px solid rgba(220,170,60,0.28);
+    font-size: 12.5px; line-height: 1.6; max-width: 760px;
+  }
+  .changelog b { font-weight: 700; }
+  section.scene { margin: 0 0 64px; }
+  section.scene h2 {
+    font-size: 15px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #4b5563;
+    margin: 0 0 4px;
+  }
+  @media (prefers-color-scheme: dark) { section.scene h2 { color: #9aa1ad; } }
+  section.scene .note {
+    font-size: 13.5px;
+    color: #6b7280;
+    margin: 0 0 18px;
+    max-width: 640px;
+    line-height: 1.5;
+  }
+  @media (prefers-color-scheme: dark) { section.scene .note { color: #868d99; } }
+
+  /* the contained panel = phone content width, no bezel, no notch, no device chrome —
+     just a plain rounded rectangle so screens don't bleed into the page. */
+  .frame {
+    position: relative;
+    width: 390px;
+    height: 640px;
+    margin: 0;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 10px 30px -14px rgba(0,0,0,0.25);
+  }
+  .frame .screen { border-radius: 18px; }
+
+  /* ---- variant switcher (Scene C) — plain page control, not app UI ---- */
+  .variant-bar { display: flex; gap: 8px; margin-bottom: 14px; }
+  .variant-btn {
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 7px 13px;
+    border-radius: 999px;
+    border: 1px solid rgba(100,120,160,0.3);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+  .variant-btn.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+  .variant-label { font-size: 12.5px; color: #6b7280; max-width: 420px; line-height: 1.5; margin: 0 0 14px; }
+  @media (prefers-color-scheme: dark) { .variant-label { color: #868d99; } }
+
+  /* ---- NEW glyph (book) — same 24-grid / single-stroke convention as SpellGlyph.tsx ---- */
+  .glyph-book { display: block; }
+
+  /* ---- Scene A: static resting ring (no drag physics — just where "Journal" sits) ---- */
+  .ringwrap { position: relative; width: 100%; height: 100%; }
+  .ring-caption {
+    position: absolute; left: 0; right: 0; bottom: 18px; text-align: center;
+    font-size: 11px; color: hsl(var(--text-muted)); z-index: 5; pointer-events: none;
+  }
+  .spell-node.is-new .spell-label { opacity: 1 !important; color: hsl(var(--gold)); }
+  .spell-node.is-new::after {
+    content: "NEW"; position: absolute; top: -7px; right: -9px;
+    font-size: 8px; font-weight: 800; letter-spacing: 0.4px;
+    background: hsl(var(--gold)); color: hsl(222 30% 10%);
+    padding: 2px 4px; border-radius: 5px;
+  }
+
+  /* ---- Scene B: ONE continuous live camera session (no per-shot handoff). ----
+     There's no real getUserMedia feed from a static file — the viewfinder below is a
+     placeholder for where that live preview goes; everything AROUND it (shutter, the
+     live strip, grip/remove on each tile) is the real interaction this needs to have. */
+  .camera-scene { position: relative; display: flex; flex-direction: column; height: 100%; background: #000; color: #fff; }
+  .camera-topbar {
+    position: relative; z-index: 3;
+    padding: calc(12px + env(safe-area-inset-top)) 16px 8px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .camera-count { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.85); }
+  .btn-done-text {
+    background: none; border: none; color: #ffd874; font-size: 15px; font-weight: 700; cursor: pointer; padding: 6px 4px;
+  }
+  .btn-done-text:disabled { color: rgba(255,255,255,0.35); cursor: default; }
+  .viewfinder {
+    flex: 1; position: relative; overflow: hidden;
+    background: radial-gradient(120% 90% at 50% 30%, #23262c, #0a0b0d 70%);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .viewfinder::before {
+    content: ""; position: absolute; inset: 22px;
+    border: 1.5px solid rgba(255,255,255,0.18); border-radius: 18px;
+  }
+  .viewfinder-hint { font-size: 12.5px; color: rgba(255,255,255,0.4); letter-spacing: 0.3px; }
+  .flash {
+    position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 4;
+  }
+  .flash.show { animation: cam-flash 0.22s ease; }
+  @keyframes cam-flash { 0% { opacity: 0.9; } 100% { opacity: 0; } }
+  .shutter-row {
+    position: relative; z-index: 3;
+    display: flex; align-items: center; justify-content: center;
+    padding: 18px 0 14px;
+  }
+  .shutter-btn {
+    width: 70px; height: 70px; border-radius: 50%;
+    border: 3.5px solid #fff; background: rgba(255,255,255,0.14);
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: transform 0.1s ease;
+  }
+  .shutter-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.3); }
+  .camera-strip {
+    position: relative; z-index: 3;
+    padding: 0 12px calc(14px + env(safe-area-inset-bottom));
+    display: flex; gap: 7px; overflow-x: auto; min-height: 76px;
+  }
+  .camera-strip-empty {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: rgba(255,255,255,0.4); min-height: 76px;
+  }
+  .pg-tile { width: 58px; flex: none; }
+  .pg-tile img { width: 100%; height: auto; display: block; -webkit-user-select: none; user-select: none; }
+  .pg-tile .ph-collection-grip { width: 22px; height: 22px; right: 2px; bottom: 2px; border-radius: 7px; }
+  .pg-tile .ph-collection-grip svg { width: 11px; height: 11px; }
+  .pg-tile .ph-collection-remove { width: 18px; height: 18px; top: 2px; right: 2px; font-size: 13px; }
+  .pg-tile.new-tile { animation: spell-ignite 0.26s var(--spring); }
+  /* Scene B's strip is horizontal — the real drop-before/after bar (top/bottom, for the
+     vertical masonry) is the wrong axis here. Same classes, re-pointed to left/right. */
+  .camera-strip .ph-collection-tile.drop-before::after,
+  .camera-strip .ph-collection-tile.drop-after::after {
+    top: 0; bottom: 0; left: auto; right: auto; height: auto; width: 3px;
+  }
+  .camera-strip .ph-collection-tile.drop-before::after { left: 0; }
+  .camera-strip .ph-collection-tile.drop-after::after { right: 0; }
+
+  /* ---- Scene C: the Raw Memory card with NO flask glyph at all ---- */
+  .card.is-raw { gap: 0; }
+  .card.is-raw .flask-gutter {
+    width: calc(36px * var(--m, 1)); flex: none;
+  }
+  .card.is-raw .flask-gutter.dashed {
+    height: calc(48px * var(--m, 1));
+    border: 1.5px dashed hsl(var(--border));
+    border-radius: 8px;
+  }
+  .card.is-raw .body { margin-left: 13px; }
+  .card.is-raw.flush .flask-gutter { display: none; }
+  .card.is-raw.flush .body { margin-left: 0; }
+  .card.is-raw .title { color: hsl(var(--text-muted)); font-weight: 600; }
+  .card.is-raw .meta { display: flex; align-items: center; gap: 5px; }
+  .meta-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: hsl(var(--accent)); flex: none;
+    animation: ph-voice-pulse 1.8s var(--ease) infinite;
+  }
+  .card.flash-in { animation: raw-card-flash 1.1s var(--ease); }
+  @keyframes raw-card-flash {
+    0% { background: hsl(var(--gold) / 0.22); }
+    100% { background: transparent; }
+  }
+
+  /* ---- Scene D: detail sheet — real Dock + Conditional spell ring for batch actions,
+     no flat button bar. Opens over the WHOLE page — it's a genuine full-screen takeover
+     in production, so this is the honest representation. ---- */
+  .detail-overlay { position: fixed; inset: 0; z-index: 500; display: none; }
+  .detail-overlay.open { display: block; }
+  .ph-collection { background: hsl(var(--surface)); }
+  .detail-status {
+    margin: 2px 16px 10px; padding: 10px 14px; border-radius: 12px;
+    background: hsl(var(--surface-raised) / 0.7);
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: hsl(var(--text-muted));
+  }
+  .batch-ring-overlay { display: none; }
+  .batch-ring-overlay.open { display: block; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+    background: #1b1e24; color: #fff; padding: 10px 18px; border-radius: 999px;
+    font-size: 13px; z-index: 900; opacity: 0; pointer-events: none;
+  }
+  .toast.show { animation: toast-pop 2.4s ease; }
+  @keyframes toast-pop {
+    0% { opacity: 0; transform: translateX(-50%) translateY(6px); }
+    10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+    85% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Raw Memory — built from the real phone UI (v2)</h1>
+  <p class="lede">
+    Every panel below links the app's actual stylesheets (<code>tokens.css</code>, <code>wand.css</code>,
+    <code>dock.css</code>, <code>spellmenu.css</code>) and reuses the actual component markup/classes —
+    the reel card, the dock, the spell ring, the photo-collection board, the confirm sheet. No fake
+    phone bezel; each box is just the content area at real phone width. One simplification: the
+    reel's scroll-fisheye "glass" loupe isn't wired up — orthogonal to the Raw Memory question.
+  </p>
+
+  <div class="changelog">
+    <b>Changed from v1, per review:</b> (1) Scene B is now ONE continuous camera session — tap once,
+    shoot every page back-to-back, thumbnails pile up live underneath, never leaving the viewfinder
+    (the old "Add page" button + native-handoff model is gone — see <code>wiki.md</code> for why that
+    model structurally couldn't give a multi-shot session, and why this needs a real new camera
+    component to build). (2) Scene D's "Delete whole batch" is now a Conditional spell-ring action
+    (Dock → gold button → ring), not a flat button, matching every other context in the app. (3) Scene
+    C dropped the flask entirely for the Raw Memory card — not a muted one, which still read as a
+    normal categorized memory. Desktop's AI split-by-date requirement is logged as a Phase 3/5 data-
+    model decision in <code>wiki.md</code>; it doesn't change anything on the phone side shown here.
+  </div>
+
+  <!-- ===================== SCENE A ===================== -->
+  <section class="scene">
+    <h2>Scene A — entry point</h2>
+    <p class="note">The real General spell ring (gold hue), with "Journal" added after Film. Tap it to jump to the capture screen (Scene B).</p>
+    <div class="frame">
+      <div class="screen" style="display:flex;align-items:center;justify-content:center;">
+        <div class="ringwrap">
+          <div class="spell-ring hue-gold" id="ringA" role="menu" aria-label="Spell menu"></div>
+          <div class="ring-caption">General spells · gold ring</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SCENE B ===================== -->
+  <section class="scene">
+    <h2>Scene B — one continuous camera session</h2>
+    <p class="note">
+      Tap Journal once → you're in the camera. The shutter fires as many times as there are pages;
+      each tap flashes and drops a new tile into the live strip below, without leaving this screen.
+      Drag a tile's grip to reorder, × to drop one — right here, mid-session. "Done" exits with
+      whatever's been shot. (This screen needs a real <code>getUserMedia</code> camera behind it —
+      see the changelog above; the dark viewfinder here is a stand-in for that live feed.)
+    </p>
+    <div class="frame">
+      <div class="screen">
+        <div class="camera-scene">
+          <div class="camera-topbar">
+            <span class="camera-count" id="camCount">0 pages</span>
+            <button class="btn-done-text" id="btnDone" disabled>Done</button>
+          </div>
+          <div class="viewfinder">
+            <div class="flash" id="flash"></div>
+            <span class="viewfinder-hint">Point at the next page</span>
+          </div>
+          <div class="shutter-row">
+            <button class="shutter-btn" id="btnShutter" aria-label="Capture page"></button>
+          </div>
+          <div class="camera-strip" id="camStrip">
+            <div class="camera-strip-empty">Shot pages appear here, live</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SCENE C ===================== -->
+  <section class="scene">
+    <h2>Scene C — the Raw Memory card, no flask</h2>
+    <p class="note">The real reel: <code>.reel &gt; .slot &gt; .card</code>. Two ways to render "no flask" — press Done in Scene B first to see the live page count flow through.</p>
+    <div class="variant-bar">
+      <button class="variant-btn" data-v="flush">A — flush (gutter removed)</button>
+      <button class="variant-btn active" data-v="dashed">B — dashed placeholder ✓ picked</button>
+    </div>
+    <p class="variant-label" id="variantLabel"></p>
+    <div class="frame">
+      <div class="screen">
+        <div class="app">
+          <div class="header"><h1>Pensieve</h1><span class="count" id="feedCount">4</span></div>
+          <div class="reel" id="reel"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SCENE D ===================== -->
+  <section class="scene">
+    <h2>Scene D — Raw Memory detail (opens from the card above)</h2>
+    <p class="note">The real full-screen photo-collection sheet — grab handle, tile grid, grip-drag reorder, × remove — plus the real Dock + a Conditional spell ring for batch actions (Delete, Add pages), instead of a flat button bar.</p>
+    <p class="note" style="font-style:italic;">This one genuinely is a full-screen takeover in production, so clicking the card above opens it over this whole page — scroll up after closing.</p>
+  </section>
+
+</div>
+
+<!-- ===================== Detail overlay (full-screen, same as production) ===================== -->
+<div class="detail-overlay" id="detailOverlay">
+  <div class="ph-collection" role="dialog" aria-modal="true" aria-label="Journal pages" id="detailSheet">
+    <div class="ph-collection-grab" aria-hidden="true" id="grabHandle"><span class="ph-collection-grabber"></span></div>
+    <div style="padding:2px 16px 8px;font-size:17px;font-weight:700;">Journal — <span id="detailCount">0</span> pages</div>
+    <div class="detail-status">
+      <span class="ph-voice-dot" id="syncDot" style="width:8px;height:8px;"></span>
+      <span id="syncLabel">Synced — waiting for desktop to process</span>
+    </div>
+    <div class="ph-collection-masonry editing" id="detailMasonry" style="padding-bottom:90px;">
+      <div class="ph-collection-col" id="detailCol0"></div>
+      <div class="ph-collection-col" id="detailCol1"></div>
+    </div>
+    <!-- the real 4-cell Dock: Back (cell 2) + the gold spell-menu button (cell 3) -->
+    <div class="dock" style="position:absolute;">
+      <div></div>
+      <div class="dock-cell"><button type="button" class="dock-spell" id="btnDetailBack" aria-label="Back"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:1.75" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11"/></svg></button></div>
+      <div class="dock-cell"><button type="button" class="spell-fab" id="btnBatchMenu" aria-label="Open batch spell menu" data-alert="true"><svg viewBox="0 0 32 32" width="52" height="52" aria-hidden="true"><defs><radialGradient id="sm-ember2" cx="40%" cy="34%" r="66%"><stop offset="0%" stop-color="hsl(45 100% 95%)"/><stop offset="34%" stop-color="hsl(var(--gold-glow))"/><stop offset="72%" stop-color="hsl(var(--gold-mid))"/><stop offset="100%" stop-color="hsl(var(--gold-deep))"/></radialGradient></defs>
+        <circle class="sm-orb" cx="16" cy="5" r="3.1" fill="url(#sm-ember2)"/><circle class="sm-orb" cx="25.53" cy="10.5" r="3.1" fill="url(#sm-ember2)"/><circle class="sm-orb" cx="25.53" cy="21.5" r="3.1" fill="url(#sm-ember2)"/><circle class="sm-orb" cx="16" cy="27" r="3.1" fill="url(#sm-ember2)"/><circle class="sm-orb" cx="6.47" cy="21.5" r="3.1" fill="url(#sm-ember2)"/><circle class="sm-orb" cx="6.47" cy="10.5" r="3.1" fill="url(#sm-ember2)"/></svg></button></div>
+      <div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== Conditional spell ring — batch actions (Delete, Add pages) ===================== -->
+<div class="batch-ring-overlay spell-overlay" id="batchRingOverlay">
+  <div class="spell-ring hue-accent" id="batchRing" role="menu" aria-label="Batch spell menu"></div>
+</div>
+
+<!-- ===================== Confirm sheet (real .ph-confirm-* classes, verbatim) ===================== -->
+<div class="ph-confirm-overlay" id="confirmOverlay" style="position:fixed;display:none;z-index:650;">
+  <div class="ph-confirm-card">
+    <p class="ph-confirm-title">Delete this batch?</p>
+    <p class="ph-confirm-body" id="confirmBody">This removes all pages here and the cloud copy.</p>
+    <div class="ph-confirm-actions">
+      <button class="ph-confirm-cancel" id="btnConfirmCancel">Cancel</button>
+      <button class="ph-confirm-delete" id="btnConfirmDelete">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================================
+   flaskSVG — ported VERBATIM from phone/src/lib/wand/flaskSvg.ts, so normal
+   memory cards below render the exact real flask glyph, not an approximation.
+   ============================================================================ */
+const CAT_HUE = {
+  "--cat-blue": "212 70% 68%", "--cat-purple": "270 55% 74%", "--cat-green": "145 50% 62%",
+  "--cat-pink": "330 60% 74%", "--cat-orange": "24 85% 68%", "--cat-yellow": "45 80% 66%",
+  "--cat-red": "0 70% 70%", "--cat-gold": "43 92% 55%",
+};
+const SHAPE_SPECS = {
+  round: { body: "M24 10v10a14 14 0 1 1-0.001 0Z M18 10h12", top: 20, bottom: 58, clip: "M24 20a14 14 0 1 0 0.001 0Z" },
+  erlenmeyer: { body: "M20 8h8v14l9 30a3 3 0 0 1-3 4H14a3 3 0 0 1-3-4l9-30z M19 8h10", top: 22, bottom: 54, clip: "M20 22 12 52a3 3 0 0 0 3 4h18a3 3 0 0 0 3-4L28 22z" },
+  vial: { body: "M18 8h12v40a6 6 0 0 1-12 0z M17 8h14", top: 18, bottom: 52, clip: "M18 18h12v30a6 6 0 0 1-12 0z" },
+  potion: { body: "M21 8h6v6c5 2 9 7 9 14a15 15 0 0 1-30 0c0-7 4-12 9-14z M20 8h8", top: 22, bottom: 58, clip: "M24 22a13 13 0 1 0 0.001 0Z" },
+  teardrop: { body: "M24 8c6 10 11 17 11 26a11 11 0 0 1-22 0c0-9 5-16 11-26z", top: 24, bottom: 56, clip: "M24 24c4 6 9 11 9 18a9 9 0 0 1-18 0c0-7 5-12 9-18z" },
+  beaker: { body: "M15 10h18l-2 4v34a4 4 0 0 1-4 4H21a4 4 0 0 1-4-4V14z M14 10h20 M31 20h4", top: 18, bottom: 52, clip: "M17 18h14v30a4 4 0 0 1-4 4H21a4 4 0 0 1-4-4z" },
+};
+function flaskSVG(shape, hue, fill) {
+  const id = "g" + Math.random().toString(36).slice(2, 8);
+  const liquid = `hsl(${hue})`;
+  const deep = `hsl(${hue.split(" ")[0]} ${hue.split(" ")[1]} 46%)`;
+  const s = SHAPE_SPECS[shape] || SHAPE_SPECS.round;
+  const fh = s.bottom - s.top;
+  const top = s.bottom - Math.max(6, fh * Math.max(0.12, Math.min(1, fill)));
+  return `<svg viewBox="0 0 48 68" width="100%" height="100%" aria-hidden="true"><defs>
+      <radialGradient id="${id}g" cx="50%" cy="60%" r="60%"><stop offset="0%" stop-color="${liquid}" stop-opacity=".55"/><stop offset="100%" stop-color="${liquid}" stop-opacity="0"/></radialGradient>
+      <linearGradient id="${id}l" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${liquid}" stop-opacity=".9"/><stop offset="100%" stop-color="${deep}" stop-opacity=".95"/></linearGradient>
+      <clipPath id="${id}c"><path d="${s.clip}"/></clipPath></defs>
+      <ellipse cx="24" cy="46" rx="22" ry="22" fill="url(#${id}g)"/>
+      <g clip-path="url(#${id}c)"><rect x="0" y="${top}" width="48" height="${s.bottom - top + 2}" fill="url(#${id}l)"/>
+        <rect x="0" y="${top}" width="48" height="2" fill="#fff" opacity=".25"/>
+        <path d="M24 ${s.bottom} C 20 ${s.bottom - 10}, 28 ${s.bottom - 16}, 23 ${s.bottom - 26} S 25 ${top + 2}, 24 ${top}" stroke="#fff" stroke-width="1" fill="none" opacity=".5" stroke-linecap="round"/></g>
+      <path d="${s.body}" fill="hsl(216 20% 92% / .05)" stroke="hsl(216 30% 88% / .55)" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>
+      <rect x="19" y="${s.top + 2}" width="2.4" height="${Math.max(8, fh * 0.5)}" rx="1.2" fill="#fff" opacity=".35" clip-path="url(#${id}c)"/></svg>`;
+}
+
+/* six-dot grip, verbatim from PhoneCollection.tsx */
+const GRIP_SVG = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+  <circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/>
+  <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
+  <circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg>`;
+
+/* NEW glyph: book — same 24-grid / single-stroke-weight convention as SpellGlyph.tsx's PATHS */
+const BOOK_SVG = `<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor"
+  stroke-linecap="round" stroke-linejoin="round" style="stroke-width:var(--glyph-stroke)" aria-hidden="true">
+  <path d="M12 7.2c-2.4-1.3-5.1-1.7-8-1.1v12.4c2.9-.6 5.6-.2 8 1.1Z"/>
+  <path d="M12 7.2c2.4-1.3 5.1-1.7 8-1.1v12.4c-2.9-.6-5.6-.2-8 1.1Z"/>
+  <path d="M12 7.2v12.4"/></svg>`;
+/* "trash" + "upload"(used as add-page) glyphs, verbatim-style from SpellGlyph.tsx's PATHS */
+const TRASH_SVG = `<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:2" aria-hidden="true">
+  <path d="M5 7h14"/><path d="M9 7V5.6c0-.9.7-1.6 1.6-1.6h2.8c.9 0 1.6.7 1.6 1.6V7"/>
+  <path d="M7 7l.9 12.2a1.8 1.8 0 0 0 1.8 1.6h4.6a1.8 1.8 0 0 0 1.8-1.6L17 7"/><path d="M10 10.5v6M14 10.5v6"/></svg>`;
+const CAMPLUS_SVG = `<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:2" aria-hidden="true">
+  <path d="M9 6.2 9.9 4.6a1.4 1.4 0 0 1 1.2-.7h1.8a1.4 1.4 0 0 1 1.2.7l.9 1.6H19a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8.2a2 2 0 0 1 2-2Z"/>
+  <circle cx="12" cy="12.4" r="3.2"/></svg>`;
+
+/* ============================================================================
+   Placeholder "photographed journal page" — canvas-drawn, deterministic per seed.
+   Stands in for a real camera photo (no camera access from a static file).
+   ============================================================================ */
+function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function makePageDataURL(seed) {
+  const c = document.createElement("canvas"); c.width = 240; c.height = 320;
+  const ctx = c.getContext("2d");
+  const rnd = mulberry32(seed * 7919 + 13);
+  const tones = ["#ece4d3", "#efe9db", "#e7ddc8", "#f1ecdf"];
+  ctx.fillStyle = tones[Math.floor(rnd() * tones.length)];
+  ctx.fillRect(0, 0, 240, 320);
+  const g = ctx.createLinearGradient(0, 0, 0, 320);
+  g.addColorStop(0, "rgba(0,0,0,0.10)"); g.addColorStop(0.08, "rgba(0,0,0,0)");
+  g.addColorStop(0.92, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,0.12)");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 240, 320);
+  ctx.strokeStyle = "rgba(70,60,40,0.14)"; ctx.lineWidth = 1;
+  for (let y = 34; y < 300; y += 15) { ctx.beginPath(); ctx.moveTo(16, y); ctx.lineTo(224, y); ctx.stroke(); }
+  ctx.strokeStyle = "rgba(35,35,65,0.55)"; ctx.lineWidth = 1.3;
+  for (let y = 38; y < 296; y += 15) {
+    if (rnd() < 0.18) continue;
+    ctx.beginPath();
+    let x = 19 + rnd() * 8;
+    ctx.moveTo(x, y - 3);
+    while (x < 208) { x += 4 + rnd() * 9; ctx.lineTo(x, y - 3 + (rnd() - 0.5) * 5); }
+    ctx.stroke();
+  }
+  ctx.fillStyle = "rgba(30,30,30,0.38)"; ctx.font = "11px sans-serif"; ctx.fillText("p." + seed, 198, 310);
+  return c.toDataURL();
+}
+
+/* ============================================================================
+   Scene A — static resting ring (visual position only, no drag physics).
+   ============================================================================ */
+const GENERAL_SPELLS = [
+  { id: "write", name: "Write" },
+  { id: "accio", name: "Accio", hue: "spell-violet" },
+  { id: "sync", name: "Sync", hue: "spell-syncgold" },
+  { id: "snap", name: "Snap" },
+  { id: "voice", name: "Record" },
+  { id: "film", name: "Film" },
+  { id: "journal", name: "Journal", isNew: true },
+];
+function iconFor(id) {
+  const simple = {
+    write: `<path d="M4 20l1.3-4L15 6.3a1.8 1.8 0 0 1 2.5 2.5L8.3 18.5 4 20Z"/><path d="M13.5 7.8l2.7 2.7"/>`,
+    accio: `<circle cx="10.5" cy="10.5" r="5.3"/><path d="M14.6 14.6 19.5 19.5"/>`,
+    sync: `<path d="M5 12a7 7 0 0 1 12-4.9M19 12a7 7 0 0 1-12 4.9"/><path d="M17 4v4h-4M7 20v-4h4"/>`,
+    snap: `<path d="M9 6.2 9.9 4.6a1.4 1.4 0 0 1 1.2-.7h1.8a1.4 1.4 0 0 1 1.2.7l.9 1.6H19a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8.2a2 2 0 0 1 2-2Z"/><circle cx="12" cy="12.4" r="3.4"/>`,
+    voice: `<path d="M9 5.5a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0Z"/><path d="M6 11a6 6 0 0 0 12 0"/><path d="M12 17v3M9 20h6"/>`,
+    film: `<rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10.3 20.3 7.6a1 1 0 0 1 1.5.85v7.1a1 1 0 0 1-1.5.85L16 13.7"/>`,
+  };
+  if (id === "journal") return BOOK_SVG;
+  return `<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:var(--glyph-stroke)" aria-hidden="true">${simple[id] || ""}</svg>`;
+}
+function buildRing(containerId, spells, onPick) {
+  const ring = document.getElementById(containerId);
+  const n = spells.length;
+  const R = n <= 2 ? 110 : 150;
+  const arc = n <= 2 ? 70 : 150;
+  spells.forEach((s, i) => {
+    const t = n === 1 ? 0 : i / (n - 1) - 0.5;
+    const deg = t * arc;
+    const rad = (deg * Math.PI) / 180;
+    const x = Math.sin(rad) * R;
+    const y = -Math.cos(rad) * R + R * 0.62;
+    const node = document.createElement("div");
+    node.className = "spell-node label-above" + (s.isNew ? " is-new" : "");
+    node.style.transform = `translate(-50%,-50%) translate(${x}px, ${y}px)`;
+    node.innerHTML = `
+      <div class="spell-bloom">
+        <button type="button" class="spell-btn ${s.hue || ""}" aria-label="${s.name}">${s.svg || iconFor(s.id)}</button>
+      </div>
+      <span class="spell-label">${s.name}</span>`;
+    node.querySelector("button").addEventListener("click", () => onPick && onPick(s));
+    ring.appendChild(node);
+  });
+  const core = document.createElement("span");
+  core.className = "spell-core"; core.setAttribute("aria-hidden", "true");
+  ring.appendChild(core);
+}
+buildRing("ringA", GENERAL_SPELLS, (s) => {
+  if (s.id === "journal") {
+    document.querySelector("section.scene:nth-of-type(2)").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+});
+
+/* ============================================================================
+   Scene B — ONE continuous camera session: shutter stays live, strip grows in place.
+   ============================================================================ */
+const capture = { pages: [], seed: 1 };
+const camStrip = document.getElementById("camStrip");
+const camCount = document.getElementById("camCount");
+const btnDone = document.getElementById("btnDone");
+const flash = document.getElementById("flash");
+
+function renderCamStrip() {
+  camStrip.innerHTML = "";
+  camCount.textContent = `${capture.pages.length} page${capture.pages.length === 1 ? "" : "s"}`;
+  btnDone.disabled = capture.pages.length === 0;
+  if (capture.pages.length === 0) {
+    camStrip.innerHTML = `<div class="camera-strip-empty">Shot pages appear here, live</div>`;
+    return;
+  }
+  capture.pages.forEach((url, i) => {
+    const tile = document.createElement("div");
+    tile.className = "ph-collection-tile pg-tile";
+    tile.dataset.index = i;
+    tile.innerHTML = `<img src="${url}" draggable="false">
+      <div class="ph-collection-grip" aria-label="Drag to reorder">${GRIP_SVG}</div>
+      <button class="ph-collection-remove" aria-label="Remove page">×</button>`;
+    tile.querySelector(".ph-collection-remove").addEventListener("click", () => {
+      capture.pages.splice(i, 1);
+      renderCamStrip();
+    });
+    camStrip.appendChild(tile);
+  });
+  attachGripDrag(camStrip, capture.pages, renderCamStrip, true);
+}
+
+/** Grip-drag reorder: press the grip, drag, drop to insert before/after the tile under
+ *  the finger — which side depends on which half of that tile the pointer is over, same
+ *  as the real PhoneCollection hit-test (before = pointer is in the leading half). Mirrors
+ *  its lift → hit-test → commit shape without the edge-autoscroll/inertia. `horizontal`
+ *  switches the leading axis (and which bar lights up) for Scene B's row vs. a grid/column. */
+function attachGripDrag(container, arr, onChange, horizontal) {
+  let fromIdx = -1, ghost = null, startX = 0, startY = 0, lastTarget = null, lastBefore = true;
+  container.querySelectorAll(".ph-collection-grip").forEach((grip, i) => {
+    grip.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      fromIdx = i;
+      lastTarget = null;
+      const tile = grip.closest(".ph-collection-tile");
+      tile.classList.add("drag-source");
+      const rect = tile.getBoundingClientRect();
+      ghost = tile.cloneNode(true);
+      ghost.classList.add("ph-drag-ghost");
+      ghost.style.left = rect.left + "px"; ghost.style.top = rect.top + "px";
+      ghost.style.width = rect.width + "px"; ghost.style.height = rect.height + "px";
+      document.body.appendChild(ghost);
+      startX = e.clientX; startY = e.clientY;
+      const onMove = (ev) => {
+        ghost.style.transform = `translate3d(${ev.clientX - startX}px,${ev.clientY - startY}px,0) scale(1.05)`;
+        const el = document.elementFromPoint(ev.clientX, ev.clientY);
+        const t = el && el.closest(".ph-collection-tile");
+        container.querySelectorAll(".drop-before,.drop-after").forEach((x) => x.classList.remove("drop-before", "drop-after"));
+        lastTarget = null;
+        if (!t || t === tile) return;
+        const r = t.getBoundingClientRect();
+        const before = horizontal ? ev.clientX < r.left + r.width / 2 : ev.clientY < r.top + r.height / 2;
+        t.classList.add(before ? "drop-before" : "drop-after");
+        lastTarget = t; lastBefore = before;
+      };
+      const onUp = () => {
+        document.removeEventListener("pointermove", onMove);
+        document.removeEventListener("pointerup", onUp);
+        ghost.remove(); ghost = null;
+        tile.classList.remove("drag-source");
+        container.querySelectorAll(".drop-before,.drop-after").forEach((x) => x.classList.remove("drop-before", "drop-after"));
+        if (lastTarget) {
+          const targetIdx = Number(lastTarget.dataset.index);
+          const insertPos = lastBefore ? targetIdx : targetIdx + 1;
+          const toIdx = fromIdx < insertPos ? insertPos - 1 : insertPos;
+          if (toIdx !== fromIdx) {
+            const [moved] = arr.splice(fromIdx, 1);
+            arr.splice(toIdx, 0, moved);
+            onChange();
+          }
+        }
+      };
+      document.addEventListener("pointermove", onMove);
+      document.addEventListener("pointerup", onUp);
+    });
+  });
+}
+
+document.getElementById("btnShutter").addEventListener("click", () => {
+  flash.classList.remove("show"); void flash.offsetWidth; flash.classList.add("show");
+  capture.seed += 1;
+  capture.pages.push(makePageDataURL(capture.seed));
+  renderCamStrip();
+  const last = camStrip.lastElementChild;
+  if (last) last.classList.add("new-tile");
+  camStrip.scrollLeft = camStrip.scrollWidth;
+});
+
+btnDone.addEventListener("click", () => {
+  if (capture.pages.length === 0) return;
+  rawMemory.pages = capture.pages.slice();
+  rawMemory.synced = Math.min(rawMemory.pages.length, Math.max(1, rawMemory.pages.length - 1));
+  renderReel();
+  document.querySelectorAll("section.scene")[2].scrollIntoView({ behavior: "smooth", block: "start" });
+  showToast(`Saved — ${rawMemory.pages.length} page${rawMemory.pages.length === 1 ? "" : "s"}, syncing…`);
+});
+renderCamStrip();
+
+/* ============================================================================
+   Scene C — the reel; Raw Memory card with NO flask (two layout sub-variants)
+   ============================================================================ */
+const normalNotes = [
+  { title: "Morning pages", meta: "7:14 AM", snippet: "Woke up before the alarm again — slept fine, just restless dreams.", shape: "round", cat: "--cat-blue", fill: 0.62 },
+  { title: "Call with Mum", meta: "Yesterday", snippet: "She's doing the garden over, wants me to come see it next weekend.", shape: "erlenmeyer", cat: "--cat-green", fill: 0.4 },
+  { title: "Idea: coach check-in", meta: "Nov 6", snippet: "What if the weekly review opened with last week's flagged lines?", shape: "potion", cat: "--cat-purple", fill: 0.78 },
+];
+const rawMemory = { pages: [], synced: 0, variant: "dashed" };
+
+function renderReel() {
+  const reel = document.getElementById("reel");
+  reel.innerHTML = "";
+  const items = [...normalNotes.slice(0, 2), { raw: true }, ...normalNotes.slice(2)];
+  items.forEach((note) => {
+    const slot = document.createElement("div");
+    slot.className = "slot";
+    if (note.raw) {
+      const n = rawMemory.pages.length;
+      const card = document.createElement("div");
+      card.className = `card is-raw ${rawMemory.variant}`;
+      card.innerHTML = `
+        <div class="flask-gutter${rawMemory.variant === "dashed" ? " dashed" : ""}"></div>
+        <div class="body">
+          <div class="title">Journal — ${n} page${n === 1 ? "" : "s"}</div>
+          <div class="meta"><span class="meta-dot"></span> ${n} page${n === 1 ? "" : "s"} · awaiting processing</div>
+        </div>`;
+      card.addEventListener("click", openDetail);
+      slot.appendChild(card);
+    } else {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <div class="flask">${flaskSVG(note.shape, CAT_HUE[note.cat], note.fill)}</div>
+        <div class="body">
+          <div class="title">${note.title}</div>
+          <div class="meta">${note.meta}</div>
+          <div class="snippet">${note.snippet}</div>
+        </div>`;
+      slot.appendChild(card);
+    }
+    reel.appendChild(slot);
+  });
+  document.getElementById("feedCount").textContent = items.length;
+}
+renderReel();
+
+document.querySelectorAll(".variant-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".variant-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    rawMemory.variant = btn.dataset.v;
+    renderReel();
+    updateVariantLabel();
+  });
+});
+function updateVariantLabel() {
+  const labels = {
+    flush: "Variant A — the flask slot is removed entirely; the title/meta column starts flush left, same as the card's own left padding. No icon, no placeholder.",
+    dashed: "Variant B — the flask slot stays (same size, same alignment as every other card), but holds an empty dashed outline instead of an icon — \"a frame, nothing in it yet.\"",
+  };
+  document.getElementById("variantLabel").textContent = labels[rawMemory.variant];
+}
+updateVariantLabel();
+
+/* ============================================================================
+   Scene D — detail sheet (real .ph-collection markup) + Dock + Conditional ring
+   ============================================================================ */
+const detailOverlay = document.getElementById("detailOverlay");
+const col0 = document.getElementById("detailCol0");
+const col1 = document.getElementById("detailCol1");
+
+function renderDetail() {
+  col0.innerHTML = ""; col1.innerHTML = "";
+  document.getElementById("detailCount").textContent = rawMemory.pages.length;
+  const allSynced = rawMemory.synced >= rawMemory.pages.length;
+  document.getElementById("syncDot").style.background = allSynced ? "hsl(var(--success))" : "hsl(var(--gold))";
+  document.getElementById("syncLabel").textContent = allSynced
+    ? "Synced — waiting for desktop to process"
+    : `${rawMemory.synced} of ${rawMemory.pages.length} pages synced…`;
+  rawMemory.pages.forEach((url, i) => {
+    const tile = document.createElement("div");
+    tile.className = "ph-collection-tile"; tile.dataset.index = i;
+    tile.innerHTML = `<img src="${url}" draggable="false">
+      <div class="ph-collection-grip" aria-label="Drag to reorder">${GRIP_SVG}</div>
+      <button class="ph-collection-remove" aria-label="Remove page">×</button>`;
+    tile.querySelector(".ph-collection-remove").addEventListener("click", () => {
+      rawMemory.pages.splice(i, 1);
+      renderDetail();
+      renderReel();
+      if (rawMemory.pages.length === 0) closeDetail();
+    });
+    (i % 2 === 0 ? col0 : col1).appendChild(tile);
+  });
+  attachGripDrag(document.getElementById("detailMasonry"), rawMemory.pages, () => { renderDetail(); renderReel(); });
+}
+function openDetail() {
+  if (rawMemory.pages.length === 0) { showToast("Capture a page first (Scene B)."); return; }
+  renderDetail();
+  detailOverlay.classList.add("open");
+}
+function closeDetail() { detailOverlay.classList.remove("open"); }
+document.getElementById("btnDetailBack").addEventListener("click", closeDetail);
+
+/* swipe-down-to-close on the grab handle, mirroring PhoneCollection's onGrab* handlers */
+(function () {
+  const grab = document.getElementById("grabHandle");
+  const sheet = document.getElementById("detailSheet");
+  let y0 = 0, active = false;
+  grab.addEventListener("pointerdown", (e) => { y0 = e.clientY; active = true; });
+  grab.addEventListener("pointermove", (e) => {
+    if (!active) return;
+    const dy = Math.max(0, e.clientY - y0);
+    sheet.style.transform = `translateY(${dy}px)`;
+    sheet.style.opacity = String(Math.max(0.3, 1 - dy / 600));
+  });
+  grab.addEventListener("pointerup", (e) => {
+    if (!active) return; active = false;
+    const dy = e.clientY - y0;
+    if (dy > 120) { closeDetail(); }
+    sheet.style.transform = ""; sheet.style.opacity = "";
+  });
+})();
+
+/* ── Conditional spell ring: the batch's actions (Delete / Add pages), opened from the
+   Dock's gold button — same pattern as a note's conditional ring, NOT a flat button bar. */
+const BATCH_SPELLS = [
+  { id: "batch-add", name: "Add pages", svg: CAMPLUS_SVG },
+  { id: "batch-delete", name: "Delete", svg: TRASH_SVG, hue: "spell-danger" },
+];
+const batchRingOverlay = document.getElementById("batchRingOverlay");
+let batchRingBuilt = false;
+document.getElementById("btnBatchMenu").addEventListener("click", () => {
+  if (!batchRingBuilt) {
+    buildRing("batchRing", BATCH_SPELLS, (s) => {
+      closeBatchRing();
+      if (s.id === "batch-delete") openConfirm();
+      else if (s.id === "batch-add") { closeDetail(); document.querySelectorAll("section.scene")[1].scrollIntoView({ behavior: "smooth", block: "start" }); }
+    });
+    // center = "back": tap to just close the ring, no action
+    const center = document.createElement("button");
+    center.type = "button"; center.className = "spell-center back";
+    center.setAttribute("aria-label", "Close");
+    center.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13 C 5 16.87 8.13 20 12 20 C 15.87 20 19 16.87 19 13 C 19 9.13 15.87 6 12 6"/><path d="M14.8 3.9 L12 6 L14.8 8.1"/></svg>`;
+    center.addEventListener("click", closeBatchRing);
+    document.getElementById("batchRing").querySelector(".spell-core")?.replaceWith(center);
+    batchRingBuilt = true;
+  }
+  batchRingOverlay.classList.add("open");
+});
+batchRingOverlay.addEventListener("click", (e) => { if (e.target === batchRingOverlay) closeBatchRing(); });
+function closeBatchRing() { batchRingOverlay.classList.remove("open"); }
+
+/* delete-whole-batch confirm — reuses the real .ph-confirm-overlay/.ph-confirm-card verbatim */
+const confirmOverlay = document.getElementById("confirmOverlay");
+function openConfirm() {
+  document.getElementById("confirmBody").textContent =
+    `This removes all ${rawMemory.pages.length} pages here and the cloud copy.`;
+  confirmOverlay.style.display = "flex";
+}
+document.getElementById("btnConfirmCancel").addEventListener("click", () => { confirmOverlay.style.display = "none"; });
+document.getElementById("btnConfirmDelete").addEventListener("click", () => {
+  const n = rawMemory.pages.length;
+  rawMemory.pages = []; rawMemory.synced = 0;
+  confirmOverlay.style.display = "none";
+  closeDetail();
+  renderReel();
+  showToast(`Deleted — ${n} pages removed, including the cloud copy.`);
+});
+
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.remove("show"); void t.offsetWidth; t.classList.add("show");
+}
+</script>
+</body>
+</html>

@@ -1052,6 +1052,38 @@ body.pensieve-resizing .pensieve-media-host.is-panning .pensieve-media-img {
   text-overflow: ellipsis;
 }
 
+/* ── Journal block: an ordered run of photographed pages (lib/md/journal) ──────────────
+   Deliberately NOT the gallery's justified multi-row grid — a single-row strip read as
+   "page through this like the real notebook." Tiles reuse .pensieve-gallery-tile verbatim
+   (border/radius/hover controls) so the two blocks share one visual language; only the
+   container layout differs. */
+.pensieve-journal {
+  position: relative;
+  margin: 0.4em 0;
+  max-width: 100%;
+}
+.pensieve-journal-empty {
+  min-height: 1px;
+}
+.pensieve-journal-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+.pensieve-journal-tile {
+  flex: 0 0 auto;
+  width: 120px;
+  height: 160px;
+  cursor: zoom-in;
+}
+.pensieve-journal-tile:focus-visible {
+  box-shadow:
+    0 0 0 1px hsl(var(--accent) / 0.5),
+    0 0 18px -2px hsl(var(--accent-glow) / 0.55);
+}
+
 /* The persistent "+" add column (dashed), full strip height at the right of the rows. */
 .pensieve-gallery-add {
   display: flex;

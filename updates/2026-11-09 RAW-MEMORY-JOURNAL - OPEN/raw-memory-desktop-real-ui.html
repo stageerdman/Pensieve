@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Raw Memory — desktop real-UI reference (v2)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- tw-compiled.css = the app's OWN tailwind.config.js run against the real src/**/*.tsx
+     content (plus this file) through the real src/index.css entry — so every utility class
+     below (bg-accent/5, border-border, text-text-muted, …) is the exact production value,
+     not a guess. blocknote-skin.css / audio.css are the hand-written CSS backing the real
+     .pensieve-gallery*/.pensieve-transcript* classes. index.css (pulled in via tw-compiled.css)
+     also carries the real .lightbox-* rules the zoom/swipe viewer below reuses verbatim. -->
+<link rel="stylesheet" href="tw-compiled.css">
+<link rel="stylesheet" href="../../src/components/editor/blocknote-skin.css">
+<link rel="stylesheet" href="../../src/components/audio/audio.css">
+
+<style>
+  html, body { margin: 0; }
+  .page { max-width: 1040px; margin: 0 auto; padding: 40px 24px 140px; }
+  .page h1 { font-size: 26px; margin: 0 0 6px; }
+  .lede { color: hsl(var(--text-muted)); max-width: 720px; line-height: 1.5; font-size: 14.5px; }
+  .legend {
+    margin: 18px 0 44px; padding: 14px 18px; border-radius: 10px;
+    background: hsl(var(--accent) / 0.06); border: 1px solid hsl(var(--accent) / 0.22);
+    font-size: 13px; line-height: 1.6; max-width: 780px;
+  }
+  .changelog {
+    margin: 0 0 40px; padding: 12px 18px; border-radius: 10px;
+    background: hsl(var(--gold) / 0.08); border: 1px solid hsl(var(--gold) / 0.3);
+    font-size: 12.5px; line-height: 1.6; max-width: 780px;
+  }
+  section.scene { margin: 0 0 60px; }
+  section.scene h2 {
+    font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    color: hsl(var(--text-muted)); margin: 0 0 4px;
+  }
+  section.scene .note { font-size: 13.5px; color: hsl(var(--text-muted)); margin: 0 0 18px; max-width: 680px; line-height: 1.5; }
+  .panel {
+    border: 1px solid hsl(var(--border)); border-radius: calc(var(--radius) + 6px);
+    background: hsl(var(--surface)); overflow: hidden;
+  }
+  .mock-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; border-bottom: 1px solid hsl(var(--border)); background: hsl(var(--surface-sunken));
+  }
+  .mock-header .title { font-size: 13.5px; font-weight: 600; color: hsl(var(--text)); }
+
+  /* ---- Scene A: sync drawer, same fixed-slide-in shape as the real SyncStatus panel ---- */
+  .drawer-overlay { position: fixed; inset: 0; z-index: 400; display: none; }
+  .drawer-overlay.open { display: block; }
+  .drawer-scrim { position: absolute; inset: 0; background: hsl(var(--surface) / 0.3); }
+
+  /* a journal-batch row sits in the SAME Process list as audio — just a page-stack glyph
+     instead of an order number, no model badge / audio-preview specifics. */
+  .batch-stack { position: relative; width: 22px; height: 22px; flex: none; }
+  .batch-stack svg { width: 100%; height: 100%; }
+  .peek-strip { display: flex; gap: 4px; padding: 6px 2px 2px 32px; }
+  .peek-strip img { width: 32px; height: 44px; object-fit: cover; border-radius: 4px; border: 1px solid hsl(var(--border)); }
+
+  /* ---- Scene B: simplified gallery row (real tile classes, no justify packer) ---- */
+  .demo-gallery-row { display: flex; gap: 4px; }
+  .demo-gallery-row .pensieve-gallery-tile { width: 120px; height: 160px; cursor: zoom-in; }
+
+  /* transcript dock: a page-scrubber instead of audio controls — new, small, token-styled */
+  .page-scrub { display: flex; align-items: center; gap: 10px; }
+  .page-scrub button {
+    width: 26px; height: 26px; border-radius: 999px; border: 1px solid hsl(var(--border));
+    background: hsl(var(--surface)); color: hsl(var(--text)); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .page-scrub button:hover { background: hsl(var(--surface-raised)); }
+  .page-scrub .lbl { font-size: 13px; color: hsl(var(--text-muted)); }
+
+  .editor-frame { position: relative; display: flex; min-height: 480px; }
+  .editor-main { flex: 1; min-width: 0; padding: 22px 28px; }
+  .editor-main h3 { margin: 0 0 8px; font-size: 20px; }
+  .editor-main .typed-line { margin: 0 0 16px; font-size: 14.5px; line-height: 1.6; color: hsl(var(--text)); }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+    background: hsl(222 20% 14%); color: #fff; padding: 10px 18px; border-radius: 999px;
+    font-size: 13px; z-index: 900; opacity: 0; pointer-events: none;
+  }
+  .toast.show { animation: toast-pop 2.4s ease; }
+  @keyframes toast-pop { 0% { opacity: 0; transform: translateX(-50%) translateY(6px); } 10% { opacity: 1; transform: translateX(-50%) translateY(0); } 85% { opacity: 1; } 100% { opacity: 0; } }
+</style>
+</head>
+<body class="bg-surface text-text font-sans">
+<div class="page">
+
+  <h1>Raw Memory — desktop side, built from the real UI (v2)</h1>
+  <p class="lede">
+    This links the app's own compiled Tailwind output (generated from the real
+    <code>tailwind.config.js</code> + <code>src/**/*.tsx</code>) plus the hand-written
+    <code>blocknote-skin.css</code>/<code>audio.css</code>/<code>index.css</code> that back
+    <code>.pensieve-gallery*</code>, <code>.pensieve-transcript*</code> and <code>.lightbox*</code>.
+    Nothing below is a redraw — it's the real components' exact classes.
+  </p>
+
+  <div class="changelog">
+    <b>Changed from v1, per review:</b> (A) the Journal-batch row now lives inside the SAME
+    "Process" list as audio — one header, one Run/pause, no separate section. (B) The date-split
+    review screen is gone entirely — the owner doesn't want to see it, ever. Splitting is fully
+    automatic; the exact algorithm (a page can belong to the end of one day AND the start of the
+    next; a leading-text exception for page 1 only) is written down in <code>wiki.md</code> as the
+    Phase 5 spec instead of a UI. (C) The transcript overlay-on-photo alternative is dropped — the
+    side-split pane is final. Clicking a journal page now opens the real <code>ImageLightbox</code>
+    (arrow-key nav, wheel zoom, drag-to-pan, double-click zoom) exactly like the Gallery block
+    already does. A plain typed line now sits above the page block, to make "still a normal Memory"
+    concrete rather than asserted.
+  </div>
+
+  <!-- ===================== SCENE A ===================== -->
+  <section class="scene">
+    <h2>Scene A — one unified Process list</h2>
+    <p class="note">The same cloud-sync rune, the same slide-in panel. "Journal — 9 pages" is a row in the SAME Process list as the audio memo below it — not a category of its own.</p>
+    <div class="panel">
+      <div class="mock-header">
+        <span class="title">Pensieve</span>
+        <button type="button" id="syncBtn" aria-label="OneDrive sync" class="sync-icon relative inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-surface-raised" data-state="idle">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path class="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"/></svg>
+          <span class="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-accent" aria-hidden></span>
+        </button>
+      </div>
+      <div style="height:320px;display:flex;align-items:center;justify-content:center;color:hsl(var(--text-muted));font-size:13px;">
+        Click the sync rune — the drawer slides in from the right, over this whole page.
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SCENE B ===================== -->
+  <section class="scene">
+    <h2>Scene B — the final Memory: Journal block + transcript</h2>
+    <p class="note">Pressing ▶ on the batch row runs the split automatically (no screen for it — see the changelog). This is where it lands: an ordinary Memory, a typed line, the Journal page block, and the real side-split transcript pane.</p>
+
+    <div class="panel">
+      <div class="editor-frame" id="editorFrame">
+        <div class="editor-main">
+          <h3>Journal — Nov 3</h3>
+          <p class="typed-line">Scanned these from my paper journal — typing this line in afterward, same as any other memory.</p>
+          <div class="pensieve-gallery">
+            <div class="pensieve-gallery-strip" style="height:160px;">
+              <div class="pensieve-gallery-rows">
+                <div class="pensieve-gallery-row demo-gallery-row" id="galleryRow"></div>
+              </div>
+            </div>
+          </div>
+          <p style="margin:10px 0 0;font-size:12px;color:hsl(var(--text-muted));">This strip is a new "Journal" block — shares the Gallery block's tile/lightbox foundation, not literally <code>&lt;Gallery&gt;</code>. Click a page to open the real zoom/swipe viewer.</p>
+          <div style="margin-top:14px;">
+            <button type="button" id="btnTranscript" class="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-text hover:bg-surface-raised">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+              Transcript
+            </button>
+          </div>
+        </div>
+
+        <!-- the real .pensieve-transcript-split shell — final, no overlay alternative -->
+        <aside class="pensieve-transcript-split" id="splitPane" style="width:380px;">
+          <div class="pensieve-transcript-divider" role="separator" aria-orientation="vertical"></div>
+          <div class="pensieve-transcript">
+            <div class="pensieve-transcript-dock">
+              <div class="page-scrub">
+                <button type="button" id="spPrev" aria-label="Previous page">‹</button>
+                <span class="lbl" id="spLabel">Page 1 of 4</span>
+                <button type="button" id="spNext" aria-label="Next page">›</button>
+              </div>
+            </div>
+            <div class="pensieve-transcript-body" id="spBody"></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ===================== Scene A's real sync drawer, opened full-screen like production ===================== -->
+<div class="drawer-overlay" id="drawerOverlay">
+  <div class="drawer-scrim" id="drawerScrim"></div>
+  <div class="fixed bottom-0 right-0 top-0 z-40 flex w-[380px] flex-col border-l border-border bg-surface-raised shadow-lg">
+    <div class="flex-none overflow-y-auto p-3">
+      <div class="flex items-start gap-2">
+        <span class="sync-icon mt-px shrink-0 text-text-muted" data-state="idle">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path class="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"/></svg>
+        </span>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-medium text-text">Synced</p>
+          <p class="mt-0.5 text-xs leading-snug text-text-muted">A moment ago</p>
+        </div>
+      </div>
+      <div class="mt-3 flex items-center justify-between gap-2 border-t border-border pt-2.5">
+        <span class="min-w-0 truncate text-xs text-text-muted">owner@example.com</span>
+        <button type="button" class="shrink-0 text-xs text-text-muted hover:text-text">Sign out</button>
+      </div>
+    </div>
+
+    <!-- ONE "Process" section — journal batches and audio share this list, this header,
+         this single Run/pause control. No separate "Journal batches" category. -->
+    <section class="flex min-h-0 flex-1 flex-col border-t border-border">
+      <header class="flex items-center gap-1.5 border-b border-border px-3.5 py-2.5">
+        <span class="mr-auto text-sm text-text">Process</span>
+        <button type="button" class="grid h-7 min-w-[20px] place-items-center px-1 font-mono text-[17px] font-semibold leading-none text-text-muted hover:text-accent">1</button>
+        <button type="button" id="runQueue" title="Run — processes the queue top item first, Journal or audio alike" class="grid h-7 w-[34px] place-items-center rounded-md bg-accent text-surface hover:bg-accent-glow">
+          <svg viewBox="0 0 24 24" fill="currentColor" class="h-[15px] w-[15px]"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10-6.5a1 1 0 0 0 0-1.72l-10-6.5A1 1 0 0 0 8 5.5z"/></svg>
+        </button>
+      </header>
+      <div class="min-h-0 flex-1 overflow-y-auto p-1.5" id="processRows"></div>
+    </section>
+  </div>
+</div>
+
+<!-- ===================== Real-style lightbox — same classes as ImageLightbox.tsx ===================== -->
+<div id="lightboxLayer" style="display:none;">
+  <div class="lightbox-backdrop" aria-hidden></div>
+  <div class="lightbox-layer" role="dialog" aria-modal="true" id="lightboxDialog">
+    <div class="lightbox-frame" id="lightboxFrame">
+      <img class="lightbox-img" id="lightboxImg" draggable="false">
+    </div>
+    <div class="lightbox-close">
+      <button type="button" aria-label="Close" id="lbClose" style="width:34px;height:34px;border:none;background:none;color:hsl(var(--text));cursor:pointer;display:flex;align-items:center;justify-content:center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="lightbox-nav lightbox-prev">
+      <button type="button" aria-label="Previous" id="lbPrev" style="width:34px;height:34px;border:none;background:none;color:hsl(var(--text));cursor:pointer;display:flex;align-items:center;justify-content:center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+    </div>
+    <div class="lightbox-nav lightbox-next">
+      <button type="button" aria-label="Next" id="lbNext" style="width:34px;height:34px;border:none;background:none;color:hsl(var(--text));cursor:pointer;display:flex;align-items:center;justify-content:center;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+    <div class="lightbox-counter text-sm text-text-muted" id="lbCounter" aria-live="polite"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---- shared placeholder-page generator (same approach as the phone prototype) ---- */
+function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function makePageDataURL(seed) {
+  const c = document.createElement("canvas"); c.width = 480; c.height = 640;
+  const ctx = c.getContext("2d");
+  const rnd = mulberry32(seed * 7919 + 13);
+  const tones = ["#ece4d3", "#efe9db", "#e7ddc8", "#f1ecdf"];
+  ctx.fillStyle = tones[Math.floor(rnd() * tones.length)];
+  ctx.fillRect(0, 0, 480, 640);
+  ctx.strokeStyle = "rgba(70,60,40,0.14)"; ctx.lineWidth = 1.5;
+  for (let y = 68; y < 600; y += 30) { ctx.beginPath(); ctx.moveTo(32, y); ctx.lineTo(448, y); ctx.stroke(); }
+  ctx.strokeStyle = "rgba(35,35,65,0.55)"; ctx.lineWidth = 2;
+  for (let y = 76; y < 592; y += 30) {
+    if (rnd() < 0.18) continue;
+    ctx.beginPath(); let x = 38 + rnd() * 16; ctx.moveTo(x, y - 6);
+    while (x < 416) { x += 8 + rnd() * 18; ctx.lineTo(x, y - 6 + (rnd() - 0.5) * 10); }
+    ctx.stroke();
+  }
+  ctx.fillStyle = "rgba(30,30,30,0.38)"; ctx.font = "16px sans-serif"; ctx.fillText("p." + seed, 400, 616);
+  return c.toDataURL();
+}
+const PAGES = Array.from({ length: 9 }, (_, i) => makePageDataURL(i + 1));
+
+const PAGE_STACK_SVG = `<svg viewBox="0 0 48 68" aria-hidden="true">
+  <g transform="rotate(-9 24 36)"><rect x="9" y="8" width="30" height="40" rx="3" fill="hsl(var(--surface-raised))" stroke="hsl(var(--border))" stroke-width="1.4"/></g>
+  <rect x="9" y="8" width="30" height="40" rx="3" fill="hsl(var(--surface) / 0.4)" stroke="hsl(var(--text-muted))" stroke-width="1.6"/>
+  <line x1="14" y1="18" x2="34" y2="18" stroke="hsl(var(--text-muted))" stroke-width="1.4" opacity=".55"/>
+  <line x1="14" y1="24" x2="30" y2="24" stroke="hsl(var(--text-muted))" stroke-width="1.4" opacity=".4"/>
+</svg>`;
+
+/* ===================== Scene A: sync drawer — ONE Process list, mixed row kinds ===================== */
+const drawerOverlay = document.getElementById("drawerOverlay");
+document.getElementById("syncBtn").addEventListener("click", () => drawerOverlay.classList.add("open"));
+document.getElementById("drawerScrim").addEventListener("click", () => drawerOverlay.classList.remove("open"));
+
+let peekOpen = false;
+function renderProcessRows() {
+  const el = document.getElementById("processRows");
+  el.innerHTML = `
+    <div class="border-b border-border/60">
+      <div class="relative flex items-center gap-2.5 rounded-lg px-2 py-2 bg-accent/5">
+        <button type="button" class="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-accent bg-accent text-surface font-mono text-xs tabular-nums">1</button>
+        <span class="min-w-0 flex-1 truncate text-sm text-text">Journal — 9 pages</span>
+        <button type="button" id="peekBtn" title="Peek at the pages" class="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full text-text-muted hover:bg-accent/10 hover:text-text">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <div id="peekStrip" class="peek-strip" style="display:none;"></div>
+    </div>
+    <div class="relative flex items-center gap-2.5 rounded-lg px-2 py-2">
+      <button type="button" class="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border bg-surface font-mono text-xs text-text-muted">2</button>
+      <span class="min-w-0 flex-1 truncate text-sm text-text">Voice memo — Tuesday</span>
+      <span class="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface px-1.5 py-px text-[10px] font-semibold tracking-wide text-text-muted">CZ</span>
+    </div>`;
+  document.getElementById("peekBtn").addEventListener("click", () => {
+    peekOpen = !peekOpen;
+    const strip = document.getElementById("peekStrip");
+    if (peekOpen) {
+      strip.innerHTML = PAGES.map((p) => `<img src="${p}">`).join("");
+      strip.style.display = "flex";
+    } else {
+      strip.style.display = "none";
+    }
+  });
+}
+renderProcessRows();
+
+// ONE global Run button drives the whole queue, top item (order 1) first — a Journal batch
+// has no button of its own, same as an audio row never did.
+document.getElementById("runQueue").addEventListener("click", () => {
+  drawerOverlay.classList.remove("open");
+  document.querySelectorAll("section.scene")[1].scrollIntoView({ behavior: "smooth", block: "start" });
+  showToast("Processed automatically — 3 memories created, raw batch removed (incl. the cloud copy).");
+});
+
+/* ===================== Scene B: the final Memory — Journal block + real lightbox ===================== */
+const DAY_PAGES = PAGES.slice(0, 4); // "Journal — Nov 3", 4 pages
+const TRANSCRIPTS = [
+  "Woke up early, the light was doing that thing through the kitchen window again. Made coffee, sat with it for a while before looking at my phone.",
+  "Talked to Jonas about the trip — he thinks October is better than September for the coast. Need to check train prices.",
+  "Idea: what if the weekly review started with the lowest-energy day instead of the highest? Might surface more honest patterns.",
+  "Long walk after dinner. Nothing urgent on my mind, which felt rare and worth writing down on its own.",
+];
+let page = 0;
+
+function renderGallery() {
+  const row = document.getElementById("galleryRow");
+  row.innerHTML = DAY_PAGES.map((url, i) => `
+    <div class="pensieve-gallery-tile" data-i="${i}">
+      <img class="pensieve-gallery-img" src="${url}">
+      <div class="pensieve-gallery-grip" title="Drag to reorder">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg>
+      </div>
+      <div class="pensieve-gallery-remove" title="Remove">×</div>
+    </div>`).join("");
+}
+renderGallery();
+
+function setPage(i, fromLightbox) {
+  page = Math.max(0, Math.min(DAY_PAGES.length - 1, i));
+  document.getElementById("spLabel").textContent = `Page ${page + 1} of ${DAY_PAGES.length}`;
+  document.getElementById("spBody").innerHTML = `
+    <div style="font-size:12px;font-weight:700;color:hsl(var(--text-muted));text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px;">Page ${page + 1}</div>
+    <p style="margin:0;line-height:1.6;font-size:14.5px;color:hsl(var(--text));">${TRANSCRIPTS[page]}</p>`;
+  document.querySelectorAll(".pensieve-gallery-tile").forEach((t, i2) => {
+    t.style.outline = i2 === page ? "2px solid hsl(var(--accent))" : "";
+  });
+  if (lightboxOpen && !fromLightbox) renderLightbox();
+}
+document.getElementById("spPrev").addEventListener("click", () => setPage(page - 1));
+document.getElementById("spNext").addEventListener("click", () => setPage(page + 1));
+document.getElementById("galleryRow").addEventListener("click", (e) => {
+  const tile = e.target.closest(".pensieve-gallery-tile");
+  if (tile) openLightbox(Number(tile.dataset.i));
+});
+
+/* ── the real lightbox behavior: arrow-key prev/next, wheel zoom, drag-to-pan, dbl-click
+   zoom toggle, Esc/backdrop close — same gestures as ImageLightbox.tsx, same CSS classes. ── */
+let lightboxOpen = false;
+let zoom = 1, offX = 0, offY = 0, panning = null;
+const lbLayer = document.getElementById("lightboxLayer");
+const lbImg = document.getElementById("lightboxImg");
+const lbFrame = document.getElementById("lightboxFrame");
+
+function resetZoom() { zoom = 1; offX = 0; offY = 0; applyZoom(); }
+function applyZoom() {
+  lbImg.style.transform = (zoom !== 1 || offX || offY) ? `translate(${offX}px, ${offY}px) scale(${zoom})` : "";
+  lbImg.style.cursor = zoom > 1 ? (panning ? "grabbing" : "grab") : "zoom-in";
+}
+function renderLightbox() {
+  lbImg.src = DAY_PAGES[page];
+  document.getElementById("lbCounter").textContent = `${page + 1} / ${DAY_PAGES.length}`;
+  resetZoom();
+}
+function openLightbox(i) {
+  page = i;
+  lightboxOpen = true;
+  lbLayer.style.display = "block";
+  renderLightbox();
+  setPage(page, true);
+}
+function closeLightbox() { lightboxOpen = false; lbLayer.style.display = "none"; }
+function stepLightbox(d) {
+  page = Math.max(0, Math.min(DAY_PAGES.length - 1, page + d));
+  renderLightbox();
+  setPage(page, true);
+}
+document.getElementById("lbClose").addEventListener("click", closeLightbox);
+document.getElementById("lbPrev").addEventListener("click", () => stepLightbox(-1));
+document.getElementById("lbNext").addEventListener("click", () => stepLightbox(1));
+document.getElementById("lightboxDialog").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeLightbox(); });
+document.addEventListener("keydown", (e) => {
+  if (!lightboxOpen) return;
+  if (e.key === "Escape") closeLightbox();
+  else if (e.key === "ArrowLeft") stepLightbox(-1);
+  else if (e.key === "ArrowRight") stepLightbox(1);
+});
+lbFrame.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  zoom = Math.min(4, Math.max(1, zoom * (1 - e.deltaY * 0.0015)));
+  if (zoom === 1) { offX = 0; offY = 0; }
+  applyZoom();
+}, { passive: false });
+lbImg.addEventListener("dblclick", () => { zoom = zoom > 1 ? 1 : 2; if (zoom === 1) { offX = 0; offY = 0; } applyZoom(); });
+lbImg.addEventListener("pointerdown", (e) => {
+  if (zoom <= 1) return;
+  e.preventDefault();
+  panning = { x: e.clientX, y: e.clientY, ox: offX, oy: offY };
+  lbImg.setPointerCapture(e.pointerId);
+  applyZoom();
+});
+lbImg.addEventListener("pointermove", (e) => {
+  if (!panning) return;
+  offX = panning.ox + (e.clientX - panning.x);
+  offY = panning.oy + (e.clientY - panning.y);
+  applyZoom();
+});
+lbImg.addEventListener("pointerup", () => { panning = null; applyZoom(); });
+
+setPage(0);
+
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.remove("show"); void t.offsetWidth; t.classList.add("show");
+}
+</script>
+</body>
+</html>

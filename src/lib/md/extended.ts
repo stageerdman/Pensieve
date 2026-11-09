@@ -131,6 +131,7 @@ import { encodeImageBlock, isImageBlock, reconstructImageFence, resolveImageUrls
 import { encodeImageGroupBlock, isImageGroupBlock, reconstructGalleryFence } from "./gallery";
 import { encodeAudioBlock, isAudioBlock, reconstructAudioFence } from "./audio";
 import { encodeVideoBlock, isVideoBlock, reconstructVideoFence } from "./video";
+import { encodeJournalBlock, isJournalBlock, reconstructJournalFence } from "./journal";
 
 const LIST_TYPES = new Set(["bulletListItem", "numberedListItem", "checkListItem"]);
 
@@ -187,6 +188,9 @@ async function encodeStructure(editor: MdEditor, blocks: Block[]): Promise<Block
     } else if (isImageGroupBlock(b)) {
       // The ordered group → a pensieve:gallery fence (see lib/md/gallery).
       out.push(encodeImageGroupBlock(b));
+    } else if (isJournalBlock(b)) {
+      // An ordered run of photographed pages → a pensieve:journal fence (see lib/md/journal).
+      out.push(encodeJournalBlock(b));
     } else if (isAudioBlock(b)) {
       // url → ref, carried on a pensieve:audio fence (see lib/md/audio). The transcript
       // is a separate sidecar, deliberately NOT written into the .md.
@@ -226,6 +230,11 @@ async function reconstructStructure(editor: MdEditor, blocks: Block[]): Promise<
     const gallery = reconstructGalleryFence(b);
     if (gallery) {
       out.push(gallery);
+      continue;
+    }
+    const journal = reconstructJournalFence(b);
+    if (journal) {
+      out.push(journal);
       continue;
     }
     const audio = reconstructAudioFence(b);
