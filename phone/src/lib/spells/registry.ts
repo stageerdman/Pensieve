@@ -23,6 +23,12 @@ export const GENERAL_SPELLS: Spell[] = [
   { id: "snap", name: "Snap", icon: "camera" },
   { id: "voice", name: "Record", icon: "mic" },
   { id: "film", name: "Film", icon: "video" },
+  // Mints a Raw Memory (not a Memory — see lib/raw/rawMemory) and jumps straight into
+  // the continuous journal-page camera session (lib/media/journalCamera), same
+  // "mint then capture" shape as Snap/Record/Film but its own engine: a real
+  // getUserMedia session that stays open across the whole batch, since file-input
+  // capture (what Snap/Film use) is single-shot by design and can't do that.
+  { id: "journal", name: "Journal", icon: "book" },
 ];
 
 const BY_ID: Record<string, Spell> = {};
