@@ -3,7 +3,7 @@
 // The Tauri adapter (native .app) implements the same Store interface over the
 // on-disk .md vault + sidecar timeline files.
 
-import type { Note, NoteBody, NoteMeta, Store, TimelineEntry } from "../types";
+import type { Note, NoteBody, NoteMeta, RawMemory, Store, TimelineEntry } from "../types";
 import { titleFromMarkdown, excerptFromMarkdown, contentCharCount } from "../text";
 import { pruneToRecentDays } from "../timeline";
 import { log } from "../logger";
@@ -16,6 +16,7 @@ import { createIdbMediaStore, type MediaBlobStore } from "./idb";
 const NOTE_PREFIX = "pensieve:note:";
 const TIMELINE_PREFIX = "pensieve:timeline:";
 const TRANSCRIPT_PREFIX = "pensieve:transcript:";
+const RAW_PREFIX = "pensieve:raw:";
 
 function newId(): string {
   return (
@@ -214,5 +215,44 @@ export class BrowserStore implements Store {
 
   async saveTranscript(audioRef: string, transcript: Transcript): Promise<void> {
     localStorage.setItem(TRANSCRIPT_PREFIX + transcriptRefFor(audioRef), JSON.stringify(transcript));
+  }
+
+  // --- Raw Memory ------------------------------------------------------------------
+  async listRawMemories(): Promise<RawMemory[]> {
+    const out: RawMemory[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith(RAW_PREFIX)) continue;
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      try {
+        out.push(JSON.parse(raw) as RawMemory);
+      } catch {
+        log.error("raw", "list.parse-error", { key });
+      }
+    }
+    return out;
+  }
+
+  async loadRawMemory(id: string): Promise<RawMemory | null> {
+    const raw = localStorage.getItem(RAW_PREFIX + id);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as RawMemory;
+    } catch {
+      return null;
+    }
+  }
+
+  async saveRawMemory(rm: RawMemory): Promise<void> {
+    localStorage.setItem(RAW_PREFIX + rm.id, JSON.stringify(rm));
+    log.info("raw", "save", { id: rm.id, status: rm.status, pages: rm.pages.length });
+  }
+
+  async removeRawMemory(id: string): Promise<void> {
+    const rm = await this.loadRawMemory(id);
+    for (const ref of rm?.pages ?? []) await this.removeMedia(ref);
+    localStorage.removeItem(RAW_PREFIX + id);
+    log.info("raw", "remove", { id, pagesRemoved: rm?.pages.length ?? 0 });
   }
 }
