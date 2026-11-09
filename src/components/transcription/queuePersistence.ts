@@ -13,7 +13,8 @@ const KEY = "pensieve:transcription:queue";
 
 /** Per-ref durable row state (NOT progress — that's in the engine checkpoint). */
 export interface PersistedRow {
-  model: TranscriptionModel;
+  // Absent for a journal row — it has no model (see queueOps.JournalProcessItem).
+  model?: TranscriptionModel;
   order: number;
 }
 

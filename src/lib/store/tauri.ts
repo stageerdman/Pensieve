@@ -7,7 +7,7 @@
 
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { appDataDir } from "@tauri-apps/api/path";
-import type { Category, Note, NoteBody, NoteMeta, Store, TimelineEntry } from "../types";
+import type { Category, Note, NoteBody, NoteMeta, RawMemory, Store, TimelineEntry } from "../types";
 import { titleFromMarkdown, excerptFromMarkdown, contentCharCount } from "../text";
 import { parseFrontmatter, composeFrontmatter } from "../md/frontmatter";
 import { pruneToRecentDays } from "../timeline";
@@ -29,7 +29,10 @@ const removePath = (rel: string) => invoke<void>("remove_path", { rel });
 // media ref is vault-relative; the asset protocol needs an absolute path. Resolved once
 // and cached — the app data dir never changes within a run.
 let vaultAbsRoot: string | null = null;
-async function vaultRoot(): Promise<string> {
+/** The vault's absolute root on disk — exported for the one legitimate reach-outside-
+ *  the-Store case: the Phase 5 AI page-description subprocess needs a real filesystem
+ *  path to Read (see lib/raw/describePageTauri.ts), which only exists under Tauri. */
+export async function vaultRoot(): Promise<string> {
   if (vaultAbsRoot === null) {
     const base = await appDataDir();
     vaultAbsRoot = base.endsWith("/") ? base + "vault" : base + "/vault";
@@ -292,5 +295,46 @@ export class TauriStore implements Store {
   async removeMedia(ref: string): Promise<void> {
     await removePath(ref);
     log.info("media", "remove", { ref });
+  }
+
+  // --- Raw Memory ------------------------------------------------------------------
+  // raw/<id>.json — a tiny record, never a notes/ file (excluded from list()/search by
+  // construction: nothing here ever reads raw/ into the note listing).
+  async listRawMemories(): Promise<RawMemory[]> {
+    const files = await listDir("raw").catch(() => [] as string[]);
+    const out: RawMemory[] = [];
+    for (const f of files) {
+      if (!f.endsWith(".json")) continue;
+      const raw = await readText(`raw/${f}`);
+      if (!raw) continue;
+      try {
+        out.push(JSON.parse(raw) as RawMemory);
+      } catch {
+        log.error("raw", "list.parse-error", { file: f });
+      }
+    }
+    return out;
+  }
+
+  async loadRawMemory(id: string): Promise<RawMemory | null> {
+    const raw = await readText(`raw/${id}.json`);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as RawMemory;
+    } catch {
+      return null;
+    }
+  }
+
+  async saveRawMemory(rm: RawMemory): Promise<void> {
+    await writeText(`raw/${rm.id}.json`, JSON.stringify(rm));
+    log.info("raw", "save", { id: rm.id, status: rm.status, pages: rm.pages.length });
+  }
+
+  async removeRawMemory(id: string): Promise<void> {
+    const files = await listDir(`media/${id}`).catch(() => [] as string[]);
+    for (const f of files) await removePath(`media/${id}/${f}`).catch(() => undefined);
+    await removePath(`raw/${id}.json`);
+    log.info("raw", "remove", { id, pagesRemoved: files.length });
   }
 }

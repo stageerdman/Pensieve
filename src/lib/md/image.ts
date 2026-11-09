@@ -17,6 +17,7 @@
 import { refForUrl, resolveMediaUrl } from "../media/url";
 import { isMediaPath, parseMediaPath } from "../media/ref";
 import { isImageGroupBlock, resolveGalleryBlock } from "./gallery";
+import { isJournalBlock, resolveJournalBlock } from "./journal";
 import { isAudioBlock } from "./audio";
 import { isVideoBlock } from "./video";
 
@@ -134,6 +135,8 @@ export async function resolveImageUrls(blocks: Block[]): Promise<Block[]> {
       nb = { ...b, props: { ...b.props, url: resolved ?? b.props!.url } };
     } else if (isImageGroupBlock(b)) {
       nb = (await resolveGalleryBlock(b)) as Block;
+    } else if (isJournalBlock(b)) {
+      nb = (await resolveJournalBlock(b)) as Block;
     }
     if (Array.isArray(nb.children) && nb.children.length) {
       nb = { ...nb, children: await resolveImageUrls(nb.children) };

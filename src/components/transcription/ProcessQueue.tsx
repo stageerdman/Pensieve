@@ -8,6 +8,17 @@ import type { TranscriptionEngine } from "../../lib/transcripts/engine";
 import { queueItemLabel } from "../../lib/transcripts/queue";
 import { ProcessRow } from "./ProcessRow";
 import { useProcessQueue } from "./useProcessQueue";
+import { isJournalItem, type ProcessItem } from "./queueOps";
+
+/** Label/tooltip for either row kind — journal batches never had their own category
+ *  (wiki.md "A"), they just need their own label text in the one shared row shell. */
+function rowText(it: ProcessItem): { label: string; tooltip: string; filename: boolean } {
+  if (isJournalItem(it)) {
+    const label = `Journal — ${it.pageCount} page${it.pageCount === 1 ? "" : "s"}`;
+    return { label, tooltip: label, filename: false };
+  }
+  return { label: queueItemLabel(it), tooltip: it.title.trim() ? `${it.title}\n${it.audioName}` : it.audioName, filename: !it.title.trim() };
+}
 
 const PlayIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="h-[15px] w-[15px]">
@@ -91,26 +102,30 @@ export const ProcessQueue = forwardRef<ProcessQueueHandle, Props>(function Proce
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
-        {q.items.map((it) => (
-          <div key={it.ref} className="border-b border-border/60 last:border-b-0">
-            <ProcessRow
-              order={it.order}
-              label={queueItemLabel(it)}
-              tooltip={it.title.trim() ? `${it.title}\n${it.audioName}` : it.audioName}
-              filename={!it.title.trim()}
-              active={q.activeRef === it.ref}
-              running={q.playing && q.activeRef === it.ref}
-              pct={it.pct}
-              error={it.error}
-              errorMsg={it.errorMsg}
-              model={it.model}
-              previewing={previewRef === it.ref}
-              onReorder={(pos) => q.reorder(it.ref, pos)}
-              onPreview={() => void togglePreview(it.ref)}
-              onSetModel={(m) => q.setModel(it.ref, m)}
-            />
-          </div>
-        ))}
+        {q.items.map((it) => {
+          const { label, tooltip, filename } = rowText(it);
+          const journal = isJournalItem(it);
+          return (
+            <div key={it.ref} className="border-b border-border/60 last:border-b-0">
+              <ProcessRow
+                order={it.order}
+                label={label}
+                tooltip={tooltip}
+                filename={filename}
+                active={q.activeRef === it.ref}
+                running={q.playing && q.activeRef === it.ref}
+                pct={it.pct}
+                error={it.error}
+                errorMsg={it.errorMsg}
+                model={journal ? undefined : it.model}
+                previewing={previewRef === it.ref}
+                onReorder={(pos) => q.reorder(it.ref, pos)}
+                onPreview={journal ? undefined : () => void togglePreview(it.ref)}
+                onSetModel={journal ? undefined : (m) => q.setModel(it.ref, m)}
+              />
+            </div>
+          );
+        })}
       </div>
     </section>
   );

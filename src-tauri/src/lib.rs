@@ -10,6 +10,7 @@ use std::path::PathBuf;
 use tauri::menu::{Menu, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 
+mod ai_vision;
 mod media_transfer;
 mod sync;
 mod transcribe;
@@ -272,7 +273,8 @@ pub fn run() {
             media_transfer::upload_media_chunked,
             media_transfer::download_media_chunked,
             transcribe::transcribe_audio,
-            transcribe::cancel_transcription
+            transcribe::cancel_transcription,
+            ai_vision::describe_journal_page
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

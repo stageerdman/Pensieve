@@ -14,6 +14,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getStore } from "../../lib/store";
 import { reindex } from "../../lib/search/reindexController";
 import { listUntranscribedAudio } from "../../lib/transcripts/queue";
+import { listUnprocessedRawBatches } from "../../lib/raw/queue";
+import { processRawBatch } from "../../lib/raw/processRawBatch";
+import { buildTauriRawBatchDeps } from "../../lib/raw/tauriRawBatchDeps";
 import { parseMediaPath } from "../../lib/media/ref";
 import { DEFAULT_MODEL, type TranscriptionModel } from "../../lib/transcripts/models";
 import { isCancelled, type TranscriptionEngine } from "../../lib/transcripts/engine";
@@ -25,7 +28,9 @@ import {
   type QueueMode,
   activeItem,
   clearErrorsForRetry,
+  isJournalItem,
   mergeNewItems,
+  mergeNewJournalItems,
   reorderItems,
   setItemModel,
   sortItems,
@@ -81,7 +86,43 @@ export function useProcessQueue(opts: {
   const sorted = sortItems(items);
   const active = activeItem(items);
 
-  // ── the one-at-a-time engine driver ──────────────────────────────────────
+  // ── one journal batch: the Phase 5 AI split, via processRawBatch. No %-progress
+  // reporting (it's one subprocess call per page, not a streamed engine) — the row just
+  // shows "running" (the spinner state ProcessRow already has for pct===0 && running).
+  const runJournalItem = useCallback(
+    async (ref: string) => {
+      log.info("raw", "queue.start", { rawId: ref });
+      const store = getStore();
+      try {
+        const rm = await store.loadRawMemory(ref);
+        if (!rm) throw new Error("raw batch no longer exists");
+        await store.saveRawMemory({ ...rm, status: "processing" });
+        const result = await processRawBatch(rm, buildTauriRawBatchDeps(store));
+        await store.removeRawMemory(ref);
+        for (const noteId of result.createdNoteIds) reindex.request(noteId);
+        onTranscribed?.(); // triggers a sync, same as a finished transcript would
+        runningRef.current = null;
+        log.info("raw", "queue.done", { rawId: ref, created: result.createdNoteIds.length });
+        setItems((prev) => prev.filter((i) => i.ref !== ref));
+        if (modeRef.current === "one") setPlaying(false);
+      } catch (e) {
+        runningRef.current = null;
+        const msg = cleanEngineError(e);
+        log.error("raw", "queue.error", { rawId: ref, error: msg });
+        // Roll the batch back to "synced" so a retry (Run again) is possible — "processing"
+        // must never be a stuck terminal state.
+        const rm = await store.loadRawMemory(ref);
+        if (rm) await store.saveRawMemory({ ...rm, status: "synced" });
+        setItems((prev) => prev.map((i) => (i.ref === ref ? { ...i, error: true, errorMsg: msg, phase: null } : i)));
+        setPlaying(false);
+      }
+    },
+    [onTranscribed],
+  );
+
+  // ── the one-at-a-time driver — audio goes through the streaming engine; a journal
+  // batch goes through processRawBatch (see runJournalItem above). Exactly one job at a
+  // time either way, same Run/Pause/mode semantics for both row kinds. ──────────────
   useEffect(() => {
     if (!enabled || !playing || runningRef.current) return;
     const next = activeItem(items);
@@ -90,6 +131,12 @@ export function useProcessQueue(opts: {
       return;
     }
     runningRef.current = next.ref;
+
+    if (isJournalItem(next)) {
+      void runJournalItem(next.ref);
+      return;
+    }
+
     const { ref, noteId, model } = next;
     log.info("transcribe", "queue.start", { ref, model });
     engine
@@ -124,7 +171,7 @@ export function useProcessQueue(opts: {
         setItems((prev) => prev.map((i) => (i.ref === ref ? { ...i, error: true, errorMsg: msg, phase: null } : i)));
         setPlaying(false);
       });
-  }, [items, playing, enabled, engine, onTranscribed]);
+  }, [items, playing, enabled, engine, onTranscribed, runJournalItem]);
 
   const togglePlay = useCallback(() => {
     setPlaying((p) => {
@@ -150,9 +197,14 @@ export function useProcessQueue(opts: {
   // Persisted model/order is re-applied so a restored row keeps the model the user chose.
   const refresh = useCallback(async () => {
     if (!enabled) return;
-    const found = await listUntranscribedAudio(titleFor);
+    const store = getStore();
+    const found = await listUntranscribedAudio(titleFor, store);
+    const foundBatches = await listUnprocessedRawBatches(store);
     const persisted = loadQueueState();
-    setItems((prev) => mergeNewItems(prev, found, DEFAULT_MODEL, persisted?.rows));
+    setItems((prev) => {
+      const withAudio = mergeNewItems(prev, found, DEFAULT_MODEL, persisted?.rows);
+      return mergeNewJournalItems(withAudio, foundBatches, persisted?.rows);
+    });
   }, [enabled, titleFor]);
 
   // Force one ref into the queue and run it (a manual block "Transcribe" / "Regenerate" —
@@ -217,11 +269,15 @@ export function useProcessQueue(opts: {
   // ── persist durable queue state (refs + model + order + playing + mode) ──
   // Keyed off a signature of ONLY the durable fields, so the frequent pct/phase progress
   // updates don't thrash localStorage — we save when the queue's shape or run-state changes.
-  const persistSig = JSON.stringify({ rows: items.map((i) => [i.ref, i.model, i.order]), playing, mode });
+  const persistSig = JSON.stringify({
+    rows: items.map((i) => [i.ref, isJournalItem(i) ? undefined : i.model, i.order]),
+    playing,
+    mode,
+  });
   useEffect(() => {
     if (!enabled) return;
     const rows: Record<string, PersistedRow> = {};
-    for (const i of items) rows[i.ref] = { model: i.model, order: i.order };
+    for (const i of items) rows[i.ref] = { model: isJournalItem(i) ? undefined : i.model, order: i.order };
     saveQueueState({ rows, playing, mode });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [persistSig, enabled]);

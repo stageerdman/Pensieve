@@ -12,6 +12,21 @@ import type { Transcript } from "./transcripts/types";
  *  lib/categories (CategoryDef, DEFAULT_CATEGORIES). */
 export type Category = string;
 
+/** A Raw Memory: an unprocessed batch of photographed journal pages, captured on the
+ *  phone (RAW-MEMORY-JOURNAL update). Deliberately NOT a Note — it has no title, no
+ *  category, is excluded from search, and is mutable/deletable right up until desktop
+ *  AI processing consumes it and replaces it with one or more real Notes (see
+ *  lib/raw/processRawBatch and updates/2026-11-09 RAW-MEMORY-JOURNAL/wiki.md). */
+export type RawMemoryStatus = "capturing" | "queued" | "synced" | "processing" | "done";
+
+export interface RawMemory {
+  id: string; // also the media-folder slot: media/<id>/<mediaId>.<ext>
+  status: RawMemoryStatus;
+  createdAt: number;
+  // Ordered photographed-page refs (media/<id>/<mediaId>.<ext>), order = page order.
+  pages: string[];
+}
+
 export interface NoteMeta {
   id: string; // stable id (also the .md basename in the Tauri vault)
   title: string; // derived from the first line
@@ -137,4 +152,12 @@ export interface Store {
   // (bodies()) so spoken words are findable in Accio.
   loadTranscript(audioRef: string): Promise<Transcript | null>;
   saveTranscript(audioRef: string, transcript: Transcript): Promise<void>;
+
+  // --- Raw Memory (unprocessed photographed-page batches) --------------------------
+  // Stored OUTSIDE the notes/ list — never returned by list()/bodies(), never indexed.
+  listRawMemories(): Promise<RawMemory[]>;
+  loadRawMemory(id: string): Promise<RawMemory | null>;
+  saveRawMemory(rm: RawMemory): Promise<void>;
+  // Removes the record AND every page file under its media/<id>/ folder.
+  removeRawMemory(id: string): Promise<void>;
 }

@@ -3,21 +3,41 @@
 import type { TranscriptionModel } from "../../lib/transcripts/models";
 import type { TranscribePhase } from "../../lib/transcripts/engine";
 import type { AudioQueueItem } from "../../lib/transcripts/queue";
+import type { RawBatchQueueItem } from "../../lib/raw/queue";
 
 export type QueueMode = "all" | "one";
 
-export interface ProcessItem {
-  ref: string;
-  noteId: string;
-  title: string;
-  audioName: string;
-  type: "audio";
+interface BaseProcessItem {
+  ref: string; // the queue key — an audio ref, or a Raw Memory id for a journal row
   order: number;
-  model: TranscriptionModel;
   pct: number; // 0..100
   phase: TranscribePhase | null;
   error: boolean;
   errorMsg?: string; // the engine/invoke failure reason, shown on hover over the error icon
+}
+
+export interface AudioProcessItem extends BaseProcessItem {
+  type: "audio";
+  noteId: string;
+  title: string;
+  audioName: string;
+  model: TranscriptionModel;
+}
+
+/** A Journal batch awaiting the Phase 5 AI split — same row shell as audio (ProcessRow is
+ *  generic), no model badge, no audio preview. See wiki.md "A — no separate section." */
+export interface JournalProcessItem extends BaseProcessItem {
+  type: "journal";
+  pageCount: number;
+}
+
+export type ProcessItem = AudioProcessItem | JournalProcessItem;
+
+export function isAudioItem(i: ProcessItem): i is AudioProcessItem {
+  return i.type === "audio";
+}
+export function isJournalItem(i: ProcessItem): i is JournalProcessItem {
+  return i.type === "journal";
 }
 
 export const byOrder = (a: ProcessItem, b: ProcessItem) => a.order - b.order;
@@ -50,7 +70,7 @@ export function mergeNewItems(
   prev: ProcessItem[],
   found: AudioQueueItem[],
   defaultModel: TranscriptionModel,
-  persisted?: Record<string, { model: TranscriptionModel; order: number }>,
+  persisted?: Record<string, { model?: TranscriptionModel; order: number }>,
 ): ProcessItem[] {
   const have = new Set(prev.map((i) => i.ref));
   let order = prev.length;
@@ -75,9 +95,41 @@ export function mergeNewItems(
   return added.length ? [...prev, ...added] : prev;
 }
 
-/** Change a row's model — and reset its progress, since it must transcribe from scratch. */
+/** Change an audio row's model — and reset its progress, since it must transcribe from
+ *  scratch. A no-op for a journal row (it has no model) or an unknown ref. */
 export function setItemModel(items: ProcessItem[], ref: string, model: TranscriptionModel): ProcessItem[] {
-  return items.map((i) => (i.ref === ref && i.model !== model ? { ...i, model, pct: 0, error: false, errorMsg: undefined } : i));
+  return items.map((i) =>
+    i.type === "audio" && i.ref === ref && i.model !== model
+      ? { ...i, model, pct: 0, error: false, errorMsg: undefined }
+      : i,
+  );
+}
+
+/** Append any found unprocessed Raw Memory batches not already queued, as fresh journal
+ *  rows. Mirrors mergeNewItems's shape exactly (see queueOps.test.ts). */
+export function mergeNewJournalItems(
+  prev: ProcessItem[],
+  found: RawBatchQueueItem[],
+  persisted?: Record<string, { order: number }>,
+): ProcessItem[] {
+  const have = new Set(prev.map((i) => i.ref));
+  let order = prev.length;
+  const added: ProcessItem[] = [];
+  for (const q of found) {
+    if (have.has(q.id)) continue;
+    order += 1;
+    const saved = persisted?.[q.id];
+    added.push({
+      ref: q.id,
+      type: "journal",
+      pageCount: q.pageCount,
+      order: saved?.order ?? order,
+      pct: 0,
+      phase: null,
+      error: false,
+    });
+  }
+  return added.length ? [...prev, ...added] : prev;
 }
 
 /** Clear errors (and reset their %) so a Run retries previously-failed rows. */

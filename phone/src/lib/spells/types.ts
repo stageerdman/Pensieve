@@ -9,7 +9,7 @@
 //   · the radial Spell Menu overlay             — Spell / SpellMenuForm
 
 /** The glyph set (SVG lives in components/spellmenu/SpellGlyph). "menu" = the Orbit hero. */
-export type IconName = "menu" | "write" | "accio" | "sync" | "image" | "gallery" | "edit" | "back" | "camera" | "mic" | "trash" | "upload" | "video";
+export type IconName = "menu" | "write" | "accio" | "sync" | "image" | "gallery" | "edit" | "back" | "camera" | "mic" | "trash" | "upload" | "video" | "book";
 
 /** Sync's live status, mirrored from lib/wand/syncMachine so the dock/menu can badge it. */
 export type SyncBadge = "synced" | "reminder" | "syncing" | "failed" | "offline";
@@ -45,7 +45,7 @@ export type SpellMenuForm = "general" | "conditional";
 /** The page context that decides the menu's entry form + its conditional roster.
  *  "collection" = the full-screen photo board open on top of a memory (add a Photo to it; you
  *  can't nest a gallery in a gallery, so no "Gallery" spell there). */
-export type PageContext = "home" | "note" | "collection";
+export type PageContext = "home" | "note" | "collection" | "raw-detail";
 
 // ---- Dock (bottom control bar) ----
 
