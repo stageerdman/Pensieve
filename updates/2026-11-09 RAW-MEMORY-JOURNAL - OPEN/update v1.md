@@ -80,28 +80,54 @@ mirrors `pensieve:gallery` exactly for round-trip consistency: `pensieve:journal
 `media/<noteId>/<mediaId>.<ext>` ref per line, display order = line order. Default click behavior
 opens the real `ImageLightbox` straight into sequential page-by-page viewing (not Gallery's
 general free-form grid-first feel).
-**Status: spec written; implementation starts in Phase 4/5.**
+**Status: DONE** — `RawMemory` type + `Store.{list,load,save,remove}RawMemory` (tauri.ts +
+browser.ts), `splitByDate`/`sharesBoundary` (fully unit-tested, owner's exact rule), `journal`
+block (`lib/md/journal.ts` + `JournalBlock.tsx`/`Journal.tsx`, wired into `extended.ts`/
+`editorSchema.ts`/`resolveImageUrls`). The one open item from this phase — shared-boundary
+duplication vs. cross-note reference — is resolved (duplicate; see wiki.md) and implemented in
+Phase 5's `processRawBatch.ts`.
 
-### Phase 4 — Phone implementation
-Journal spell (book icon) in the Spell Menu. **Prerequisite sub-step: a new live in-app camera
-component** (`getUserMedia` + canvas snapshot per shutter tap, stays open across the whole batch) —
-Snap/Film's native-handoff pattern cannot support continuous multi-shot capture, see `wiki.md`. Then:
-review grid (reuse the real photo-collection tile/grip/remove pattern, drag-reorder/delete inline
-while still in camera); Raw Memory card with NO flask glyph; detail screen whose batch actions
-(Delete, etc.) open through the real Conditional spell ring, not flat buttons.
-**Status: not started.**
+### Phase 4 — Phone implementation — DONE (2026-11-10), on-device verification still owed
+Built: the Journal spell (book glyph, `registry.ts`/`SpellGlyph.tsx`); `JournalCamera` — a real
+`getUserMedia` session that stays open across the whole batch (`lib/media/journalCamera.ts`,
+tapping the shutter never reopens anything, unlike Snap/Film's native handoff); `rawMemoryStore.ts`
+(Raw Memory's own localStorage list + page bytes reusing the existing `mediaStore.ts` IndexedDB
+unchanged); `JournalCaptureScreen`/`JournalDetailScreen`; a new `"raw-detail"` Conditional-ring
+context (`registry.ts`) so Delete/Add-pages are ring spells, not flat buttons, matching every other
+context; the dashed-placeholder Raw Memory card on Home. **Scope cut, disclosed:** pages are
+removable but not drag-reorderable in either screen this pass — the prototype's pointer-drag
+physics weren't ported. **Not verified on a real device** — `getUserMedia` in an installed iOS PWA
+has known rough edges elsewhere in this project's history (see `audio-format-webkit.md` and related
+memory notes); the owner should specifically exercise the Journal spell and report back.
 
-### Phase 5 — Desktop implementation
-Sync intake of raw batches; "Process" trigger (manual first, per existing Process-queue pattern from AUDIO-TRANSCRIPTION); AI step reads the ordered page photos, **detects date/session boundaries, and splits the batch into one final Memory per date** (vision-capable Claude Code CLI call, not whisper.cpp — this is images, not audio); each final Memory assembled with its own photo stack on top + its own transcript below, searchable; raw batch cleanup after all splits are written.
-**Status: not started.**
+### Phase 5 — Desktop implementation — DONE (2026-11-10), AI-accuracy unverified
+Built: `describe_journal_page` (`src-tauri/src/ai_vision.rs`) — shells out to the logged-in `claude`
+CLI, verified LIVE against the real binary (not guessed): headless `-p` sandboxes file reads by
+default (confirmed by a real failing + passing probe), so the command grants `--add-dir` for just
+the page's folder; `--bare` is deliberately NOT used because it forces API-key auth, breaking "use
+the logged-in account" (CLAUDE.md) — also confirmed live. `processRawBatch.ts` orchestrates
+describe → split → N new Memories (each with its own `journal` block, pages duplicated into its own
+media folder, per-page transcript sidecars, `createdAt` set from the detected date via
+`parseDetectedDate.ts`). Wired into the real Process queue (`ProcessItem` is now a discriminated
+union; one unified list, one Run button, per wiki.md "A"). The journal transcript split pane
+(`JournalTranscriptSplit.tsx`) reuses the real `.pensieve-transcript-split` shell with a page
+scrubber instead of audio controls. **What's real vs. unverified:** the plumbing (parsing, grouping,
+file duplication, note assembly) is unit-tested with mocked AI responses and passes end to end; the
+PROMPT's actual transcription/date-detection accuracy against real handwritten pages has not been
+validated — there are no real journal photos to test against. Try it on a real batch and expect to
+tune the prompt in `describePageTauri.ts`.
 
 ### Phase 6 — Generalization note (no build)
 Record in wiki.md how Raw Memory should generalize to mixed-media batches (audio+video+text+photos) with a free-text AI instruction at the end, producing whatever final Memory shape the instruction asks for. This phase is documentation only — do not build it now.
-**Status: not started.**
+**Status: not started** (by design — explicitly out of scope for this update).
 
-### Phase 7 — Test, device-confirm, ship
-Vitest for the data-model/sync-tombstone logic; on-device test of full phone capture→sync flow; verify desktop processing end to end; `npm run deploy:phone` + `npm run tauri:build`; merge to main; close this folder.
-**Status: not started.**
+### Phase 7 — Test, build, ship — PARTIALLY DONE
+Done: full vitest suite (1103 tests, 0 failures), `tsc --noEmit` clean on both apps, `npm run build`
++ `npm run build:phone` clean, `npm run tauri:build` (native `.app` reinstalled to `/Applications`,
+timestamp-verified), `npm run deploy:phone` (live at pensieve-phone.pages.dev), merged to `main` and
+pushed. **Not done, and deliberately not attempted — see wiki.md's final entry:** real OneDrive sync
+of the new Raw Memory object kind. On-device confirmation of the phone capture flow is the owner's
+to do next.
 
 ## Decisions log
 See `wiki.md`.

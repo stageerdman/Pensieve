@@ -124,3 +124,40 @@ exist as real features elsewhere in the app, not new builds:
   block's visual/DOM foundation (tile grid, lightbox hookup) but its own component/intent: default
   interaction is sequential swipe-through-like-a-real-journal rather than Gallery's general free-form
   photo grid. Not a prop flag on `<Gallery>` — a distinct block in Phase 4/5's editor work.
+
+## BUILT (2026-11-10) — what's real, what's deliberately still open
+
+Phases 3-5 are built and merged to `main` (full suite green, both apps build, native `.app`
+reinstalled, phone PWA redeployed). Three things were deliberately NOT attempted this pass, each for
+a specific reason rather than running out of time mid-task:
+
+**OneDrive sync of the Raw Memory object kind was not wired.** Local capture → local storage →
+local processing all work end to end (a Raw Memory can be created, filled, processed, and turned into
+real Memories entirely on one device). What's missing is the cross-device half: pushing a Raw Memory
+batch to OneDrive, pulling it down on desktop, and the phone-side delete-then-sync tombstone actually
+reaching the cloud. The sync engine (`lib/sync/engine.ts`/`adapter.ts` + the Rust chunked-transfer
+layer) is real, stateful, and touches the owner's live OneDrive account — getting a new object kind
+wrong there risks corrupting sync state in a way that's hard to debug without the real account to
+test against. Rather than wire something unverifiable and hope, this is named here as the next
+focused piece of work, not silently skipped.
+
+**The AI prompt's real-world accuracy is unverified.** `describe_journal_page` is proven to work as
+a *mechanism* — verified live against the real `claude` CLI binary, including the non-obvious
+`--add-dir` permission requirement and the `--bare`-breaks-OAuth-auth gotcha (both found by actually
+running the command, not assumed). What's NOT verified: whether the prompt actually transcribes real
+handwriting well, or correctly spots date headers on a real photographed page. There was nothing to
+test it against — real journal photos only exist on the owner's phone. Expect the first real run to
+need prompt tuning in `src/lib/raw/describePageTauri.ts`.
+
+**The phone capture flow is unverified on a real device.** `getUserMedia` inside an installed iOS
+PWA is a spot this project has been burned by before (see `audio-format-webkit.md`,
+`voice-finalize-teardown-order.md` — WebKit's standalone-PWA media behavior has repeatedly differed
+from what works in a normal browser tab). The camera engine is written for real correctness, but
+jsdom has no camera hardware and no meaningful canvas pixel pipeline, so this is the one layer no
+amount of unit testing substitutes for an actual phone. Try the Journal spell for real before relying
+on it.
+
+Also cut from this pass, smaller and lower-risk: drag-reorder in the phone capture/detail screens
+(pages are removable, not yet reorderable), and phone-side rendering of a finished `pensieve:journal`
+fence (it falls back to visible raw markdown text on phone rather than a rich page viewer — not a
+crash, just not pretty yet, same category of gap as the historical "Phone markdown rendering gap").
