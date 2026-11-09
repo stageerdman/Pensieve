@@ -12,6 +12,7 @@ import { StatusWhisper } from "./components/StatusWhisper";
 import { MediaBackupWhisper } from "./components/MediaBackupWhisper";
 import { ImageLightbox } from "./components/media/ImageLightbox";
 import { TranscriptSplit } from "./components/audio/TranscriptSplit";
+import { JournalTranscriptSplit } from "./components/editor/media/journal/JournalTranscriptSplit";
 import { transcriptPane } from "./components/audio/transcriptController";
 import { SyncStatus } from "./components/SyncStatus";
 import { NotePreview } from "./features/gallery/NotePreview";
@@ -416,6 +417,7 @@ export default function App() {
               {/* "Split to Transcript" — a resizable right pane opened from an audio bar's
                   ⋯ / transcript icon (module pub/sub). Renders null until opened. */}
               <TranscriptSplit />
+              <JournalTranscriptSplit />
             </>
           )}
         </div>

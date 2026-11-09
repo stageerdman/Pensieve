@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { parseJournalPages, stringifyJournalPages, type JournalPage } from "../../../../lib/md/journal";
 import { mediaAlt } from "../../../../lib/media";
+import { refForUrl } from "../../../../lib/media/url";
 import { lightbox } from "../../../media/lightboxController";
+import { journalTranscriptPane } from "./journalTranscriptController";
 import { log } from "../../../../lib/logger";
 
 // The journal block's ORCHESTRATOR — an ordered run of photographed paper-journal pages.
@@ -54,8 +56,24 @@ export function Journal({ block, editor }: Props) {
     return <div className="pensieve-journal pensieve-journal-empty" contentEditable={false} />;
   }
 
+  const openTranscript = (index: number) =>
+    journalTranscriptPane.open({
+      // the sidecar transcript is keyed by the vault REF, not the resolved loadable url
+      // currently in p.url — the same inverse lookup encodeJournalBlock uses on save.
+      pages: pages.map((p) => ({ ref: refForUrl(p.url) ?? p.url, url: p.url, caption: p.caption })),
+      index,
+    });
+
   return (
     <div className="pensieve-journal" contentEditable={false}>
+      <button
+        type="button"
+        className="pensieve-journal-transcript-btn"
+        onClick={() => openTranscript(0)}
+        aria-label="Open transcript"
+      >
+        Transcript
+      </button>
       <div className="pensieve-journal-strip">
         {pages.map((p, i) =>
           broken.has(i) ? (

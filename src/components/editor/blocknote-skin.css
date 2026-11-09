@@ -1083,6 +1083,21 @@ body.pensieve-resizing .pensieve-media-host.is-panning .pensieve-media-img {
     0 0 0 1px hsl(var(--accent) / 0.5),
     0 0 18px -2px hsl(var(--accent-glow) / 0.55);
 }
+.pensieve-journal-transcript-btn {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 0 6px;
+  padding: 0.3em 0.7em;
+  font-size: calc(0.8125rem * var(--font-scale));
+  color: hsl(var(--text));
+  background: hsl(var(--surface-raised));
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  cursor: pointer;
+}
+.pensieve-journal-transcript-btn:hover {
+  background: hsl(var(--accent) / 0.12);
+}
 
 /* The persistent "+" add column (dashed), full strip height at the right of the rows. */
 .pensieve-gallery-add {
