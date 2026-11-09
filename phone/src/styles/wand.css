@@ -2283,6 +2283,188 @@ body {
   pointer-events: none;
 }
 
+/* ============================================================================
+   JOURNAL (RAW-MEMORY-JOURNAL update) — the continuous camera session, the Raw
+   Memory card on Home, and its detail sheet. Reuses .ph-collection-tile/-remove/
+   -grab/-grabber and .ph-confirm-* verbatim (same real classes the photo board and
+   delete-confirm already use); only what's genuinely new gets its own rules here.
+   ========================================================================== */
+.ph-journal-capture {
+  position: fixed;
+  inset: 0;
+  z-index: 190;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  color: #fff;
+}
+.ph-journal-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(12px + env(safe-area-inset-top)) 16px 8px;
+}
+.ph-journal-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+}
+.ph-journal-done {
+  background: none;
+  border: none;
+  color: hsl(var(--gold));
+  font-size: 15px;
+  font-weight: 700;
+  padding: 6px 4px;
+}
+.ph-journal-done:disabled {
+  color: rgba(255, 255, 255, 0.35);
+}
+.ph-journal-viewfinder {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(120% 90% at 50% 30%, #23262c, #0a0b0d 70%);
+  overflow: hidden;
+}
+.ph-journal-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ph-journal-error {
+  padding: 0 32px;
+  text-align: center;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.75);
+}
+.ph-journal-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+.ph-journal-flash.show {
+  animation: ph-journal-flash-kf 0.22s ease;
+}
+@keyframes ph-journal-flash-kf {
+  0% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.ph-journal-shutter-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 0 14px;
+}
+.ph-journal-shutter {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  border: 3.5px solid #fff;
+  background: rgba(255, 255, 255, 0.14);
+}
+.ph-journal-shutter:active {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(0.94);
+}
+.ph-journal-shutter:disabled {
+  opacity: 0.4;
+}
+.ph-journal-strip {
+  display: flex;
+  gap: 7px;
+  padding: 0 12px calc(14px + env(safe-area-inset-bottom));
+  overflow-x: auto;
+  min-height: 76px;
+}
+.ph-journal-strip-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+}
+.ph-journal-tile {
+  width: 58px;
+  flex: none;
+}
+
+.ph-journal-detail-title {
+  padding: 2px 16px 4px;
+  font-size: 17px;
+  font-weight: 700;
+}
+.ph-journal-detail-status {
+  margin: 2px 16px 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: hsl(var(--surface-raised) / 0.7);
+  font-size: 13px;
+  color: hsl(var(--text-muted));
+}
+
+/* the Home strip: a dashed, inert card per batch — same "not a flask yet" decision as
+   the desktop reel card (no flask-equivalent glyph, a dashed placeholder gutter). */
+.ph-journal-home-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 16px 10px;
+  flex: none;
+}
+.ph-journal-home-card {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 9px 13px;
+  border-radius: 14px;
+  border: none;
+  background: hsl(var(--text) / 0.04);
+  text-align: left;
+  cursor: pointer;
+}
+.ph-journal-home-frame {
+  width: 36px;
+  height: 48px;
+  flex: none;
+  border: 1.5px dashed hsl(var(--border));
+  border-radius: 8px;
+}
+.ph-journal-home-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ph-journal-home-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: hsl(var(--text-muted));
+}
+.ph-journal-home-meta {
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: hsl(var(--text-muted));
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.ph-journal-home-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: hsl(var(--accent));
+  flex: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.001s !important;

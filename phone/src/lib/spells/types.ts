@@ -45,7 +45,7 @@ export type SpellMenuForm = "general" | "conditional";
 /** The page context that decides the menu's entry form + its conditional roster.
  *  "collection" = the full-screen photo board open on top of a memory (add a Photo to it; you
  *  can't nest a gallery in a gallery, so no "Gallery" spell there). */
-export type PageContext = "home" | "note" | "collection";
+export type PageContext = "home" | "note" | "collection" | "raw-detail";
 
 // ---- Dock (bottom control bar) ----
 

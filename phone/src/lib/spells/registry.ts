@@ -61,6 +61,15 @@ export function conditionalSpells(context: PageContext): Spell[] {
       { id: "image", name: "Photo", icon: "image" },
     ];
   }
+  // A Raw Memory's detail sheet: batch-level actions, same ring-not-button convention
+  // as every other context (wiki.md "C" — the first prototype got this wrong with a
+  // flat "Delete whole batch" button, corrected here).
+  if (context === "raw-detail") {
+    return [
+      { id: "raw-add", name: "Add pages", icon: "camera" },
+      { id: "raw-delete", name: "Delete", icon: "trash", hue: "danger" },
+    ];
+  }
   // a memory (note): "Photo" adds a photo to the memory (merging into an adjacent block if any);
   // "Gallery" starts a fresh, separate gallery block to fill (multi-pick); "Voice" adds a
   // recording — a detailed spell: tapping opens a 2-option sub-ring, "Record" (the same

@@ -54,6 +54,10 @@ import { PhoneCollection } from "./components/note/PhoneCollection";
 import { PhoneTranscriptReader } from "./components/note/PhoneTranscriptReader";
 import { VoiceRecorderPanel } from "./components/note/VoiceRecorderPanel";
 import { ConfirmDeleteNote } from "./components/note/ConfirmDeleteNote";
+import { ConfirmDeleteRawBatch } from "./components/note/ConfirmDeleteRawBatch";
+import { JournalCaptureScreen } from "./components/note/JournalCaptureScreen";
+import { JournalDetailScreen } from "./components/note/JournalDetailScreen";
+import { createRawBatch, deleteRawBatch, loadRawBatches, persistRawBatches, type RawMemory } from "./lib/media/rawMemoryStore";
 import { mintAudioRef, mintMediaRef, mintVideoRef, registerLocalMedia } from "./lib/media/mediaStore";
 import { offerSaveToPhotos } from "./lib/media/saveToPhotos";
 import type { MediaImage } from "./lib/media/noteMedia";
@@ -154,6 +158,30 @@ export function PhoneApp() {
   const [micListening, setMicListening] = useState(false);
   const [spell, setSpell] = useState({ show: false, castId: 0 });
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Raw Memory (RAW-MEMORY-JOURNAL): rawBatches is every batch still on this phone (a
+  // RawMemory is NOT a Note — its own list, see lib/media/rawMemoryStore). captureBatch
+  // is the one currently being shot (Journal spell → capture screen); detailBatchId
+  // opens an existing batch's detail sheet instead.
+  const [rawBatches, setRawBatches] = useState<RawMemory[]>(() => loadRawBatches());
+  const [captureBatch, setCaptureBatch] = useState<RawMemory | null>(null);
+  const [detailBatchId, setDetailBatchId] = useState<string | null>(null);
+  const [confirmDeleteRaw, setConfirmDeleteRaw] = useState(false);
+  const detailBatch = rawBatches.find((b) => b.id === detailBatchId) ?? null;
+
+  const updateRawBatch = (b: RawMemory) => {
+    setRawBatches((prev) => {
+      const next = prev.some((x) => x.id === b.id) ? prev.map((x) => (x.id === b.id ? b : x)) : [...prev, b];
+      persistRawBatches(next);
+      return next;
+    });
+  };
+  const removeRawBatch = (id: string) => {
+    setRawBatches((prev) => {
+      const next = prev.filter((x) => x.id !== id);
+      persistRawBatches(next);
+      return next;
+    });
+  };
   const [voicePanel, setVoicePanel] = useState<{ open: boolean; noteId: string | null; placeholderBody: string }>({
     open: false,
     noteId: null,
@@ -189,7 +217,7 @@ export function PhoneApp() {
   // The Spell Menu is context-aware: an open photo collection offers only "Photo" (add to that
   // gallery); a memory offers "Photo" + "Gallery"; home opens General. The collection sits on top
   // of the memory, so its context must win.
-  const menu = useSpellMenu(collectionOpen ? "collection" : noteMounted ? "note" : "home");
+  const menu = useSpellMenu(detailBatch ? "raw-detail" : collectionOpen ? "collection" : noteMounted ? "note" : "home");
 
   const kb = useKeyboardInset(rootRef, {
     onUp: () => fns.current.onKbUp(),
@@ -758,6 +786,15 @@ export function PhoneApp() {
     else if (s.id === "clip-upload") uploadVideoIntoCurrentNote();
     else if (s.id === "delete") setConfirmDelete(true); // never deletes on the tap — confirm first
     else if (s.id === "edit") phoneCollection.toggleEditMode(); // board-scoped: arrange/remove mode
+    else if (s.id === "journal") setCaptureBatch(createRawBatch()); // mint + jump straight into the camera
+    else if (s.id === "raw-add") {
+      // "Add pages" from the detail ring: leave the detail sheet, resume shooting into
+      // the SAME batch (not a new one) — the whole point of it still being editable.
+      if (detailBatch) {
+        setCaptureBatch(detailBatch);
+        setDetailBatchId(null);
+      }
+    } else if (s.id === "raw-delete") setConfirmDeleteRaw(true); // never deletes on the tap — confirm first
     else showToast(`✨ ${s.name} cast`);
   }
   /** Held a spell: Write = speak; a "window" spell (Sync) opens its panel instead of
@@ -864,7 +901,7 @@ export function PhoneApp() {
   // so every touchmove inside them hit this guard's preventDefault(). Add any FUTURE
   // full-screen overlay here too, or it will look identically "dead" on a real device.
   useEffect(() => {
-    const SCROLLABLE = ".reel,.note,.search-results,.ph-lightbox,.ph-collection,.ph-reader";
+    const SCROLLABLE = ".reel,.note,.search-results,.ph-lightbox,.ph-collection,.ph-reader,.ph-journal-capture,.ph-journal-strip";
     const onTouchMove = (e: TouchEvent) => {
       const t = e.target as Element | null;
       if (!t || !t.closest(SCROLLABLE)) e.preventDefault();
@@ -895,6 +932,27 @@ export function PhoneApp() {
             <SyncRune status={syncStatus} size={20} className="header-sync" />
           )}
         </div>
+        {rawBatches.length > 0 ? (
+          <div className="ph-journal-home-strip">
+            {rawBatches.map((b) => (
+              <button
+                type="button"
+                key={b.id}
+                className="ph-journal-home-card"
+                onClick={() => setDetailBatchId(b.id)}
+              >
+                <span className="ph-journal-home-frame" aria-hidden="true" />
+                <span className="ph-journal-home-text">
+                  <span className="ph-journal-home-title">Journal — {b.pages.length} page{b.pages.length === 1 ? "" : "s"}</span>
+                  <span className="ph-journal-home-meta">
+                    <span className="ph-journal-home-dot" />
+                    {b.status === "capturing" ? "Still capturing" : b.status === "synced" ? "Awaiting processing" : b.status}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
         <Reel view={view} queryText={queryText} onOpen={openNote} reelRef={reelRef} trackRef={trackRef} />
         <Glass empty={view.length === 0} message={emptyMsg} glassRef={glassRef} />
       </div>
@@ -1002,6 +1060,49 @@ export function PhoneApp() {
       ) : null}
       {confirmDelete ? (
         <ConfirmDeleteNote onCancel={() => setConfirmDelete(false)} onConfirm={deleteCurrentNote} />
+      ) : null}
+
+      {/* Journal (RAW-MEMORY-JOURNAL): the camera session, the detail sheet, and the
+          batch-delete confirm. A Raw Memory is never a Note, so none of these touch
+          dataRef/persistVault — see lib/media/rawMemoryStore. */}
+      {captureBatch ? (
+        <JournalCaptureScreen
+          batch={captureBatch}
+          onChangeBatch={(b) => {
+            setCaptureBatch(b);
+            updateRawBatch(b);
+          }}
+          onDone={() => {
+            const finished = captureBatch;
+            setCaptureBatch(null);
+            if (finished && finished.pages.length > 0) updateRawBatch({ ...finished, status: "queued" });
+          }}
+        />
+      ) : null}
+      {detailBatch ? (
+        <JournalDetailScreen
+          batch={detailBatch}
+          onChangeBatch={updateRawBatch}
+          onBack={() => setDetailBatchId(null)}
+          onOpenMenu={() => {
+            haptic(10);
+            menu.openMenu();
+          }}
+        />
+      ) : null}
+      {confirmDeleteRaw && detailBatch ? (
+        <ConfirmDeleteRawBatch
+          pageCount={detailBatch.pages.length}
+          onCancel={() => setConfirmDeleteRaw(false)}
+          onConfirm={() => {
+            void deleteRawBatch(detailBatch).then(() => {
+              removeRawBatch(detailBatch.id);
+              setConfirmDeleteRaw(false);
+              setDetailBatchId(null);
+              showToast("Deleted — removed here and from the cloud once synced.");
+            });
+          }}
+        />
       ) : null}
 
       {/* the ONE file-picker input — always mounted (not scoped to the Memory page) so "Snap"
