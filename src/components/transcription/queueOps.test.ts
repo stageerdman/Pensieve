@@ -1,16 +1,25 @@
 import { describe, it, expect } from "vitest";
 import {
+  type AudioProcessItem,
   type ProcessItem,
   activeItem,
   clearErrorsForRetry,
+  isAudioItem,
   mergeNewItems,
   reorderItems,
   setItemModel,
   sortItems,
 } from "./queueOps";
+
+/** Narrow a ProcessItem to AudioProcessItem for test assertions — every item in this
+ *  file is audio (journal rows are covered in queueOps.journal.test.ts). */
+function audio(i: ProcessItem): AudioProcessItem {
+  if (!isAudioItem(i)) throw new Error("expected an audio item");
+  return i;
+}
 import type { AudioQueueItem } from "../../lib/transcripts/queue";
 
-const item = (ref: string, order: number, over: Partial<ProcessItem> = {}): ProcessItem => ({
+const item = (ref: string, order: number, over: Partial<AudioProcessItem> = {}): AudioProcessItem => ({
   ref,
   noteId: "n",
   title: "",
@@ -46,13 +55,19 @@ describe("queueOps", () => {
   it("changing a model resets that row's progress", () => {
     const items = [item("a", 1, { pct: 42 })];
     const out = setItemModel(items, "a", "parakeet");
-    expect(out[0].model).toBe("parakeet");
+    expect(audio(out[0]).model).toBe("parakeet");
     expect(out[0].pct).toBe(0);
   });
 
   it("changing a model to the SAME value is a no-op (keeps progress)", () => {
     const items = [item("a", 1, { pct: 42 })];
     expect(setItemModel(items, "a", "czech-whisper")[0].pct).toBe(42);
+  });
+
+  it("setItemModel is a no-op for a journal row (it has no model)", () => {
+    const journalRow: ProcessItem = { ref: "raw1", type: "journal", pageCount: 3, order: 1, pct: 0, phase: null, error: false };
+    const out = setItemModel([journalRow], "raw1", "parakeet");
+    expect(out[0]).toEqual(journalRow);
   });
 
   it("merge appends only new refs, numbering after existing ones", () => {
@@ -64,7 +79,7 @@ describe("queueOps", () => {
     const out = mergeNewItems(prev, found, "czech-whisper");
     expect(out.map((i) => i.ref)).toEqual(["a", "z"]);
     expect(out[1].order).toBe(2);
-    expect(out[1].model).toBe("czech-whisper"); // auto path uses the default (Czech)
+    expect(audio(out[1]).model).toBe("czech-whisper"); // auto path uses the default (Czech)
   });
 
   it("merge re-applies persisted model + order for restored refs (auto-resume)", () => {
@@ -74,8 +89,8 @@ describe("queueOps", () => {
     ];
     const persisted = { a: { model: "parakeet" as const, order: 5 } }; // only `a` was saved
     const out = mergeNewItems([], found, "czech-whisper", persisted);
-    const a = out.find((i) => i.ref === "a")!;
-    const b = out.find((i) => i.ref === "b")!;
+    const a = audio(out.find((i) => i.ref === "a")!);
+    const b = audio(out.find((i) => i.ref === "b")!);
     expect(a.model).toBe("parakeet"); // restored
     expect(a.order).toBe(5); // restored ordering
     expect(b.model).toBe("czech-whisper"); // no saved entry → default

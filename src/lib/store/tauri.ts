@@ -29,7 +29,10 @@ const removePath = (rel: string) => invoke<void>("remove_path", { rel });
 // media ref is vault-relative; the asset protocol needs an absolute path. Resolved once
 // and cached — the app data dir never changes within a run.
 let vaultAbsRoot: string | null = null;
-async function vaultRoot(): Promise<string> {
+/** The vault's absolute root on disk — exported for the one legitimate reach-outside-
+ *  the-Store case: the Phase 5 AI page-description subprocess needs a real filesystem
+ *  path to Read (see lib/raw/describePageTauri.ts), which only exists under Tauri. */
+export async function vaultRoot(): Promise<string> {
   if (vaultAbsRoot === null) {
     const base = await appDataDir();
     vaultAbsRoot = base.endsWith("/") ? base + "vault" : base + "/vault";
