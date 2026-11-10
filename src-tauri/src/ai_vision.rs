@@ -1,9 +1,10 @@
 // A headless `claude -p` shell-out for describing one photographed journal page — the
 // Phase 5 AI step of RAW-MEMORY-JOURNAL. Mirrors the already-shipped pattern in
 // engine/pensieve_transcribe.py's `_run_claude` (same binary, same `-p` + stdin-prompt
-// shape), not a new design: PATH is augmented the same way transcribe_audio already does
-// (a Finder-launched .app inherits a minimal PATH, missing /opt/homebrew/bin), and the
-// prompt goes in over stdin rather than argv (no shell-escaping, no argv length limit).
+// shape), not a new design: the `claude` binary is located the same way `util::resolve_binary`
+// locates it everywhere else (a Finder-launched .app inherits a minimal PATH, missing
+// /opt/homebrew/bin), and the prompt goes in over stdin rather than argv (no shell-escaping,
+// no argv length limit).
 //
 // The one real addition verified against the live CLI (not guessed): headless `-p` mode
 // is sandboxed from reading arbitrary file paths by default — `claude -p` with a prompt
@@ -35,12 +36,9 @@ fn describe_blocking(image_path: &str, prompt: &str) -> Result<String, String> {
     }
     let dir = path.parent().ok_or("page image has no parent directory")?;
 
-    let mut cmd = Command::new("claude");
+    let binary = crate::util::resolve_binary("claude");
+    let mut cmd = Command::new(&binary);
     cmd.arg("-p").arg("--add-dir").arg(dir).current_dir(dir);
-    // Same PATH/env rationale as transcribe_audio (see transcribe.rs) — a Finder-launched
-    // .app's minimal PATH otherwise can't find a Homebrew-installed `claude`.
-    let base_path = std::env::var("PATH").unwrap_or_default();
-    cmd.env("PATH", format!("/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:{base_path}"));
     cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
 
     let mut child = cmd.spawn().map_err(|e| format!("spawn failed (is `claude` installed?): {e}"))?;

@@ -33,3 +33,9 @@ ureq = "2"
 # Image bytes cross the invoke boundary as base64 (a JS number array over IPC is slow for
 # image-sized payloads); write_bytes/read_bytes (de)code here.
 base64 = "0.22"
+# PATRONUS-AI: the Pensieve MCP server (mcp/server.rs) this app's own binary re-execs
+# into, and the tokio runtime it needs to drive rmcp's stdio transport. Scoped to that
+# one code path — the rest of the app stays sync/blocking as it already was.
+rmcp = { version = "3.8.0", features = ["server", "macros", "transport-io"] }
+tokio = { version = "1", features = ["rt", "macros", "process", "time"] }
+schemars = "1.0"

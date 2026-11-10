@@ -11,9 +11,12 @@ use tauri::menu::{Menu, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 
 mod ai_vision;
+mod assistant;
 mod media_transfer;
+pub mod mcp;
 mod sync;
 mod transcribe;
+mod util;
 
 // Flip between a normal app (dock icon + the Appearance menu) and a pure menu-bar
 // "accessory" (no dock icon, no app menu) depending on whether a window is on screen.
@@ -274,7 +277,8 @@ pub fn run() {
             media_transfer::download_media_chunked,
             transcribe::transcribe_audio,
             transcribe::cancel_transcription,
-            ai_vision::describe_journal_page
+            ai_vision::describe_journal_page,
+            assistant::ask_agent
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
