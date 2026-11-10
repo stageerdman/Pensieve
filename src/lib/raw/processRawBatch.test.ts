@@ -177,6 +177,36 @@ describe("processRawBatch", () => {
     expect(markdown).toContain("```pensieve:journal"); // the fence survives, title is just prepended
   });
 
+  it("uses the AI's own `title` field instead of guessing from the transcript — this is what keeps the date out of the title (the owner's explicit complaint)", async () => {
+    const { store, notes } = fakeStore();
+    const rm = rawMemory(["media/raw1/a.png"]);
+    await processRawBatch(rm, {
+      store,
+      describePage: async () => ({
+        transcript: "18 October 2024. Went for a long walk by the river. It was cold.",
+        dateHeader: "Nov 3",
+        title: "A Walk by the River",
+      }),
+      readMediaBytes: async () => ({ bytes: new ArrayBuffer(1), ext: "png" }),
+      resolveAbsolutePath: async (ref) => `/vault/${ref}`,
+      now: () => new Date(2026, 10, 9),
+    });
+    expect(notes.get("note1")!.markdown.startsWith("A Walk by the River")).toBe(true);
+  });
+
+  it("falls back to guessing from the transcript ONLY when the AI response has no title field at all (a degraded/older reply, not the normal path)", async () => {
+    const { store, notes } = fakeStore();
+    const rm = rawMemory(["media/raw1/a.png"]);
+    await processRawBatch(rm, {
+      store,
+      describePage: async () => ({ transcript: "Went for a long walk by the river. It was cold.", dateHeader: "Nov 3" }),
+      readMediaBytes: async () => ({ bytes: new ArrayBuffer(1), ext: "png" }),
+      resolveAbsolutePath: async (ref) => `/vault/${ref}`,
+      now: () => new Date(2026, 10, 9),
+    });
+    expect(notes.get("note1")!.markdown.startsWith("Went for a long walk by the river.")).toBe(true);
+  });
+
   it("falls back to the detected date as a title when the page is blank/illegible", async () => {
     const { store, notes } = fakeStore();
     const rm = rawMemory(["media/raw1/a.png"]);

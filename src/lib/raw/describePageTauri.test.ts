@@ -19,6 +19,12 @@ describe("PROMPT_TEMPLATE — spec lock for the owner's two explicit requirement
     expect(prompt).toMatch(/split your transcription/i);
     expect(prompt).toMatch(/"previousPart"/);
   });
+
+  it("tells the model to give a short title and explicitly NEVER use the date as one — the owner's exact complaint", () => {
+    expect(prompt).toMatch(/short TITLE/);
+    expect(prompt).toMatch(/must NEVER be the date/i);
+    expect(prompt).toMatch(/"title"/);
+  });
 });
 
 describe("parseDescribeResponse", () => {
@@ -70,5 +76,15 @@ describe("parseDescribeResponse", () => {
   it("a null/absent previousPart stays undefined, never an empty string someone could mistake for real content", () => {
     const raw = `{"transcript": "x", "dateHeader": "Nov 1", "continuesPrevious": false, "previousPart": null}`;
     expect(parseDescribeResponse(raw).previousPart).toBeUndefined();
+  });
+
+  it("parses the title field, trimmed", () => {
+    const raw = `{"transcript": "x", "dateHeader": "Nov 1", "continuesPrevious": false, "title": "  A Walk by the River  "}`;
+    expect(parseDescribeResponse(raw).title).toBe("A Walk by the River");
+  });
+
+  it("a blank/missing title stays undefined, never an empty string that would silently win over the fallback heuristic", () => {
+    expect(parseDescribeResponse(`{"transcript": "x", "dateHeader": "Nov 1", "title": ""}`).title).toBeUndefined();
+    expect(parseDescribeResponse(`{"transcript": "x", "dateHeader": "Nov 1"}`).title).toBeUndefined();
   });
 });

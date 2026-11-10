@@ -17,8 +17,10 @@ Then look for a DATE HEADER the writer put on this page (they write dates incons
 
 If this page ALSO shows the tail end of a PREVIOUS day's entry before this page's own new date header starts further down the SAME page (continuesPrevious), split your transcription at exactly that point: put the text that comes BEFORE the new date header into "previousPart", and put ONLY the text FROM the new date header onward into "transcript". These two memories will be shown separately, so neither should repeat the other's text. If there's no such split, leave "previousPart" null and put the page's whole text into "transcript" as usual.
 
+Finally, give this entry a short TITLE — a few words or a short standalone phrase, the way a title stands apart from the body of a note. If the writer put their OWN heading on the page (a short line sitting alone, separate from the date and separate from the flowing prose), use exactly that. If they didn't write one, invent a short title yourself from the gist of what they wrote. The title must NEVER be the date, and never a full sentence of the prose itself — keep it short, like a real title.
+
 Respond with ONLY a single JSON object and nothing else — no markdown code fence, no explanation:
-{"transcript": "<the transcribed text, with any guessed word wrapped like {this}, or \\"\\" if blank; see the split rule above when continuesPrevious is true>", "dateHeader": "<standardized as above, e.g. \\"18 October YYYY\\", or null if this page has no date header of its own>", "continuesPrevious": <true only if this page ALSO shows the tail end of a PREVIOUS day's entry before a new date header starts further down the SAME page, else false>, "previousPart": "<only when continuesPrevious is true: the text BEFORE the new date header, or null>"}`;
+{"transcript": "<the transcribed text, with any guessed word wrapped like {this}, or \\"\\" if blank; see the split rule above when continuesPrevious is true>", "dateHeader": "<standardized as above, e.g. \\"18 October YYYY\\", or null if this page has no date header of its own>", "continuesPrevious": <true only if this page ALSO shows the tail end of a PREVIOUS day's entry before a new date header starts further down the SAME page, else false>, "previousPart": "<only when continuesPrevious is true: the text BEFORE the new date header, or null>", "title": "<a short title per the rule above — never the date, never a full sentence>"}`;
 
 /** Defensive parse: strips a markdown fence if the model added one anyway, extracts the
  *  outermost {...}, and never throws — an unparseable reply degrades to "blank page, no
@@ -39,6 +41,7 @@ export function parseDescribeResponse(raw: string): PageDescription {
       dateHeader: typeof parsed.dateHeader === "string" && parsed.dateHeader.trim() ? parsed.dateHeader.trim() : null,
       continuesPrevious: parsed.continuesPrevious === true,
       previousPart: typeof parsed.previousPart === "string" && parsed.previousPart ? parsed.previousPart : undefined,
+      title: typeof parsed.title === "string" && parsed.title.trim() ? parsed.title.trim() : undefined,
     };
   } catch {
     log.error("raw", "describe.parse-error", { raw: raw.slice(0, 300) });

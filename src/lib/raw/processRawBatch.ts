@@ -28,6 +28,11 @@ export interface PageDescription {
    *  handwriting that belongs to the day being CLOSED OUT (everything before this page's
    *  own new date header starts). Undefined when there's nothing to split. */
   previousPart?: string;
+  /** A short title for this entry — the writer's own standalone heading if the page has
+   *  one, otherwise the AI's own short summary of the gist. NEVER the date (dateHeader
+   *  already carries that separately). Used verbatim as the created Memory's title, so
+   *  it should read like one: a few words or a short phrase, not a full sentence. */
+  title?: string;
 }
 
 export type DescribePage = (ref: string, absolutePath: string) => Promise<PageDescription>;
@@ -65,12 +70,15 @@ function journalFenceMarkdown(pages: { ref: string; caption?: string }[]): strin
   return "```pensieve:journal\n" + lines.join("\n") + "\n```";
 }
 
-/** A short, content-derived title — the first sentence (capped) of this Memory's OWN
- *  transcript text, so a journal entry gets a real title the same way a normal note's
- *  title is just its first line, instead of showing "Untitled" (titleFromMarkdown finds
- *  nothing to use when the body is fence-only — see src/lib/text.ts). Falls back to the
- *  detected date when the text is empty/illegible. */
-function deriveTitle(text: string, fallbackDate: string | null): string {
+/** This Memory's title: the AI's own `title` field for the group's first page (the
+ *  writer's standalone heading, or the AI's short summary of the gist — see
+ *  PageDescription.title's doc; it's told explicitly never to use the date). Falls back
+ *  to the old "first sentence of the body text" heuristic only if the AI response is
+ *  missing the field entirely (an older/degraded reply) — defensive, not the normal path
+ *  — and finally to the detected date when there's nothing usable at all. */
+function deriveTitle(aiTitle: string | undefined, text: string, fallbackDate: string | null): string {
+  const clean = aiTitle?.trim();
+  if (clean) return clean;
   const normalized = text.replace(/\s+/g, " ").trim();
   if (!normalized) return fallbackDate ?? "Journal entry";
   const sentenceEnd = normalized.search(/[.!?](\s|$)/);
@@ -108,6 +116,7 @@ async function duplicateMediaInto(
 export async function processRawBatch(rm: RawMemory, deps: ProcessRawBatchDeps): Promise<ProcessRawBatchResult> {
   const signals: PageSignal[] = [];
   const textByRef = new Map<string, string>();
+  const titleByRef = new Map<string, string>();
   // Only populated for a shared boundary page (continuesPrevious) — the leading chunk of
   // its text that belongs to the day being CLOSED OUT, so that day's Memory doesn't get
   // the whole page's text (including the NEXT day's part) duplicated into it too.
@@ -119,6 +128,7 @@ export async function processRawBatch(rm: RawMemory, deps: ProcessRawBatchDeps):
     const abs = await deps.resolveAbsolutePath(ref);
     const d = await deps.describePage(ref, abs);
     textByRef.set(ref, d.transcript);
+    if (d.title) titleByRef.set(ref, d.title);
     if (d.continuesPrevious && d.previousPart) previousPartByRef.set(ref, d.previousPart);
     signals.push({ ref, dateHeader: d.dateHeader, continuesPrevious: d.continuesPrevious });
     log.info("raw", "describe.page", { rawId: rm.id, ref, dateHeader: d.dateHeader });
@@ -164,7 +174,7 @@ export async function processRawBatch(rm: RawMemory, deps: ProcessRawBatchDeps):
     }
 
     const createdAt = parseDetectedDate(group.date, now);
-    const title = deriveTitle(ownText.join(" "), group.date);
+    const title = deriveTitle(titleByRef.get(group.pages[0]), ownText.join(" "), group.date);
     const markdown = `${title}\n\n${journalFenceMarkdown(pageRefs)}`;
     await deps.store.save({ ...fresh, markdown, createdAt, addedAt: createdAt });
     createdNoteIds.push(fresh.id);
