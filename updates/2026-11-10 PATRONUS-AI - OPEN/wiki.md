@@ -1,0 +1,50 @@
+# PATRONUS-AI — wiki
+
+Durable decisions and lessons as this gets built. Seeded from researching
+`/Users/stage/dev/masters-wheel` (a sibling Tauri app with this exact pattern already
+shipped) before writing any code.
+
+## Ported from masters-wheel, verified by reading its actual source (not guessed)
+- **The app's own binary is the MCP server.** No second bundled executable: a
+  `PENSIEVE_MCP_SERVER=1` env var, checked at the very top of `lib.rs::run()`, switches
+  the process into `mcp::server::run_stdio()` instead of launching the GUI. The
+  `--mcp-config` JSON passed to `claude` points `command` at `std::env::current_exe()`
+  with that env var set.
+- **`claude -p` CLI invocation gotchas** (masters-wheel hit all of these for real):
+  - `--system-prompt` *replaces* the default persona; `--append-system-prompt` caused
+    persona-breaking bleed-through. Use replace.
+  - `--tools ""` is required *in addition to* `--mcp-config`/`--allowedTools`, or the
+    built-in tool schemas bloat every single reply ~3x in token cost.
+  - `-p` + `--` + the message must be the last positional args — a message that happens
+    to start with `-` otherwise misparses as a flag.
+  - stderr must be drained concurrently on its own thread while reading stdout, or the
+    child process deadlocks on a full pipe.
+  - No timeout is implemented on the CLI call — `child.wait()` blocks indefinitely.
+    Carried forward as-is for v1; revisit if a hung call is ever reported.
+- **Streaming shape:** `--output-format stream-json --include-partial-messages`, stdout
+  is NDJSON, forward `content_block_delta` as UI deltas, trust only the final `result`
+  event for authoritative text + `session_id` + token usage. `session_id` round-trips via
+  `--resume` next turn — conversation history lives in the CLI's own transcript, not in
+  app-owned storage.
+- **Why Pensieve's existing `ai_vision.rs` (single-shot, stdin-prompt, PATH-augmented)
+  doesn't need to change**: it's a different, already-shipped feature (RAW-MEMORY-JOURNAL
+  page description). PATRONUS-AI is new code (`assistant.rs`) that reuses its
+  PATH/binary-resolve helper, not a replacement of it.
+
+## Pensieve-specific adaptations (the parts masters-wheel didn't need)
+- No SQLite/structured index exists yet — MCP read tools hit the vault filesystem
+  directly (reusing `vault_root`/`resolve` from `lib.rs`), not a database query. If a real
+  index ever ships, only the tool *implementations* change, not their MCP contracts.
+- `tokio` + `rmcp` are new Cargo dependencies — Pensieve had neither. Scoped tightly to
+  the MCP-server code path so the normal GUI build stays as sync/blocking as it already
+  is everywhere else.
+- Write MCP tools (`create_note`/`edit_note`/...) are built in this phase but deliberately
+  left out of `ALLOWED_TOOLS` — built-but-dormant, not "build later." Turning them on is a
+  one-line allowlist change once there's a real undo/permission story, not a new feature.
+
+## Open questions / revisit later
+- Chat history persistence location (not the note vault — chats aren't notes). Likely
+  mirrors `secrets.json`'s precedent: `$APPDATA/xyz.erdman.pensieve/` rather than inside
+  the vault folder the owner syncs via OneDrive.
+- Agent roster is currently just Patronus + Curator as a starting point — the owner may
+  rename/add agents once the picker UI exists.
