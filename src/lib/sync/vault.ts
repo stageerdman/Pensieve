@@ -31,6 +31,20 @@ export interface LocalVault {
   deleteNote(id: string): Promise<void>;
   readState(): Promise<SyncState>;
   writeState(state: SyncState): Promise<void>;
+  /** Every Raw Memory's id + its last local modification time — same role as
+   *  listNotes, for the RAW-MEMORY-JOURNAL batches a note sync knows nothing about. */
+  listRawMemories(): Promise<LocalNoteInfo[]>;
+  /** The record's raw JSON content, or null if absent. */
+  readRawMemory(id: string): Promise<string | null>;
+  /** Write the record's JSON content as-is — unlike writeNote, there's no sidecar to
+   *  rebuild (a Raw Memory's record already fits in one small file; see
+   *  lib/types.ts's RawMemory and lib/raw/queue.ts for what reads `times.updatedAt`
+   *  back out downstream). */
+  writeRawMemory(id: string, content: string, times?: WriteTimes): Promise<void>;
+  /** Removes the record AND every page file under its media/<id>/ folder — the local
+   *  mirror of adapter.ts's deleteRawRecord + the remote media cleanup that's just
+   *  "stop referencing it" (media is content-addressed, no explicit remote delete). */
+  deleteRawMemory(id: string): Promise<void>;
   /** Every media ref present on disk (`media/<noteId>/<file>`) — the backup push set. */
   listMedia(): Promise<string[]>;
   /** Raw bytes of a media file, or null if absent. */
@@ -61,6 +75,7 @@ const removePath = (rel: string) => invoke<void>("remove_path", { rel });
 
 const notePath = (id: string) => `notes/${id}.md`;
 const metaPath = (id: string) => `notes/${id}.meta.json`;
+const rawPath = (id: string) => `raw/${id}.json`;
 const STATE_PATH = "sync/state.json";
 
 interface Meta {
@@ -113,6 +128,42 @@ export function tauriVault(): LocalVault {
       await removePath(notePath(id));
       await removePath(metaPath(id));
       await removePath(`timelines/${id}.json`);
+    },
+
+    async listRawMemories() {
+      const files = await listDir("raw");
+      const ids = files.filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5));
+      const out: LocalNoteInfo[] = [];
+      for (const id of ids) {
+        const raw = await readText(rawPath(id));
+        const r = raw ? (JSON.parse(raw) as { updatedAt?: number }) : null;
+        out.push({ id, updatedAt: r?.updatedAt ?? 0 });
+      }
+      return out;
+    },
+
+    readRawMemory: (id) => readText(rawPath(id)),
+
+    async writeRawMemory(id, content, times) {
+      // Unlike writeNote, there's no separate sidecar to rebuild — the record IS the
+      // file. But the incoming `content` (from a remote pull) carries whatever
+      // updatedAt the OTHER device stamped, not necessarily this sync's remoteTime —
+      // overwrite it here so listRawMemories' "did this change locally since?" check
+      // compares against the exact value the engine just recorded, not a guess.
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(content) as Record<string, unknown>;
+      } catch {
+        parsed = { id };
+      }
+      parsed.updatedAt = times?.updatedAt ?? Date.now();
+      await writeText(rawPath(id), JSON.stringify(parsed));
+    },
+
+    async deleteRawMemory(id) {
+      const files = await listDir(`${MEDIA_DIR}/${id}`).catch(() => [] as string[]);
+      for (const f of files) await removePath(`${MEDIA_DIR}/${id}/${f}`).catch(() => undefined);
+      await removePath(rawPath(id));
     },
 
     async readState() {

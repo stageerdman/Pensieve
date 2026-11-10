@@ -245,7 +245,8 @@ export class BrowserStore implements Store {
   }
 
   async saveRawMemory(rm: RawMemory): Promise<void> {
-    localStorage.setItem(RAW_PREFIX + rm.id, JSON.stringify(rm));
+    const stamped: RawMemory = { ...rm, updatedAt: Date.now() };
+    localStorage.setItem(RAW_PREFIX + rm.id, JSON.stringify(stamped));
     log.info("raw", "save", { id: rm.id, status: rm.status, pages: rm.pages.length });
   }
 

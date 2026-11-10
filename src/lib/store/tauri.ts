@@ -327,7 +327,10 @@ export class TauriStore implements Store {
   }
 
   async saveRawMemory(rm: RawMemory): Promise<void> {
-    await writeText(`raw/${rm.id}.json`, JSON.stringify(rm));
+    // Always stamped here (never trusted from the caller) — same contract as a note's
+    // updatedAt, and what the sync engine's "did this change locally?" check depends on.
+    const stamped: RawMemory = { ...rm, updatedAt: Date.now() };
+    await writeText(`raw/${rm.id}.json`, JSON.stringify(stamped));
     log.info("raw", "save", { id: rm.id, status: rm.status, pages: rm.pages.length });
   }
 

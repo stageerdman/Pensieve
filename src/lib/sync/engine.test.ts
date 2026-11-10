@@ -9,6 +9,7 @@ import { createRoot } from "./adapter";
 class MemVault implements LocalVault {
   notes = new Map<string, { content: string; updatedAt: number }>();
   media = new Map<string, Uint8Array>();
+  raw = new Map<string, { content: string; updatedAt: number }>();
   state: SyncState = { ...EMPTY_SYNC_STATE, notes: {} };
 
   async listNotes(): Promise<LocalNoteInfo[]> {
@@ -22,6 +23,18 @@ class MemVault implements LocalVault {
   }
   async deleteNote(id: string) {
     this.notes.delete(id);
+  }
+  async listRawMemories(): Promise<LocalNoteInfo[]> {
+    return [...this.raw].map(([id, r]) => ({ id, updatedAt: r.updatedAt }));
+  }
+  async readRawMemory(id: string) {
+    return this.raw.get(id)?.content ?? null;
+  }
+  async writeRawMemory(id: string, content: string, times?: WriteTimes) {
+    this.raw.set(id, { content, updatedAt: times?.updatedAt ?? 0 });
+  }
+  async deleteRawMemory(id: string) {
+    this.raw.delete(id);
   }
   async readState() {
     return JSON.parse(JSON.stringify(this.state)) as SyncState;
@@ -50,6 +63,10 @@ class MemVault implements LocalVault {
   putMedia(ref: string, bytes: Uint8Array) {
     this.media.set(ref, bytes);
   }
+  // test helper: a local Raw Memory edit at a given time
+  editRaw(id: string, content: string, updatedAt: number) {
+    this.raw.set(id, { content, updatedAt });
+  }
 }
 
 // ---- fake OneDrive (models delta, cTags, If-Match) ----
@@ -60,6 +77,14 @@ interface RemoteFile {
   cTag: string;
   time: string;
   ver: number;
+}
+
+/** Splits a self.files key (a full relative path, e.g. "raw/r1.json") into the
+ *  {bareName, parentPath} shape real Graph items actually carry. */
+function splitPath(fullKey: string): { bareName: string; parentPath: string } {
+  const idx = fullKey.lastIndexOf("/");
+  if (idx === -1) return { bareName: fullKey, parentPath: "/drive/root:/Pensieve" };
+  return { bareName: fullKey.slice(idx + 1), parentPath: `/drive/root:/Pensieve/${fullKey.slice(0, idx)}` };
 }
 
 class FakeDrive {
@@ -109,6 +134,10 @@ class FakeDrive {
       status,
       json: async () => body,
       text: async () => (typeof body === "string" ? body : JSON.stringify(body ?? "")),
+      // downloadMedia reads the binary content via arrayBuffer(), not text()/json() —
+      // this fake's media bodies are plain strings ("BYTES" in the raw-sync tests), so
+      // UTF-8-encoding them is enough to exercise that path for real.
+      arrayBuffer: async () => new TextEncoder().encode(typeof body === "string" ? body : JSON.stringify(body ?? "")).buffer,
       headers: { get: () => null },
     });
 
@@ -123,23 +152,41 @@ class FakeDrive {
         return resp(201, { id: "root" });
       }
 
-      // children listing (listNotes) — the whole-folder read restoreFromCloud uses
+      // children listing (listNotes / listRawRecords) — the whole-folder read
+      // restoreFromCloud uses. Real Graph returns DIRECT children only, with a bare
+      // `name` + `parentReference.path` (never the full nested path as `name`) — this
+      // self.files map keys everything by full relative path ("raw/r1.json"), so that
+      // gets split here. Root-level note names have no "/" to split, so this is a
+      // no-op for every existing note test.
       if (path.includes(":/children")) {
-        const value = [...self.files].map(([name, f]) => ({
-          id: f.id,
-          name,
-          cTag: f.cTag,
-          lastModifiedDateTime: f.time,
-        }));
+        const m = path.match(/:\/Pensieve(\/[^:?]*)?:\/children/);
+        const sub = m?.[1] ? m[1].slice(1) : ""; // "" for the root, "raw" for that subfolder
+        const value = [...self.files]
+          .filter(([fullKey]) => {
+            const idx = fullKey.lastIndexOf("/");
+            const dir = idx === -1 ? "" : fullKey.slice(0, idx);
+            return dir === sub;
+          })
+          .map(([fullKey, f]) => {
+            const { bareName, parentPath } = splitPath(fullKey);
+            return { id: f.id, name: bareName, cTag: f.cTag, lastModifiedDateTime: f.time, parentReference: { path: parentPath } };
+          });
         return resp(200, { value });
       }
 
-      // delta
+      // delta — same bare-name + parentReference shape as children listing above;
+      // tombstones are deliberately left as-is (no parentReference), matching real
+      // Graph's "a tombstone can lack full metadata" behaviour and exercising this
+      // project's remoteId-based fallback lookup for both notes and raw records.
       if (path.includes(":/delta") || path.startsWith("https://fake/delta")) {
         const m = path.match(/[?&]v=(\d+)/);
         const since = m ? Number(m[1]) : 0;
         const value: unknown[] = [];
-        for (const [name, f] of self.files) if (f.ver > since) value.push({ id: f.id, name, cTag: f.cTag, lastModifiedDateTime: f.time });
+        for (const [fullKey, f] of self.files) {
+          if (f.ver <= since) continue;
+          const { bareName, parentPath } = splitPath(fullKey);
+          value.push({ id: f.id, name: bareName, cTag: f.cTag, lastModifiedDateTime: f.time, parentReference: { path: parentPath } });
+        }
         for (const t of self.tombstones) if (t.ver > since) value.push({ id: t.id, name: t.name, deleted: {} });
         return resp(200, { value, "@odata.deltaLink": `https://fake/delta?v=${self.ver}` });
       }
@@ -421,5 +468,113 @@ describe("sync engine", () => {
     expect(r.pushedDeletes).toEqual(["x"]);
     expect(drive.files.has("x.md")).toBe(false);
     expect(vault.state.notes.x).toBeUndefined();
+  });
+});
+
+// ── Raw Memory sync (RAW-MEMORY-JOURNAL) ─────────────────────────────────────────
+// Same algorithm as notes (see adapter.ts/engine.ts comments on rawIdFromItem), own
+// id-space, own result arrays — exercised against the SAME FakeDrive/MemVault, on
+// the SAME delta feed (no second cursor), to prove it rides alongside notes without
+// disturbing them.
+describe("sync engine — Raw Memory records", () => {
+  let vault: MemVault;
+  let drive: FakeDrive;
+  let graph: GraphClient;
+
+  beforeEach(() => {
+    vault = new MemVault();
+    drive = new FakeDrive();
+    graph = drive.client();
+  });
+
+  const rawJson = (id: string, pages: string[], status = "synced") => JSON.stringify({ id, status, createdAt: 1, pages });
+
+  it("pushes a new local Raw Memory record to the remote, under raw/", async () => {
+    vault.editRaw("r1", rawJson("r1", ["media/r1/a.jpg"]), 5);
+    const r = await sync(graph, vault);
+    expect(r.pushedRaw).toEqual(["r1"]);
+    expect(r.pushed).toEqual([]); // never conflated with the note id-space
+    expect(drive.files.get("raw/r1.json")?.content).toBe(rawJson("r1", ["media/r1/a.jpg"]));
+    expect(vault.state.raw!.r1.cTag).toBe("c1");
+  });
+
+  it("does not re-push or re-pull an unchanged record on a second sync", async () => {
+    vault.editRaw("r1", rawJson("r1", []), 5);
+    await sync(graph, vault);
+    const r2 = await sync(graph, vault);
+    expect(r2.pushedRaw).toEqual([]);
+    expect(r2.pulledRaw).toEqual([]);
+  });
+
+  it("pulls a remote-only record into the empty vault", async () => {
+    drive.put("raw/r1.json", rawJson("r1", ["media/r1/a.jpg"]));
+    const r = await sync(graph, vault);
+    expect(r.pulledRaw).toEqual(["r1"]);
+    expect(JSON.parse((await vault.readRawMemory("r1"))!).pages).toEqual(["media/r1/a.jpg"]);
+  });
+
+  it("a pulled record's pages feed the SAME media pull pass notes already use", async () => {
+    drive.put("raw/r1.json", rawJson("r1", ["media/r1/a.jpg"]));
+    drive.put("media/r1/a.jpg", "BYTES");
+    const r = await sync(graph, vault);
+    expect(r.pulledMedia).toEqual(["media/r1/a.jpg"]);
+    expect(await vault.readMediaBytes("media/r1/a.jpg")).not.toBeNull();
+  });
+
+  it("propagates a remote deletion to the local vault (phone-side delete reaching desktop)", async () => {
+    drive.put("raw/r1.json", rawJson("r1", []));
+    await sync(graph, vault);
+    drive.del("raw/r1.json");
+    const r = await sync(graph, vault);
+    expect(r.pulledRawDeletes).toEqual(["r1"]);
+    expect(await vault.readRawMemory("r1")).toBeNull();
+  });
+
+  it("propagates a local deletion to the remote (desktop finished processing it)", async () => {
+    vault.editRaw("r1", rawJson("r1", []), 5);
+    await sync(graph, vault);
+    await vault.deleteRawMemory("r1");
+    const r = await sync(graph, vault);
+    expect(r.pushedRawDeletes).toEqual(["r1"]);
+    expect(drive.files.has("raw/r1.json")).toBe(false);
+    expect(vault.state.raw!.r1).toBeUndefined();
+  });
+
+  it("a record changed on both sides is left for the next sync, not reported as a SyncConflict (no resolution UI exists for one)", async () => {
+    vault.editRaw("r1", rawJson("r1", [], "synced"), 5);
+    await sync(graph, vault);
+    drive.put("raw/r1.json", rawJson("r1", [], "processing")); // another device/desktop changes it
+    vault.editRaw("r1", rawJson("r1", [], "queued"), 999_999_999_999); // AND a local change
+    const r = await sync(graph, vault);
+    expect(r.conflicts).toEqual([]);
+    expect(r.pulledRaw).toEqual([]);
+    expect(r.pushedRaw).toEqual([]);
+    expect(JSON.parse((await vault.readRawMemory("r1"))!).status).toBe("queued"); // local untouched
+  });
+
+  it("restoreFromCloud pulls every remote record and clears local-only ones", async () => {
+    drive.put("raw/r1.json", rawJson("r1", ["media/r1/a.jpg"]));
+    vault.editRaw("local-only", rawJson("local-only", []), 1);
+    const r = await restoreFromCloud(graph, vault);
+    expect(r.pulledRaw).toEqual(["r1"]);
+    expect(r.pulledRawDeletes).toEqual(["local-only"]);
+    expect(await vault.listRawMemories()).toEqual([{ id: "r1", updatedAt: expect.any(Number) }]);
+  });
+
+  it("restoreFromCloud into an empty cloud clears local Raw Memory records too", async () => {
+    vault.editRaw("r1", rawJson("r1", []), 5);
+    const r = await restoreFromCloud(graph, vault);
+    expect(r.pulledRawDeletes).toEqual(["r1"]);
+    expect(await vault.listRawMemories()).toEqual([]);
+  });
+
+  it("notes and raw records sync side by side in one call without interfering", async () => {
+    vault.edit("note1", "# hello\n", 5);
+    vault.editRaw("r1", rawJson("r1", []), 5);
+    const r = await sync(graph, vault);
+    expect(r.pushed).toEqual(["note1"]);
+    expect(r.pushedRaw).toEqual(["r1"]);
+    expect(drive.files.has("note1.md")).toBe(true);
+    expect(drive.files.has("raw/r1.json")).toBe(true);
   });
 });
