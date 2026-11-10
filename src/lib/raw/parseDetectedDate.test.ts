@@ -39,6 +39,17 @@ describe("parseDetectedDate", () => {
     expect(parseDetectedDate("2026-11-03", NOW)).toBe(new Date(2026, 10, 3).getTime());
   });
 
+  it("the AI's standardized day-first format with an explicit year — regression: the month-first regex used to swallow the first 2 digits of the year as a fake day", () => {
+    expect(parseDetectedDate("3 November 2024", NOW)).toBe(new Date(2024, 10, 3).getTime());
+    expect(parseDetectedDate("18 October 2024", NOW)).toBe(new Date(2024, 9, 18).getTime());
+  });
+
+  it("the AI's standardized day-first format with the YYYY placeholder already resolved to a real year behaves exactly like any other explicit year", () => {
+    // resolveYearPlaceholders.ts replaces "YYYY" before this ever runs — by the time
+    // parseDetectedDate sees the label, it's always a real 4-digit year or none at all.
+    expect(parseDetectedDate("9 November 2026", NOW)).toBe(new Date(2026, 10, 9).getTime());
+  });
+
   it("unparseable gibberish falls back to now rather than throwing", () => {
     expect(parseDetectedDate("asdkfj not a date", NOW)).toBe(NOW.getTime());
   });

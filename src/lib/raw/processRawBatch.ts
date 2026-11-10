@@ -7,6 +7,7 @@ import type { Note, RawMemory, Store } from "../types";
 import type { Transcript } from "../transcripts/types";
 import { splitByDate, type PageSignal, type DateGroup } from "./splitAlgorithm";
 import { parseDetectedDate } from "./parseDetectedDate";
+import { resolveYearPlaceholders } from "./resolveYearPlaceholders";
 import { log } from "../logger";
 
 /** What the vision call reports for one page. */
@@ -82,6 +83,7 @@ async function duplicateMediaInto(
 export async function processRawBatch(rm: RawMemory, deps: ProcessRawBatchDeps): Promise<ProcessRawBatchResult> {
   const signals: PageSignal[] = [];
   const textByRef = new Map<string, string>();
+  const now = deps.now?.() ?? new Date();
 
   for (const ref of rm.pages) {
     const abs = await deps.resolveAbsolutePath(ref);
@@ -91,9 +93,15 @@ export async function processRawBatch(rm: RawMemory, deps: ProcessRawBatchDeps):
     log.info("raw", "describe.page", { rawId: rm.id, ref, dateHeader: d.dateHeader });
   }
 
+  // The AI never guesses a year per page (see describePageTauri.ts's prompt) — it writes
+  // the literal "YYYY" placeholder when a page shows none. Resolving it is a BATCH-level
+  // pass: the real year might only appear on some later page, and must still apply to
+  // pages earlier in the array (the owner's exact scenario — see the module doc).
+  const resolvedHeaders = resolveYearPlaceholders(signals.map((s) => s.dateHeader), now);
+  signals.forEach((s, i) => (s.dateHeader = resolvedHeaders[i]));
+
   const groups = splitByDate(signals);
   const createdNoteIds: string[] = [];
-  const now = deps.now?.() ?? new Date();
 
   for (const group of groups) {
     const fresh: Note = await deps.store.create();

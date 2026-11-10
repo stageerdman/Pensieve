@@ -125,6 +125,43 @@ describe("processRawBatch", () => {
     expect(notes.get("note2")!.markdown).toContain("dup2.png"); // a SEPARATE copy of shared + c
   });
 
+  it("resolves a YYYY placeholder from whichever page shows a real year, even a later one", async () => {
+    // the owner's exact scenario: the year isn't necessarily on the first page, and once
+    // found it must apply to every group's createdAt, not just the page that had it.
+    const { store, notes } = fakeStore();
+    const rm = rawMemory(["media/raw1/a.png", "media/raw1/b.png", "media/raw1/c.png"]);
+    const describePage = vi.fn(async (ref: string): Promise<PageDescription> => {
+      if (ref.endsWith("a.png")) return { transcript: "day one", dateHeader: "3 November YYYY" };
+      if (ref.endsWith("b.png")) return { transcript: "day two", dateHeader: "4 November 2024" };
+      return { transcript: "day two cont'd", dateHeader: null };
+    });
+
+    const result = await processRawBatch(rm, {
+      store,
+      describePage,
+      readMediaBytes: async () => ({ bytes: new ArrayBuffer(1), ext: "png" }),
+      resolveAbsolutePath: async (ref) => `/vault/${ref}`,
+      now: () => new Date(2026, 10, 9),
+    });
+
+    expect(result.groups.map((g) => g.date)).toEqual(["3 November 2024", "4 November 2024"]);
+    expect(notes.get("note1")!.createdAt).toBe(new Date(2024, 10, 3).getTime());
+    expect(notes.get("note2")!.createdAt).toBe(new Date(2024, 10, 4).getTime());
+  });
+
+  it("falls back to the real current year when no page shows one at all", async () => {
+    const { store, notes } = fakeStore();
+    const rm = rawMemory(["media/raw1/a.png"]);
+    await processRawBatch(rm, {
+      store,
+      describePage: async () => ({ transcript: "x", dateHeader: "9 November YYYY" }),
+      readMediaBytes: async () => ({ bytes: new ArrayBuffer(1), ext: "png" }),
+      resolveAbsolutePath: async (ref) => `/vault/${ref}`,
+      now: () => new Date(2026, 10, 9),
+    });
+    expect(notes.get("note1")!.createdAt).toBe(new Date(2026, 10, 9).getTime());
+  });
+
   it("does not touch the raw batch itself — deletion is the caller's job after this resolves", async () => {
     const { store } = fakeStore();
     const rm = rawMemory(["media/raw1/a.png"]);

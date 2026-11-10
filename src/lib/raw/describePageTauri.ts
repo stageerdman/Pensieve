@@ -6,14 +6,17 @@ import { invoke } from "@tauri-apps/api/core";
 import type { PageDescription } from "./processRawBatch";
 import { log } from "../logger";
 
-const PROMPT_TEMPLATE = (absolutePath: string) => `Read the handwritten journal page image at this exact path: ${absolutePath}
+/** Exported so a test can lock in the owner's two explicit requirements (guess-and-flag
+ *  illegible words; standardize + YYYY-placeholder the date) rather than only hoping a
+ *  future prompt edit doesn't silently drop them. */
+export const PROMPT_TEMPLATE = (absolutePath: string) => `Read the handwritten journal page image at this exact path: ${absolutePath}
 
-Transcribe every legible word of handwriting on the page, in reading order. If a word is genuinely illegible, skip just that word rather than refusing — only leave the transcript empty if the page is truly blank.
+Transcribe every word of handwriting on the page, in reading order. Never skip a word — if one is hard to read, make your best guess and wrap JUST that guessed word in curly braces, like {guess}, so it's clearly flagged as uncertain rather than silently dropped. Only leave the transcript empty if the page is truly blank.
 
-Then look for a DATE HEADER the writer put on this page (e.g. "Nov 3", "November 3rd", "Mon Nov 3", a date in any format). A page normally has at most one NEW date header.
+Then look for a DATE HEADER the writer put on this page (they write dates inconsistently — "20th of October", "20/10", "Mon Nov 3", etc.). A page normally has at most one NEW date header. If you find one, standardize it to exactly this format: "<day as a plain number, no "1st"/"2nd" suffix> <full English month name> <year>" — e.g. "18 October 2024". If the page does NOT show a year, write the literal placeholder text "YYYY" where the year goes (e.g. "18 October YYYY") — do not guess a year yourself from context; that's resolved later across the whole batch, not per page.
 
 Respond with ONLY a single JSON object and nothing else — no markdown code fence, no explanation:
-{"transcript": "<the transcribed text, or \\"\\" if blank>", "dateHeader": "<the date header exactly as written, or null if this page has no date header of its own>", "continuesPrevious": <true only if this page ALSO shows the tail end of a PREVIOUS day's entry before a new date header starts further down the SAME page, else false>}`;
+{"transcript": "<the transcribed text, with any guessed word wrapped like {this}, or \\"\\" if blank>", "dateHeader": "<standardized as above, e.g. \\"18 October YYYY\\", or null if this page has no date header of its own>", "continuesPrevious": <true only if this page ALSO shows the tail end of a PREVIOUS day's entry before a new date header starts further down the SAME page, else false>}`;
 
 /** Defensive parse: strips a markdown fence if the model added one anyway, extracts the
  *  outermost {...}, and never throws — an unparseable reply degrades to "blank page, no
