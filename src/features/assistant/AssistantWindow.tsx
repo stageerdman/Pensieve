@@ -21,6 +21,7 @@ export function AssistantWindow({
   sending,
   onSend,
   onRetry,
+  onOpenNote,
   onClose,
   onExpand,
 }: {
@@ -31,6 +32,7 @@ export function AssistantWindow({
   sending: boolean;
   onSend: (text: string) => void;
   onRetry: (text: string) => void;
+  onOpenNote: (id: string) => void;
   onClose: () => void;
   onExpand: () => void;
 }) {
@@ -99,6 +101,7 @@ export function AssistantWindow({
         messages={messages}
         agentName={activeAgent.name}
         onRetry={onRetry}
+        onOpenNote={onOpenNote}
       />
       <Composer onSend={onSend} disabled={sending} />
     </div>

@@ -11,9 +11,11 @@ import { useAssistantContext } from "./AssistantContext";
 export function Assistant({
   hidden,
   onExpand,
+  onOpenNote,
 }: {
   hidden: boolean;
   onExpand: () => void;
+  onOpenNote: (id: string) => void;
 }) {
   const {
     open,
@@ -40,6 +42,7 @@ export function Assistant({
       sending={sending}
       onSend={send}
       onRetry={send}
+      onOpenNote={onOpenNote}
       onClose={close}
       onExpand={() => {
         close();

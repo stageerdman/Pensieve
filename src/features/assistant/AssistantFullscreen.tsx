@@ -10,8 +10,10 @@ import { Composer } from "./Composer";
 // shared AssistantContext so the conversation carries over exactly as it was.
 export function AssistantFullscreen({
   onAddAgent,
+  onOpenNote,
 }: {
   onAddAgent: () => void;
+  onOpenNote: (id: string) => void;
 }) {
   const { agents, agentId, setAgentId, messages, sending, send } =
     useAssistantContext();
@@ -53,6 +55,7 @@ export function AssistantFullscreen({
           messages={messages}
           agentName={activeAgent?.name ?? "Patronus"}
           onRetry={send}
+          onOpenNote={onOpenNote}
         />
         <Composer onSend={send} disabled={sending} />
       </div>

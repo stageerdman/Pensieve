@@ -6,7 +6,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SEED_AGENTS, type Agent } from "../../lib/ai/agents";
 import { listAgents, saveAgents } from "../../lib/ai/agentStore";
-import { askAgent, onAskAgentProgress } from "../../lib/ai/askAgent";
+import {
+  askAgent,
+  onAskAgentProgress,
+  onAssistantNotesFound,
+  type NoteRef,
+} from "../../lib/ai/askAgent";
 
 export type ChatMessage = {
   id: string;
@@ -17,6 +22,10 @@ export type ChatMessage = {
   /** Only set on a failed assistant message — the original user text, so Retry can
    *  resend it without the user retyping (see this update's wiki.md / UX review). */
   retryText?: string;
+  /** Notes the reply's own search_notes/get_note/list_recent tool calls actually found
+   *  — rendered as clickable chips so a memory can be opened as a tab, not just
+   *  described in prose. Deduped by id as tool results arrive. */
+  foundNotes?: NoteRef[];
 };
 
 interface AgentSession {
@@ -132,10 +141,22 @@ export function useAssistant() {
 
       const jobId = newJobId();
       let streamed = "";
-      const unlisten = await onAskAgentProgress(jobId, (delta) => {
+      let foundSoFar: NoteRef[] = [];
+      const unlistenProgress = await onAskAgentProgress(jobId, (delta) => {
         streamed += delta;
         patchMessage(forAgentId, replyId, { text: streamed });
       });
+      const unlistenNotes = await onAssistantNotesFound(jobId, (notes) => {
+        for (const n of notes) {
+          if (!foundSoFar.some((f) => f.id === n.id))
+            foundSoFar = [...foundSoFar, n];
+        }
+        patchMessage(forAgentId, replyId, { foundNotes: foundSoFar });
+      });
+      const unlisten = () => {
+        unlistenProgress();
+        unlistenNotes();
+      };
       unlistenByAgent.current.get(forAgentId)?.();
       unlistenByAgent.current.set(forAgentId, unlisten);
 

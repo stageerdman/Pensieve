@@ -31,6 +31,7 @@
 // history, not anything Pensieve stores itself.
 
 use serde::Serialize;
+use std::collections::HashMap;
 use std::env::temp_dir;
 use std::io::{BufRead, BufReader, Read};
 use std::process::{Command, Stdio};
@@ -54,6 +55,54 @@ struct AskAgentProgress {
 
 fn emit_delta(app: &AppHandle, job_id: &str, delta: &str) {
     let _ = app.emit("ask-agent-progress", AskAgentProgress { job_id: job_id.to_string(), delta: delta.to_string() });
+}
+
+// The three MCP tools whose results name real notes (list_tags doesn't) — full
+// `mcp__pensieve__<tool>` names, the shape a tool_use block's own "name" field actually
+// carries (same as mcp/config.rs::ALLOWED_TOOLS, which is what grants the CLI these in
+// the first place).
+const NOTE_TOOLS: &[&str] = &["mcp__pensieve__search_notes", "mcp__pensieve__get_note", "mcp__pensieve__list_recent"];
+
+#[derive(Serialize, Clone)]
+struct NoteRef {
+    id: String,
+    title: String,
+}
+
+#[derive(Serialize, Clone)]
+struct NotesFoundEvent {
+    #[serde(rename = "jobId")]
+    job_id: String,
+    notes: Vec<NoteRef>,
+}
+
+fn emit_notes_found(app: &AppHandle, job_id: &str, notes: Vec<NoteRef>) {
+    if notes.is_empty() {
+        return;
+    }
+    let _ = app.emit("assistant-notes-found", NotesFoundEvent { job_id: job_id.to_string(), notes });
+}
+
+// A note tool's result content (search_notes::search_notes/list_recent return a JSON
+// array, get_note a single JSON object) — only ever asking for id/title, so this reads
+// fine against any of NoteSummary/SearchMatch/NoteContent without caring which. An
+// error result (a bare string like "no note with id x") fails to parse as JSON here and
+// correctly yields no refs, not a crash.
+fn extract_note_refs(content: &str) -> Vec<NoteRef> {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(content) else { return Vec::new() };
+    let items: Vec<&serde_json::Value> = match &value {
+        serde_json::Value::Array(arr) => arr.iter().collect(),
+        serde_json::Value::Object(_) => vec![&value],
+        _ => Vec::new(),
+    };
+    items
+        .into_iter()
+        .filter_map(|v| {
+            let id = v.get("id").and_then(|x| x.as_str())?.to_string();
+            let title = v.get("title").and_then(|x| x.as_str()).unwrap_or("Untitled").to_string();
+            Some(NoteRef { id, title })
+        })
+        .collect()
 }
 
 #[tauri::command]
@@ -126,6 +175,12 @@ pub async fn ask_agent(
         let mut final_text = String::new();
         let mut final_session_id = String::new();
         let mut is_error = false;
+        // Maps a tool_use block's id to its tool name, populated from each "assistant"
+        // message event and consumed by the matching "user" message event's
+        // tool_result — the only way to know which tool a given result belongs to,
+        // since tool_result itself only carries tool_use_id. Only ever grows by a
+        // handful of entries per reply.
+        let mut tool_use_names: HashMap<String, String> = HashMap::new();
 
         for line in BufReader::new(stdout).lines() {
             let Ok(line) = line else { break };
@@ -139,6 +194,45 @@ pub async fn ask_agent(
                     if inner.get("type").and_then(|v| v.as_str()) == Some("content_block_delta") {
                         if let Some(delta) = inner["delta"]["text"].as_str() {
                             emit_delta(&app, &job_id, delta);
+                        }
+                    }
+                }
+                Some("assistant") => {
+                    if let Some(blocks) = event["message"]["content"].as_array() {
+                        for block in blocks {
+                            if block.get("type").and_then(|v| v.as_str()) == Some("tool_use") {
+                                if let (Some(id), Some(name)) =
+                                    (block.get("id").and_then(|v| v.as_str()), block.get("name").and_then(|v| v.as_str()))
+                                {
+                                    tool_use_names.insert(id.to_string(), name.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+                Some("user") => {
+                    if let Some(blocks) = event["message"]["content"].as_array() {
+                        for block in blocks {
+                            if block.get("type").and_then(|v| v.as_str()) != Some("tool_result") {
+                                continue;
+                            }
+                            let Some(tool_use_id) = block.get("tool_use_id").and_then(|v| v.as_str()) else { continue };
+                            let Some(name) = tool_use_names.get(tool_use_id) else { continue };
+                            if !NOTE_TOOLS.contains(&name.as_str()) {
+                                continue;
+                            }
+                            // A tool_result's `content` is an array of content blocks (the real
+                            // Anthropic tool_result shape — verified by hand against the live
+                            // CLI, not a plain string as it might look from a quick skim of
+                            // other code); our MCP tools only ever return one text block.
+                            let Some(text) = block
+                                .get("content")
+                                .and_then(|v| v.as_array())
+                                .and_then(|blocks| blocks.iter().find_map(|b| b.get("text").and_then(|t| t.as_str())))
+                            else {
+                                continue;
+                            };
+                            emit_notes_found(&app, &job_id, extract_note_refs(text));
                         }
                     }
                 }
@@ -170,4 +264,40 @@ pub async fn ask_agent(
     })
     .await
     .map_err(|e| format!("Internal error talking to Claude ({e})."))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::extract_note_refs;
+
+    #[test]
+    fn reads_a_search_notes_array() {
+        let refs = extract_note_refs(r#"[{"id":"zz1","title":"A morning on the lake","snippet":"..."}]"#);
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0].id, "zz1");
+        assert_eq!(refs[0].title, "A morning on the lake");
+    }
+
+    #[test]
+    fn reads_a_get_note_object() {
+        let refs = extract_note_refs(r#"{"id":"zz1","title":"A morning on the lake","body":"..."}"#);
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0].id, "zz1");
+    }
+
+    #[test]
+    fn empty_array_yields_no_refs() {
+        assert!(extract_note_refs("[]").is_empty());
+    }
+
+    #[test]
+    fn a_plain_error_string_is_not_json_and_yields_no_refs() {
+        assert!(extract_note_refs("no note with id zz9").is_empty());
+    }
+
+    #[test]
+    fn missing_title_falls_back_to_untitled() {
+        let refs = extract_note_refs(r#"[{"id":"zz1"}]"#);
+        assert_eq!(refs[0].title, "Untitled");
+    }
 }

@@ -37,3 +37,27 @@ export async function onAskAgentProgress(
     if (event.payload.jobId === jobId) onDelta(event.payload.delta);
   });
 }
+
+export type NoteRef = { id: string; title: string };
+
+interface AssistantNotesFoundPayload {
+  jobId: string;
+  notes: NoteRef[];
+}
+
+/** Fires once per search_notes/get_note/list_recent tool call a reply makes, as soon as
+ *  that tool's own result comes back — before the reply text has even finished
+ *  streaming. Lets the chat show clickable note chips instead of only prose describing
+ *  them (see assistant.rs's NOTE_TOOLS/extract_note_refs). */
+export async function onAssistantNotesFound(
+  jobId: string,
+  onNotes: (notes: NoteRef[]) => void,
+): Promise<UnlistenFn> {
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<AssistantNotesFoundPayload>(
+    "assistant-notes-found",
+    (event) => {
+      if (event.payload.jobId === jobId) onNotes(event.payload.notes);
+    },
+  );
+}

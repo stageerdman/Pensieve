@@ -179,6 +179,17 @@ export default function App() {
     },
     [systemTabs, selectTab],
   );
+  // A memory chip clicked inside either Patronus surface opens the note as a real tab
+  // AND leaves whichever system tab was showing — otherwise the newly-opened note tab
+  // would be invisible behind the full-screen assistant/agents branch below.
+  const openNoteFromAssistant = useCallback(
+    (id: string) => {
+      systemTabs.deactivate();
+      openNote(id, false);
+    },
+    [systemTabs, openNote],
+  );
+
   const extraTabs: ExtraTab[] = systemTabs.openIds.map((id) =>
     id === "assistant"
       ? { id, label: "Patronus", icon: <Sparkles size={13} /> }
@@ -412,6 +423,7 @@ export default function App() {
             {systemTabs.active === "assistant" ? (
               <AssistantFullscreen
                 onAddAgent={() => systemTabs.openAgents(true)}
+                onOpenNote={openNoteFromAssistant}
               />
             ) : systemTabs.active === "agents" ? (
               <AgentsEditor
@@ -539,6 +551,7 @@ export default function App() {
         <Assistant
           hidden={systemTabs.active !== null}
           onExpand={systemTabs.openAssistant}
+          onOpenNote={openNoteFromAssistant}
         />
       </div>
     </AssistantProvider>
