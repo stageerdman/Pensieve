@@ -42,6 +42,23 @@ shipped) before writing any code.
   left out of `ALLOWED_TOOLS` — built-but-dormant, not "build later." Turning them on is a
   one-line allowlist change once there's a real undo/permission story, not a new feature.
 
+## Verified end-to-end (2026-11-10)
+Smoke-tested the full real pipeline by hand, not just unit tests: wrote a throwaway
+vault with one distinctive note ("kayaking alone at sunrise near Bear Lake... calmest
+I've been in months"), hand-built the exact `--mcp-config` JSON `assistant.rs` generates,
+and ran the real `claude -p --output-format stream-json ... --mcp-config ...
+--allowedTools mcp__pensieve__search_notes,... --tools ""` command against it — the same
+args the Rust code builds, just typed by hand instead of invoked through Tauri. Result:
+`search_notes` was actually called (8 references to `mcp__pensieve__search_notes` in the
+stream), and the final answer was correctly grounded in the real note content ("You
+wrote about kayaking on Bear Lake at sunrise, feeling calm and peaceful..."). This
+confirms the CLI → --mcp-config → own-binary-as-MCP-server → tool → vault file chain
+actually works, not just that each piece type-checks in isolation.
+
+Not yet verified: the actual GUI click-through (orb → window → live streaming text) —
+no native-macOS-window driving capability available in this environment, only Chrome
+browser automation. Needs the owner's own click-test once the native app is built.
+
 ## Open questions / revisit later
 - Chat history persistence location (not the note vault — chats aren't notes). Likely
   mirrors `secrets.json`'s precedent: `$APPDATA/xyz.erdman.pensieve/` rather than inside

@@ -77,9 +77,13 @@ MCP-server-mode code path only.
 
 ## Live status
 - [x] Phase 1 — plan written.
-- [ ] Phase 2 — MCP server
-- [ ] Phase 3 — AI backend / streaming CLI invocation
-- [ ] Phase 4 — agent roster
-- [ ] Phase 5 — frontend
-- [ ] Phase 6 — wire-up + test
+- [x] Phase 2 — MCP server (8 tools, smoke-tested standalone over raw stdio JSON-RPC).
+- [x] Phase 3 — AI backend / streaming CLI invocation (assistant::ask_agent).
+- [x] Phase 4 — agent roster (src/lib/ai/agents.ts: Patronus + Curator).
+- [x] Phase 5 — frontend (PatronusTrigger/AssistantWindow/MessageList/Composer, mounted
+      in App.tsx; tsc/tests/build all clean).
+- [x] Phase 6 — wire-up + test: real end-to-end `claude -p` call against a throwaway
+      vault confirmed `search_notes` actually fires and the reply is correctly grounded
+      in real note content (see wiki.md). GUI click-through still needs the owner's own
+      pass — no native-window driving tool available here.
 - [ ] Phase 7 — UX pass + native build + ship
