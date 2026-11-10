@@ -61,6 +61,18 @@ export interface NoteSyncRecord {
   syncedAt: number;
 }
 
+/** Same shape as NoteSyncRecord, for a Raw Memory batch (`raw/<id>.json`) instead of
+ *  a note's `.md`. Kept as its own type (not a reuse of NoteSyncRecord) so the two
+ *  stay free to diverge later — e.g. a Raw Memory has no conflict-resolution UI, so
+ *  it may never need the richer SyncConflict reasons a note does. */
+export interface RawSyncRecord {
+  id: string;
+  remoteId: string;
+  cTag: string;
+  localUpdatedAt: number;
+  syncedAt: number;
+}
+
 /** The signed-in OneDrive account (from Graph /me) — shown in the sync panel so
  *  the owner can confirm which account their thoughts back up to. */
 export interface SyncAccount {
@@ -114,13 +126,19 @@ export interface MediaSyncRecord {
 
 /** The whole sync state, persisted beside the vault (not a note). */
 export interface SyncState {
-  /** The /delta cursor (@odata.deltaLink) — resume incremental pulls from here. */
+  /** The /delta cursor (@odata.deltaLink) — resume incremental pulls from here. Shared
+   *  with Raw Memory records too: Graph's root delta is already recursive over the
+   *  whole Pensieve folder, so raw/<id>.json changes arrive on this SAME feed — no
+   *  second delta cursor needed (see engine.ts's rawIdFromItem). */
   deltaLink: string | null;
   /** Per-note records keyed by local id. */
   notes: Record<string, NoteSyncRecord>;
   /** Per-media backup records keyed by ref. Optional for back-compat with pre-media
    *  state files; the engine initialises it to {} when absent. */
   media?: Record<string, MediaSyncRecord>;
+  /** Per-Raw-Memory records keyed by local id. Optional for back-compat with state
+   *  files from before RAW-MEMORY-JOURNAL; the engine initialises it to {} when absent. */
+  raw?: Record<string, RawSyncRecord>;
   /** Last full sync (epoch ms). */
   lastSyncedAt: number | null;
 }
@@ -129,6 +147,7 @@ export const EMPTY_SYNC_STATE: SyncState = {
   deltaLink: null,
   notes: {},
   media: {},
+  raw: {},
   lastSyncedAt: null,
 };
 

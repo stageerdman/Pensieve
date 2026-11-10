@@ -3,15 +3,20 @@ import type { GraphClient, GraphFetchOptions } from "./graph";
 import {
   createRoot,
   deleteNote,
+  deleteRawRecord,
   delta,
   downloadNote,
+  downloadRawRecord,
   listNotes,
   noteIdFromName,
+  rawIdFromItem,
   remoteName,
+  remoteRawName,
   remoteRootExists,
   uploadNote,
+  uploadRawRecord,
 } from "./adapter";
-import { ConflictError } from "./types";
+import { ConflictError, type RemoteItem } from "./types";
 
 // A scripted GraphClient: each call is matched to a handler by (method, path-substring).
 type Handler = (path: string, opts: GraphFetchOptions) => { status: number; body?: unknown };
@@ -145,6 +150,72 @@ describe("deleteNote", () => {
   it("maps 412 to ConflictError", async () => {
     const { graph } = fakeGraph([() => ({ status: 412 })]);
     await expect(deleteNote(graph, "n", "stale")).rejects.toBeInstanceOf(ConflictError);
+  });
+});
+
+describe("rawIdFromItem — Raw Memory records are recognised by PARENT PATH, not just name", () => {
+  const item = (over: Partial<RemoteItem>): RemoteItem => ({ id: "x", name: "r1.json", ...over });
+
+  it("recognises a record directly inside the raw/ subfolder", () => {
+    expect(rawIdFromItem(item({ parentReference: { path: "/drive/root:/Pensieve/raw" } }))).toBe("r1");
+  });
+
+  it("rejects a .json file anywhere else (e.g. the root, or a note's own folder)", () => {
+    expect(rawIdFromItem(item({ parentReference: { path: "/drive/root:/Pensieve" } }))).toBeNull();
+    expect(rawIdFromItem(item({ parentReference: { path: "/drive/root:/Pensieve/media/note1" } }))).toBeNull();
+  });
+
+  it("rejects a non-.json name even inside raw/", () => {
+    expect(rawIdFromItem(item({ name: "r1.md", parentReference: { path: "/drive/root:/Pensieve/raw" } }))).toBeNull();
+  });
+
+  it("rejects a folder entry and a tombstone with no parentReference", () => {
+    expect(rawIdFromItem(item({ folder: {}, parentReference: { path: "/drive/root:/Pensieve/raw" } }))).toBeNull();
+    expect(rawIdFromItem({ id: "x", name: "r1.json", deleted: {} })).toBeNull();
+  });
+
+  it("remoteRawName round-trips the id", () => {
+    expect(remoteRawName("r1")).toBe("raw/r1.json");
+  });
+});
+
+describe("uploadRawRecord", () => {
+  it("sends If-Match when a cTag is given, maps 412 to ConflictError", async () => {
+    const { graph, calls } = fakeGraph([() => ({ status: 200, body: { id: "1", name: "r1.json", cTag: "c2" } })]);
+    const item = await uploadRawRecord(graph, "r1", "{}", "c1");
+    expect(item.cTag).toBe("c2");
+    expect((calls[0].opts.headers as Record<string, string>)["If-Match"]).toBe("c1");
+  });
+  it("maps 412 to ConflictError", async () => {
+    const { graph } = fakeGraph([() => ({ status: 412 })]);
+    await expect(uploadRawRecord(graph, "r1", "{}", "stale")).rejects.toBeInstanceOf(ConflictError);
+  });
+});
+
+describe("downloadRawRecord", () => {
+  it("returns null on 404", async () => {
+    const { graph } = fakeGraph([() => ({ status: 404 })]);
+    expect(await downloadRawRecord(graph, "r1")).toBe(null);
+  });
+  it("returns content + item when present", async () => {
+    const { graph } = fakeGraph([
+      () => ({ status: 200, body: { id: "1", name: "r1.json", cTag: "c1" } }),
+      () => ({ status: 200, body: '{"id":"r1"}' }),
+    ]);
+    const res = await downloadRawRecord(graph, "r1");
+    expect(res?.content).toBe('{"id":"r1"}');
+    expect(res?.item.cTag).toBe("c1");
+  });
+});
+
+describe("deleteRawRecord", () => {
+  it("treats 404 as success", async () => {
+    const { graph } = fakeGraph([() => ({ status: 404 })]);
+    await expect(deleteRawRecord(graph, "r1")).resolves.toBeUndefined();
+  });
+  it("maps 412 to ConflictError", async () => {
+    const { graph } = fakeGraph([() => ({ status: 412 })]);
+    await expect(deleteRawRecord(graph, "r1", "stale")).rejects.toBeInstanceOf(ConflictError);
   });
 });
 

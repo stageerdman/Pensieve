@@ -8,7 +8,8 @@
 // knows nothing about where the bytes actually live.
 
 import { loadVault, persistVault } from "../../vaultStore";
-import { getMediaBytes, listMediaKeys, putMedia } from "../media/mediaStore";
+import { deleteMedia, getMediaBytes, listMediaKeys, putMedia } from "../media/mediaStore";
+import { loadRawBatch, loadRawBatches, saveRawBatch, deleteRawBatchRecord, type RawMemory } from "../media/rawMemoryStore";
 import { mediaContentType } from "./adapter";
 import { noteFromRemoteContent, noteToRemoteContent } from "./noteFormat";
 import { EMPTY_SYNC_STATE, type SyncState } from "./types";
@@ -34,6 +35,12 @@ export interface LocalVault {
   readMediaBytes(ref: string): Promise<Uint8Array | null>;
   writeMediaBytes(ref: string, bytes: Uint8Array): Promise<void>;
   mediaSize(ref: string): Promise<number | null>;
+  /** Every Raw Memory's id + its last local modification time — the RAW-MEMORY-
+   *  JOURNAL counterpart to listNotes. */
+  listRawMemories(): Promise<LocalNoteInfo[]>;
+  readRawMemory(id: string): Promise<string | null>;
+  writeRawMemory(id: string, content: string, times?: WriteTimes): Promise<void>;
+  deleteRawMemory(id: string): Promise<void>;
 }
 
 const STATE_KEY = "pensieve.phone.syncState";
@@ -93,6 +100,38 @@ export function phoneVault(): LocalVault {
     async mediaSize(ref) {
       const bytes = await getMediaBytes(ref);
       return bytes ? bytes.byteLength : null;
+    },
+
+    async listRawMemories() {
+      return loadRawBatches().map((b) => ({ id: b.id, updatedAt: b.updatedAt ?? 0 }));
+    },
+    async readRawMemory(id) {
+      const b = loadRawBatch(id);
+      return b ? JSON.stringify(b) : null;
+    },
+    async writeRawMemory(id, content, times) {
+      // Same reasoning as writeNote/writeRawMemory on desktop: the incoming content
+      // (from a remote pull) carries whatever updatedAt the OTHER device stamped —
+      // overwrite it with what THIS sync just recorded, so listRawMemories' "did this
+      // change locally since?" check compares against an exact value, not a guess.
+      let parsed: Partial<RawMemory>;
+      try {
+        parsed = JSON.parse(content) as Partial<RawMemory>;
+      } catch {
+        parsed = {};
+      }
+      saveRawBatch({
+        id,
+        status: parsed.status ?? "synced",
+        createdAt: parsed.createdAt ?? Date.now(),
+        pages: Array.isArray(parsed.pages) ? parsed.pages : [],
+        updatedAt: times?.updatedAt ?? Date.now(),
+      });
+    },
+    async deleteRawMemory(id) {
+      const b = loadRawBatch(id);
+      for (const ref of b?.pages ?? []) await deleteMedia(ref);
+      deleteRawBatchRecord(id);
     },
   };
 }

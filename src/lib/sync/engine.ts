@@ -17,19 +17,24 @@ import {
   createRoot,
   delta,
   deleteNote,
+  deleteRawRecord,
   downloadMedia,
   downloadNote,
+  downloadRawRecord,
   getAccount,
   getQuota,
   LARGE_MEDIA_THRESHOLD,
   listNotes,
+  listRawRecords,
   mediaContentUrl,
   mediaMeta,
   noteIdFromName,
   queryUploadSession,
+  rawIdFromItem,
   remoteRootExists,
   uploadMedia,
   uploadNote,
+  uploadRawRecord,
 } from "./adapter";
 import {
   extractMediaRefs,
@@ -54,12 +59,19 @@ export interface SyncConflict {
 }
 
 export interface SyncResult {
-  pulled: string[]; // ids written from remote
-  pushed: string[]; // ids sent to remote
-  pulledDeletes: string[]; // ids removed locally because they vanished remotely
-  pushedDeletes: string[]; // ids removed remotely because they vanished locally
+  pulled: string[]; // note ids written from remote
+  pushed: string[]; // note ids sent to remote
+  pulledDeletes: string[]; // note ids removed locally because they vanished remotely
+  pushedDeletes: string[]; // note ids removed remotely because they vanished locally
   pushedMedia: string[]; // media refs uploaded to the remote this run
   pulledMedia: string[]; // media refs downloaded from the remote this run
+  // Raw Memory batches (RAW-MEMORY-JOURNAL) — kept in their OWN id-space, separate
+  // from the note arrays above, since a raw id is never a note id and nothing
+  // downstream (e.g. titleFor lookups) should ever conflate the two.
+  pulledRaw: string[];
+  pushedRaw: string[];
+  pulledRawDeletes: string[];
+  pushedRawDeletes: string[];
   conflicts: SyncConflict[];
   lastSyncedAt: number;
 }
@@ -71,6 +83,10 @@ const emptyResult = (): SyncResult => ({
   pushedDeletes: [],
   pushedMedia: [],
   pulledMedia: [],
+  pulledRaw: [],
+  pushedRaw: [],
+  pulledRawDeletes: [],
+  pushedRawDeletes: [],
   conflicts: [],
   lastSyncedAt: 0,
 });
@@ -246,6 +262,7 @@ export async function sync(
   const state: SyncState = await vault.readState();
   if (!state.notes) state.notes = {};
   if (!state.media) state.media = {};
+  if (!state.raw) state.raw = {};
   // Reflect what's already backed up in the rune store before we transfer anything.
   primeMediaBackupStates(state.media);
   const result = emptyResult();
@@ -253,44 +270,84 @@ export async function sync(
   // ---------- PULL: classify ----------
   const { items, deltaLink } = await delta(graph, state.deltaLink);
   const localBefore = new Map((await vault.listNotes()).map((n) => [n.id, n.updatedAt]));
+  const rawLocalBefore = new Map((await vault.listRawMemories()).map((n) => [n.id, n.updatedAt]));
   // Notes changed on both sides: set aside after pull so push doesn't re-attempt
   // (and re-report) them. The owner resolves these; v1 leaves local as-is.
   const conflicted = new Set<string>();
   const localDeletes: string[] = []; // remote-deleted, apply locally (no transfer)
   const downloads: { id: string; item: RemoteItem }[] = [];
+  // Raw Memory batches get the SAME shape, but their own id-space and lists — see
+  // SyncResult's doc comment for why they're never merged into the note arrays. No
+  // conflict-resolution UI exists for a Raw Memory (it's single-writer in practice:
+  // the phone creates/edits it, desktop only transitions status or deletes it), so a
+  // genuine both-changed case is just left for the NEXT sync to re-evaluate rather
+  // than surfacing a SyncConflict the owner has no way to act on.
+  const rawConflicted = new Set<string>();
+  const rawLocalDeletes: string[] = [];
+  const rawDownloads: { id: string; item: RemoteItem }[] = [];
 
   for (const item of items) {
-    if (item.folder) continue; // structural entry, not a note
+    if (item.folder) continue; // structural entry, not a note or a raw record
+
     // A /delta tombstone can lack a name (only id + deleted facet) — map it back to
     // the local note by the remote id we recorded, so the deletion still propagates.
     let id = noteIdFromName(item.name);
     if (!id && item.deleted) {
       id = Object.keys(state.notes).find((k) => state.notes[k].remoteId === item.id) ?? null;
     }
-    if (!id) continue;
-    const rec = state.notes[id];
-    const localUpdatedAt = localBefore.get(id);
-    const localChanged = localUpdatedAt !== undefined && rec !== undefined && localUpdatedAt > rec.localUpdatedAt;
+    if (id) {
+      const rec = state.notes[id];
+      const localUpdatedAt = localBefore.get(id);
+      const localChanged = localUpdatedAt !== undefined && rec !== undefined && localUpdatedAt > rec.localUpdatedAt;
+
+      if (item.deleted) {
+        if (localChanged) {
+          result.conflicts.push({ noteId: id, reason: "both-changed", localUpdatedAt });
+          conflicted.add(id);
+        } else {
+          localDeletes.push(id);
+        }
+        continue;
+      }
+
+      const remoteChanged = rec === undefined || rec.cTag !== item.cTag;
+      if (localChanged && remoteChanged) {
+        const remoteUpdatedAt = item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : undefined;
+        result.conflicts.push({ noteId: id, reason: "both-changed", localUpdatedAt, remoteUpdatedAt });
+        conflicted.add(id);
+        continue;
+      }
+      if (!remoteChanged) continue; // our own echo / nothing new
+      downloads.push({ id, item });
+      continue;
+    }
+
+    // Not a note — a Raw Memory record? Recognised by parent-path (raw/<id>.json),
+    // not name suffix (see adapter.ts's rawIdFromItem) — it arrives on this SAME
+    // recursive root /delta feed as notes, no second delta cursor needed.
+    let rawId = rawIdFromItem(item);
+    if (!rawId && item.deleted) {
+      rawId = Object.keys(state.raw).find((k) => state.raw![k].remoteId === item.id) ?? null;
+    }
+    if (!rawId) continue; // media or anything else — not this loop's concern
+
+    const rawRec = state.raw[rawId];
+    const rawLocalUpdatedAt = rawLocalBefore.get(rawId);
+    const rawLocalChanged = rawLocalUpdatedAt !== undefined && rawRec !== undefined && rawLocalUpdatedAt > rawRec.localUpdatedAt;
 
     if (item.deleted) {
-      if (localChanged) {
-        result.conflicts.push({ noteId: id, reason: "both-changed", localUpdatedAt });
-        conflicted.add(id);
-      } else {
-        localDeletes.push(id);
-      }
+      if (rawLocalChanged) rawConflicted.add(rawId);
+      else rawLocalDeletes.push(rawId);
       continue;
     }
 
-    const remoteChanged = rec === undefined || rec.cTag !== item.cTag;
-    if (localChanged && remoteChanged) {
-      const remoteUpdatedAt = item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : undefined;
-      result.conflicts.push({ noteId: id, reason: "both-changed", localUpdatedAt, remoteUpdatedAt });
-      conflicted.add(id);
+    const rawRemoteChanged = rawRec === undefined || rawRec.cTag !== item.cTag;
+    if (rawLocalChanged && rawRemoteChanged) {
+      rawConflicted.add(rawId);
       continue;
     }
-    if (!remoteChanged) continue; // our own echo / nothing new
-    downloads.push({ id, item });
+    if (!rawRemoteChanged) continue;
+    rawDownloads.push({ id: rawId, item });
   }
 
   state.deltaLink = deltaLink;
@@ -301,6 +358,14 @@ export async function sync(
     if (conflicted.has(info.id)) return false; // set aside in pull — don't re-report
     const rec = state.notes[info.id];
     if (rec && info.updatedAt <= rec.localUpdatedAt) return false; // unchanged since last sync
+    return true;
+  });
+
+  const rawLocalNow = await vault.listRawMemories();
+  const rawUploads = rawLocalNow.filter((info) => {
+    if (rawConflicted.has(info.id)) return false;
+    const rec = state.raw![info.id];
+    if (rec && info.updatedAt <= rec.localUpdatedAt) return false;
     return true;
   });
 
@@ -319,6 +384,12 @@ export async function sync(
     delete state.notes[id];
     localBefore.delete(id);
     result.pulledDeletes.push(id);
+  }
+  for (const id of rawLocalDeletes) {
+    await vault.deleteRawMemory(id);
+    delete state.raw[id];
+    rawLocalBefore.delete(id);
+    result.pulledRawDeletes.push(id);
   }
 
   // Media refs mentioned by notes we pull this run — their binaries are fetched after.
@@ -378,6 +449,55 @@ export async function sync(
     doneItems++;
   }
 
+  // Raw Memory downloads/uploads — quiet, no onProgress ticks (tiny JSON records, not
+  // a heavy transfer; same "off the headline progress bar" treatment as media below).
+  for (const { id, item } of rawDownloads) {
+    const dl = await downloadRawRecord(graph, id);
+    if (!dl) continue;
+    const remoteTime = item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : nowMs();
+    await vault.writeRawMemory(id, dl.content, { updatedAt: remoteTime });
+    try {
+      const parsed = JSON.parse(dl.content) as { pages?: unknown };
+      if (Array.isArray(parsed.pages)) {
+        for (const ref of parsed.pages) if (typeof ref === "string") pulledMediaRefs.add(ref);
+      }
+    } catch {
+      log.error("sync", "raw.pull.parse-error", { id });
+    }
+    state.raw[id] = {
+      id,
+      remoteId: item.id,
+      cTag: dl.item.cTag ?? item.cTag ?? "",
+      localUpdatedAt: remoteTime,
+      syncedAt: nowMs(),
+    };
+    rawLocalBefore.set(id, remoteTime);
+    result.pulledRaw.push(id);
+  }
+
+  for (const info of rawUploads) {
+    const rec = state.raw[info.id];
+    const content = await vault.readRawMemory(info.id);
+    if (content === null) continue;
+    try {
+      const item = await uploadRawRecord(graph, info.id, content, rec?.cTag);
+      state.raw[info.id] = {
+        id: info.id,
+        remoteId: item.id ?? rec?.remoteId ?? "",
+        cTag: item.cTag ?? rec?.cTag ?? "",
+        localUpdatedAt: info.updatedAt,
+        syncedAt: nowMs(),
+      };
+      result.pushedRaw.push(info.id);
+    } catch (e) {
+      // No conflict-resolution UI for a Raw Memory (see the PULL-classify comment
+      // above) — leave it for the next sync rather than throw or report a conflict
+      // the owner has no way to act on.
+      if (!(e instanceof ConflictError)) throw e;
+      log.info("sync", "raw.push.conflict", { id: info.id });
+    }
+  }
+
   // ---------- MEDIA BACKUP ----------
   // Pull the binaries pulled notes reference (rehydrate on a second machine), then push
   // any local media not yet backed up. Media is the slow, large payload — kept off the
@@ -408,6 +528,25 @@ export async function sync(
     }
   }
 
+  // A Raw Memory vanishes locally in two cases, both of which SHOULD propagate as a
+  // real remote delete: the owner deleted the batch from the phone, or desktop just
+  // consumed it via processRawBatch (see useProcessQueue.ts) after successfully
+  // writing the final Memories. Either way, once it's gone locally it should be gone
+  // everywhere — same tombstone contract as a note (wiki.md's sync-tombstone decision).
+  const rawLiveIds = new Set((await vault.listRawMemories()).map((n) => n.id));
+  for (const id of Object.keys(state.raw)) {
+    if (rawLiveIds.has(id)) continue;
+    const rec = state.raw[id];
+    try {
+      await deleteRawRecord(graph, id, rec.cTag);
+      delete state.raw[id];
+      result.pushedRawDeletes.push(id);
+    } catch (e) {
+      if (!(e instanceof ConflictError)) throw e;
+      log.info("sync", "raw.delete.conflict", { id });
+    }
+  }
+
   state.lastSyncedAt = nowMs();
   result.lastSyncedAt = state.lastSyncedAt;
   await vault.writeState(state);
@@ -419,6 +558,10 @@ export async function sync(
     pushedDeletes: result.pushedDeletes.length,
     pushedMedia: result.pushedMedia.length,
     pulledMedia: result.pulledMedia.length,
+    pulledRaw: result.pulledRaw.length,
+    pushedRaw: result.pushedRaw.length,
+    pulledRawDeletes: result.pulledRawDeletes.length,
+    pushedRawDeletes: result.pushedRawDeletes.length,
     conflicts: result.conflicts.length,
   });
   return result;
@@ -508,12 +651,18 @@ export async function restoreFromCloud(
     const id = noteIdFromName(item.name);
     if (id) remoteIds.add(id);
   }
+  const remoteRaw = await listRawRecords(graph);
+  const remoteRawIds = new Set<string>();
+  for (const item of remoteRaw) {
+    const id = rawIdFromItem(item);
+    if (id) remoteRawIds.add(id);
+  }
 
   // Fresh state, rebuilt as we download. deltaLink stays null → next sync re-baselines.
-  const state: SyncState = { ...EMPTY_SYNC_STATE, notes: {}, media: {} };
+  const state: SyncState = { ...EMPTY_SYNC_STATE, notes: {}, media: {}, raw: {} };
 
-  const totalItems = remote.length;
-  let doneItems = 0;
+  const totalItems = remote.length; // raw records stay off the headline count — same
+  let doneItems = 0; // "quiet, tiny JSON" treatment as the regular sync() above.
 
   // Media refs the restored notes reference — their binaries are fetched after the notes.
   const restoredMediaRefs = new Set<string>();
@@ -539,11 +688,42 @@ export async function restoreFromCloud(
     result.pulled.push(id);
   }
 
-  // Drop every local note the cloud doesn't have — this is a mirror, not a merge.
+  // Download every remote Raw Memory record the same way.
+  for (const item of remoteRaw) {
+    const id = rawIdFromItem(item);
+    if (!id) continue;
+    const dl = await downloadRawRecord(graph, id);
+    if (!dl) continue;
+    const remoteTime = item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : nowMs();
+    await vault.writeRawMemory(id, dl.content, { updatedAt: remoteTime });
+    try {
+      const parsed = JSON.parse(dl.content) as { pages?: unknown };
+      if (Array.isArray(parsed.pages)) {
+        for (const ref of parsed.pages) if (typeof ref === "string") restoredMediaRefs.add(ref);
+      }
+    } catch {
+      log.error("sync", "raw.restore.parse-error", { id });
+    }
+    state.raw![id] = {
+      id,
+      remoteId: item.id,
+      cTag: dl.item.cTag ?? item.cTag ?? "",
+      localUpdatedAt: remoteTime,
+      syncedAt: nowMs(),
+    };
+    result.pulledRaw.push(id);
+  }
+
+  // Drop every local note/raw record the cloud doesn't have — this is a mirror, not a merge.
   for (const info of await vault.listNotes()) {
     if (remoteIds.has(info.id)) continue;
     await vault.deleteNote(info.id);
     result.pulledDeletes.push(info.id);
+  }
+  for (const info of await vault.listRawMemories()) {
+    if (remoteRawIds.has(info.id)) continue;
+    await vault.deleteRawMemory(info.id);
+    result.pulledRawDeletes.push(info.id);
   }
 
   // Rehydrate the referenced media binaries (content-addressed, so a fresh vault just
@@ -559,6 +739,8 @@ export async function restoreFromCloud(
     pulled: result.pulled.length,
     deletedLocal: result.pulledDeletes.length,
     pulledMedia: result.pulledMedia.length,
+    pulledRaw: result.pulledRaw.length,
+    deletedRawLocal: result.pulledRawDeletes.length,
   });
   return result;
 }

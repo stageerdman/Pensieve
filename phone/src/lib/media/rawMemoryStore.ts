@@ -5,6 +5,12 @@
 // SEPARATE list from the note vault — a Raw Memory is not a Note (see
 // updates/2026-11-09 RAW-MEMORY-JOURNAL/wiki.md: no title, no category, not searchable,
 // mutable/deletable right up until desktop processing consumes it).
+//
+// One localStorage key PER BATCH (`RAW_PREFIX + id`), not one big array — this mirrors
+// the desktop vault's one-file-per-record (`raw/<id>.json`) exactly, which the sync
+// engine's LocalVault contract depends on (list/read/write/delete by id independently,
+// same as notes). `updatedAt` is stamped on every mutation so sync can tell a local
+// edit from a stale copy, the same way a note's `updatedAt` already drives that.
 
 import { newId } from "../../vaultStore";
 import { mintMediaRef, registerLocalMedia, deleteMedia } from "./mediaStore";
@@ -15,38 +21,87 @@ export interface RawMemory {
   id: string;
   status: RawMemoryStatus;
   createdAt: number;
+  // Optional for back-compat with the handful of hand-built test fixtures that predate
+  // sync — every real mutation below always stamps it. Sync treats a missing value as
+  // "older than anything", never as a reason to throw.
+  updatedAt?: number;
   pages: string[]; // ordered media refs — media/<id>/<mediaId>.<ext>
 }
 
-const RAW_KEY = "pensieve.phone.raw";
+const RAW_PREFIX = "pensieve.phone.raw.";
 
-export function loadRawBatches(): RawMemory[] {
-  try {
-    const raw = localStorage.getItem(RAW_KEY);
-    if (!raw) return [];
-    const v = JSON.parse(raw);
-    if (Array.isArray(v) && v.every((r) => r && typeof r.id === "string" && Array.isArray(r.pages))) {
-      return v as RawMemory[];
-    }
-  } catch {
-    /* corrupt — treat as empty rather than crash */
-  }
-  return [];
+function isRawMemory(v: unknown): v is RawMemory {
+  const r = v as Partial<RawMemory> | null;
+  return !!r && typeof r.id === "string" && Array.isArray(r.pages);
 }
 
-export function persistRawBatches(data: RawMemory[]): void {
+function rawKeysInStorage(): string[] {
+  const keys: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k?.startsWith(RAW_PREFIX)) keys.push(k);
+  }
+  return keys;
+}
+
+export function loadRawBatches(): RawMemory[] {
+  const out: RawMemory[] = [];
+  for (const key of rawKeysInStorage()) {
+    try {
+      const v = JSON.parse(localStorage.getItem(key) ?? "");
+      if (isRawMemory(v)) out.push(v);
+    } catch {
+      /* corrupt entry — skip it, don't let it take the whole list down */
+    }
+  }
+  return out;
+}
+
+/** One batch by id — the shape the sync engine's LocalVault needs (read/write
+ *  independently, same as a single note), distinct from loadRawBatches' "everything"
+ *  view the Home strip renders from. */
+export function loadRawBatch(id: string): RawMemory | null {
   try {
-    localStorage.setItem(RAW_KEY, JSON.stringify(data));
+    const raw = localStorage.getItem(RAW_PREFIX + id);
+    if (!raw) return null;
+    const v = JSON.parse(raw);
+    return isRawMemory(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveRawBatch(b: RawMemory): void {
+  try {
+    localStorage.setItem(RAW_PREFIX + b.id, JSON.stringify(b));
   } catch {
     /* quota / unavailable — a reload just starts from whatever was last saved */
   }
+}
+
+export function deleteRawBatchRecord(id: string): void {
+  localStorage.removeItem(RAW_PREFIX + id);
+}
+
+/** Overwrite the WHOLE authoritative set — used by the UI layer, which always holds
+ *  the full list in React state. Internally this is still one key per batch; any
+ *  batch id present in storage but absent from `data` is removed (an id that's gone
+ *  from the authoritative list no longer exists, same as the old single-array
+ *  semantics this replaces). */
+export function persistRawBatches(data: RawMemory[]): void {
+  const keep = new Set(data.map((b) => RAW_PREFIX + b.id));
+  for (const key of rawKeysInStorage()) {
+    if (!keep.has(key)) localStorage.removeItem(key);
+  }
+  for (const b of data) saveRawBatch(b);
 }
 
 /** Start a new batch — mints the id, writes nothing else yet (the first captured page
  *  is a separate addPageToBatch call, so the capture screen can show "0 pages" briefly
  *  before the first shutter tap without this record being half-written). */
 export function createRawBatch(): RawMemory {
-  return { id: newId(), status: "capturing", createdAt: Date.now(), pages: [] };
+  const now = Date.now();
+  return { id: newId(), status: "capturing", createdAt: now, updatedAt: now, pages: [] };
 }
 
 /** Save a freshly-captured page's bytes and return the batch with it appended. Pure
@@ -56,7 +111,7 @@ export function addPageToBatch(batch: RawMemory, blob: Blob, filename = "page.jp
   const file = new File([blob], filename, { type: blob.type || "image/jpeg" });
   const ref = mintMediaRef(batch.id, file);
   registerLocalMedia(ref, blob);
-  return { ...batch, pages: [...batch.pages, ref] };
+  return { ...batch, pages: [...batch.pages, ref], updatedAt: Date.now() };
 }
 
 /** Remove one page — frees its bytes too (a Raw Memory's pages aren't shared with
@@ -65,14 +120,14 @@ export function addPageToBatch(batch: RawMemory, blob: Blob, filename = "page.jp
 export async function removePageFromBatch(batch: RawMemory, index: number): Promise<RawMemory> {
   const ref = batch.pages[index];
   if (ref) await deleteMedia(ref);
-  return { ...batch, pages: batch.pages.filter((_, i) => i !== index) };
+  return { ...batch, pages: batch.pages.filter((_, i) => i !== index), updatedAt: Date.now() };
 }
 
 export function reorderBatchPages(batch: RawMemory, from: number, to: number): RawMemory {
   const pages = [...batch.pages];
   const [moved] = pages.splice(from, 1);
   pages.splice(to, 0, moved);
-  return { ...batch, pages };
+  return { ...batch, pages, updatedAt: Date.now() };
 }
 
 /** Delete a whole batch — every page's bytes, then the record. The caller still owns

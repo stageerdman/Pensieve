@@ -23,6 +23,10 @@ export interface RawMemory {
   id: string; // also the media-folder slot: media/<id>/<mediaId>.<ext>
   status: RawMemoryStatus;
   createdAt: number;
+  // Stamped on every saveRawMemory — the sync engine's "did this change locally?"
+  // signal, same role as a Note's updatedAt. Optional for back-compat with the test
+  // fixtures that predate sync; a missing value sorts as "older than anything real".
+  updatedAt?: number;
   // Ordered photographed-page refs (media/<id>/<mediaId>.<ext>), order = page order.
   pages: string[];
 }

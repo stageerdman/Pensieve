@@ -26,6 +26,16 @@ export interface NoteSyncRecord {
   syncedAt: number;
 }
 
+/** Same shape, for a Raw Memory batch (`raw/<id>.json`) instead of a note's `.md` —
+ *  see src/lib/sync/types.ts's mirror of this for the full rationale. */
+export interface RawSyncRecord {
+  id: string;
+  remoteId: string;
+  cTag: string;
+  localUpdatedAt: number;
+  syncedAt: number;
+}
+
 /** Per-media backup bookkeeping. Media is content-addressed by its stable ref, so
  *  there's no cTag: a recorded `backedUp` ref is done. */
 export interface MediaSyncRecord {
@@ -36,14 +46,17 @@ export interface MediaSyncRecord {
 }
 
 export interface SyncState {
-  /** The /delta cursor (@odata.deltaLink) — resume incremental pulls from here. */
+  /** The /delta cursor (@odata.deltaLink) — resume incremental pulls from here. Shared
+   *  with Raw Memory records too — see the desktop mirror's comment on why no second
+   *  cursor is needed. */
   deltaLink: string | null;
   notes: Record<string, NoteSyncRecord>;
   media?: Record<string, MediaSyncRecord>;
+  raw?: Record<string, RawSyncRecord>;
   lastSyncedAt: number | null;
 }
 
-export const EMPTY_SYNC_STATE: SyncState = { deltaLink: null, notes: {}, media: {}, lastSyncedAt: null };
+export const EMPTY_SYNC_STATE: SyncState = { deltaLink: null, notes: {}, media: {}, raw: {}, lastSyncedAt: null };
 
 export interface SyncAccount {
   email: string;
@@ -79,6 +92,12 @@ export interface SyncResult {
   pushedDeletes: string[];
   pushedMedia: string[];
   pulledMedia: string[];
+  // Raw Memory batches — own id-space, never conflated with note ids (see
+  // src/lib/sync/engine.ts's SyncResult mirror for why).
+  pulledRaw: string[];
+  pushedRaw: string[];
+  pulledRawDeletes: string[];
+  pushedRawDeletes: string[];
   conflicts: SyncConflict[];
   lastSyncedAt: number;
 }

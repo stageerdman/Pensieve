@@ -153,6 +153,120 @@ export async function deleteNote(graph: GraphClient, noteId: string, ifMatch?: s
   throw new Error(`deleteNote failed (${res.status}): ${text.slice(0, 200)}`);
 }
 
+// ── Raw Memory records (RAW-MEMORY-JOURNAL) ──────────────────────────────────────
+// One `raw/<id>.json` per batch, under its own subfolder of the Pensieve root (so it
+// can never collide with a note's flat `<id>.md`). Same conditional-cTag shape as a
+// note — a Raw Memory is single-writer in practice (the phone creates/edits it;
+// desktop only transitions status or deletes it after processing), but the guard
+// costs nothing to keep and matches the one pattern every record kind here uses.
+// Graph creates the `raw/` folder implicitly on the first content PUT, exactly like
+// media's per-note folders already do (see uploadMedia's header) — no separate
+// folder-creation step, and nothing here assumes the folder already exists.
+
+const RAW_DIR = "raw";
+
+/** A raw-record id → its vault-relative path segment (`raw/<id>.json`). */
+export const remoteRawName = (id: string): string => `${RAW_DIR}/${id}.json`;
+const rawFilePath = (id: string) => `/me/drive/root:/${enc(REMOTE_ROOT)}/${remoteRawName(id).split("/").map(enc).join("/")}`;
+
+/** A /delta or /children item → the Raw Memory id it belongs to, or null if it isn't
+ *  one. Recognised by PARENT PATH (must sit directly in the `raw/` subfolder) + a
+ *  `.json` name — mirrors mediaRefFromItem's approach, not noteIdFromName's (notes
+ *  live flat in the root, so a name-suffix check is enough for them; a raw record
+ *  needs the folder check too so nothing else ending in `.json` is ever mistaken
+ *  for one). Returns null for a tombstone with no parentReference — callers fall back
+ *  to the same remoteId lookup notes already use for that case (see engine.ts). */
+export function rawIdFromItem(item: RemoteItem): string | null {
+  if (item.folder || !item.name || !item.name.endsWith(".json")) return null;
+  const path = item.parentReference?.path;
+  if (!path) return null;
+  if (!path.endsWith(`/${REMOTE_ROOT}/${RAW_DIR}`)) return null;
+  return item.name.slice(0, -".json".length);
+}
+
+/** List every Raw Memory record on the remote — the restoreFromCloud equivalent of
+ *  listNotes. Unlike listNotes, this lists the `raw/` SUBFOLDER's children, not the
+ *  root's — so a 404 (the subfolder doesn't exist yet because nothing's ever synced
+ *  a batch) just means "no raw records yet", not a real error. */
+export async function listRawRecords(graph: GraphClient): Promise<RemoteItem[]> {
+  const out: RemoteItem[] = [];
+  let path: string | null = `${rootPath()}/${enc(RAW_DIR)}:/children?$select=id,name,eTag,cTag,size,lastModifiedDateTime,folder`;
+  let absolute = false;
+  while (path) {
+    const res = await graph.fetch(path, { absolute });
+    if (res.status === 404) return out; // raw/ doesn't exist yet — nothing synced ever
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`listRawRecords failed (${res.status}): ${text.slice(0, 200)}`);
+    }
+    const page = (await res.json()) as ChildrenResponse;
+    for (const item of page.value) {
+      if (item.folder) continue;
+      if (item.name.endsWith(".json")) out.push(item);
+    }
+    path = page["@odata.nextLink"] ?? null;
+    absolute = true;
+  }
+  return out;
+}
+
+/** Read a Raw Memory record's content + current metadata. Null if it doesn't exist. */
+export async function downloadRawRecord(
+  graph: GraphClient,
+  id: string,
+): Promise<{ content: string; item: RemoteItem } | null> {
+  const metaRes = await graph.fetch(`${rawFilePath(id)}?$select=id,name,eTag,cTag,size,lastModifiedDateTime`);
+  if (metaRes.status === 404) return null;
+  if (!metaRes.ok) {
+    const text = await metaRes.text().catch(() => "");
+    throw new Error(`downloadRawRecord meta failed (${metaRes.status}): ${text.slice(0, 200)}`);
+  }
+  const item = (await metaRes.json()) as RemoteItem;
+  const contentRes = await graph.fetch(`${rawFilePath(id)}:/content`);
+  if (!contentRes.ok) {
+    const text = await contentRes.text().catch(() => "");
+    throw new Error(`downloadRawRecord content failed (${contentRes.status}): ${text.slice(0, 200)}`);
+  }
+  const content = await contentRes.text();
+  return { content, item };
+}
+
+/** Upload (create or replace) a Raw Memory record. Conditional via `ifMatch`, same
+ *  412 → ConflictError contract as uploadNote. */
+export async function uploadRawRecord(
+  graph: GraphClient,
+  id: string,
+  content: string,
+  ifMatch?: string,
+): Promise<RemoteItem> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (ifMatch) headers["If-Match"] = ifMatch;
+  const res = await graph.fetch(`${rawFilePath(id)}:/content`, { method: "PUT", headers, body: content });
+  if (res.status === 412) throw new ConflictError(id);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`uploadRawRecord failed (${res.status}): ${text.slice(0, 200)}`);
+  }
+  const item = (await res.json()) as RemoteItem;
+  log.debug("sync", "adapter.raw.upload", { id, cTag: item.cTag, conditional: !!ifMatch });
+  return item;
+}
+
+/** Delete a Raw Memory record's remote file. Absent (404) = success; stale `ifMatch`
+ *  → 412 → ConflictError, same contract as deleteNote. */
+export async function deleteRawRecord(graph: GraphClient, id: string, ifMatch?: string): Promise<void> {
+  const headers: Record<string, string> = {};
+  if (ifMatch) headers["If-Match"] = ifMatch;
+  const res = await graph.fetch(`${rawFilePath(id)}`, { method: "DELETE", headers });
+  if (res.status === 412) throw new ConflictError(id);
+  if (res.ok || res.status === 404) {
+    log.debug("sync", "adapter.raw.delete", { id });
+    return;
+  }
+  const text = await res.text().catch(() => "");
+  throw new Error(`deleteRawRecord failed (${res.status}): ${text.slice(0, 200)}`);
+}
+
 // ── Media binaries ────────────────────────────────────────────────────────────────
 // Media mirrors the local vault layout under the same Pensieve root:
 //   <root>/media/<noteId>/<mediaId>.<ext>

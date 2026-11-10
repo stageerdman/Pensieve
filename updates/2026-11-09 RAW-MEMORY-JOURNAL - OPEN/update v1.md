@@ -121,13 +121,33 @@ tune the prompt in `describePageTauri.ts`.
 Record in wiki.md how Raw Memory should generalize to mixed-media batches (audio+video+text+photos) with a free-text AI instruction at the end, producing whatever final Memory shape the instruction asks for. This phase is documentation only — do not build it now.
 **Status: not started** (by design — explicitly out of scope for this update).
 
+### Phase 7a — Sync — DONE (2026-11-10), real-account verification still owed
+Built the gap Phase 7 flagged: real OneDrive sync for the Raw Memory object kind, on BOTH sides
+(`src/lib/sync/` and the independently-implemented `phone/src/lib/sync/` — see CLAUDE.md's
+decoupled-codebases note). One `raw/<id>.json` per batch in its own remote subfolder (never
+collides with a note's flat `<id>.md`); recognised in `/delta`/`:/children` by PARENT PATH
+(`rawIdFromItem`), not name suffix; rides the SAME delta cursor and media-pull pass notes already
+use — no second sync loop. No conflict-resolution UI for a Raw Memory (it's single-writer in
+practice: phone creates/edits, desktop only transitions status or deletes) — a genuine both-changed
+case is just left for the next sync to re-evaluate rather than surfacing a SyncConflict the owner
+has no way to act on. Two real bugs found and fixed while building this (both via failing tests, not
+guessed): a malformed double-colon Graph path in desktop's `listRawRecords`, and three gaps in the
+engine tests' fake OneDrive (children-listing not folder-scoped, delta items missing
+`parentReference`, no `arrayBuffer()` on the fake response) — all fixed, then mirrored correctly to
+phone's fake on the first attempt. 23 new tests on desktop (10 engine + 13 adapter), 20 new on phone
+(10 engine + mirrored adapter coverage + a `rawMemoryStore.ts` rewrite to per-id storage + its own
+15-test rewrite). Full project suite: 1160 tests, 0 failures; `tsc --noEmit` clean on both apps;
+`cargo check` clean; `npm run build:phone` clean. **Not done:** this is all verified against a
+scripted/fake Graph client — no real OneDrive account has pushed or pulled an actual Raw Memory
+record yet. The first real end-to-end test (capture a batch on the phone, sync, confirm it lands on
+desktop) is still the owner's to do.
+
 ### Phase 7 — Test, build, ship — PARTIALLY DONE
-Done: full vitest suite (1103 tests, 0 failures), `tsc --noEmit` clean on both apps, `npm run build`
-+ `npm run build:phone` clean, `npm run tauri:build` (native `.app` reinstalled to `/Applications`,
-timestamp-verified), `npm run deploy:phone` (live at pensieve-phone.pages.dev), merged to `main` and
-pushed. **Not done, and deliberately not attempted — see wiki.md's final entry:** real OneDrive sync
-of the new Raw Memory object kind. On-device confirmation of the phone capture flow is the owner's
-to do next.
+Done: full vitest suite, `tsc --noEmit` clean on both apps, `npm run build` + `npm run build:phone`
+clean, `npm run tauri:build` (native `.app` reinstalled to `/Applications`, timestamp-verified),
+`npm run deploy:phone` (live at pensieve-phone.pages.dev), merged to `main` and pushed. Sync (the gap
+flagged here originally) is now built — see Phase 7a. On-device confirmation of the phone capture
+flow, AND a real end-to-end sync test against a live OneDrive account, are the owner's to do next.
 
 ## Decisions log
 See `wiki.md`.

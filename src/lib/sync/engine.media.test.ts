@@ -28,6 +28,19 @@ class MemVault implements LocalVault {
   async deleteNote(id: string) {
     this.notes.delete(id);
   }
+  raw = new Map<string, { content: string; updatedAt: number }>();
+  async listRawMemories(): Promise<LocalNoteInfo[]> {
+    return [...this.raw].map(([id, r]) => ({ id, updatedAt: r.updatedAt }));
+  }
+  async readRawMemory(id: string) {
+    return this.raw.get(id)?.content ?? null;
+  }
+  async writeRawMemory(id: string, content: string, times?: WriteTimes) {
+    this.raw.set(id, { content, updatedAt: times?.updatedAt ?? 0 });
+  }
+  async deleteRawMemory(id: string) {
+    this.raw.delete(id);
+  }
   async readState() {
     return JSON.parse(JSON.stringify(this.state)) as SyncState;
   }
