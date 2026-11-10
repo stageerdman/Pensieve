@@ -71,8 +71,18 @@ reads a `tool_result` block, read `content[0].text`, not `content` directly — 
 copy that part of masters-wheel's code without checking the live shape first.
 
 ## Open questions / revisit later
-- Chat history persistence location (not the note vault — chats aren't notes). Likely
-  mirrors `secrets.json`'s precedent: `$APPDATA/xyz.erdman.pensieve/` rather than inside
-  the vault folder the owner syncs via OneDrive.
-- Agent roster is currently just Patronus + Curator as a starting point — the owner may
-  rename/add agents once the picker UI exists.
+- Chat history persistence location (not the note vault — chats aren't notes). Right now
+  conversations live only in memory (`useAssistant`'s React state) and are lost on
+  app restart. If persisted, likely mirrors `secrets.json`'s precedent:
+  `$APPDATA/xyz.erdman.pensieve/` rather than inside the vault folder the owner syncs
+  via OneDrive — or could follow `agents.json`'s own precedent and just live in the
+  vault instead. Not decided; no persistence exists yet either way.
+- Agent roster editing UI now exists (`AgentsEditor.tsx`, backed by `agents.json` via
+  `lib/ai/agentStore.ts`) — the "owner may rename/add agents once the picker UI exists"
+  note from Phase 1 is resolved. Starting roster is still just Patronus + Curator.
+- Write MCP tools (`create_note`/`edit_note`/`add_tag`/`link_note`) have never actually
+  been invoked by the CLI in this session — only unit-level/schema-level checks. If
+  they're ever flipped on in `mcp/config.rs::ALLOWED_TOOLS`, do a real hand-test the same
+  way the read tools got one (see "Verified end-to-end" above) before trusting them.
+- No GUI click-through yet at all — see "Paused here" in `update v1.md` for the full list
+  of what that would exercise for the first time.

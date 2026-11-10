@@ -116,4 +116,34 @@ MCP-server-mode code path only.
       live CLI: a tool_result's `content` is an array of content blocks (the real
       Anthropic shape), not the plain string masters-wheel's own code assumes — fixed
       and locked in with 5 new `cargo test` cases on `extract_note_refs`.
-- [ ] Phase 8 — native build + ship (next: `npm run tauri:build`, owner click-through)
+- [~] Phase 8 — native build + ship. The app has been built+installed to
+      `/Applications/Pensieve.app` three times already (after Phase 6, after Phase 7b,
+      and after Phase 7c — each time confirmed via a fresh `/Applications` mod-time, not
+      just a zero exit code) and relaunched each time, so it's always reflected whatever
+      landed on `main`. What's NOT done: an actual hands-on click-through. There is no
+      native-macOS-window driving tool available in this environment (only Chrome
+      browser automation), so every verification so far has been typecheck/tests/build
+      plus hand-built raw CLI calls simulating the Rust code path — never an actual
+      click on the orb in the running app.
+
+## Paused here (2026-11-10) — how to resume
+Everything above is committed and pushed to `main` (not merged from a branch — this was
+built directly on `main` per the owner's stated workflow prefs). The app is currently
+built, installed, and running with every phase above included. **The one real next
+step is the owner's own click-through**: open Pensieve, click the orb bottom-left,
+send a message, try "expand to full screen," try "Add new agent," and try asking
+something that should surface a note (to see the clickable memory chips). If a bug
+turns up, it is almost certainly somewhere never exercised end-to-end by hand yet:
+- The actual popover/full-screen/agent-editor UI interactions (clicks, the agent
+  picker, the resize handle, Escape-to-close).
+- The MCP **write** tools (`create_note`/`edit_note`/`add_tag`/`link_note`) — compiled,
+  unit-coverage via the server's own schema validation, but never once actually invoked
+  by the CLI in this session (they're intentionally excluded from `ALLOWED_TOOLS`).
+- Multi-turn session resume (`--resume`) across more than the single-turn tests run here.
+- The Agents editor's save/delete round-trip against a real `agents.json` on a real vault
+  (only exercised via code review + typecheck, not a real click-save-reload cycle).
+
+Nothing is blocking a future session from either continuing new scope (write-tool
+enablement, chat history persistence, multi-Space-style agent scoping, etc.) or just
+closing this out once the owner confirms it works — whichever comes first. If it's
+confirmed working, rename this folder's suffix from `- OPEN` to `- CLOSED`.
