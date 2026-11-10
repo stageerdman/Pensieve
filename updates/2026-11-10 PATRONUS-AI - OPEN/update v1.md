@@ -107,4 +107,13 @@ MCP-server-mode code path only.
       tear down in-flight stream listeners, which was fine when the popover was the only
       display surface but silently truncated a live reply once the full-screen tab could
       also be watching the same conversation.
+- [x] Phase 7c — clickable memory chips (scope added after Phase 7b, same session):
+      the AI could already find notes via its tools but could only describe them in
+      prose. `assistant.rs` now tracks each reply's tool_use→tool_result pairs for the
+      three note-returning tools and emits matched id/title pairs as a new
+      `assistant-notes-found` event; `MessageList` renders them as clickable chips that
+      call the app's real `openNote()` tab-opener. Caught by hand-verifying against the
+      live CLI: a tool_result's `content` is an array of content blocks (the real
+      Anthropic shape), not the plain string masters-wheel's own code assumes — fixed
+      and locked in with 5 new `cargo test` cases on `extract_note_refs`.
 - [ ] Phase 8 — native build + ship (next: `npm run tauri:build`, owner click-through)

@@ -59,6 +59,17 @@ Not yet verified: the actual GUI click-through (orb → window → live streamin
 no native-macOS-window driving capability available in this environment, only Chrome
 browser automation. Needs the owner's own click-test once the native app is built.
 
+## A masters-wheel assumption that doesn't hold on this CLI version (verified by hand)
+masters-wheel's own `assistant.rs` reads a tool_result's `content` field as a plain
+string (`block.get("content").and_then(|v| v.as_str())`). On the live `claude` CLI
+(2.1.212) actually installed here, a tool_result's `content` is an **array of content
+blocks** — `[{"type":"text","text":"<the tool's real output>"}]` — matching the real
+Anthropic Messages API tool_result shape, not a flattened string. Confirmed by hand:
+ran the exact `claude -p --mcp-config ...` command assistant.rs builds against a real
+MCP tool call and inspected the raw NDJSON. If a future masters-wheel-ported feature
+reads a `tool_result` block, read `content[0].text`, not `content` directly — don't
+copy that part of masters-wheel's code without checking the live shape first.
+
 ## Open questions / revisit later
 - Chat history persistence location (not the note vault — chats aren't notes). Likely
   mirrors `secrets.json`'s precedent: `$APPDATA/xyz.erdman.pensieve/` rather than inside
