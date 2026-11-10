@@ -131,15 +131,26 @@ Phases 3-5 are built and merged to `main` (full suite green, both apps build, na
 reinstalled, phone PWA redeployed). Three things were deliberately NOT attempted this pass, each for
 a specific reason rather than running out of time mid-task:
 
-**OneDrive sync of the Raw Memory object kind was not wired.** Local capture → local storage →
-local processing all work end to end (a Raw Memory can be created, filled, processed, and turned into
-real Memories entirely on one device). What's missing is the cross-device half: pushing a Raw Memory
-batch to OneDrive, pulling it down on desktop, and the phone-side delete-then-sync tombstone actually
-reaching the cloud. The sync engine (`lib/sync/engine.ts`/`adapter.ts` + the Rust chunked-transfer
-layer) is real, stateful, and touches the owner's live OneDrive account — getting a new object kind
-wrong there risks corrupting sync state in a way that's hard to debug without the real account to
-test against. Rather than wire something unverifiable and hope, this is named here as the next
-focused piece of work, not silently skipped.
+**OneDrive sync of the Raw Memory object kind — now BUILT (2026-11-10), real-account verification
+still owed.** Both `src/lib/sync/` (desktop) and the independently-implemented
+`phone/src/lib/sync/` (see CLAUDE.md's decoupled-codebases note — the two stacks share no runtime
+code, only the same algorithm re-derived) got a parallel raw-record pull-classify/push-classify/
+apply/restoreFromCloud path, riding the SAME `/delta` cursor and media-pull pass notes already use —
+no second sync loop, no new UI. A Raw Memory record lives at `raw/<id>.json` in its own remote
+subfolder (never collides with a note's flat `<id>.md`), recognised by PARENT PATH
+(`rawIdFromItem`), not name suffix. No conflict-resolution UI exists for one — it's single-writer in
+practice (phone creates/edits, desktop only transitions status or deletes), so a genuine
+both-changed case is simply left for the next sync to re-evaluate rather than surfacing a
+SyncConflict the owner has no way to act on. Building this against a SCRIPTED fake Graph client (not
+the live account) surfaced two real bugs the fake itself was hiding: a malformed double-colon Graph
+path in desktop's `listRawRecords` (`rootPath()` already ends in `:/Pensieve`; a second colon before
+`/raw` is malformed path-addressing syntax and 404s), and three gaps in the test harness's fake
+OneDrive — unscoped children-listing, delta items missing `parentReference`, no `arrayBuffer()` on
+the fake response — all found via a failing test, fixed, then mirrored to phone's fake correctly on
+the first attempt since the bug was already known. 23 new tests on desktop, 20 new on phone (full
+project suite: 1160 tests, 0 failures). **Still open:** every one of those tests runs against a
+scripted fake — no real OneDrive account has actually pushed or pulled a Raw Memory record yet. The
+first real test is capturing a batch on the phone, syncing, and confirming it lands on desktop.
 
 **The AI prompt's real-world accuracy is unverified.** `describe_journal_page` is proven to work as
 a *mechanism* — verified live against the real `claude` CLI binary, including the non-obvious
