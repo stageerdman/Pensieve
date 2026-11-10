@@ -142,6 +142,39 @@ scripted/fake Graph client — no real OneDrive account has pushed or pulled an 
 record yet. The first real end-to-end test (capture a batch on the phone, sync, confirm it lands on
 desktop) is still the owner's to do.
 
+### Phase 7b — First real end-to-end run: three device bugs, then four real pipeline gaps — DONE (2026-11-10)
+The owner's first real capture → sync → process → view pass surfaced bugs at every layer, each
+fixed same-day rather than batched:
+
+**Device-UI round (phone, `89b0ffd`/`a2ac5ba`):** the Journal card was a fixed sibling above `.reel`,
+never scrolling with the feed; opening a batch showed no photos (no IndexedDB fallback when the
+in-memory url cache was cold); and sync stayed stuck on "Queued to sync" forever even though the
+batch genuinely had synced — confirmed LIVE against the real OneDrive account (used the stored
+refresh token to query Graph directly) that the record + all 3 photos truly were in the cloud and on
+the desktop vault, just permanently gated out of the Process queue because nothing ever flipped the
+batch's own `status` field to "synced" in a way that reached the cloud. Real root cause, not a UI
+cosmetic — see wiki.md.
+
+**Pipeline round (`886794a` desktop, `8e1be9c` phone):** once a batch could actually be processed,
+four more real gaps showed up: no progress during Process (now onPageDone ticks the SAME pct/bar UI
+audio already had — it was just never fed); every generated Memory titled "Untitled" (now a title
+derived from that Memory's own transcript text, prepended before the fence); a shared boundary
+page duplicated its WHOLE transcript into both days' Memories (now the AI prompt splits it at the
+date-header boundary — `previousPart` vs `transcript` — so each Memory gets only its own slice); and
+new Memories stayed invisible in search/feed until a restart (processRawBatch's creates are
+local-only, never surfaced by a sync pull — now a direct `onNotesCreated` callback refreshes
+`useNotes()`). Auto-start was investigated too and found to already work correctly (SyncStatus's
+enqueueAuto already runs journal items through the same driver as audio on every real sync) — the
+one manual Process press needed was a side effect of the earlier manual unstick, not a real gap.
+
+On the phone, the processed Memory still showed the raw `pensieve:journal` fence as literal text —
+the phone's markdown bridge had no case for it at all. Added full parse/encode, a clean "📓 Journal"
+snippet marker (replacing raw ref lines), a real inline page strip (tap → the existing lightbox at
+that page), and a transcript reader reusing the existing full-screen audio/video reader in a new
+`noPlayer` mode.
+
+Both apps rebuilt/redeployed after each round. Full suite: 1183 tests, 0 failures.
+
 ### Phase 7 — Test, build, ship — PARTIALLY DONE
 Done: full vitest suite, `tsc --noEmit` clean on both apps, `npm run build` + `npm run build:phone`
 clean, `npm run tauri:build` (native `.app` reinstalled to `/Applications`, timestamp-verified),
