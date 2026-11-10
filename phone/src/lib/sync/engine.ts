@@ -12,15 +12,20 @@ import {
   createRoot,
   delta,
   deleteNote,
+  deleteRawRecord,
   downloadMedia,
   downloadNote,
+  downloadRawRecord,
   getAccount,
   getQuota,
   listNotes,
+  listRawRecords,
   noteIdFromName,
+  rawIdFromItem,
   remoteRootExists,
   uploadMedia,
   uploadNote,
+  uploadRawRecord,
 } from "./adapter";
 import { ConflictError, RemoteRootMissingError } from "./errors";
 import { EMPTY_SYNC_STATE, type MediaSyncRecord, type RemoteItem, type SyncAccount, type SyncProgress, type SyncQuota, type SyncResult, type SyncState } from "./types";
@@ -28,6 +33,7 @@ import { getAccessToken, clearTokenCache } from "./tokens";
 import { parseNoteContent } from "../media/noteMedia";
 import { isMediaPath } from "../media/noteMedia";
 import { transcriptRefFor } from "../media/transcript";
+import { log } from "../logger";
 
 function extractMediaRefs(content: string): string[] {
   const refs: string[] = [];
@@ -57,6 +63,10 @@ const emptyResult = (): SyncResult => ({
   pushedDeletes: [],
   pushedMedia: [],
   pulledMedia: [],
+  pulledRaw: [],
+  pushedRaw: [],
+  pulledRawDeletes: [],
+  pushedRawDeletes: [],
   conflicts: [],
   lastSyncedAt: 0,
 });
@@ -115,14 +125,22 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
   const state: SyncState = await vault.readState();
   if (!state.notes) state.notes = {};
   if (!state.media) state.media = {};
+  if (!state.raw) state.raw = {};
   const result = emptyResult();
 
   // ---------- PULL: classify ----------
   const { items, deltaLink } = await delta(graph, state.deltaLink);
   const localBefore = new Map((await vault.listNotes()).map((n) => [n.id, n.updatedAt]));
+  const rawLocalBefore = new Map((await vault.listRawMemories()).map((n) => [n.id, n.updatedAt]));
   const conflicted = new Set<string>();
   const localDeletes: string[] = [];
   const downloads: { id: string; item: RemoteItem }[] = [];
+  // Raw Memory batches: own id-space, no conflict-resolution UI (single-writer in
+  // practice — the phone creates/edits, desktop only transitions status or deletes),
+  // so a genuine both-changed case is just left for the next sync to re-evaluate.
+  const rawConflicted = new Set<string>();
+  const rawLocalDeletes: string[] = [];
+  const rawDownloads: { id: string; item: RemoteItem }[] = [];
 
   for (const item of items) {
     if (item.folder) continue;
@@ -130,30 +148,57 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
     if (!id && item.deleted) {
       id = Object.keys(state.notes).find((k) => state.notes[k].remoteId === item.id) ?? null;
     }
-    if (!id) continue;
-    const rec = state.notes[id];
-    const localUpdatedAt = localBefore.get(id);
-    const localChanged = localUpdatedAt !== undefined && rec !== undefined && localUpdatedAt > rec.localUpdatedAt;
+    if (id) {
+      const rec = state.notes[id];
+      const localUpdatedAt = localBefore.get(id);
+      const localChanged = localUpdatedAt !== undefined && rec !== undefined && localUpdatedAt > rec.localUpdatedAt;
+
+      if (item.deleted) {
+        if (localChanged) {
+          result.conflicts.push({ noteId: id, reason: "both-changed", localUpdatedAt });
+          conflicted.add(id);
+        } else {
+          localDeletes.push(id);
+        }
+        continue;
+      }
+
+      const remoteChanged = rec === undefined || rec.cTag !== item.cTag;
+      if (localChanged && remoteChanged) {
+        const remoteUpdatedAt = item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : undefined;
+        result.conflicts.push({ noteId: id, reason: "both-changed", localUpdatedAt, remoteUpdatedAt });
+        conflicted.add(id);
+        continue;
+      }
+      if (!remoteChanged) continue;
+      downloads.push({ id, item });
+      continue;
+    }
+
+    // Not a note — a Raw Memory record? Recognised by parent-path, not name suffix.
+    let rawId = rawIdFromItem(item);
+    if (!rawId && item.deleted) {
+      rawId = Object.keys(state.raw).find((k) => state.raw![k].remoteId === item.id) ?? null;
+    }
+    if (!rawId) continue;
+
+    const rawRec = state.raw[rawId];
+    const rawLocalUpdatedAt = rawLocalBefore.get(rawId);
+    const rawLocalChanged = rawLocalUpdatedAt !== undefined && rawRec !== undefined && rawLocalUpdatedAt > rawRec.localUpdatedAt;
 
     if (item.deleted) {
-      if (localChanged) {
-        result.conflicts.push({ noteId: id, reason: "both-changed", localUpdatedAt });
-        conflicted.add(id);
-      } else {
-        localDeletes.push(id);
-      }
+      if (rawLocalChanged) rawConflicted.add(rawId);
+      else rawLocalDeletes.push(rawId);
       continue;
     }
 
-    const remoteChanged = rec === undefined || rec.cTag !== item.cTag;
-    if (localChanged && remoteChanged) {
-      const remoteUpdatedAt = item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : undefined;
-      result.conflicts.push({ noteId: id, reason: "both-changed", localUpdatedAt, remoteUpdatedAt });
-      conflicted.add(id);
+    const rawRemoteChanged = rawRec === undefined || rawRec.cTag !== item.cTag;
+    if (rawLocalChanged && rawRemoteChanged) {
+      rawConflicted.add(rawId);
       continue;
     }
-    if (!remoteChanged) continue;
-    downloads.push({ id, item });
+    if (!rawRemoteChanged) continue;
+    rawDownloads.push({ id: rawId, item });
   }
 
   state.deltaLink = deltaLink;
@@ -163,6 +208,14 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
   const uploads = localNow.filter((info) => {
     if (conflicted.has(info.id)) return false;
     const rec = state.notes[info.id];
+    if (rec && info.updatedAt <= rec.localUpdatedAt) return false;
+    return true;
+  });
+
+  const rawLocalNow = await vault.listRawMemories();
+  const rawUploads = rawLocalNow.filter((info) => {
+    if (rawConflicted.has(info.id)) return false;
+    const rec = state.raw![info.id];
     if (rec && info.updatedAt <= rec.localUpdatedAt) return false;
     return true;
   });
@@ -177,6 +230,12 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
     delete state.notes[id];
     localBefore.delete(id);
     result.pulledDeletes.push(id);
+  }
+  for (const id of rawLocalDeletes) {
+    await vault.deleteRawMemory(id);
+    delete state.raw[id];
+    rawLocalBefore.delete(id);
+    result.pulledRawDeletes.push(id);
   }
 
   const pulledMediaRefs = new Set<string>();
@@ -216,6 +275,39 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
     doneItems++;
   }
 
+  // Raw Memory downloads/uploads — quiet, no onProgress ticks (tiny JSON records).
+  for (const { id, item } of rawDownloads) {
+    const dl = await downloadRawRecord(graph, id);
+    if (!dl) continue;
+    const remoteTime = item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : nowMs();
+    await vault.writeRawMemory(id, dl.content, { updatedAt: remoteTime });
+    try {
+      const parsed = JSON.parse(dl.content) as { pages?: unknown };
+      if (Array.isArray(parsed.pages)) {
+        for (const ref of parsed.pages) if (typeof ref === "string") pulledMediaRefs.add(ref);
+      }
+    } catch {
+      log.error("sync", "raw.pull.parse-error", { id });
+    }
+    state.raw[id] = { id, remoteId: item.id, cTag: dl.item.cTag ?? item.cTag ?? "", localUpdatedAt: remoteTime, syncedAt: nowMs() };
+    rawLocalBefore.set(id, remoteTime);
+    result.pulledRaw.push(id);
+  }
+
+  for (const info of rawUploads) {
+    const rec = state.raw[info.id];
+    const content = await vault.readRawMemory(info.id);
+    if (content === null) continue;
+    try {
+      const item = await uploadRawRecord(graph, info.id, content, rec?.cTag);
+      state.raw[info.id] = { id: info.id, remoteId: item.id ?? rec?.remoteId ?? "", cTag: item.cTag ?? rec?.cTag ?? "", localUpdatedAt: info.updatedAt, syncedAt: nowMs() };
+      result.pushedRaw.push(info.id);
+    } catch (e) {
+      if (!(e instanceof ConflictError)) throw e;
+      log.info("sync", "raw.push.conflict", { id: info.id });
+    }
+  }
+
   // ---------- MEDIA BACKUP ----------
   const haveMedia = new Set(await vault.listMedia());
   // Backfill: a note that WASN'T re-downloaded this pass (no remote delta) can still
@@ -253,9 +345,40 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
     }
   }
 
+  // A Raw Memory vanishes locally in two cases, both propagating as a real remote
+  // delete: the owner deleted the batch on the phone, or desktop just consumed it
+  // after successfully writing the final Memories.
+  const rawLiveIds = new Set((await vault.listRawMemories()).map((n) => n.id));
+  for (const id of Object.keys(state.raw)) {
+    if (rawLiveIds.has(id)) continue;
+    const rec = state.raw[id];
+    try {
+      await deleteRawRecord(graph, id, rec.cTag);
+      delete state.raw[id];
+      result.pushedRawDeletes.push(id);
+    } catch (e) {
+      if (!(e instanceof ConflictError)) throw e;
+      log.info("sync", "raw.delete.conflict", { id });
+    }
+  }
+
   state.lastSyncedAt = nowMs();
   result.lastSyncedAt = state.lastSyncedAt;
   await vault.writeState(state);
+
+  log.info("sync", "sync.done", {
+    pulled: result.pulled.length,
+    pushed: result.pushed.length,
+    pulledDeletes: result.pulledDeletes.length,
+    pushedDeletes: result.pushedDeletes.length,
+    pushedMedia: result.pushedMedia.length,
+    pulledMedia: result.pulledMedia.length,
+    pulledRaw: result.pulledRaw.length,
+    pushedRaw: result.pushedRaw.length,
+    pulledRawDeletes: result.pulledRawDeletes.length,
+    pushedRawDeletes: result.pushedRawDeletes.length,
+    conflicts: result.conflicts.length,
+  });
   return result;
 }
 
@@ -305,8 +428,14 @@ export async function restoreFromCloud(graph: GraphClient, vault: LocalVault, on
     const id = noteIdFromName(item.name);
     if (id) remoteIds.add(id);
   }
+  const remoteRaw = await listRawRecords(graph);
+  const remoteRawIds = new Set<string>();
+  for (const item of remoteRaw) {
+    const id = rawIdFromItem(item);
+    if (id) remoteRawIds.add(id);
+  }
 
-  const state: SyncState = { ...EMPTY_SYNC_STATE, notes: {}, media: {} };
+  const state: SyncState = { ...EMPTY_SYNC_STATE, notes: {}, media: {}, raw: {} };
   const totalItems = remote.length;
   let doneItems = 0;
   const restoredMediaRefs = new Set<string>();
@@ -325,10 +454,34 @@ export async function restoreFromCloud(graph: GraphClient, vault: LocalVault, on
     result.pulled.push(id);
   }
 
+  for (const item of remoteRaw) {
+    const id = rawIdFromItem(item);
+    if (!id) continue;
+    const dl = await downloadRawRecord(graph, id);
+    if (!dl) continue;
+    const remoteTime = item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : nowMs();
+    await vault.writeRawMemory(id, dl.content, { updatedAt: remoteTime });
+    try {
+      const parsed = JSON.parse(dl.content) as { pages?: unknown };
+      if (Array.isArray(parsed.pages)) {
+        for (const ref of parsed.pages) if (typeof ref === "string") restoredMediaRefs.add(ref);
+      }
+    } catch {
+      log.error("sync", "raw.restore.parse-error", { id });
+    }
+    state.raw![id] = { id, remoteId: item.id, cTag: dl.item.cTag ?? item.cTag ?? "", localUpdatedAt: remoteTime, syncedAt: nowMs() };
+    result.pulledRaw.push(id);
+  }
+
   for (const info of await vault.listNotes()) {
     if (remoteIds.has(info.id)) continue;
     await vault.deleteNote(info.id);
     result.pulledDeletes.push(info.id);
+  }
+  for (const info of await vault.listRawMemories()) {
+    if (remoteRawIds.has(info.id)) continue;
+    await vault.deleteRawMemory(info.id);
+    result.pulledRawDeletes.push(info.id);
   }
 
   const haveMedia = new Set(await vault.listMedia());
@@ -337,6 +490,14 @@ export async function restoreFromCloud(graph: GraphClient, vault: LocalVault, on
   state.lastSyncedAt = nowMs();
   result.lastSyncedAt = state.lastSyncedAt;
   await vault.writeState(state);
+
+  log.info("sync", "restore.done", {
+    pulled: result.pulled.length,
+    deletedLocal: result.pulledDeletes.length,
+    pulledMedia: result.pulledMedia.length,
+    pulledRaw: result.pulledRaw.length,
+    deletedRawLocal: result.pulledRawDeletes.length,
+  });
   return result;
 }
 

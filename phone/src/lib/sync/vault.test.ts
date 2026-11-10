@@ -61,7 +61,7 @@ describe("phoneVault", () => {
 
   it("readState/writeState round-trip, defaulting to empty when absent", async () => {
     const vault = phoneVault();
-    expect(await vault.readState()).toEqual({ deltaLink: null, notes: {}, media: {}, lastSyncedAt: null });
+    expect(await vault.readState()).toEqual({ deltaLink: null, notes: {}, media: {}, raw: {}, lastSyncedAt: null });
     const state = {
       deltaLink: "abc",
       notes: { n1: { id: "n1", remoteId: "r1", cTag: "t1", localUpdatedAt: 1, syncedAt: 2 } },

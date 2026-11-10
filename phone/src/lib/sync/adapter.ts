@@ -116,6 +116,90 @@ export async function deleteNote(graph: GraphClient, noteId: string, ifMatch?: s
   throw new Error(`deleteNote failed (${res.status}): ${text.slice(0, 200)}`);
 }
 
+// ── Raw Memory records (RAW-MEMORY-JOURNAL) — mirrors src/lib/sync/adapter.ts's
+// mirror of the same, which has the full rationale. One `raw/<id>.json` per batch,
+// its own subfolder so it can never collide with a note's flat `<id>.md`.
+
+const RAW_DIR = "raw";
+
+export const remoteRawName = (id: string): string => `${RAW_DIR}/${id}.json`;
+const rawFilePath = (id: string) => `/me/drive/root:/${enc(REMOTE_ROOT)}/${remoteRawName(id).split("/").map(enc).join("/")}`;
+
+/** A /delta or /children item → the Raw Memory id it belongs to, or null — recognised
+ *  by PARENT PATH (must sit directly in raw/), not noteIdFromName's name-suffix
+ *  approach (notes live flat in the root; a raw record needs the folder check too). */
+export function rawIdFromItem(item: RemoteItem): string | null {
+  if (item.folder || !item.name || !item.name.endsWith(".json")) return null;
+  const path = item.parentReference?.path;
+  if (!path) return null;
+  if (!path.endsWith(`/${REMOTE_ROOT}/${RAW_DIR}`)) return null;
+  return item.name.slice(0, -".json".length);
+}
+
+/** List every Raw Memory record on the remote — restoreFromCloud's equivalent of
+ *  listNotes. A 404 means the raw/ subfolder doesn't exist yet (nothing's ever
+ *  synced a batch), not a real error. */
+export async function listRawRecords(graph: GraphClient): Promise<RemoteItem[]> {
+  const out: RemoteItem[] = [];
+  let path: string | null = `${rootPath()}/${enc(RAW_DIR)}:/children?$select=id,name,eTag,cTag,size,lastModifiedDateTime,folder`;
+  let absolute = false;
+  while (path) {
+    const res = await graph.fetch(path, { absolute });
+    if (res.status === 404) return out;
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`listRawRecords failed (${res.status}): ${text.slice(0, 200)}`);
+    }
+    const page = (await res.json()) as ChildrenResponse;
+    for (const item of page.value) {
+      if (item.folder) continue;
+      if (item.name.endsWith(".json")) out.push(item);
+    }
+    path = page["@odata.nextLink"] ?? null;
+    absolute = true;
+  }
+  return out;
+}
+
+export async function downloadRawRecord(graph: GraphClient, id: string): Promise<{ content: string; item: RemoteItem } | null> {
+  const metaRes = await graph.fetch(`${rawFilePath(id)}?$select=id,name,eTag,cTag,size,lastModifiedDateTime`);
+  if (metaRes.status === 404) return null;
+  if (!metaRes.ok) {
+    const text = await metaRes.text().catch(() => "");
+    throw new Error(`downloadRawRecord meta failed (${metaRes.status}): ${text.slice(0, 200)}`);
+  }
+  const item = (await metaRes.json()) as RemoteItem;
+  const contentRes = await graph.fetch(`${rawFilePath(id)}:/content`);
+  if (!contentRes.ok) {
+    const text = await contentRes.text().catch(() => "");
+    throw new Error(`downloadRawRecord content failed (${contentRes.status}): ${text.slice(0, 200)}`);
+  }
+  const content = await contentRes.text();
+  return { content, item };
+}
+
+export async function uploadRawRecord(graph: GraphClient, id: string, content: string, ifMatch?: string): Promise<RemoteItem> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (ifMatch) headers["If-Match"] = ifMatch;
+  const res = await graph.fetch(`${rawFilePath(id)}:/content`, { method: "PUT", headers, body: content });
+  if (res.status === 412) throw new ConflictError(id);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`uploadRawRecord failed (${res.status}): ${text.slice(0, 200)}`);
+  }
+  return (await res.json()) as RemoteItem;
+}
+
+export async function deleteRawRecord(graph: GraphClient, id: string, ifMatch?: string): Promise<void> {
+  const headers: Record<string, string> = {};
+  if (ifMatch) headers["If-Match"] = ifMatch;
+  const res = await graph.fetch(`${rawFilePath(id)}`, { method: "DELETE", headers });
+  if (res.status === 412) throw new ConflictError(id);
+  if (res.ok || res.status === 404) return;
+  const text = await res.text().catch(() => "");
+  throw new Error(`deleteRawRecord failed (${res.status}): ${text.slice(0, 200)}`);
+}
+
 // ── Media binaries (plain content PUT/GET only — no resumable sessions; see header) ──
 
 const MEDIA_CONTENT_TYPES: Record<string, string> = {
