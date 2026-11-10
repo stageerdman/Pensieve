@@ -352,6 +352,28 @@ export async function sync(
 
   state.deltaLink = deltaLink;
 
+  // ---------- RAW RECONCILIATION (defensive) ----------
+  // A delta tombstone for a raw record can be missed: confirmed against a REAL OneDrive
+  // account (2026-11-10) that a deleted item's tombstone carries NO `name` and NO
+  // `parentReference.path` at all, so recognition falls entirely on the remoteId
+  // fallback above — and on a real device that fallback missed once, leaving a
+  // desktop-deleted batch sitting locally forever and getting RE-UPLOADED as a stray
+  // duplicate. Raw batches are few and short-lived (unlike notes, where a full listing
+  // every sync would be wasteful), so independently verifying against the actual
+  // raw/ folder listing here is cheap insurance against whatever caused the miss.
+  const remoteRawNow = await listRawRecords(graph);
+  const remoteRawIdsNow = new Set<string>();
+  for (const item of remoteRawNow) {
+    const id = rawIdFromItem(item);
+    if (id) remoteRawIdsNow.add(id);
+  }
+  for (const id of rawLocalBefore.keys()) {
+    if (remoteRawIdsNow.has(id)) continue; // still remote — nothing missed
+    if (!state.raw[id]) continue; // never synced yet — a genuine new local create, not a delete
+    if (rawLocalDeletes.includes(id) || rawConflicted.has(id)) continue; // already handled above
+    rawLocalDeletes.push(id);
+  }
+
   // ---------- PUSH: classify ----------
   const localNow = await vault.listNotes();
   const uploads = localNow.filter((info) => {
@@ -363,7 +385,12 @@ export async function sync(
 
   const rawLocalNow = await vault.listRawMemories();
   const rawUploads = rawLocalNow.filter((info) => {
-    if (rawConflicted.has(info.id)) return false;
+    // A record about to be deleted (tombstone OR the reconciliation pass above) must
+    // never ALSO be queued for re-upload — the two were never mutually exclusive by
+    // construction the way notes' localDeletes/uploads are (notes only reach
+    // localDeletes when NOT locally changed; a raw record can land in rawLocalDeletes
+    // regardless, since the reconciliation pass doesn't know "locally changed" at all).
+    if (rawConflicted.has(info.id) || rawLocalDeletes.includes(info.id)) return false;
     const rec = state.raw![info.id];
     if (rec && info.updatedAt <= rec.localUpdatedAt) return false;
     return true;

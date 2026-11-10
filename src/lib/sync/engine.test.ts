@@ -540,6 +540,34 @@ describe("sync engine — Raw Memory records", () => {
     expect(vault.state.raw!.r1).toBeUndefined();
   });
 
+  it("a MISSED tombstone (vanished from the remote with no delta trace at all) is still caught by the defensive raw/ listing check — the real bug found 2026-11-10: a real Graph deletion carries no name/path, and once the remoteId-fallback missed it, the stale local copy got RE-UPLOADED as a stray duplicate", async () => {
+    drive.put("raw/r1.json", rawJson("r1", []));
+    await sync(graph, vault); // baseline pull — vault.state.raw.r1 now recorded
+
+    // Simulate a deletion delta never delivers (expired token, a missed page, whatever
+    // the real cause was) — remove the file WITHOUT drive.del()'s tombstone bookkeeping,
+    // so the next delta call reports nothing about it at all, exactly like a real miss.
+    drive.files.delete("raw/r1.json");
+
+    // AND the local copy got touched since (e.g. a status-flip bump) — the exact
+    // condition that let the stale copy slip past the old rawUploads filter and get
+    // re-uploaded instead of recognised as needing deletion.
+    vault.editRaw("r1", rawJson("r1", [], "synced"), 999_999_999_999);
+
+    const r = await sync(graph, vault);
+    expect(r.pulledRawDeletes).toEqual(["r1"]);
+    expect(r.pushedRaw).toEqual([]); // must NOT have been re-uploaded
+    expect(await vault.readRawMemory("r1")).toBeNull();
+    expect(drive.files.has("raw/r1.json")).toBe(false); // no stray duplicate created
+  });
+
+  it("a brand-new local-only record (never synced before) is never mistaken for a missed deletion just because it's absent from the remote listing", async () => {
+    vault.editRaw("r1", rawJson("r1", []), 5); // local-only — no prior sync at all
+    const r = await sync(graph, vault);
+    expect(r.pushedRaw).toEqual(["r1"]); // pushed normally, not deleted
+    expect(drive.files.has("raw/r1.json")).toBe(true);
+  });
+
   it("a record changed on both sides is left for the next sync, not reported as a SyncConflict (no resolution UI exists for one)", async () => {
     vault.editRaw("r1", rawJson("r1", [], "synced"), 5);
     await sync(graph, vault);
