@@ -11,6 +11,7 @@ import { Clock, PanelRight, PanelRightClose, Wand, Trash } from "./components/ic
 import { StatusWhisper } from "./components/StatusWhisper";
 import { MediaBackupWhisper } from "./components/MediaBackupWhisper";
 import { ImageLightbox } from "./components/media/ImageLightbox";
+import { Assistant } from "./features/assistant/Assistant";
 import { TranscriptSplit } from "./components/audio/TranscriptSplit";
 import { JournalTranscriptSplit } from "./components/editor/media/journal/JournalTranscriptSplit";
 import { transcriptPane } from "./components/audio/transcriptController";
@@ -426,6 +427,7 @@ export default function App() {
       <StatusWhisper status={status} />
       <MediaBackupWhisper />
       <ImageLightbox />
+      <Assistant />
     </div>
   );
 }

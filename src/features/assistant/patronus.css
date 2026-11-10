@@ -1,0 +1,48 @@
+/* Patronus trigger — the silky "Pulse Wave" energy orb from the design exploration
+   (patronus-energy-orbs.html, Orb D), ported onto the app's one accent token instead of
+   a fixed hex so it stays theme-correct. Same convention as video.css/audio.css: a
+   dedicated stylesheet for one feature's custom animation, imported directly. */
+
+.patronus-orb {
+  display: block;
+}
+
+.patronus-breathe {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: patronus-breathe 3.4s ease-in-out infinite;
+}
+
+.patronus-ring {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: patronus-pulse 3.6s ease-out infinite;
+}
+
+@keyframes patronus-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes patronus-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(2.35);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .patronus-breathe,
+  .patronus-ring {
+    animation: none;
+  }
+}
