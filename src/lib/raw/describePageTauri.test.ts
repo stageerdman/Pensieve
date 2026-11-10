@@ -1,5 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { parseDescribeResponse } from "./describePageTauri";
+import { parseDescribeResponse, PROMPT_TEMPLATE } from "./describePageTauri";
+
+describe("PROMPT_TEMPLATE — spec lock for the owner's two explicit requirements", () => {
+  const prompt = PROMPT_TEMPLATE("/vault/media/raw1/a.jpg");
+
+  it("tells the model to guess + flag illegible words rather than skip them", () => {
+    expect(prompt).toMatch(/never skip a word/i);
+    expect(prompt).toMatch(/\{guess\}/);
+  });
+
+  it("tells the model to standardize the date and use a YYYY placeholder when no year is shown", () => {
+    expect(prompt).toMatch(/full English month name/i);
+    expect(prompt).toMatch(/"YYYY"/);
+    expect(prompt).toMatch(/do not guess a year yourself/i);
+  });
+});
 
 describe("parseDescribeResponse", () => {
   it("parses a clean JSON reply", () => {

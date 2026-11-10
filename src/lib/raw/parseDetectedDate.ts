@@ -23,7 +23,12 @@ export function parseDetectedDate(label: string | null | undefined, now: Date = 
   if (!text) return fallback;
 
   // "Nov 3", "November 3", "Nov 3rd", optionally with a leading weekday or trailing year.
-  const monthFirst = text.match(/([A-Za-z]{3,})\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?/);
+  // `(?!\d)` after the day group matters: without it, an unanchored match against
+  // "3 November 2024" (the AI's standardized day-first output) would happily swallow
+  // just the first two digits of "2024" as a fake two-digit "day", silently discarding
+  // both the real day AND the year. The guard forces the day group to stop at a real
+  // digit boundary, so this pattern only matches genuinely month-first input.
+  const monthFirst = text.match(/([A-Za-z]{3,})\.?\s+(\d{1,2})(?!\d)(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?/);
   if (monthFirst) {
     const m = monthIndex(monthFirst[1]);
     const day = Number(monthFirst[2]);
@@ -32,8 +37,10 @@ export function parseDetectedDate(label: string | null | undefined, now: Date = 
     }
   }
 
-  // "3 Nov", "3rd November", optional year.
-  const dayFirst = text.match(/(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,})\.?(?:,?\s*(\d{4}))?/);
+  // "3 Nov", "3rd November", optional year — the AI's standardized format (see
+  // describePageTauri.ts's prompt: "<day> <full month name> <year|YYYY>"). Same
+  // digit-boundary guard as above, symmetrically.
+  const dayFirst = text.match(/(\d{1,2})(?!\d)(?:st|nd|rd|th)?\s+([A-Za-z]{3,})\.?(?:,?\s*(\d{4}))?/);
   if (dayFirst) {
     const m = monthIndex(dayFirst[2]);
     const day = Number(dayFirst[1]);
