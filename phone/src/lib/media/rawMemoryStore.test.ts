@@ -4,6 +4,7 @@ import {
   deleteRawBatchRecord,
   loadRawBatch,
   loadRawBatches,
+  markRawBatchesSynced,
   persistRawBatches,
   reorderBatchPages,
   saveRawBatch,
@@ -106,5 +107,35 @@ describe("loadRawBatch / saveRawBatch / deleteRawBatchRecord — per-id access f
     deleteRawBatchRecord("r1");
     expect(loadRawBatch("r1")).toBeNull();
     expect(loadRawBatch("r2")).not.toBeNull();
+  });
+});
+
+describe("markRawBatchesSynced — the Sync badge must actually clear after a real push", () => {
+  it("flips a queued batch to synced once its id is reported pushed", () => {
+    saveRawBatch({ id: "r1", status: "queued", createdAt: 1, updatedAt: 5, pages: [] });
+    markRawBatchesSynced(["r1"]);
+    expect(loadRawBatch("r1")?.status).toBe("synced");
+  });
+
+  it("keeps the EXISTING updatedAt — a status flip must not look like a fresh local edit and re-trigger another push", () => {
+    saveRawBatch({ id: "r1", status: "queued", createdAt: 1, updatedAt: 5, pages: [] });
+    markRawBatchesSynced(["r1"]);
+    expect(loadRawBatch("r1")?.updatedAt).toBe(5);
+  });
+
+  it("leaves a batch alone if it isn't in the pushed list", () => {
+    saveRawBatch({ id: "r1", status: "queued", createdAt: 1, updatedAt: 5, pages: [] });
+    markRawBatchesSynced(["some-other-id"]);
+    expect(loadRawBatch("r1")?.status).toBe("queued");
+  });
+
+  it("never downgrades a batch past 'synced' (e.g. one already 'processing' or 'done')", () => {
+    saveRawBatch({ id: "r1", status: "processing", createdAt: 1, updatedAt: 5, pages: [] });
+    markRawBatchesSynced(["r1"]);
+    expect(loadRawBatch("r1")?.status).toBe("processing");
+  });
+
+  it("silently no-ops for an id that was never saved locally", () => {
+    expect(() => markRawBatchesSynced(["nope"])).not.toThrow();
   });
 });

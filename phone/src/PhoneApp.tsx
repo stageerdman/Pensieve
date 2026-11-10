@@ -57,7 +57,7 @@ import { ConfirmDeleteNote } from "./components/note/ConfirmDeleteNote";
 import { ConfirmDeleteRawBatch } from "./components/note/ConfirmDeleteRawBatch";
 import { JournalCaptureScreen } from "./components/note/JournalCaptureScreen";
 import { JournalDetailScreen } from "./components/note/JournalDetailScreen";
-import { createRawBatch, deleteRawBatch, loadRawBatches, persistRawBatches, type RawMemory } from "./lib/media/rawMemoryStore";
+import { createRawBatch, deleteRawBatch, loadRawBatches, markRawBatchesSynced, persistRawBatches, type RawMemory } from "./lib/media/rawMemoryStore";
 import { mintAudioRef, mintMediaRef, mintVideoRef, registerLocalMedia } from "./lib/media/mediaStore";
 import { offerSaveToPhotos } from "./lib/media/saveToPhotos";
 import type { MediaImage } from "./lib/media/noteMedia";
@@ -236,11 +236,19 @@ export function PhoneApp() {
     setCount(computeCount(query, v.length, data.length));
   }
 
-  // A real sync may have pulled/removed notes behind dataRef's back (it writes
-  // straight to the same localStorage vault) — reload from storage, then re-render.
-  const onedrive = useOneDriveSync(() => {
+  // A real sync may have pulled/removed notes OR Raw Memory batches behind
+  // dataRef's/rawBatches' back (it writes straight to the same localStorage) —
+  // reload both from storage, then re-render. A batch just pushed successfully
+  // (`pushedRaw`) also gets its own `status` flipped "queued" → "synced" here: the
+  // engine's SyncState bookkeeping already knows it's synced, but nothing else
+  // writes that back into the batch's OWN record, which is what the status badge
+  // actually reads. Keeping the existing `updatedAt` (not bumping it) means this
+  // doesn't look like a fresh local edit and re-trigger another push next sync.
+  const onedrive = useOneDriveSync((info) => {
     dataRef.current = loadVault();
     renderAll(filterQueryRef.current);
+    markRawBatchesSynced(info?.pushedRaw ?? []);
+    setRawBatches(loadRawBatches());
   });
 
   const autosave = useAutosave(noteBodyRef, noteSavedRef, currentRef, {
@@ -855,7 +863,7 @@ export function PhoneApp() {
     }
     fisheye.relayout();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view]);
+  }, [view, rawBatches]);
 
   // the summon bar / scrim changes the reel height → re-measure the loupe
   useEffect(() => {
@@ -932,28 +940,15 @@ export function PhoneApp() {
             <SyncRune status={syncStatus} size={20} className="header-sync" />
           )}
         </div>
-        {rawBatches.length > 0 ? (
-          <div className="ph-journal-home-strip">
-            {rawBatches.map((b) => (
-              <button
-                type="button"
-                key={b.id}
-                className="ph-journal-home-card"
-                onClick={() => setDetailBatchId(b.id)}
-              >
-                <span className="ph-journal-home-frame" aria-hidden="true" />
-                <span className="ph-journal-home-text">
-                  <span className="ph-journal-home-title">Journal — {b.pages.length} page{b.pages.length === 1 ? "" : "s"}</span>
-                  <span className="ph-journal-home-meta">
-                    <span className="ph-journal-home-dot" />
-                    {b.status === "capturing" ? "Still capturing" : b.status === "synced" ? "Awaiting processing" : b.status}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-        <Reel view={view} queryText={queryText} onOpen={openNote} reelRef={reelRef} trackRef={trackRef} />
+        <Reel
+          view={view}
+          rawBatches={rawBatches}
+          queryText={queryText}
+          onOpen={openNote}
+          onOpenRaw={(b) => setDetailBatchId(b.id)}
+          reelRef={reelRef}
+          trackRef={trackRef}
+        />
         <Glass empty={view.length === 0} message={emptyMsg} glassRef={glassRef} />
       </div>
 

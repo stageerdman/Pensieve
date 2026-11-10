@@ -21,6 +21,11 @@ export interface SyncOutcome {
   /** Only set when !ok — which kind of failure, so the UI can offer the right
    *  recovery action instead of a "Try again" that can never succeed. */
   reason?: SyncFailReason;
+  /** Raw Memory batch ids actually pushed this run — so the caller can flip a
+   *  batch's own `status` from "queued" to "synced" locally. The engine's SyncState
+   *  bookkeeping already knows a batch is synced; nothing writes that back into the
+   *  batch's OWN record (what the UI reads for its status badge) — this is that. */
+  pushedRaw?: string[];
 }
 
 /** Map a thrown sync error to the UI-facing reason + message. Typed errors (see
@@ -41,9 +46,10 @@ export interface OneDriveSync {
   restore: () => Promise<SyncOutcome>;
 }
 
-/** `onChanged` is called after a sync that may have pulled/removed notes, so the
- *  caller can refresh its in-memory copy of the vault from storage. */
-export function useOneDriveSync(onChanged?: () => void): OneDriveSync {
+/** `onChanged` is called after a sync that may have pulled/removed notes (or Raw
+ *  Memory batches), so the caller can refresh its in-memory copy of the vault from
+ *  storage. `pushedRaw` is only set after a `run()`/`summon()` success. */
+export function useOneDriveSync(onChanged?: (info?: { pushedRaw?: string[] }) => void): OneDriveSync {
   const [connected, setConnected] = useState(() => isConnected());
   const [account, setAccount] = useState("");
   const engineRef = useRef(createEngine(phoneVault()));
@@ -78,9 +84,9 @@ export function useOneDriveSync(onChanged?: () => void): OneDriveSync {
 
   const run = useCallback(async (): Promise<SyncOutcome> => {
     try {
-      await engineRef.current.run();
-      onChangedRef.current?.();
-      return { ok: true, message: "All memories safe · just now" };
+      const result = await engineRef.current.run();
+      onChangedRef.current?.({ pushedRaw: result.pushedRaw });
+      return { ok: true, message: "All memories safe · just now", pushedRaw: result.pushedRaw };
     } catch (e) {
       if (e instanceof RemoteRootMissingError) {
         // First-ever connect to a OneDrive with no Pensieve folder yet — set it up
@@ -88,9 +94,9 @@ export function useOneDriveSync(onChanged?: () => void): OneDriveSync {
         // why this is never done silently on desktop: here, the owner just drove an
         // explicit Connect + Back up, which already is that confirmation).
         try {
-          await engineRef.current.summon();
-          onChangedRef.current?.();
-          return { ok: true, message: "Pensieve is set up · all memories safe" };
+          const result = await engineRef.current.summon();
+          onChangedRef.current?.({ pushedRaw: result.pushedRaw });
+          return { ok: true, message: "Pensieve is set up · all memories safe", pushedRaw: result.pushedRaw };
         } catch (e2) {
           log.error("sync", "summon.failed", { error: String(e2) });
           return { ok: false, message: "Couldn't set up Pensieve on this OneDrive", reason: "error" };

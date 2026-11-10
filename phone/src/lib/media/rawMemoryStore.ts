@@ -83,6 +83,19 @@ export function deleteRawBatchRecord(id: string): void {
   localStorage.removeItem(RAW_PREFIX + id);
 }
 
+/** After a sync run pushes these batch ids, flip any still-"queued" one to "synced" —
+ *  the engine's own SyncState bookkeeping already knows it's synced, but nothing else
+ *  writes that back into the batch's OWN record, which is what the Home/detail status
+ *  badge actually reads (previously: permanently stuck on "Queued to sync"). Keeps the
+ *  EXISTING `updatedAt` rather than bumping it, so this doesn't look like a fresh local
+ *  edit and re-trigger another push on the very next sync. */
+export function markRawBatchesSynced(ids: Iterable<string>): void {
+  for (const id of ids) {
+    const b = loadRawBatch(id);
+    if (b && b.status === "queued") saveRawBatch({ ...b, status: "synced" });
+  }
+}
+
 /** Overwrite the WHOLE authoritative set — used by the UI layer, which always holds
  *  the full list in React state. Internally this is still one key per batch; any
  *  batch id present in storage but absent from `data` is removed (an id that's gone

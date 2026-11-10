@@ -2414,55 +2414,12 @@ body {
 
 /* the Home strip: a dashed, inert card per batch — same "not a flask yet" decision as
    the desktop reel card (no flask-equivalent glyph, a dashed placeholder gutter). */
-.ph-journal-home-strip {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 0 16px 10px;
-  flex: none;
-}
-.ph-journal-home-card {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  padding: 9px 13px;
-  border-radius: 14px;
-  border: none;
-  background: hsl(var(--text) / 0.04);
-  text-align: left;
-  cursor: pointer;
-}
+/* The Raw Memory card's dashed stand-in for a Flask — sized/scaled by the SAME
+ * ".card .flask" rule (width/height calc'd off --m) so it magnifies in the fisheye
+ * exactly like a real Flask; only the border/radius here are its own. */
 .ph-journal-home-frame {
-  width: 36px;
-  height: 48px;
-  flex: none;
   border: 1.5px dashed hsl(var(--border));
   border-radius: 8px;
-}
-.ph-journal-home-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.ph-journal-home-title {
-  font-size: 14.5px;
-  font-weight: 600;
-  color: hsl(var(--text-muted));
-}
-.ph-journal-home-meta {
-  margin-top: 2px;
-  font-size: 11.5px;
-  color: hsl(var(--text-muted));
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.ph-journal-home-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: hsl(var(--accent));
-  flex: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

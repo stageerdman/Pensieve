@@ -5,7 +5,7 @@
 // (NoteActions) + the page grid; PhoneApp owns opening the ring / the confirm sheet.
 
 import { removePageFromBatch, type RawMemory } from "../../lib/media/rawMemoryStore";
-import { cachedMediaUrl } from "../../lib/media/mediaStore";
+import { MediaImg } from "./MediaImg";
 import { NoteActions } from "./NoteActions";
 
 export interface JournalDetailScreenProps {
@@ -45,7 +45,7 @@ export function JournalDetailScreen({ batch, onChangeBatch, onBack, onOpenMenu }
             {batch.pages.map((ref, i) =>
               i % 2 !== col ? null : (
                 <div className="ph-collection-tile" key={ref} data-index={i}>
-                  <img src={cachedMediaUrl(ref) ?? undefined} alt="" draggable={false} />
+                  <MediaImg mediaRef={ref} />
                   <button type="button" className="ph-collection-remove" aria-label="Remove page" onClick={() => void removePage(i)}>
                     ×
                   </button>

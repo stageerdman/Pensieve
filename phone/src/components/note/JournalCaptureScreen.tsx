@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 import { JournalCamera } from "../../lib/media/journalCamera";
 import { addPageToBatch, removePageFromBatch, type RawMemory } from "../../lib/media/rawMemoryStore";
-import { cachedMediaUrl } from "../../lib/media/mediaStore";
+import { MediaImg } from "./MediaImg";
 import { haptic } from "../../util";
 
 export interface JournalCaptureScreenProps {
@@ -84,7 +84,7 @@ export function JournalCaptureScreen({ batch, onChangeBatch, onDone }: JournalCa
         ) : (
           batch.pages.map((ref, i) => (
             <div className="ph-collection-tile ph-journal-tile" key={ref}>
-              <img src={cachedMediaUrl(ref) ?? undefined} alt="" draggable={false} />
+              <MediaImg mediaRef={ref} />
               <button type="button" className="ph-collection-remove" aria-label="Remove page" onClick={() => void removePage(i)}>
                 ×
               </button>
