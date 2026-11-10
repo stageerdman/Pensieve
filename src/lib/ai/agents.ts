@@ -1,9 +1,8 @@
-// The Patronus assistant's starting roster — each agent is just a name + system prompt,
-// not a database row or an indexed knowledge base (unlike masters-wheel's per-agent RAG,
-// which PATRONUS-AI deliberately didn't port — Pensieve's "knowledge" is just the vault
-// itself, reached through the shared MCP tools every agent gets). The owner may rename
-// or add agents later once a roster-editing UI exists; this is a starting point, not a
-// locked decision — see updates/2026-11-10 PATRONUS-AI - OPEN/update v1.md.
+// Agent shape + the two starter personas Pensieve seeds the vault with on first use.
+// The live roster (what the UI actually shows/edits) comes from agentStore.ts, which
+// reads/writes real files — these are only the seed content, not a fixed in-code list.
+// See updates/2026-11-10 PATRONUS-AI - OPEN/wiki.md for why agents are files, not a
+// hardcoded array, once an editing UI exists.
 
 export interface Agent {
   id: string;
@@ -12,7 +11,7 @@ export interface Agent {
   systemPrompt: string;
 }
 
-const BASE_PERSONA =
+export const BASE_PERSONA =
   "You are an AI presence inside Pensieve, a local-first journaling and memory app. " +
   "The person you're talking to is its one user — you are not a general-purpose " +
   "assistant, you are embedded in their own private vault of notes and memories. You " +
@@ -20,7 +19,7 @@ const BASE_PERSONA =
   "but aren't enabled yet). Be direct, warm, and economical — never pad a reply with " +
   "filler, hedging, or caveats about being an AI.";
 
-export const AGENTS: Agent[] = [
+export const SEED_AGENTS: Agent[] = [
   {
     id: "patronus",
     name: "Patronus",
@@ -44,9 +43,3 @@ export const AGENTS: Agent[] = [
       "asked to make an edit, say so plainly instead of pretending you did it.",
   },
 ];
-
-export const DEFAULT_AGENT_ID = AGENTS[0].id;
-
-export function getAgent(id: string): Agent {
-  return AGENTS.find((a) => a.id === id) ?? AGENTS[0];
-}

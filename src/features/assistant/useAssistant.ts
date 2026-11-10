@@ -1,10 +1,11 @@
-// State + effects for the Patronus assistant — phase (open/closed), the active agent,
-// and one running conversation per agent (own session id + message history), kept
-// entirely in memory for this v1 (see this update's wiki.md: chat history persistence
-// to disk is a later phase, not inside this one).
+// State + effects for the Patronus assistant — phase (open/closed), the editable agent
+// roster (loaded from disk via agentStore), and one running conversation per agent (own
+// session id + message history), kept entirely in memory for this v1 (see this update's
+// wiki.md: chat history persistence to disk is a later phase, not inside this one).
 
-import { useCallback, useRef, useState } from "react";
-import { AGENTS, DEFAULT_AGENT_ID, getAgent } from "../../lib/ai/agents";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { SEED_AGENTS, type Agent } from "../../lib/ai/agents";
+import { listAgents, saveAgents } from "../../lib/ai/agentStore";
 import { askAgent, onAskAgentProgress } from "../../lib/ai/askAgent";
 
 export type ChatMessage = {
@@ -13,12 +14,20 @@ export type ChatMessage = {
   text: string;
   streaming?: boolean;
   error?: boolean;
+  /** Only set on a failed assistant message — the original user text, so Retry can
+   *  resend it without the user retyping (see this update's wiki.md / UX review). */
+  retryText?: string;
 };
 
 interface AgentSession {
   sessionId?: string;
   messages: ChatMessage[];
+  /** Scoped per agent, not global — switching agents mid-reply shouldn't lock the
+   *  composer for an agent that isn't actually busy (see UX review). */
+  sending: boolean;
 }
+
+const EMPTY_SESSION: AgentSession = { messages: [], sending: false };
 
 function newJobId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -28,41 +37,98 @@ function newJobId(): string {
 
 export function useAssistant() {
   const [open, setOpen] = useState(false);
-  const [agentId, setAgentId] = useState(DEFAULT_AGENT_ID);
+  const [agents, setAgents] = useState<Agent[]>(SEED_AGENTS);
+  const [agentId, setAgentId] = useState(SEED_AGENTS[0].id);
   const [sessions, setSessions] = useState<Record<string, AgentSession>>({});
-  const [sending, setSending] = useState(false);
-  const unlistenRef = useRef<(() => void) | null>(null);
+  // Keyed by agentId, not a single ref — a reply in flight for one agent must not be
+  // clobbered by another agent's unlisten while both are mid-stream.
+  const unlistenByAgent = useRef<Map<string, () => void>>(new Map());
 
-  const messages = sessions[agentId]?.messages ?? [];
-
-  const patchMessage = useCallback((forAgentId: string, id: string, patch: Partial<ChatMessage>) => {
-    setSessions((prev) => {
-      const session = prev[forAgentId] ?? { messages: [] };
-      return {
-        ...prev,
-        [forAgentId]: {
-          ...session,
-          messages: session.messages.map((m) => (m.id === id ? { ...m, ...patch } : m)),
-        },
-      };
+  useEffect(() => {
+    void listAgents().then((loaded) => {
+      setAgents(loaded);
+      setAgentId((cur) =>
+        loaded.some((a) => a.id === cur) ? cur : (loaded[0]?.id ?? cur),
+      );
     });
   }, []);
+
+  /** Persist + apply a new roster in one step — used by the Agents editor tab after a
+   *  save/delete so the picker everywhere else updates immediately, no reload round-trip. */
+  const setRoster = useCallback(async (next: Agent[]) => {
+    await saveAgents(next);
+    setAgents(next);
+    setAgentId((cur) =>
+      next.some((a) => a.id === cur) ? cur : (next[0]?.id ?? cur),
+    );
+  }, []);
+
+  const getAgent = useCallback(
+    (id: string): Agent =>
+      agents.find((a) => a.id === id) ?? agents[0] ?? SEED_AGENTS[0],
+    [agents],
+  );
+
+  const session = sessions[agentId] ?? EMPTY_SESSION;
+
+  const patchSession = useCallback(
+    (forAgentId: string, patch: Partial<AgentSession>) => {
+      setSessions((prev) => ({
+        ...prev,
+        [forAgentId]: { ...(prev[forAgentId] ?? EMPTY_SESSION), ...patch },
+      }));
+    },
+    [],
+  );
+
+  const patchMessage = useCallback(
+    (forAgentId: string, id: string, patch: Partial<ChatMessage>) => {
+      setSessions((prev) => {
+        const s = prev[forAgentId] ?? EMPTY_SESSION;
+        return {
+          ...prev,
+          [forAgentId]: {
+            ...s,
+            messages: s.messages.map((m) =>
+              m.id === id ? { ...m, ...patch } : m,
+            ),
+          },
+        };
+      });
+    },
+    [],
+  );
 
   const send = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed || sending) return;
       const forAgentId = agentId;
+      if (!trimmed || (sessions[forAgentId]?.sending ?? false)) return;
       const agent = getAgent(forAgentId);
-      const userMsg: ChatMessage = { id: newJobId(), role: "user", text: trimmed };
+      const userMsg: ChatMessage = {
+        id: newJobId(),
+        role: "user",
+        text: trimmed,
+      };
       const replyId = newJobId();
-      const replyMsg: ChatMessage = { id: replyId, role: "assistant", text: "", streaming: true };
+      const replyMsg: ChatMessage = {
+        id: replyId,
+        role: "assistant",
+        text: "",
+        streaming: true,
+      };
 
       setSessions((prev) => {
-        const session = prev[forAgentId] ?? { messages: [] };
-        return { ...prev, [forAgentId]: { ...session, messages: [...session.messages, userMsg, replyMsg] } };
+        const s = prev[forAgentId] ?? EMPTY_SESSION;
+        return {
+          ...prev,
+          [forAgentId]: {
+            ...s,
+            sending: true,
+            messages: [...s.messages, userMsg, replyMsg],
+          },
+        };
       });
-      setSending(true);
 
       const jobId = newJobId();
       let streamed = "";
@@ -70,42 +136,57 @@ export function useAssistant() {
         streamed += delta;
         patchMessage(forAgentId, replyId, { text: streamed });
       });
-      unlistenRef.current = unlisten;
+      unlistenByAgent.current.get(forAgentId)?.();
+      unlistenByAgent.current.set(forAgentId, unlisten);
 
       try {
         const priorSessionId = sessions[forAgentId]?.sessionId;
-        const reply = await askAgent(jobId, trimmed, agent.systemPrompt, priorSessionId);
-        patchMessage(forAgentId, replyId, { text: reply.text, streaming: false });
-        setSessions((prev) => ({
-          ...prev,
-          [forAgentId]: { ...(prev[forAgentId] ?? { messages: [] }), sessionId: reply.sessionId },
-        }));
+        const reply = await askAgent(
+          jobId,
+          trimmed,
+          agent.systemPrompt,
+          priorSessionId,
+        );
+        patchMessage(forAgentId, replyId, {
+          text: reply.text,
+          streaming: false,
+        });
+        patchSession(forAgentId, { sessionId: reply.sessionId });
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
-        patchMessage(forAgentId, replyId, { text: message, streaming: false, error: true });
+        patchMessage(forAgentId, replyId, {
+          text: message,
+          streaming: false,
+          error: true,
+          retryText: trimmed,
+        });
       } finally {
         unlisten();
-        unlistenRef.current = null;
-        setSending(false);
+        unlistenByAgent.current.delete(forAgentId);
+        patchSession(forAgentId, { sending: false });
       }
     },
-    [agentId, sending, sessions, patchMessage],
+    [agentId, sessions, getAgent, patchMessage, patchSession],
   );
 
-  const close = useCallback(() => {
-    unlistenRef.current?.();
-    setOpen(false);
-  }, []);
+  // Only hides the popover — does NOT tear down in-flight listeners. A reply may still
+  // be streaming and visible elsewhere (the full-screen assistant tab shares this same
+  // state via AssistantContext), so "closed" here must not mean "stop listening." Each
+  // send()'s own `finally` block is what actually cleans up its listener.
+  const close = useCallback(() => setOpen(false), []);
 
   return {
     open,
     openAssistant: () => setOpen(true),
     close,
-    agents: AGENTS,
+    agents,
+    setRoster,
     agentId,
     setAgentId,
-    messages,
-    sending,
+    messages: session.messages,
+    sending: session.sending,
     send,
   };
 }
+
+export type AssistantState = ReturnType<typeof useAssistant>;

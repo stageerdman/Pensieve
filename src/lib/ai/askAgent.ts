@@ -13,7 +13,12 @@ export async function askAgent(
   instructions: string,
   sessionId: string | undefined,
 ): Promise<AgentReply> {
-  return invoke<AgentReply>("ask_agent", { jobId, message, instructions, sessionId: sessionId ?? null });
+  return invoke<AgentReply>("ask_agent", {
+    jobId,
+    message,
+    instructions,
+    sessionId: sessionId ?? null,
+  });
 }
 
 interface AskAgentProgressPayload {
@@ -23,7 +28,10 @@ interface AskAgentProgressPayload {
 
 /** Subscribes to delta chunks for every in-flight reply (one global Rust event); the
  *  caller filters by jobId, same pattern as nativeEngine.ts's transcribe-progress. */
-export async function onAskAgentProgress(jobId: string, onDelta: (delta: string) => void): Promise<UnlistenFn> {
+export async function onAskAgentProgress(
+  jobId: string,
+  onDelta: (delta: string) => void,
+): Promise<UnlistenFn> {
   const { listen } = await import("@tauri-apps/api/event");
   return listen<AskAgentProgressPayload>("ask-agent-progress", (event) => {
     if (event.payload.jobId === jobId) onDelta(event.payload.delta);

@@ -1,17 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Editor } from "./components/editor/Editor";
-import { useEditorPositionMemory, type EditorPosition } from "./components/editor/editorPosition";
+import {
+  useEditorPositionMemory,
+  type EditorPosition,
+} from "./components/editor/editorPosition";
 import { TimelinePanel } from "./components/TimelinePanel";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { OverflowMenu } from "./components/OverflowMenu";
 import { FlaskButton } from "./components/FlaskButton";
-import { TabBar, HOME } from "./components/TabBar";
+import { TabBar, HOME, type ExtraTab } from "./components/TabBar";
 import { IconButton } from "./components/IconButton";
-import { Clock, PanelRight, PanelRightClose, Wand, Trash } from "./components/icons";
+import {
+  Clock,
+  PanelRight,
+  PanelRightClose,
+  Wand,
+  Trash,
+} from "./components/icons";
 import { StatusWhisper } from "./components/StatusWhisper";
 import { MediaBackupWhisper } from "./components/MediaBackupWhisper";
 import { ImageLightbox } from "./components/media/ImageLightbox";
 import { Assistant } from "./features/assistant/Assistant";
+import { AssistantProvider } from "./features/assistant/AssistantContext";
+import { AssistantFullscreen } from "./features/assistant/AssistantFullscreen";
+import { AgentsEditor } from "./features/assistant/AgentsEditor";
+import { Sparkles, Sigil } from "./components/icons";
+import { useSystemTabs, type SystemTabId } from "./hooks/useSystemTabs";
 import { TranscriptSplit } from "./components/audio/TranscriptSplit";
 import { JournalTranscriptSplit } from "./components/editor/media/journal/JournalTranscriptSplit";
 import { transcriptPane } from "./components/audio/transcriptController";
@@ -37,11 +51,26 @@ import { useSync } from "./hooks/useSync";
 
 // Native app: the macOS title bar is integrated (Overlay). The traffic lights float at
 // the top-left, so the header insets its left edge to clear them.
-const IS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+const IS_TAURI =
+  typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 export default function App() {
-  const { notes, current, status, loadEpoch, open, create, remove, change, updateMeta, togglePin, setCreatedAt, restoreVersion, refresh, recordOpen } =
-    useNotes();
+  const {
+    notes,
+    current,
+    status,
+    loadEpoch,
+    open,
+    create,
+    remove,
+    change,
+    updateMeta,
+    togglePin,
+    setCreatedAt,
+    restoreVersion,
+    refresh,
+    recordOpen,
+  } = useNotes();
   // A sync that pulled remote changes refreshes the list; if the open note was one
   // of them, reload it into the editor so on-screen content matches disk.
   const currentId = current?.id;
@@ -72,10 +101,17 @@ export default function App() {
 
   // Summon (search). Lives atop Home; ⌘A (⌘⇧A while typing) focuses it. Filters the gallery live while the
   // timeline grouping is preserved (we only hand it a filtered note list + match info).
-  const categoryNames = useMemo(() => categories.defs.map((d) => d.name), [categories.defs]);
+  const categoryNames = useMemo(
+    () => categories.defs.map((d) => d.name),
+    [categories.defs],
+  );
   const summon = useSummon(notes, categoryNames);
   // Accio transcript-hit jump-lines: spoken-word matches for body-matched results (lazy).
-  const transcriptJumps = useTranscriptHits(summon.results, summon.match, summon.liveText);
+  const transcriptJumps = useTranscriptHits(
+    summon.results,
+    summon.match,
+    summon.liveText,
+  );
   const summonInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -96,7 +132,16 @@ export default function App() {
   const confirmTimer = useRef<ReturnType<typeof setTimeout>>();
 
   // Tabs (Home + per-note), their self-healing lifecycle, and open/create/close.
-  const { tabs, activeTab, onHome, openNote, goHome, newNote, selectTab, closeTab } = useTabs({
+  const {
+    tabs,
+    activeTab,
+    onHome,
+    openNote,
+    goHome,
+    newNote,
+    selectTab,
+    closeTab,
+  } = useTabs({
     notes,
     open,
     create,
@@ -118,6 +163,26 @@ export default function App() {
       closeTab(id);
     },
     [editorPos, closeTab],
+  );
+
+  // The two non-note "system" tabs — full-screen Patronus and the Agents editor.
+  // Independent of useTabs' note lifecycle; see useSystemTabs' own doc comment.
+  const systemTabs = useSystemTabs();
+  const goHomeAndDeactivate = useCallback(() => {
+    systemTabs.deactivate();
+    goHome();
+  }, [systemTabs, goHome]);
+  const selectTabAndDeactivate = useCallback(
+    (id: string) => {
+      systemTabs.deactivate();
+      selectTab(id);
+    },
+    [systemTabs, selectTab],
+  );
+  const extraTabs: ExtraTab[] = systemTabs.openIds.map((id) =>
+    id === "assistant"
+      ? { id, label: "Patronus", icon: <Sparkles size={13} /> }
+      : { id, label: "Agents", icon: <Sigil size={13} /> },
   );
 
   // Live set of tags in use across notes — the source for tag whispering.
@@ -192,7 +257,10 @@ export default function App() {
       el?.focus({ preventScroll: true });
       let p = el?.parentElement ?? null;
       while (p) {
-        if (p.scrollHeight > p.clientHeight && getComputedStyle(p).overflowY !== "visible") {
+        if (
+          p.scrollHeight > p.clientHeight &&
+          getComputedStyle(p).overflowY !== "visible"
+        ) {
           p.scrollTo({ top: 0, behavior: "smooth" });
           break;
         }
@@ -209,7 +277,9 @@ export default function App() {
       // CloseRequested and hides instead of quitting).
       if (!onHome) closeTabAndForget(activeTab);
       else if (IS_TAURI)
-        void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().close());
+        void import("@tauri-apps/api/window").then(({ getCurrentWindow }) =>
+          getCurrentWindow().close(),
+        );
     },
     togglePinCurrent: () => {
       if (!onHome && current) void togglePin(current.id);
@@ -217,7 +287,8 @@ export default function App() {
     syncNow: () => {
       // No-op when not connected.
       const s = syncRef.current;
-      if (s.ui.phase !== "disconnected" && s.ui.phase !== "unavailable") void s.syncNow();
+      if (s.ui.phase !== "disconnected" && s.ui.phase !== "unavailable")
+        void s.syncNow();
     },
     toggleDetails,
     toggleTimeline,
@@ -241,193 +312,235 @@ export default function App() {
   const showChrome = !focusMode;
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-surface text-text">
-      <main className="flex min-w-0 flex-1 flex-col">
-        {showChrome && (
-          <header
-            data-tauri-drag-region
-            className={
-              "flex h-12 items-center gap-2 border-b border-border bg-surface-sunken pr-3 " +
-              // Clear the macOS traffic lights only in windowed mode. In fullscreen they
-              // are gone, so the home button + tabs start flush-left like in the browser.
-              (IS_TAURI && !fullscreen ? "pl-20" : "pl-3")
-            }
-          >
-            <TabBar
-              tabs={tabs}
-              active={activeTab}
-              onHome={goHome}
-              onSelect={selectTab}
-              onClose={closeTabAndForget}
-            />
-            {/* One tight group (gap-0.5) for every right-side control, so the sync rune
+    <AssistantProvider>
+      <div className="flex h-screen w-screen overflow-hidden bg-surface text-text">
+        <main className="flex min-w-0 flex-1 flex-col">
+          {showChrome && (
+            <header
+              data-tauri-drag-region
+              className={
+                "flex h-12 items-center gap-2 border-b border-border bg-surface-sunken pr-3 " +
+                // Clear the macOS traffic lights only in windowed mode. In fullscreen they
+                // are gone, so the home button + tabs start flush-left like in the browser.
+                (IS_TAURI && !fullscreen ? "pl-20" : "pl-3")
+              }
+            >
+              <TabBar
+                tabs={tabs}
+                active={activeTab}
+                onHome={goHomeAndDeactivate}
+                onSelect={selectTabAndDeactivate}
+                onClose={closeTabAndForget}
+                extraTabs={extraTabs}
+                activeExtraId={systemTabs.active}
+                onSelectExtra={(id) => systemTabs.select(id as SystemTabId)}
+                onCloseExtra={(id) => systemTabs.closeTab(id as SystemTabId)}
+              />
+              {/* One tight group (gap-0.5) for every right-side control, so the sync rune
                 sits in the same box as the 3-dots menu and the panel toggle — the header's
                 gap-2 only separates this group from the tabs. */}
-            <div className="flex shrink-0 items-center gap-0.5">
-              <SyncStatus sync={sync} titleFor={titleFor} pending={pendingSync} onNotesCreated={() => void refresh()} />
-              {onHome ? (
-                <>
-                  <IconButton label="New note" title="New note  ⌘N" onClick={() => void newNote()}>
-                    <Wand size={18} />
-                  </IconButton>
-                  <GalleryCustomise
-                    state={gallery.state}
-                    onToggleField={gallery.toggleField}
-                    onSetSnippetLines={gallery.setSnippetLines}
-                    onSetWorkingSetPersist={gallery.setWorkingSetPersist}
-                  />
-                </>
-              ) : (
-                current && (
-                  <>
-                    <OverflowMenu
-                      items={[
-                        {
-                          icon: <Clock size={16} />,
-                          label: "Timeline",
-                          shortcut: "⌘T",
-                          onSelect: toggleTimeline,
-                          active: timelineOpen,
-                        },
-                        {
-                          icon: <Trash size={16} />,
-                          label: "Delete note",
-                          shortcut: "⌘⌫",
-                          onSelect: askDelete,
-                        },
-                      ]}
-                    />
-                    <IconButton
-                      label={splitOpen ? "Collapse transcript" : "Note details"}
-                      title={splitOpen ? "Collapse transcript split" : "Note details  ⌘⇧\""}
-                      active={splitOpen || detailsOpen}
-                      onClick={splitOpen ? () => transcriptPane.close() : toggleDetails}
-                    >
-                      {splitOpen ? <PanelRightClose /> : <PanelRight />}
-                    </IconButton>
-                  </>
-                )
-              )}
-            </div>
-          </header>
-        )}
-
-        <div className="flex min-h-0 flex-1">
-          {onHome ? (
-            <Gallery
-              notes={summon.results}
-              state={gallery.state}
-              categoryDefs={categories.defs}
-              header={<Summon summon={summon} inputRef={summonInputRef} />}
-              match={summon.match}
-              transcriptJumps={transcriptJumps}
-              searchActive={summon.active}
-              theme={theme}
-              onOpen={openNote}
-              onToggleWorkingSet={gallery.toggleWorkingSet}
-              onRemoveFromWorkingSet={gallery.removeFromWorkingSet}
-              onMoveInWorkingSet={gallery.moveInWorkingSet}
-              onReorderWorkingSet={gallery.reorderWorkingSet}
-            />
-          ) : (
-            <>
-              <section className="flex-1 overflow-y-auto">
-                {current ? (
-                  <div className="w-full px-6 pt-4 pb-16">
-                    {confirmDelete && (
-                      <div className="mx-auto mb-4 max-w-[72ch] rounded border border-danger/40 bg-danger/10 px-3 py-1.5 text-sm text-danger">
-                        Press ⌘⌫ again to delete this note.
-                      </div>
-                    )}
-                    {!focusMode && (
-                      <div className="mx-auto mb-1 max-w-[72ch]">
-                        <FlaskButton
-                          icon={current.icon}
-                          chars={contentCharCount(current.markdown)}
-                          seed={current.id}
-                          onChange={(icon) => updateMeta({ icon })}
-                        />
-                      </div>
-                    )}
-                    {previewEntry ? (
-                      <div className="mx-auto max-w-[72ch]">
-                        <div className="mb-3 flex items-center justify-between rounded border border-border bg-surface-sunken px-3 py-1.5 text-xs text-text-muted">
-                          <span>
-                            Past version · {new Date(previewEntry.ts).toLocaleString()} ·
-                            read-only
-                          </span>
-                          <button
-                            type="button"
-                            className="text-accent hover:underline"
-                            onClick={() => setPreviewEntry(null)}
-                          >
-                            Back to now
-                          </button>
-                        </div>
-                        <NotePreview markdown={previewEntry.markdown ?? ""} theme={theme} />
-                      </div>
-                    ) : (
-                      <Editor
-                        key={`${current.id}:${loadEpoch}`}
-                        markdown={current.markdown}
-                        onChange={change}
-                        focusMode={focusMode}
-                        theme={theme}
-                        selfId={current.id}
-                        notes={notes}
-                        onOpenNote={(id) => void open(id)}
-                        savedPosition={editorPos.get(current.id)}
-                        onSavePosition={saveEditorPos}
+              <div className="flex shrink-0 items-center gap-0.5">
+                <SyncStatus
+                  sync={sync}
+                  titleFor={titleFor}
+                  pending={pendingSync}
+                  onNotesCreated={() => void refresh()}
+                />
+                {!systemTabs.active &&
+                  (onHome ? (
+                    <>
+                      <IconButton
+                        label="New note"
+                        title="New note  ⌘N"
+                        onClick={() => void newNote()}
+                      >
+                        <Wand size={18} />
+                      </IconButton>
+                      <GalleryCustomise
+                        state={gallery.state}
+                        onToggleField={gallery.toggleField}
+                        onSetSnippetLines={gallery.setSnippetLines}
+                        onSetWorkingSetPersist={gallery.setWorkingSetPersist}
                       />
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex h-full items-center justify-center">
-                    <p className="text-text-muted">
-                      Press <kbd>⌘N</kbd> to start writing.
-                    </p>
-                  </div>
-                )}
-              </section>
-
-              {showChrome && timelineOpen && current && (
-                <TimelinePanel
-                  noteId={current.id}
-                  noteTitle={current.title}
-                  reloadKey={loadEpoch}
-                  previewTs={previewEntry?.ts ?? null}
-                  onPreview={setPreviewEntry}
-                  onRestore={onRestore}
-                  onClose={() => setTimelineOpen(false)}
-                />
-              )}
-
-              {showChrome && detailsOpen && current && (
-                <DetailsPanel
-                  note={current}
-                  notes={notes}
-                  tagSuggestions={tagSuggestions}
-                  categories={categories}
-                  onClose={() => setDetailsOpen(false)}
-                  onOpenNote={(id) => void open(id)}
-                  updateMeta={updateMeta}
-                  onSetCreatedAt={setCreatedAt}
-                />
-              )}
-
-              {/* "Split to Transcript" — a resizable right pane opened from an audio bar's
-                  ⋯ / transcript icon (module pub/sub). Renders null until opened. */}
-              <TranscriptSplit />
-              <JournalTranscriptSplit />
-            </>
+                    </>
+                  ) : (
+                    current && (
+                      <>
+                        <OverflowMenu
+                          items={[
+                            {
+                              icon: <Clock size={16} />,
+                              label: "Timeline",
+                              shortcut: "⌘T",
+                              onSelect: toggleTimeline,
+                              active: timelineOpen,
+                            },
+                            {
+                              icon: <Trash size={16} />,
+                              label: "Delete note",
+                              shortcut: "⌘⌫",
+                              onSelect: askDelete,
+                            },
+                          ]}
+                        />
+                        <IconButton
+                          label={
+                            splitOpen ? "Collapse transcript" : "Note details"
+                          }
+                          title={
+                            splitOpen
+                              ? "Collapse transcript split"
+                              : 'Note details  ⌘⇧"'
+                          }
+                          active={splitOpen || detailsOpen}
+                          onClick={
+                            splitOpen
+                              ? () => transcriptPane.close()
+                              : toggleDetails
+                          }
+                        >
+                          {splitOpen ? <PanelRightClose /> : <PanelRight />}
+                        </IconButton>
+                      </>
+                    )
+                  ))}
+              </div>
+            </header>
           )}
-        </div>
-      </main>
 
-      <StatusWhisper status={status} />
-      <MediaBackupWhisper />
-      <ImageLightbox />
-      <Assistant />
-    </div>
+          <div className="flex min-h-0 flex-1">
+            {systemTabs.active === "assistant" ? (
+              <AssistantFullscreen
+                onAddAgent={() => systemTabs.openAgents(true)}
+              />
+            ) : systemTabs.active === "agents" ? (
+              <AgentsEditor
+                key={systemTabs.agentsIntent.token}
+                startWithNewDraft={systemTabs.agentsIntent.startWithNewDraft}
+              />
+            ) : onHome ? (
+              <Gallery
+                notes={summon.results}
+                state={gallery.state}
+                categoryDefs={categories.defs}
+                header={<Summon summon={summon} inputRef={summonInputRef} />}
+                match={summon.match}
+                transcriptJumps={transcriptJumps}
+                searchActive={summon.active}
+                theme={theme}
+                onOpen={openNote}
+                onToggleWorkingSet={gallery.toggleWorkingSet}
+                onRemoveFromWorkingSet={gallery.removeFromWorkingSet}
+                onMoveInWorkingSet={gallery.moveInWorkingSet}
+                onReorderWorkingSet={gallery.reorderWorkingSet}
+              />
+            ) : (
+              <>
+                <section className="flex-1 overflow-y-auto">
+                  {current ? (
+                    <div className="w-full px-6 pt-4 pb-16">
+                      {confirmDelete && (
+                        <div className="mx-auto mb-4 max-w-[72ch] rounded border border-danger/40 bg-danger/10 px-3 py-1.5 text-sm text-danger">
+                          Press ⌘⌫ again to delete this note.
+                        </div>
+                      )}
+                      {!focusMode && (
+                        <div className="mx-auto mb-1 max-w-[72ch]">
+                          <FlaskButton
+                            icon={current.icon}
+                            chars={contentCharCount(current.markdown)}
+                            seed={current.id}
+                            onChange={(icon) => updateMeta({ icon })}
+                          />
+                        </div>
+                      )}
+                      {previewEntry ? (
+                        <div className="mx-auto max-w-[72ch]">
+                          <div className="mb-3 flex items-center justify-between rounded border border-border bg-surface-sunken px-3 py-1.5 text-xs text-text-muted">
+                            <span>
+                              Past version ·{" "}
+                              {new Date(previewEntry.ts).toLocaleString()} ·
+                              read-only
+                            </span>
+                            <button
+                              type="button"
+                              className="text-accent hover:underline"
+                              onClick={() => setPreviewEntry(null)}
+                            >
+                              Back to now
+                            </button>
+                          </div>
+                          <NotePreview
+                            markdown={previewEntry.markdown ?? ""}
+                            theme={theme}
+                          />
+                        </div>
+                      ) : (
+                        <Editor
+                          key={`${current.id}:${loadEpoch}`}
+                          markdown={current.markdown}
+                          onChange={change}
+                          focusMode={focusMode}
+                          theme={theme}
+                          selfId={current.id}
+                          notes={notes}
+                          onOpenNote={(id) => void open(id)}
+                          savedPosition={editorPos.get(current.id)}
+                          onSavePosition={saveEditorPos}
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex h-full items-center justify-center">
+                      <p className="text-text-muted">
+                        Press <kbd>⌘N</kbd> to start writing.
+                      </p>
+                    </div>
+                  )}
+                </section>
+
+                {showChrome && timelineOpen && current && (
+                  <TimelinePanel
+                    noteId={current.id}
+                    noteTitle={current.title}
+                    reloadKey={loadEpoch}
+                    previewTs={previewEntry?.ts ?? null}
+                    onPreview={setPreviewEntry}
+                    onRestore={onRestore}
+                    onClose={() => setTimelineOpen(false)}
+                  />
+                )}
+
+                {showChrome && detailsOpen && current && (
+                  <DetailsPanel
+                    note={current}
+                    notes={notes}
+                    tagSuggestions={tagSuggestions}
+                    categories={categories}
+                    onClose={() => setDetailsOpen(false)}
+                    onOpenNote={(id) => void open(id)}
+                    updateMeta={updateMeta}
+                    onSetCreatedAt={setCreatedAt}
+                  />
+                )}
+
+                {/* "Split to Transcript" — a resizable right pane opened from an audio bar's
+                  ⋯ / transcript icon (module pub/sub). Renders null until opened. */}
+                <TranscriptSplit />
+                <JournalTranscriptSplit />
+              </>
+            )}
+          </div>
+        </main>
+
+        <StatusWhisper status={status} />
+        <MediaBackupWhisper />
+        <ImageLightbox />
+        <Assistant
+          hidden={systemTabs.active !== null}
+          onExpand={systemTabs.openAssistant}
+        />
+      </div>
+    </AssistantProvider>
   );
 }

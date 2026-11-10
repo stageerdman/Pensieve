@@ -46,3 +46,25 @@
     animation: none;
   }
 }
+
+/* A visual hint that the window corner is draggable (native CSS `resize: both` on its
+   own gives no affordance in WKWebView) — three short diagonal strokes, bottom-right. */
+.patronus-resizable {
+  position: relative;
+}
+.patronus-resizable::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 9px;
+  height: 9px;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    135deg,
+    hsl(var(--text-muted) / 0.45) 0,
+    hsl(var(--text-muted) / 0.45) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}

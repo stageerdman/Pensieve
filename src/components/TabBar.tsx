@@ -1,4 +1,4 @@
-import type { MouseEvent } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import type { NoteMeta } from "../lib/types";
 import { FlaskFor } from "./Flask";
 import { Logo } from "./Logo";
@@ -12,15 +12,38 @@ import { X } from "./icons";
 export const HOME = "home";
 export type ActiveTab = typeof HOME | string;
 
+/** A non-note tab pinned between Home and the note tabs (e.g. the full-screen
+ *  assistant / agent editor) — generic so TabBar stays decoupled from any one
+ *  feature; the caller supplies its own icon and label. */
+export interface ExtraTab {
+  id: string;
+  label: string;
+  icon: ReactNode;
+}
+
 interface TabBarProps {
   tabs: NoteMeta[];
   active: ActiveTab;
   onHome: () => void;
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
+  extraTabs?: ExtraTab[];
+  activeExtraId?: string | null;
+  onSelectExtra?: (id: string) => void;
+  onCloseExtra?: (id: string) => void;
 }
 
-export function TabBar({ tabs, active, onHome, onSelect, onClose }: TabBarProps) {
+export function TabBar({
+  tabs,
+  active,
+  onHome,
+  onSelect,
+  onClose,
+  extraTabs = [],
+  activeExtraId = null,
+  onSelectExtra,
+  onCloseExtra,
+}: TabBarProps) {
   const close = (e: MouseEvent, id: string) => {
     e.stopPropagation();
     onClose(id);
@@ -29,17 +52,56 @@ export function TabBar({ tabs, active, onHome, onSelect, onClose }: TabBarProps)
   return (
     // The row (and its empty spaces) is a window drag handle; the interactive children
     // below have no drag attribute, so clicking a tab/button still works normally.
-    <div data-tauri-drag-region className="flex min-w-0 flex-1 items-center gap-1">
+    <div
+      data-tauri-drag-region
+      className="flex min-w-0 flex-1 items-center gap-1"
+    >
       {/* Home — the Pensieve mark. Always present; returns to your work. */}
       <button
         onClick={onHome}
         aria-label="Home — your work"
         title="Home"
-        aria-current={active === HOME ? "true" : undefined}
+        aria-current={active === HOME && !activeExtraId ? "true" : undefined}
         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text transition-colors hover:bg-surface-raised aria-[current=true]:bg-surface-raised"
       >
         <Logo size={18} />
       </button>
+
+      {extraTabs.length > 0 && <span className="h-5 w-px shrink-0 bg-border" />}
+
+      {/* Pinned non-note tabs (e.g. the full-screen assistant / agent editor) — never
+          scroll away with the note tabs below. */}
+      {extraTabs.map((t) => {
+        const isActive = activeExtraId === t.id;
+        return (
+          <div
+            key={t.id}
+            onClick={() => onSelectExtra?.(t.id)}
+            role="tab"
+            aria-selected={isActive}
+            className={
+              "group flex h-7 shrink-0 cursor-default items-center gap-1.5 rounded-md border px-2 text-sm " +
+              (isActive
+                ? "border-border bg-surface-raised text-text"
+                : "border-transparent text-text-muted hover:bg-surface-raised/60 hover:text-text")
+            }
+          >
+            <span className="shrink-0">{t.icon}</span>
+            <span className="max-w-[120px] truncate">{t.label}</span>
+            <span
+              role="button"
+              aria-label={`Close ${t.label}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onCloseExtra?.(t.id);
+              }}
+              className="-mr-0.5 shrink-0 rounded p-0.5 text-text-muted/60 hover:bg-surface hover:text-text"
+            >
+              <X size={12} />
+            </span>
+          </div>
+        );
+      })}
 
       {tabs.length > 0 && <span className="h-5 w-px shrink-0 bg-border" />}
 
@@ -49,7 +111,7 @@ export function TabBar({ tabs, active, onHome, onSelect, onClose }: TabBarProps)
         className="no-scrollbar flex min-w-0 items-center gap-1 overflow-x-auto"
       >
         {tabs.map((n) => {
-          const isActive = active === n.id;
+          const isActive = active === n.id && !activeExtraId;
           return (
             <div
               key={n.id}
@@ -63,9 +125,16 @@ export function TabBar({ tabs, active, onHome, onSelect, onClose }: TabBarProps)
                   : "border-transparent text-text-muted hover:bg-surface-raised/60 hover:text-text")
               }
             >
-              <FlaskFor icon={n.icon} chars={n.chars} size={13} className="shrink-0" />
+              <FlaskFor
+                icon={n.icon}
+                chars={n.chars}
+                size={13}
+                className="shrink-0"
+              />
               {/* Title-less notes (voice memos) show just the flask — no "Untitled". */}
-              {n.title && <span className="max-w-[120px] truncate">{n.title}</span>}
+              {n.title && (
+                <span className="max-w-[120px] truncate">{n.title}</span>
+              )}
               <span
                 role="button"
                 aria-label="Close tab"

@@ -86,4 +86,25 @@ MCP-server-mode code path only.
       vault confirmed `search_notes` actually fires and the reply is correctly grounded
       in real note content (see wiki.md). GUI click-through still needs the owner's own
       pass — no native-window driving tool available here.
-- [ ] Phase 7 — UX pass + native build + ship
+- [x] Phase 7a — UX review pass (general-purpose agent briefed as a UX reviewer against
+      design.md) → applied: composer auto-grow, Escape closes the popover (outside-click
+      deliberately doesn't), per-agent `sending` lock instead of one global lock, a Retry
+      button on failed replies, composer autofocus on open, `rounded-lg` consistency +
+      a visible resize-grip, and a one-time first-launch label on the orb (localStorage-
+      gated) since an abstract glow has no inherent "this is AI chat" affordance.
+- [x] Phase 7b — full-screen Patronus tab + Agents editor tab (scope added after v1
+      shipped, same session): extended `TabBar`/`useTabs` with a generic, decoupled
+      `ExtraTab` concept (pinned non-note tabs) + a new `useSystemTabs` hook; lifted
+      `useAssistant()` into `AssistantContext` so the popover, the full-screen tab, and
+      the Agents editor tab all share one live conversation/roster instead of forking
+      state. `AssistantFullscreen.tsx` mirrors masters-wheel's ChatPage shape (persistent
+      agent sidebar + message list + composer, minus the saved-chat-session list — out
+      of scope for this v1). `AgentsEditor.tsx` mirrors masters-wheel's Agents.tsx shape
+      (AgentNav + form), but agents persist as one `agents.json` file (matching Pensieve's
+      own `lib/categories/store.ts` convention) rather than masters-wheel's one-file-
+      per-agent folder — no per-agent knowledge/RAG data to justify a folder each.
+      Caught and fixed a real bug while wiring this up: `close()` on the popover used to
+      tear down in-flight stream listeners, which was fine when the popover was the only
+      display surface but silently truncated a live reply once the full-screen tab could
+      also be watching the same conversation.
+- [ ] Phase 8 — native build + ship (next: `npm run tauri:build`, owner click-through)
