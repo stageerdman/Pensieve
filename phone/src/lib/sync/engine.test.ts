@@ -317,6 +317,22 @@ describe("phone sync engine", () => {
     expect(r.pulledMedia.sort()).toEqual(["media/x/a.m4a", "media/x/a.m4a.transcript.json"]);
   });
 
+  it("a processed journal Memory's pages AND their transcript sidecars all pull — a real bug: journal was never added to extractMediaRefs, so no page bytes ever reached the phone", async () => {
+    const fence = "```pensieve:journal\nmedia/x/a.jpg\nmedia/x/b.jpg\n```";
+    drive.put("x.md", fence);
+    drive.files.set("media/x/a.jpg", { id: "m1", content: "", cTag: "m1", time: new Date().toISOString(), ver: 0 });
+    drive.files.set("media/x/a.jpg.transcript.json", { id: "m2", content: "{}", cTag: "m2", time: new Date().toISOString(), ver: 0 });
+    drive.files.set("media/x/b.jpg", { id: "m3", content: "", cTag: "m3", time: new Date().toISOString(), ver: 0 });
+    drive.files.set("media/x/b.jpg.transcript.json", { id: "m4", content: "{}", cTag: "m4", time: new Date().toISOString(), ver: 0 });
+    const r = await sync(graph, vault);
+    expect(r.pulledMedia.sort()).toEqual([
+      "media/x/a.jpg",
+      "media/x/a.jpg.transcript.json",
+      "media/x/b.jpg",
+      "media/x/b.jpg.transcript.json",
+    ]);
+  });
+
   it("a recording with no transcript yet pulls just the audio, no error", async () => {
     const fence = "```pensieve:audio\nmedia/x/a.m4a\n```";
     drive.put("x.md", fence);

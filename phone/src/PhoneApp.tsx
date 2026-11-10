@@ -238,13 +238,10 @@ export function PhoneApp() {
 
   // A real sync may have pulled/removed notes OR Raw Memory batches behind
   // dataRef's/rawBatches' back (it writes straight to the same localStorage) —
-  // reload both from storage, then re-render. A batch just pushed successfully
-  // (`pushedRaw`) also gets its own `status` flipped "queued" → "synced" here —
-  // bumping `updatedAt` so THIS flip gets pushed up on the next sync too: desktop's
-  // Process queue only offers a batch once its status says "synced" (see
-  // rawMemoryStore.ts's markRawBatchesSynced), so a local-only flip would leave the
-  // batch sitting on the cloud/desktop forever invisible, even though the bytes
-  // already arrived — a real bug found 2026-11-10, not a hypothetical one.
+  // reload both from storage, then re-render. markRawBatchesSynced is now only a
+  // backward-compat safety net (upgrading any batch still stuck in the old transient
+  // "queued" status this app version no longer creates — see where captureBatch's
+  // onDone sets status directly to "synced"); a freshly-captured batch never needs it.
   const onedrive = useOneDriveSync((info) => {
     dataRef.current = loadVault();
     renderAll(filterQueryRef.current);
@@ -1071,7 +1068,13 @@ export function PhoneApp() {
           onDone={() => {
             const finished = captureBatch;
             setCaptureBatch(null);
-            if (finished && finished.pages.length > 0) updateRawBatch({ ...finished, status: "queued" });
+            // Straight to "synced", not a transient "queued" phase — a batch here is just
+            // waiting for the NEXT sync to push it, same as any other local-only create. A
+            // separate "queued" status that only flips to "synced" AFTER a push used to mean
+            // the flip itself needed a second round-trip to reach the cloud (fixed once by
+            // bumping updatedAt on the flip, but that still cost an extra sync); not having a
+            // "queued" state at all removes the bug class instead of patching around it.
+            if (finished && finished.pages.length > 0) updateRawBatch({ ...finished, status: "synced" });
           }}
         />
       ) : null}

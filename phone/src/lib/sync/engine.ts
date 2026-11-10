@@ -47,6 +47,18 @@ function extractMediaRefs(content: string): string[] {
       // Always ASK for the sidecar too — downloadMedia/404 already no-ops cleanly when a
       // recording has no transcript yet, so this is free (no new sync machinery needed).
       refs.push(transcriptRefFor(block.ref));
+    } else if (block.kind === "journal") {
+      // Every processed journal page has its own photo AND its own transcript sidecar
+      // (processRawBatch.ts writes one per page) — without this branch at all, a journal
+      // block's refs were never recognised here, so no bytes for its photos ever reached
+      // this device: the note synced, but every page showed broken/missing (a real bug
+      // found 2026-11-10, not a hypothetical one — unlike gallery/audio, this one was
+      // simply never added when the journal block itself was built).
+      for (const page of block.pages) {
+        if (!isMediaPath(page.ref)) continue;
+        refs.push(page.ref);
+        refs.push(transcriptRefFor(page.ref));
+      }
     }
   }
   return refs;
