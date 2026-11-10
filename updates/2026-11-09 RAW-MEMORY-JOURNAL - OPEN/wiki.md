@@ -161,3 +161,25 @@ Also cut from this pass, smaller and lower-risk: drag-reorder in the phone captu
 (pages are removable, not yet reorderable), and phone-side rendering of a finished `pensieve:journal`
 fence (it falls back to visible raw markdown text on phone rather than a rich page viewer — not a
 crash, just not pretty yet, same category of gap as the historical "Phone markdown rendering gap").
+
+## DECIDED (2026-11-10) — illegible words + date standardization
+
+**Illegible words are guessed, not skipped** — wrapped in `{curly braces}` so the guess is visible
+and distinguishable from confident text, rather than silently dropped or replaced with a placeholder
+like `[illegible]`. Changed in the prompt (`describePageTauri.ts`) only; no transcript-storage change
+needed — it's just text.
+
+**Dates are standardized to `"<day> <full month name> <year>"`** (e.g. `"18 October 2024"`) regardless
+of how the owner wrote it on the page, and the AI never guesses a year per page — it writes the
+literal placeholder `"YYYY"` when a page shows none. A SEPARATE batch-level pass
+(`resolveYearPlaceholders.ts`) resolves every `"YYYY"` afterward: if any page anywhere in the batch
+shows a real year, that year applies to the whole batch (including pages earlier in the array than
+the one that revealed it — the owner's exact point, the year isn't always on page 1). If no page
+shows a year at all, `"YYYY"` becomes the real current year. This HAD to be a separate pass rather
+than resolved per-page, because the per-page AI call has no visibility into any other page.
+
+Fixing this also surfaced a real bug in the pre-existing `parseDetectedDate.ts`: its month-first
+regex was unanchored and would swallow the first two digits of a 4-digit year as a fake "day" when
+given day-first input (exactly the new standardized format) — e.g. `"3 November 2024"` parsed as
+day=20 (from "20" of "2024"), losing both the real day and the year. Fixed with a digit-boundary
+guard; regression-tested in `parseDetectedDate.test.ts`.
