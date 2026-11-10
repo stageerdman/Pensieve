@@ -162,6 +162,98 @@ describe("processRawBatch", () => {
     expect(notes.get("note1")!.createdAt).toBe(new Date(2026, 10, 9).getTime());
   });
 
+  it("derives a real title from the page's own transcript — not left as the blank 'Untitled' a fence-only body produces", async () => {
+    const { store, notes } = fakeStore();
+    const rm = rawMemory(["media/raw1/a.png"]);
+    await processRawBatch(rm, {
+      store,
+      describePage: async () => ({ transcript: "Went for a long walk by the river. It was cold.", dateHeader: "Nov 3" }),
+      readMediaBytes: async () => ({ bytes: new ArrayBuffer(1), ext: "png" }),
+      resolveAbsolutePath: async (ref) => `/vault/${ref}`,
+      now: () => new Date(2026, 10, 9),
+    });
+    const markdown = notes.get("note1")!.markdown;
+    expect(markdown.startsWith("Went for a long walk by the river.")).toBe(true);
+    expect(markdown).toContain("```pensieve:journal"); // the fence survives, title is just prepended
+  });
+
+  it("falls back to the detected date as a title when the page is blank/illegible", async () => {
+    const { store, notes } = fakeStore();
+    const rm = rawMemory(["media/raw1/a.png"]);
+    await processRawBatch(rm, {
+      store,
+      describePage: async () => ({ transcript: "", dateHeader: "Nov 3" }),
+      readMediaBytes: async () => ({ bytes: new ArrayBuffer(1), ext: "png" }),
+      resolveAbsolutePath: async (ref) => `/vault/${ref}`,
+      now: () => new Date(2026, 10, 9),
+    });
+    expect(notes.get("note1")!.markdown.startsWith("Nov 3")).toBe(true);
+  });
+
+  it("a shared boundary page's transcript is SPLIT between its two Memories — the closing day only gets previousPart, the opening day only gets its own new-header text", async () => {
+    const { store, notes } = fakeStore();
+    const rm = rawMemory(["media/raw1/a.png", "media/raw1/shared.png", "media/raw1/c.png"]);
+    const describePage = vi.fn(async (ref: string): Promise<PageDescription> => {
+      if (ref.endsWith("a.png")) return { transcript: "End of day one.", dateHeader: "Nov 3" };
+      if (ref.endsWith("shared.png"))
+        return {
+          transcript: "Day two begins here.",
+          dateHeader: "Nov 4",
+          continuesPrevious: true,
+          previousPart: "Still finishing day one thoughts.",
+        };
+      return { transcript: "Day two continues.", dateHeader: null };
+    });
+
+    await processRawBatch(rm, {
+      store,
+      describePage,
+      readMediaBytes: async () => ({ bytes: new ArrayBuffer(1), ext: "png" }),
+      resolveAbsolutePath: async (ref) => `/vault/${ref}`,
+      now: () => new Date(2026, 10, 9),
+    });
+
+    // note1 (Nov 3, closing) got the PREVIOUS-day chunk of the shared page's text, not its
+    // whole transcript (which also covers Nov 4) — titles are derived straight off this.
+    expect(notes.get("note1")!.markdown.startsWith("End of day one.")).toBe(true);
+    // note2 (Nov 4, opening) got ONLY its own new-header text from the shared page.
+    expect(notes.get("note2")!.markdown.startsWith("Day two begins here.")).toBe(true);
+  });
+
+  it("a shared boundary page with no previousPart from the AI falls back to its whole transcript rather than losing the closing day's text", async () => {
+    const { store, notes } = fakeStore();
+    const rm = rawMemory(["media/raw1/a.png", "media/raw1/shared.png"]);
+    const describePage = vi.fn(async (ref: string): Promise<PageDescription> => {
+      if (ref.endsWith("a.png")) return { transcript: "End of day one.", dateHeader: "Nov 3" };
+      return { transcript: "Whole page text, no split given.", dateHeader: "Nov 4", continuesPrevious: true };
+    });
+
+    await processRawBatch(rm, {
+      store,
+      describePage,
+      readMediaBytes: async () => ({ bytes: new ArrayBuffer(1), ext: "png" }),
+      resolveAbsolutePath: async (ref) => `/vault/${ref}`,
+      now: () => new Date(2026, 10, 9),
+    });
+
+    expect(notes.get("note1")!.markdown.startsWith("End of day one.")).toBe(true);
+    expect(notes.get("note2")!.markdown.startsWith("Whole page text, no split given.")).toBe(true);
+  });
+
+  it("reports page-by-page progress via onPageDone as the Process queue's only real progress signal", async () => {
+    const { store } = fakeStore();
+    const rm = rawMemory(["media/raw1/a.png", "media/raw1/b.png", "media/raw1/c.png"]);
+    const ticks: Array<[number, number]> = [];
+    await processRawBatch(rm, {
+      store,
+      describePage: async () => ({ transcript: "x", dateHeader: "Nov 1" }),
+      readMediaBytes: async () => ({ bytes: new ArrayBuffer(1), ext: "png" }),
+      resolveAbsolutePath: async (ref) => `/vault/${ref}`,
+      onPageDone: (done, total) => ticks.push([done, total]),
+    });
+    expect(ticks).toEqual([[1, 3], [2, 3], [3, 3]]);
+  });
+
   it("does not touch the raw batch itself — deletion is the caller's job after this resolves", async () => {
     const { store } = fakeStore();
     const rm = rawMemory(["media/raw1/a.png"]);

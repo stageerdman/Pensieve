@@ -263,7 +263,7 @@ export default function App() {
                 sits in the same box as the 3-dots menu and the panel toggle — the header's
                 gap-2 only separates this group from the tabs. */}
             <div className="flex shrink-0 items-center gap-0.5">
-              <SyncStatus sync={sync} titleFor={titleFor} pending={pendingSync} />
+              <SyncStatus sync={sync} titleFor={titleFor} pending={pendingSync} onNotesCreated={() => void refresh()} />
               {onHome ? (
                 <>
                   <IconButton label="New note" title="New note  ⌘N" onClick={() => void newNote()}>

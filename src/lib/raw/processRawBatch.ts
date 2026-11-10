@@ -5,20 +5,29 @@
 // grouping rule and wiki.md ("DECIDED … B/C") for the product spec this implements.
 import type { Note, RawMemory, Store } from "../types";
 import type { Transcript } from "../transcripts/types";
-import { splitByDate, type PageSignal, type DateGroup } from "./splitAlgorithm";
+import { splitByDate, sharesBoundary, type PageSignal, type DateGroup } from "./splitAlgorithm";
 import { parseDetectedDate } from "./parseDetectedDate";
 import { resolveYearPlaceholders } from "./resolveYearPlaceholders";
 import { log } from "../logger";
 
 /** What the vision call reports for one page. */
 export interface PageDescription {
-  /** The page's handwritten text, transcribed. Empty string if genuinely blank/illegible —
-   *  never null; a page is never dropped for being hard to read. */
+  /** The page's handwritten text, transcribed. When `continuesPrevious` is true, this is
+   *  ONLY the text from this page's OWN new date header onward — the leading text that
+   *  belongs to the day being closed out lives in `previousPart` instead, so a shared
+   *  boundary page's transcript can be split correctly between the two Memories it
+   *  belongs to (never the same full text duplicated into both). Empty string if
+   *  genuinely blank/illegible — never null; a page is never dropped for being hard to
+   *  read. */
   transcript: string;
   /** A NEW date header on this page, or null — see splitAlgorithm.ts's PageSignal. */
   dateHeader: string | null;
   /** This page ALSO carries the tail of the previous day's entry before its own header. */
   continuesPrevious?: boolean;
+  /** Only meaningful when `continuesPrevious` is true: the leading chunk of this page's
+   *  handwriting that belongs to the day being CLOSED OUT (everything before this page's
+   *  own new date header starts). Undefined when there's nothing to split. */
+  previousPart?: string;
 }
 
 export type DescribePage = (ref: string, absolutePath: string) => Promise<PageDescription>;
@@ -37,6 +46,9 @@ export interface ProcessRawBatchDeps {
   resolveAbsolutePath: (ref: string) => Promise<string>;
   describePage: DescribePage;
   now?: () => Date;
+  /** Called after each page's AI describe call resolves — the Process queue's only
+   *  real progress signal (one subprocess call per page, no sub-page streaming). */
+  onPageDone?: (done: number, total: number) => void;
 }
 
 export interface ProcessRawBatchResult {
@@ -51,6 +63,19 @@ export interface ProcessRawBatchResult {
 function journalFenceMarkdown(pages: { ref: string; caption?: string }[]): string {
   const lines = pages.map((p) => (p.caption ? `${p.ref} | ${p.caption}` : p.ref));
   return "```pensieve:journal\n" + lines.join("\n") + "\n```";
+}
+
+/** A short, content-derived title — the first sentence (capped) of this Memory's OWN
+ *  transcript text, so a journal entry gets a real title the same way a normal note's
+ *  title is just its first line, instead of showing "Untitled" (titleFromMarkdown finds
+ *  nothing to use when the body is fence-only — see src/lib/text.ts). Falls back to the
+ *  detected date when the text is empty/illegible. */
+function deriveTitle(text: string, fallbackDate: string | null): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return fallbackDate ?? "Journal entry";
+  const sentenceEnd = normalized.search(/[.!?](\s|$)/);
+  const cut = sentenceEnd > 0 ? normalized.slice(0, sentenceEnd + 1) : normalized;
+  return cut.length > 60 ? cut.slice(0, 57).trimEnd() + "…" : cut;
 }
 
 /** A minimal, valid Transcript sidecar for one page's plain text — no word-level timing
@@ -83,14 +108,21 @@ async function duplicateMediaInto(
 export async function processRawBatch(rm: RawMemory, deps: ProcessRawBatchDeps): Promise<ProcessRawBatchResult> {
   const signals: PageSignal[] = [];
   const textByRef = new Map<string, string>();
+  // Only populated for a shared boundary page (continuesPrevious) — the leading chunk of
+  // its text that belongs to the day being CLOSED OUT, so that day's Memory doesn't get
+  // the whole page's text (including the NEXT day's part) duplicated into it too.
+  const previousPartByRef = new Map<string, string>();
   const now = deps.now?.() ?? new Date();
 
-  for (const ref of rm.pages) {
+  for (let i = 0; i < rm.pages.length; i++) {
+    const ref = rm.pages[i];
     const abs = await deps.resolveAbsolutePath(ref);
     const d = await deps.describePage(ref, abs);
     textByRef.set(ref, d.transcript);
+    if (d.continuesPrevious && d.previousPart) previousPartByRef.set(ref, d.previousPart);
     signals.push({ ref, dateHeader: d.dateHeader, continuesPrevious: d.continuesPrevious });
     log.info("raw", "describe.page", { rawId: rm.id, ref, dateHeader: d.dateHeader });
+    deps.onPageDone?.(i + 1, rm.pages.length);
   }
 
   // The AI never guesses a year per page (see describePageTauri.ts's prompt) — it writes
@@ -103,23 +135,37 @@ export async function processRawBatch(rm: RawMemory, deps: ProcessRawBatchDeps):
   const groups = splitByDate(signals);
   const createdNoteIds: string[] = [];
 
-  for (const group of groups) {
+  for (let gi = 0; gi < groups.length; gi++) {
+    const group = groups[gi];
     const fresh: Note = await deps.store.create();
     const pageRefs: { ref: string; caption?: string }[] = [];
+    const ownText: string[] = [];
 
-    for (const originalRef of group.pages) {
+    for (let pi = 0; pi < group.pages.length; pi++) {
+      const originalRef = group.pages[pi];
       // Every page is duplicated into THIS note's own media folder — never left pointing
       // at the raw batch's folder (deleted once all groups are written), and never a
       // cross-note reference into a sibling note (see wiki.md's "shared boundary" note:
       // a page shared by two groups is processed once per group, producing two
       // independent copies here — nothing special-cased, it just falls out of the loop).
+      //
+      // But the TEXT isn't just "falls out of the loop" the same way: a page shared with
+      // the NEXT group (it's the last page here, and also that group's first) must only
+      // contribute the chunk of its transcript belonging to THIS (closing) day —
+      // previousPartByRef — not the whole page's text, which also covers the day this
+      // same physical photo opens next.
+      const isClosingBoundary = pi === group.pages.length - 1 && sharesBoundary(groups, gi);
+      const text = isClosingBoundary ? previousPartByRef.get(originalRef) ?? textByRef.get(originalRef) ?? "" : textByRef.get(originalRef) ?? "";
+
       const ref = await duplicateMediaInto(deps, originalRef, fresh.id);
       pageRefs.push({ ref });
-      await deps.store.saveTranscript(ref, pageTranscript(ref, textByRef.get(originalRef) ?? ""));
+      await deps.store.saveTranscript(ref, pageTranscript(ref, text));
+      ownText.push(text);
     }
 
     const createdAt = parseDetectedDate(group.date, now);
-    const markdown = journalFenceMarkdown(pageRefs);
+    const title = deriveTitle(ownText.join(" "), group.date);
+    const markdown = `${title}\n\n${journalFenceMarkdown(pageRefs)}`;
     await deps.store.save({ ...fresh, markdown, createdAt, addedAt: createdAt });
     createdNoteIds.push(fresh.id);
     log.info("raw", "group.created", { rawId: rm.id, noteId: fresh.id, date: group.date, pages: pageRefs.length });

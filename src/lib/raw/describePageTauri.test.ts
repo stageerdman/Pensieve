@@ -14,6 +14,11 @@ describe("PROMPT_TEMPLATE — spec lock for the owner's two explicit requirement
     expect(prompt).toMatch(/"YYYY"/);
     expect(prompt).toMatch(/do not guess a year yourself/i);
   });
+
+  it("tells the model to split a shared boundary page's text at the new date header, not duplicate the whole page into both days", () => {
+    expect(prompt).toMatch(/split your transcription/i);
+    expect(prompt).toMatch(/"previousPart"/);
+  });
 });
 
 describe("parseDescribeResponse", () => {
@@ -50,5 +55,20 @@ describe("parseDescribeResponse", () => {
   it("non-string transcript/dateHeader fields degrade safely instead of propagating junk types", () => {
     const raw = `{"transcript": 42, "dateHeader": 7}`;
     expect(parseDescribeResponse(raw)).toEqual({ transcript: "", dateHeader: null, continuesPrevious: false });
+  });
+
+  it("parses previousPart when the page is a shared date boundary", () => {
+    const raw = `{"transcript": "Day two begins.", "dateHeader": "Nov 4", "continuesPrevious": true, "previousPart": "Tail of day one."}`;
+    expect(parseDescribeResponse(raw)).toEqual({
+      transcript: "Day two begins.",
+      dateHeader: "Nov 4",
+      continuesPrevious: true,
+      previousPart: "Tail of day one.",
+    });
+  });
+
+  it("a null/absent previousPart stays undefined, never an empty string someone could mistake for real content", () => {
+    const raw = `{"transcript": "x", "dateHeader": "Nov 1", "continuesPrevious": false, "previousPart": null}`;
+    expect(parseDescribeResponse(raw).previousPart).toBeUndefined();
   });
 });

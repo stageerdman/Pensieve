@@ -37,10 +37,14 @@ export function SyncStatus({
   sync,
   titleFor,
   pending = false,
+  onNotesCreated,
 }: {
   sync: Sync;
   titleFor: (noteId: string) => string;
   pending?: boolean; // unsynced local changes — shows the quiet "ready to back up" nudge
+  /** A journal batch's new Memories are LOCAL-only creates — no sync pull ever surfaces
+   *  them, so the feed/search list needs this direct nudge to refresh. */
+  onNotesCreated?: (noteIds: string[]) => void;
 }) {
   const { ui, connect, disconnect, syncNow, summon, keepLocal, keepRemote, keepAllLocal, resolvingIds, conflictErrors, refreshInfo, restoreFromCloud } =
     sync;
@@ -280,6 +284,7 @@ export function SyncStatus({
             titleFor={titleFor}
             enabled
             onTranscribed={() => void syncNow()}
+            onNotesCreated={onNotesCreated}
           />
         )}
       </div>

@@ -42,14 +42,18 @@ interface Props {
   engine: TranscriptionEngine;
   titleFor: (noteId: string) => string;
   onTranscribed?: () => void;
+  /** fired right after a journal batch's new Memories are written — these are LOCAL-only
+   *  creates, never surfaced by a sync pull, so the feed/search list needs this direct
+   *  nudge or new Memories stay invisible until the app restarts. */
+  onNotesCreated?: (noteIds: string[]) => void;
   enabled?: boolean;
 }
 
 export const ProcessQueue = forwardRef<ProcessQueueHandle, Props>(function ProcessQueue(
-  { engine, titleFor, onTranscribed, enabled = true },
+  { engine, titleFor, onTranscribed, onNotesCreated, enabled = true },
   handleRef,
 ) {
-  const q = useProcessQueue({ engine, titleFor, onTranscribed, enabled });
+  const q = useProcessQueue({ engine, titleFor, onTranscribed, onNotesCreated, enabled });
   const [previewRef, setPreviewRef] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 

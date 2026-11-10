@@ -15,8 +15,10 @@ Transcribe every word of handwriting on the page, in reading order. Never skip a
 
 Then look for a DATE HEADER the writer put on this page (they write dates inconsistently — "20th of October", "20/10", "Mon Nov 3", etc.). A page normally has at most one NEW date header. If you find one, standardize it to exactly this format: "<day as a plain number, no "1st"/"2nd" suffix> <full English month name> <year>" — e.g. "18 October 2024". If the page does NOT show a year, write the literal placeholder text "YYYY" where the year goes (e.g. "18 October YYYY") — do not guess a year yourself from context; that's resolved later across the whole batch, not per page.
 
+If this page ALSO shows the tail end of a PREVIOUS day's entry before this page's own new date header starts further down the SAME page (continuesPrevious), split your transcription at exactly that point: put the text that comes BEFORE the new date header into "previousPart", and put ONLY the text FROM the new date header onward into "transcript". These two memories will be shown separately, so neither should repeat the other's text. If there's no such split, leave "previousPart" null and put the page's whole text into "transcript" as usual.
+
 Respond with ONLY a single JSON object and nothing else — no markdown code fence, no explanation:
-{"transcript": "<the transcribed text, with any guessed word wrapped like {this}, or \\"\\" if blank>", "dateHeader": "<standardized as above, e.g. \\"18 October YYYY\\", or null if this page has no date header of its own>", "continuesPrevious": <true only if this page ALSO shows the tail end of a PREVIOUS day's entry before a new date header starts further down the SAME page, else false>}`;
+{"transcript": "<the transcribed text, with any guessed word wrapped like {this}, or \\"\\" if blank; see the split rule above when continuesPrevious is true>", "dateHeader": "<standardized as above, e.g. \\"18 October YYYY\\", or null if this page has no date header of its own>", "continuesPrevious": <true only if this page ALSO shows the tail end of a PREVIOUS day's entry before a new date header starts further down the SAME page, else false>, "previousPart": "<only when continuesPrevious is true: the text BEFORE the new date header, or null>"}`;
 
 /** Defensive parse: strips a markdown fence if the model added one anyway, extracts the
  *  outermost {...}, and never throws — an unparseable reply degrades to "blank page, no
@@ -36,6 +38,7 @@ export function parseDescribeResponse(raw: string): PageDescription {
       transcript: typeof parsed.transcript === "string" ? parsed.transcript : "",
       dateHeader: typeof parsed.dateHeader === "string" && parsed.dateHeader.trim() ? parsed.dateHeader.trim() : null,
       continuesPrevious: parsed.continuesPrevious === true,
+      previousPart: typeof parsed.previousPart === "string" && parsed.previousPart ? parsed.previousPart : undefined,
     };
   } catch {
     log.error("raw", "describe.parse-error", { raw: raw.slice(0, 300) });

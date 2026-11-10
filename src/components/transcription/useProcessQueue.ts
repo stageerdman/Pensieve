@@ -72,9 +72,13 @@ export function useProcessQueue(opts: {
   titleFor: (noteId: string) => string;
   /** fired after a transcript sidecar is saved — the drawer uses it to trigger a sync. */
   onTranscribed?: () => void;
+  /** fired right after a journal batch's new Memories are written to disk — NOT gated on
+   *  a sync pull (these notes are only ever created locally), so the feed/search list
+   *  must refresh from this directly or the new Memories stay invisible until restart. */
+  onNotesCreated?: (noteIds: string[]) => void;
   enabled?: boolean; // desktop only
 }): UseProcessQueue {
-  const { engine, titleFor, onTranscribed, enabled = true } = opts;
+  const { engine, titleFor, onTranscribed, onNotesCreated, enabled = true } = opts;
   const [items, setItems] = useState<ProcessItem[]>([]);
   const [playing, setPlaying] = useState(false);
   const [mode, setMode] = useState<QueueMode>("all");
@@ -86,9 +90,9 @@ export function useProcessQueue(opts: {
   const sorted = sortItems(items);
   const active = activeItem(items);
 
-  // ── one journal batch: the Phase 5 AI split, via processRawBatch. No %-progress
-  // reporting (it's one subprocess call per page, not a streamed engine) — the row just
-  // shows "running" (the spinner state ProcessRow already has for pct===0 && running).
+  // ── one journal batch: the Phase 5 AI split, via processRawBatch. One subprocess call
+  // per page (not a streamed engine), so progress ticks once per page rather than
+  // continuously — still a real, moving signal (pageDone/pageCount), not just "running".
   const runJournalItem = useCallback(
     async (ref: string) => {
       log.info("raw", "queue.start", { rawId: ref });
@@ -97,9 +101,15 @@ export function useProcessQueue(opts: {
         const rm = await store.loadRawMemory(ref);
         if (!rm) throw new Error("raw batch no longer exists");
         await store.saveRawMemory({ ...rm, status: "processing" });
-        const result = await processRawBatch(rm, buildTauriRawBatchDeps(store));
+        const result = await processRawBatch(rm, {
+          ...buildTauriRawBatchDeps(store),
+          onPageDone: (done, total) => {
+            setItems((prev) => prev.map((i) => (i.ref === ref ? { ...i, pct: Math.round((done / total) * 100) } : i)));
+          },
+        });
         await store.removeRawMemory(ref);
         for (const noteId of result.createdNoteIds) reindex.request(noteId);
+        onNotesCreated?.(result.createdNoteIds); // these notes are LOCAL-only — no sync pull will ever surface them
         onTranscribed?.(); // triggers a sync, same as a finished transcript would
         runningRef.current = null;
         log.info("raw", "queue.done", { rawId: ref, created: result.createdNoteIds.length });
@@ -117,7 +127,7 @@ export function useProcessQueue(opts: {
         setPlaying(false);
       }
     },
-    [onTranscribed],
+    [onTranscribed, onNotesCreated],
   );
 
   // ── the one-at-a-time driver — audio goes through the streaming engine; a journal
