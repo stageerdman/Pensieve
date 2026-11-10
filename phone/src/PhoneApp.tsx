@@ -239,11 +239,12 @@ export function PhoneApp() {
   // A real sync may have pulled/removed notes OR Raw Memory batches behind
   // dataRef's/rawBatches' back (it writes straight to the same localStorage) —
   // reload both from storage, then re-render. A batch just pushed successfully
-  // (`pushedRaw`) also gets its own `status` flipped "queued" → "synced" here: the
-  // engine's SyncState bookkeeping already knows it's synced, but nothing else
-  // writes that back into the batch's OWN record, which is what the status badge
-  // actually reads. Keeping the existing `updatedAt` (not bumping it) means this
-  // doesn't look like a fresh local edit and re-trigger another push next sync.
+  // (`pushedRaw`) also gets its own `status` flipped "queued" → "synced" here —
+  // bumping `updatedAt` so THIS flip gets pushed up on the next sync too: desktop's
+  // Process queue only offers a batch once its status says "synced" (see
+  // rawMemoryStore.ts's markRawBatchesSynced), so a local-only flip would leave the
+  // batch sitting on the cloud/desktop forever invisible, even though the bytes
+  // already arrived — a real bug found 2026-11-10, not a hypothetical one.
   const onedrive = useOneDriveSync((info) => {
     dataRef.current = loadVault();
     renderAll(filterQueryRef.current);

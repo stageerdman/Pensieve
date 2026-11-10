@@ -84,15 +84,20 @@ export function deleteRawBatchRecord(id: string): void {
 }
 
 /** After a sync run pushes these batch ids, flip any still-"queued" one to "synced" —
- *  the engine's own SyncState bookkeeping already knows it's synced, but nothing else
- *  writes that back into the batch's OWN record, which is what the Home/detail status
- *  badge actually reads (previously: permanently stuck on "Queued to sync"). Keeps the
- *  EXISTING `updatedAt` rather than bumping it, so this doesn't look like a fresh local
- *  edit and re-trigger another push on the very next sync. */
+ *  the engine's own SyncState bookkeeping already knows the UPLOAD succeeded, but
+ *  nothing else writes that back into the batch's OWN `status` field. That field isn't
+ *  just the phone's status badge text: desktop's `listUnprocessedRawBatches` (see
+ *  src/lib/raw/queue.ts) only offers a batch for AI processing once its `status` is
+ *  "synced" — so this flip MUST itself be bumped (`updatedAt: Date.now()`) and pushed
+ *  up on the next sync, not just corrected locally. Without that, a batch reaches the
+ *  cloud and even gets pulled onto desktop's disk, but sits there invisible forever,
+ *  since desktop is reading status:"queued" forever too (this was a real bug, not
+ *  hypothetical — found 2026-11-10 via a live OneDrive account: the file WAS on both
+ *  the cloud and the desktop vault, just permanently gated out of the Process queue). */
 export function markRawBatchesSynced(ids: Iterable<string>): void {
   for (const id of ids) {
     const b = loadRawBatch(id);
-    if (b && b.status === "queued") saveRawBatch({ ...b, status: "synced" });
+    if (b && b.status === "queued") saveRawBatch({ ...b, status: "synced", updatedAt: Date.now() });
   }
 }
 

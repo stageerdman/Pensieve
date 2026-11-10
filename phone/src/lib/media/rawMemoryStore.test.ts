@@ -117,10 +117,10 @@ describe("markRawBatchesSynced — the Sync badge must actually clear after a re
     expect(loadRawBatch("r1")?.status).toBe("synced");
   });
 
-  it("keeps the EXISTING updatedAt — a status flip must not look like a fresh local edit and re-trigger another push", () => {
+  it("bumps updatedAt so the status flip itself gets pushed to the cloud — desktop's Process queue reads status straight off the synced record, so a LOCAL-only flip would never reach it", () => {
     saveRawBatch({ id: "r1", status: "queued", createdAt: 1, updatedAt: 5, pages: [] });
     markRawBatchesSynced(["r1"]);
-    expect(loadRawBatch("r1")?.updatedAt).toBe(5);
+    expect(loadRawBatch("r1")!.updatedAt).toBeGreaterThan(5);
   });
 
   it("leaves a batch alone if it isn't in the pushed list", () => {
