@@ -14,6 +14,8 @@ import {
   IMAGE_FENCE,
   imageMd,
   isMediaPath,
+  journalMd,
+  JOURNAL_FENCE,
   listMd,
   parseNoteContent,
   planInsert,
@@ -66,6 +68,34 @@ describe("noteMedia — gallery fence", () => {
     const blocks = parseNoteContent(body);
     expect(blocks.map((b) => b.kind)).toEqual(["text", "text", "gallery", "text", "text"]);
     expect((blocks[2] as Extract<NoteBlock, { kind: "gallery" }>).images).toEqual(images);
+  });
+});
+
+describe("noteMedia — journal fence (a processed Raw Memory batch)", () => {
+  const pages = [
+    { ref: "media/note1/a.jpg" },
+    { ref: "media/note1/b.jpg" },
+    { ref: "media/note1/c.jpg", caption: "Nov 3" },
+  ];
+
+  it("serializes to the pensieve:journal fence, one `ref | caption` line per page — same grammar as gallery, no h= line", () => {
+    const md = journalMd(pages);
+    expect(md).toBe("```" + JOURNAL_FENCE + "\n" + "media/note1/a.jpg\nmedia/note1/b.jpg\nmedia/note1/c.jpg | Nov 3" + "\n```");
+  });
+
+  it("round-trips the fence back to a journal block, page order preserved", () => {
+    expect(parseNoteContent(journalMd(pages))).toEqual([{ kind: "journal", pages }]);
+  });
+
+  it("parses a journal block embedded between the Memory's own title and prose", () => {
+    const body = "Went for a long walk by the river.\n\n" + journalMd(pages);
+    const blocks = parseNoteContent(body);
+    expect(blocks.map((b) => b.kind)).toEqual(["text", "text", "journal"]);
+  });
+
+  it("serializeBlocks(parseNoteContent(x)) round-trips a journal fence byte-for-byte", () => {
+    const body = "A journal title\n\n" + journalMd(pages);
+    expect(serializeBlocks(parseNoteContent(body))).toBe(body);
   });
 });
 
@@ -279,5 +309,18 @@ describe("noteMedia — path + preview", () => {
   it("stripMediaForPreview turns a pensieve:video fence into a clean marker", () => {
     const fence = "```" + VIDEO_FENCE + "\nmedia/1/a.mov\na caption\n```";
     expect(stripMediaForPreview(fence)).toBe("🎬 Video");
+  });
+
+  it("stripMediaForPreview turns a pensieve:journal fence into a clean marker, never the raw media/ ref lines — the real bug report was seeing code here", () => {
+    const fence = journalMd([{ ref: "media/note1/a.jpg" }, { ref: "media/note1/b.jpg" }]);
+    const stripped = stripMediaForPreview(fence);
+    expect(stripped).toBe("📓 Journal");
+    expect(stripped).not.toContain("media/");
+    expect(stripped).not.toContain("```");
+  });
+
+  it("a journal Memory's title line (the real transcript text) survives stripMediaForPreview untouched", () => {
+    const body = "Went for a long walk by the river.\n\n" + journalMd([{ ref: "media/note1/a.jpg" }]);
+    expect(stripMediaForPreview(body)).toBe("Went for a long walk by the river.\n📓 Journal");
   });
 });

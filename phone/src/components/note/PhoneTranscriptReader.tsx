@@ -19,12 +19,12 @@ export function PhoneTranscriptReader() {
   useEffect(() => phoneTranscriptReader.subscribe(setS), []);
 
   useEffect(() => {
-    if (!s.open) return;
+    if (!s.open || s.noPlayer) return;
     const c = getController(s.ref, s.src);
     const tick = () => setTick((t) => t + 1);
     const offs = [c.on("play", tick), c.on("pause", tick), c.on("time", tick), c.on("durationchange", tick)];
     return () => offs.forEach((off) => off());
-  }, [s.open, s.ref, s.src]);
+  }, [s.open, s.noPlayer, s.ref, s.src]);
 
   useEffect(() => {
     if (!s.open) return;
@@ -39,9 +39,11 @@ export function PhoneTranscriptReader() {
 
   if (!s.open) return null;
 
-  const c = getController(s.ref, s.src);
-  const dur = c.duration;
-  const frac = Number.isFinite(dur) && dur > 0 ? c.currentTime / dur : 0;
+  // A journal page sequence has no audio to play — skip the player entirely rather than
+  // standing up a bogus controller for an empty src.
+  const c = s.noPlayer ? null : getController(s.ref, s.src);
+  const dur = c?.duration ?? 0;
+  const frac = Number.isFinite(dur) && dur > 0 ? c!.currentTime / dur : 0;
 
   return (
     <div className="ph-reader" role="dialog" aria-modal="true" aria-label="Transcript">
@@ -63,38 +65,40 @@ export function PhoneTranscriptReader() {
         ))}
       </div>
 
-      <div className="ph-reader-player">
-        <button
-          type="button"
-          className="ph-reader-play"
-          aria-label={c.playing ? "Pause" : "Play"}
-          onClick={() => c.toggle()}
-        >
-          {c.playing ? (
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
-              <rect x="6.5" y="5" width="3.6" height="14" rx="1" />
-              <rect x="13.9" y="5" width="3.6" height="14" rx="1" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
-              <path d="M8 5.5v13a.75.75 0 0 0 1.14.64l10.5-6.5a.75.75 0 0 0 0-1.28L9.14 4.86A.75.75 0 0 0 8 5.5Z" />
-            </svg>
-          )}
-        </button>
-        <div
-          className="ph-reader-track"
-          ref={trackRef}
-          onClick={(e) => {
-            const r = trackRef.current!.getBoundingClientRect();
-            c.seekFrac(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)));
-          }}
-        >
-          <div className="ph-reader-fill" style={{ width: `${Math.min(1, Math.max(0, frac)) * 100}%` }} />
+      {c && (
+        <div className="ph-reader-player">
+          <button
+            type="button"
+            className="ph-reader-play"
+            aria-label={c.playing ? "Pause" : "Play"}
+            onClick={() => c.toggle()}
+          >
+            {c.playing ? (
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+                <rect x="6.5" y="5" width="3.6" height="14" rx="1" />
+                <rect x="13.9" y="5" width="3.6" height="14" rx="1" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+                <path d="M8 5.5v13a.75.75 0 0 0 1.14.64l10.5-6.5a.75.75 0 0 0 0-1.28L9.14 4.86A.75.75 0 0 0 8 5.5Z" />
+              </svg>
+            )}
+          </button>
+          <div
+            className="ph-reader-track"
+            ref={trackRef}
+            onClick={(e) => {
+              const r = trackRef.current!.getBoundingClientRect();
+              c.seekFrac(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)));
+            }}
+          >
+            <div className="ph-reader-fill" style={{ width: `${Math.min(1, Math.max(0, frac)) * 100}%` }} />
+          </div>
+          <span className="ph-reader-time">
+            {fmtTime(c.currentTime)} / {fmtTime(dur)}
+          </span>
         </div>
-        <span className="ph-reader-time">
-          {fmtTime(c.currentTime)} / {fmtTime(dur)}
-        </span>
-      </div>
+      )}
     </div>
   );
 }

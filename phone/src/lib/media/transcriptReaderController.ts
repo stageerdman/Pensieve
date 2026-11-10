@@ -11,6 +11,9 @@ export interface TranscriptReaderState {
   src: string; // the resolved playable url
   transcript: Transcript | null;
   caption?: string;
+  /** True for a journal page sequence — there's no audio to play, so the reader shows
+   *  just the transcript with no player bar (skips creating a bogus audio controller). */
+  noPlayer?: boolean;
 }
 
 type Listener = (s: TranscriptReaderState) => void;
@@ -24,7 +27,7 @@ function emit() {
 }
 
 export const phoneTranscriptReader = {
-  open(opts: { ref: string; src: string; transcript: Transcript | null; caption?: string }) {
+  open(opts: { ref: string; src: string; transcript: Transcript | null; caption?: string; noPlayer?: boolean }) {
     state = { open: true, ...opts };
     emit();
   },

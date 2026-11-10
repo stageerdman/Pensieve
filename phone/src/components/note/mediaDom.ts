@@ -20,6 +20,7 @@ import {
   encodeImageNoteBlock,
   encodeVideoNoteBlock,
   galleryMd,
+  journalMd,
   mediaAlt,
   parseNoteContent,
   type ListItemNode,
@@ -27,6 +28,7 @@ import {
   type NoteBlock,
 } from "../../lib/media/noteMedia";
 import { _debugBlobMeta, cachedMediaUrl, loadTranscript, resolveAudioDataUrl, resolveMediaUrl } from "../../lib/media/mediaStore";
+import type { Transcript } from "../../lib/media/transcript";
 import { phoneLightbox } from "../../lib/media/lightboxController";
 import { phoneCollection } from "../../lib/media/collectionController";
 import { _debugRegistrySize, fmtTime, getController } from "../../lib/media/audioController";
@@ -603,6 +605,57 @@ function pullOutAt(el: HTMLElement, index: number, ctx: MediaCtx) {
   setGalleryImages(el, images.filter((_, i) => i !== index), ctx); // drop from the gallery + persist
 }
 
+// ---- journal block (a Raw Memory batch, processed into this Memory by desktop AI) ----
+//
+// A sequential page STRIP (read like a real journal, not Gallery's free-form grid) — each
+// tile taps independently to the real lightbox, landing on THAT page's index. One shared
+// "Transcript" button opens the SAME full-screen reader audio/video already use (see
+// PhoneTranscriptReader.tsx), just with `noPlayer: true` — there's no audio to play, only
+// every page's transcribed text, each page = one paragraph, in order. Read-only: unlike
+// Gallery, there's no remove/reorder here — a processed Memory's pages are fixed.
+
+function buildJournalEl(block: Extract<NoteBlock, { kind: "journal" }>, ctx: MediaCtx): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "ph-media ph-journal";
+  el.contentEditable = "false";
+  writeBlock(el, block);
+  void ctx; // read-only block — no in-place mutation
+
+  const strip = document.createElement("div");
+  strip.className = "ph-journal-inline-strip";
+  block.pages.forEach((page, i) => {
+    const tile = document.createElement("div");
+    tile.className = "ph-journal-inline-tile";
+    const img = document.createElement("img");
+    img.alt = "";
+    img.draggable = false;
+    attachImg(img, page.ref);
+    tile.appendChild(img);
+    wireMediaTap(tile, () => {
+      void resolveAll(block.pages).then((items) => phoneLightbox.open(items, i));
+    });
+    strip.appendChild(tile);
+  });
+  el.appendChild(strip);
+
+  const transcriptBtn = document.createElement("button");
+  transcriptBtn.type = "button";
+  transcriptBtn.className = "ph-journal-inline-transcript";
+  transcriptBtn.innerHTML = TRANSCRIPT_SVG + "<span>Transcript</span>";
+  el.appendChild(transcriptBtn);
+  wireMediaTap(transcriptBtn, () => {
+    void Promise.all(block.pages.map((p) => loadTranscript(p.ref))).then((loaded) => {
+      const segments = loaded.flatMap((t, i) => (t ? t.segments.map((s) => ({ ...s, id: i })) : []));
+      if (!segments.length) return;
+      const transcript: Transcript = { version: 1, media: "", meta: {}, segments };
+      phoneTranscriptReader.open({ ref: `journal:${block.pages[0]?.ref ?? ""}`, src: "", transcript, noPlayer: true });
+    });
+  });
+
+  appendGrip(el);
+  return el;
+}
+
 // ---- markdown list rendering (bullet / numbered / checklist) ----
 //
 // The DOM <ul>/<ol>/<li> tree IS the model here (unlike media, which needs a data-media
@@ -674,6 +727,7 @@ function buildBlockEl(block: NoteBlock, ctx: MediaCtx, noteBody: HTMLElement): H
   if (block.kind === "list") return buildListGroup(block.items);
   if (block.kind === "audio") return buildAudioEl(block, ctx);
   if (block.kind === "video") return buildVideoEl(block, ctx);
+  if (block.kind === "journal") return buildJournalEl(block, ctx);
   // text
   const div = document.createElement("div");
   div.innerHTML = block.text.trim() ? esc(block.text) : "<br>";
@@ -738,6 +792,7 @@ export function serializeNoteBody(noteBody: HTMLElement): { title: string; conte
       else if (b?.kind === "gallery") parts.push(galleryMd(b.images, b.height));
       else if (b?.kind === "audio") parts.push(encodeAudioNoteBlock(b));
       else if (b?.kind === "video") parts.push(encodeVideoNoteBlock(b));
+      else if (b?.kind === "journal") parts.push(journalMd(b.pages));
     } else if (el.tagName === "UL" || el.tagName === "OL") {
       parts.push(serializeListEl(el).join("\n"));
     } else {

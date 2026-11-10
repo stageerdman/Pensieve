@@ -39,6 +39,11 @@ export const AUDIO_FENCE = "pensieve:audio";
 export const VIDEO_FENCE = "pensieve:video";
 /** Matches src/lib/md/video.ts DEFAULT_VIDEO_WIDTH. */
 export const DEFAULT_VIDEO_WIDTH = 0.75;
+/** The fence language carrying a Raw-Memory-processed journal page sequence (matches
+ *  src/lib/md/journal.ts) — same `ref | caption` line grammar as gallery (reused via
+ *  parseGalleryLines), just a different fence language and no `h=` height line (journal
+ *  has no drag-resize). Rendered as a sequential page strip, not a free grid. */
+export const JOURNAL_FENCE = "pensieve:journal";
 
 /** One image: a vault-relative ref (`media/...`) or a direct url (data:/blob:/http). */
 export interface MediaImage {
@@ -64,7 +69,8 @@ export type NoteBlock =
   | { kind: "gallery"; images: MediaImage[]; height?: number }
   | { kind: "list"; items: ListItemNode[] }
   | { kind: "audio"; ref: string; caption?: string }
-  | { kind: "video"; ref: string; caption?: string; width?: number };
+  | { kind: "video"; ref: string; caption?: string; width?: number }
+  | { kind: "journal"; pages: MediaImage[] };
 
 /** The desktop gallery's dragged display HEIGHT rides an optional leading `h=<px>` fence line
  *  (matches src/lib/md/gallery.ts). The phone ignores it for layout but MUST round-trip it so the
@@ -261,6 +267,13 @@ export function galleryMd(images: MediaImage[], height?: number): string {
   return "```" + GALLERY_FENCE + "\n" + lines.join("\n") + "\n```";
 }
 
+/** Serialize an ordered page list → the `pensieve:journal` fenced block. Byte-identical
+ *  grammar to galleryMd minus the `h=` height line (matches src/lib/md/journal.ts). */
+export function journalMd(pages: MediaImage[]): string {
+  const lines = pages.map((p) => (p.caption ? `${p.ref}${GALLERY_SEP}${p.caption}` : p.ref));
+  return "```" + JOURNAL_FENCE + "\n" + lines.join("\n") + "\n```";
+}
+
 /** Parse one gallery fence body (the lines between the ``` fences) → images. */
 function parseGalleryLines(lines: string[]): MediaImage[] {
   return lines
@@ -281,6 +294,7 @@ export function parseNoteContent(content: string): NoteBlock[] {
   const imageFenceOpen = "```" + IMAGE_FENCE;
   const audioFenceOpen = "```" + AUDIO_FENCE;
   const videoFenceOpen = "```" + VIDEO_FENCE;
+  const journalFenceOpen = "```" + JOURNAL_FENCE;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (line.trim() === galleryFenceOpen) {
@@ -338,6 +352,19 @@ export function parseNoteContent(content: string): NoteBlock[] {
       i = j;
       continue;
     }
+    if (line.trim() === journalFenceOpen) {
+      const inner: string[] = [];
+      let j = i + 1;
+      for (; j < lines.length; j++) {
+        if (lines[j].trim() === "```") break;
+        inner.push(lines[j]);
+      }
+      const body = inner.map((l) => l.trim()).filter((l) => l.length > 0);
+      const pages = parseGalleryLines(body);
+      if (pages.length) blocks.push({ kind: "journal", pages });
+      i = j;
+      continue;
+    }
     const m = line.trim().match(IMAGE_LINE);
     if (m) {
       const caption = m[1] || undefined;
@@ -371,6 +398,7 @@ export function serializeBlocks(blocks: NoteBlock[]): string {
       if (b.kind === "list") return listMd(b.items);
       if (b.kind === "audio") return encodeAudioNoteBlock(b);
       if (b.kind === "video") return encodeVideoNoteBlock(b);
+      if (b.kind === "journal") return journalMd(b.pages);
       return galleryMd(b.images, b.height);
     })
     .join("\n");
@@ -407,16 +435,21 @@ const GALLERY_FENCE_BLOCK = new RegExp("```" + GALLERY_FENCE + "[\\s\\S]*?```", 
 const IMAGE_FENCE_BLOCK = new RegExp("```" + IMAGE_FENCE + "[\\s\\S]*?```", "g");
 const AUDIO_FENCE_BLOCK = new RegExp("```" + AUDIO_FENCE + "[\\s\\S]*?```", "g");
 const VIDEO_FENCE_BLOCK = new RegExp("```" + VIDEO_FENCE + "[\\s\\S]*?```", "g");
+const JOURNAL_FENCE_BLOCK = new RegExp("```" + JOURNAL_FENCE + "[\\s\\S]*?```", "g");
 
 /** Strip media markdown from a body so the reel snippet shows clean prose, not raw refs.
  *  A single image becomes its caption (or a 📷 marker); a gallery becomes a 📷 marker; a
- *  recording becomes a 🎙️ marker; a video becomes a 🎬 marker. */
+ *  recording becomes a 🎙️ marker; a video becomes a 🎬 marker; a journal page sequence
+ *  becomes a 📓 marker — never the raw `media/<id>/<file>` ref lines a fence otherwise
+ *  shows verbatim. The REAL transcript text already leads the body as this Memory's
+ *  title (see processRawBatch's deriveTitle) — this only has to not show code underneath it. */
 export function stripMediaForPreview(content: string): string {
   return (content ?? "")
     .replace(GALLERY_FENCE_BLOCK, "📷 Photos")
     .replace(IMAGE_FENCE_BLOCK, "📷 Photo")
     .replace(AUDIO_FENCE_BLOCK, "🎙️ Recording")
     .replace(VIDEO_FENCE_BLOCK, "🎬 Video")
+    .replace(JOURNAL_FENCE_BLOCK, "📓 Journal")
     .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, cap) => (cap ? `📷 ${cap}` : "📷 Photo"))
     .replace(/\n{2,}/g, "\n")
     .trim();
