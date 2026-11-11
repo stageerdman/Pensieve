@@ -1,9 +1,9 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, type DragEvent } from "react";
 import { X } from "../../components/icons";
-import { useWindowFileDrop } from "../../lib/useWindowFileDrop";
 import type { KnowledgeFile } from "../../lib/ai/agents";
 import {
   basenameOf,
+  ingestKnowledgeBytes,
   ingestKnowledgeFile,
   isKnowledgeFilePath,
   onKnowledgeIngestProgress,
@@ -16,6 +16,18 @@ import {
 // matches that instead). Same states: empty drop-zone, drag-active, one-file-at-a-time
 // indexing progress, file list with remove, and an error line that doesn't abort the
 // rest of a batch.
+//
+// Drag-and-drop here is plain DOM dragover/drop on the zone itself, NOT masters-wheel's
+// Tauri onDragDropEvent — tauri.conf.json sets dragDropEnabled:false on this app's main
+// window (MEDIA-IMAGES, so the editor's own image/audio/video drop handling can see real
+// DOM events; see useGlobalDropGuard.ts), which makes that native event never fire here
+// at all. A dropped file also arrives as a plain browser File with no real filesystem
+// path, so it goes through ingestKnowledgeBytes (base64 over invoke), not
+// ingestKnowledgeFile (which needs a real path — only the native "pick files" dialog has
+// one). Every dragover handler below MUST call preventDefault() itself: with Tauri's
+// native handling off, that's the only thing standing between a drop and WKWebView
+// navigating the whole window away to the dropped file's raw content (useGlobalDropGuard
+// is the last-resort backstop for this exact failure, not the first line of defense).
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -34,16 +46,16 @@ function fileKindLabel(extension: string): string {
 type IndexingStatus = { fileName: string; processed: number; total: number };
 
 // Owns the whole "add knowledge files" flow, from however the files were selected
-// (native dialog or a window drop) through indexing each one. Files are indexed one at a
-// time, not in parallel, so `indexing` always describes exactly one real in-progress
-// file. One file failing (e.g. an unsupported type) doesn't abort the rest of the batch.
+// (native dialog or a real drop onto this component) through indexing each one. Files
+// are indexed one at a time, not in parallel, so `indexing` always describes exactly
+// one real in-progress file. One file failing (e.g. an unsupported type) doesn't abort
+// the rest of the batch.
 function useKnowledgeUpload(agentId: string, onAdded: (file: KnowledgeFile) => void) {
   const [indexing, setIndexing] = useState<IndexingStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const ingestOne = useCallback(
-    async (path: string) => {
-      const fileName = basenameOf(path);
+  const withProgress = useCallback(
+    async (fileName: string, run: (jobId: string) => Promise<KnowledgeFile>) => {
       const jobId =
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
@@ -56,37 +68,49 @@ function useKnowledgeUpload(agentId: string, onAdded: (file: KnowledgeFile) => v
       });
 
       try {
-        onAdded(await ingestKnowledgeFile(agentId, path, jobId));
+        onAdded(await run(jobId));
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       } finally {
         unlisten();
       }
     },
-    [agentId, onAdded],
+    [onAdded],
   );
 
-  // Filters to this feature's own supported extensions — a window-wide drop used by
-  // more than one drop target (e.g. a future photo drop zone) needs an irrelevant
-  // dropped file silently ignored here, not surfaced as an "unsupported" error.
-  const addFiles = useCallback(
+  // Files picked via the native dialog — real filesystem paths.
+  const addPaths = useCallback(
     async (paths: string[]) => {
       const relevant = paths.filter(isKnowledgeFilePath);
       if (relevant.length === 0) return;
       setError(null);
       for (const path of relevant) {
-        await ingestOne(path);
+        await withProgress(basenameOf(path), (jobId) => ingestKnowledgeFile(agentId, path, jobId));
       }
       setIndexing(null);
     },
-    [ingestOne],
+    [agentId, withProgress],
+  );
+
+  // Files dropped onto the zone — plain browser File blobs, no real path.
+  const addDroppedFiles = useCallback(
+    async (files: File[]) => {
+      const relevant = files.filter((f) => isKnowledgeFilePath(f.name));
+      if (relevant.length === 0) return;
+      setError(null);
+      for (const file of relevant) {
+        await withProgress(file.name, (jobId) => ingestKnowledgeBytes(agentId, file, jobId));
+      }
+      setIndexing(null);
+    },
+    [agentId, withProgress],
   );
 
   const pickAndAddFiles = useCallback(async () => {
-    addFiles(await pickKnowledgeFiles());
-  }, [addFiles]);
+    addPaths(await pickKnowledgeFiles());
+  }, [addPaths]);
 
-  return { indexing, error, addFiles, pickAndAddFiles };
+  return { indexing, error, addDroppedFiles, pickAndAddFiles };
 }
 
 function indexingLabel(indexing: IndexingStatus): string {
@@ -105,9 +129,29 @@ export function KnowledgeManager({
   onAddFile: (file: KnowledgeFile) => void;
   onRemoveFile: (id: string) => void;
 }) {
-  const { indexing, error, addFiles, pickAndAddFiles } = useKnowledgeUpload(agentId, onAddFile);
-  const isDragActive = useWindowFileDrop(true, addFiles);
+  const { indexing, error, addDroppedFiles, pickAndAddFiles } = useKnowledgeUpload(agentId, onAddFile);
+  const [isDragActive, setIsDragActive] = useState(false);
   const totalChunks = files.reduce((sum, file) => sum + file.chunkCount, 0);
+
+  // preventDefault() on dragover is what tells the browser "this drop has a handler" —
+  // skip it and the drop event never fires at all here, and the file falls through to
+  // WKWebView's own default handling instead (see the file-level comment above).
+  const onDragOver = useCallback((e: DragEvent) => {
+    e.preventDefault();
+    setIsDragActive(true);
+  }, []);
+  const onDragLeave = useCallback((e: DragEvent) => {
+    e.preventDefault();
+    setIsDragActive(false);
+  }, []);
+  const onDrop = useCallback(
+    (e: DragEvent) => {
+      e.preventDefault();
+      setIsDragActive(false);
+      void addDroppedFiles(Array.from(e.dataTransfer.files));
+    },
+    [addDroppedFiles],
+  );
 
   return (
     <div className="flex flex-col gap-1">
@@ -123,6 +167,9 @@ export function KnowledgeManager({
         <button
           type="button"
           onClick={pickAndAddFiles}
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
           disabled={indexing !== null}
           className={
             "flex min-h-[72px] w-full flex-col items-center justify-center rounded-md border border-dashed px-3 py-4 text-center text-sm transition-colors disabled:opacity-60 " +
@@ -135,6 +182,9 @@ export function KnowledgeManager({
         </button>
       ) : (
         <div
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
           className={
             "flex flex-col gap-1 rounded-md border px-1 py-1 " +
             (isDragActive ? "border-accent bg-accent/5" : "border-border")

@@ -9,6 +9,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { bytesToBase64 } from "../media/base64";
 import type { KnowledgeFile } from "./agents";
 
 export const SUPPORTED_KNOWLEDGE_EXTENSIONS = ["txt", "md", "markdown", "pdf"];
@@ -48,6 +49,25 @@ export async function ingestKnowledgeFile(
     fileId: crypto.randomUUID(),
     sourcePath,
     fileName: basenameOf(sourcePath),
+  });
+}
+
+// Indexes one already-in-memory file (a dropped browser File blob, which has no real
+// filesystem path — see useGlobalDropGuard.ts / KnowledgeManager.tsx for why drag-and-
+// drop has to go this route instead of ingestKnowledgeFile above). Same jobId-then-
+// subscribe-then-call contract as ingestKnowledgeFile.
+export async function ingestKnowledgeBytes(
+  agentId: string,
+  file: File,
+  jobId: string,
+): Promise<KnowledgeFile> {
+  const data = bytesToBase64(await file.arrayBuffer());
+  return invoke<KnowledgeFile>("ingest_knowledge_bytes", {
+    jobId,
+    agentId,
+    fileId: crypto.randomUUID(),
+    fileName: file.name,
+    data,
   });
 }
 

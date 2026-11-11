@@ -45,15 +45,15 @@ swapped for Pensieve's own four MCP tools (search_notes/get_note/list_recent/lis
    visibly draws on it, `npm run tauri:build`, commit+push each phase as it lands.
 
 ## Live status
-- Phases 1–7: done and pushed to main (`8ad29c8`, `c8a7c51`, `b37dba5`). Typecheck,
-  `npm test` (1193 passed), `cargo test` (21 passed, including 8 new knowledge/prompt
-  tests), `npm run build`, and `npm run tauri:build` all green — `/Applications/Pensieve.app`
-  rebuilt and reinstalled at 2026-11-11 11:40.
-- Phase 8 (live verification): blocked on this environment's own macOS permissions, not
-  on the feature — `osascript`/`screencapture` from this automation shell have neither
-  Accessibility nor Screen Recording access, so the app can launch (process confirmed
-  running) but can't be screenshotted or clicked through from here. Owner needs to do
-  the real end-to-end pass by hand: open Patronus → Agents editor → add a small .txt
-  knowledge file to an agent → confirm a chunk count appears → ask that agent a question
-  only answerable from that file → confirm the reply actually draws on it. Check
-  `log.query(...)` afterward rather than relying on feel alone (CLAUDE.md Testing).
+- Phases 1–7: done and pushed to main (`8ad29c8`, `c8a7c51`, `b37dba5`).
+- Owner's first real test (2026-11-11) found a serious bug: the Knowledge Manager's drag-
+  and-drop didn't just fail silently, it briefly replaced the whole Pensieve UI with raw
+  file content — see wiki.md's "A real incident" section for the full root cause
+  (`tauri.conf.json`'s `dragDropEnabled: false` + no global drop guard existed before this
+  update). Fixed: a new `useGlobalDropGuard` (permanent, app-wide) plus a real DOM-based
+  drop zone (`ingest_knowledge_bytes`) replacing the dead ported Tauri-event hook.
+  Typecheck, `npm test` (1193 passed), `cargo test` (21 passed), `npm run tauri:build` all
+  green again after the fix; app rebuilt/reinstalled.
+- Next: owner re-testing now — add a file (both via click-to-pick and via drag), confirm
+  a chunk count appears, ask the agent something only that file could answer, confirm the
+  reply draws on it, and confirm no repeat of the navigate-away bug.

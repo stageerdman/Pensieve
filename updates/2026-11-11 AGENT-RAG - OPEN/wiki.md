@@ -67,6 +67,47 @@ if something here is unclear — this file only records what's *different* in th
   fields, adding/removing a knowledge file calls `setRoster` immediately, the same
   "commit now" shape masters-wheel's `commitImmediate` autosave gives every field there.
 
+## A real incident: drag-and-drop briefly broke the whole app
+Ported masters-wheel's `useWindowFileDrop` (Tauri's `onDragDropEvent`) verbatim for the
+Knowledge Manager's drop zone without checking this app's own `tauri.conf.json` first —
+it sets `dragDropEnabled: false` on the main window (MEDIA-IMAGES, 2026-10-14, so the
+editor's own image/audio/video drop handling — `imagePasteDrop.ts` — can see real DOM
+`dragover`/`drop` events; Tauri's native handling was swallowing them). That setting means
+`onDragDropEvent` can never fire in this app at all — the ported hook was dead on arrival,
+which is the whole reason "drag and drop doesn't work" was reported.
+
+Worse than non-functional: with `dragDropEnabled: false`, nothing *else* calls
+`preventDefault()` either outside the editor's own ProseMirror surface, so WKWebView's own
+default behavior for an unhandled file drop — navigate the whole window to the dropped
+file's `file://` URL — fired, replacing the entire Pensieve UI with raw file content. The
+drop zone's very existence (inviting a drag) is what exposed a latent gap that predates
+this update: outside the editor, Pensieve never had any drop handling of its own, so it was
+always one stray drop away from this; this update's drop zone just put a target in the one
+place a user would naturally try it.
+
+Fixed two ways:
+- `src/hooks/useGlobalDropGuard.ts`, called once from `App.tsx` — an unconditional
+  `window`-level `preventDefault()` on every `dragover`/`drop` in the whole app. This is
+  the permanent backstop and should have existed since `dragDropEnabled: false` was first
+  set; it didn't, because nothing outside the editor tried to receive a drop until now.
+- Rewrote the Knowledge Manager's drop zone to real DOM `onDragOver`/`onDrop` React props
+  (matching `imagePasteDrop.ts`'s own pattern, not masters-wheel's Tauri-event one). A
+  dropped file arrives as a plain browser `File` with no real filesystem path (unlike a
+  file chosen via the native dialog, which has one from `@tauri-apps/plugin-dialog`), so
+  it goes through a new `ingest_knowledge_bytes` Tauri command (base64 bytes over invoke,
+  same convention as the vault's existing `write_bytes`) instead of `ingest_knowledge_file`
+  (which needs a real path to `std::fs::copy` from). Both commands now share one
+  `ingest_stored_file` tail in `commands.rs` once a copy already sits on disk.
+
+Lesson: a ported hook/pattern is only as valid as the config it assumes. Should have
+grepped `tauri.conf.json` + searched for existing drop handling in this app *before*
+porting masters-wheel's drag-drop mechanism, not after a live break. Check
+`[[phone-global-touch-guard-allowlist]]` for the exact same shape of bug on the phone PWA
+side (one global gesture-eating guard, new surfaces must be added to it) — this is the
+desktop analogue: one global "don't let a drop escape without a handler" guard that every
+future drop zone benefits from automatically, instead of each new feature needing to
+remember to protect itself.
+
 ## Open questions / deferred
 - No chat-time UI shows *which* knowledge excerpts actually got pulled into a given
   reply (masters-wheel doesn't surface this either — it's assembled server-side and

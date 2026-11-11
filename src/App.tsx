@@ -41,6 +41,7 @@ import { contentCharCount } from "./lib/text";
 import { useNotes } from "./hooks/useNotes";
 import { useTabs } from "./hooks/useTabs";
 import { useGlobalShortcuts } from "./hooks/useGlobalShortcuts";
+import { useGlobalDropGuard } from "./hooks/useGlobalDropGuard";
 import { useNativeCommands } from "./hooks/useNativeCommands";
 import { useGallery } from "./hooks/useGallery";
 import { useTheme } from "./hooks/useTheme";
@@ -279,6 +280,8 @@ export default function App() {
       }
     });
   }, [goHome]);
+
+  useGlobalDropGuard();
 
   useGlobalShortcuts({
     newNote: () => void newNote(),
