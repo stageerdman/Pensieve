@@ -45,5 +45,15 @@ swapped for Pensieve's own four MCP tools (search_notes/get_note/list_recent/lis
    visibly draws on it, `npm run tauri:build`, commit+push each phase as it lands.
 
 ## Live status
-- Phase 1 (docs): done.
-- Phase 2 (Rust knowledge module): in progress.
+- Phases 1–7: done and pushed to main (`8ad29c8`, `c8a7c51`, `b37dba5`). Typecheck,
+  `npm test` (1193 passed), `cargo test` (21 passed, including 8 new knowledge/prompt
+  tests), `npm run build`, and `npm run tauri:build` all green — `/Applications/Pensieve.app`
+  rebuilt and reinstalled at 2026-11-11 11:40.
+- Phase 8 (live verification): blocked on this environment's own macOS permissions, not
+  on the feature — `osascript`/`screencapture` from this automation shell have neither
+  Accessibility nor Screen Recording access, so the app can launch (process confirmed
+  running) but can't be screenshotted or clicked through from here. Owner needs to do
+  the real end-to-end pass by hand: open Patronus → Agents editor → add a small .txt
+  knowledge file to an agent → confirm a chunk count appears → ask that agent a question
+  only answerable from that file → confirm the reply actually draws on it. Check
+  `log.query(...)` afterward rather than relying on feel alone (CLAUDE.md Testing).
