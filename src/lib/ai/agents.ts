@@ -4,11 +4,26 @@
 // See updates/2026-11-10 PATRONUS-AI - OPEN/wiki.md for why agents are files, not a
 // hardcoded array, once an editing UI exists.
 
+// One knowledge file an agent has been given (AGENT-RAG, ported from masters-wheel's
+// knowledgeFiles — see updates/2026-11-11 AGENT-RAG - OPEN/wiki.md). The file itself and
+// its indexed chunks live on the Rust side (src-tauri/src/knowledge/); this is just the
+// metadata the UI shows.
+export interface KnowledgeFile {
+  id: string;
+  name: string;
+  size: number;
+  /** File extension (e.g. "pdf", "txt", "md") — not a MIME type. */
+  type: string;
+  /** How many retrievable chunks the knowledge pipeline split this file into. */
+  chunkCount: number;
+}
+
 export interface Agent {
   id: string;
   name: string;
   tagline: string;
   systemPrompt: string;
+  knowledgeFiles: KnowledgeFile[];
 }
 
 export const BASE_PERSONA =
@@ -24,6 +39,7 @@ export const SEED_AGENTS: Agent[] = [
     id: "patronus",
     name: "Patronus",
     tagline: "reflects on what matters",
+    knowledgeFiles: [],
     systemPrompt:
       `${BASE_PERSONA}\n\nYou are Patronus, the reflective coach. Read the person's ` +
       "journal entries and memories to notice real patterns — not generic advice. When " +
@@ -35,6 +51,7 @@ export const SEED_AGENTS: Agent[] = [
     id: "curator",
     name: "Curator",
     tagline: "organizes and connects",
+    knowledgeFiles: [],
     systemPrompt:
       `${BASE_PERSONA}\n\nYou are Curator, focused on organization. Help find the right ` +
       "category or tags for a note, spot notes that should be linked, and surface " +

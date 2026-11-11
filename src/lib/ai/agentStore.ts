@@ -1,12 +1,14 @@
 // Load/save the AI agent roster. Same shape as lib/categories/store.ts (a single JSON
 // file at <vault>/agents.json, travelling with backup/sync, mirrored to localStorage in
 // the browser dev build) — not masters-wheel's one-file-per-agent folder, since
-// Pensieve already has an established convention for "a small editable collection" and
-// there's no per-agent knowledge/RAG data here that would need its own folder (see this
-// update's wiki.md: knowledge files were deliberately not ported).
+// Pensieve already has an established convention for "a small editable collection".
+// Each agent's knowledgeFiles array (AGENT-RAG) is metadata only — the files themselves
+// and their indexed chunks live under <vault>/agents/<id>/ on the Rust side (see
+// src-tauri/src/knowledge/), ingested/removed directly via lib/ai/knowledgeFiles.ts,
+// independent of this roster save.
 
 import { log } from "../logger";
-import { SEED_AGENTS, type Agent } from "./agents";
+import { SEED_AGENTS, type Agent, type KnowledgeFile } from "./agents";
 
 const FILE = "agents.json";
 const LS_KEY = "pensieve:agents";
@@ -16,6 +18,24 @@ const inTauri =
 interface Stored {
   version: number;
   agents: Agent[];
+}
+
+function sanitizeKnowledgeFiles(value: unknown): KnowledgeFile[] {
+  if (!Array.isArray(value)) return [];
+  const out: KnowledgeFile[] = [];
+  for (const f of value) {
+    const id = typeof f?.id === "string" ? f.id.trim() : "";
+    const name = typeof f?.name === "string" ? f.name.trim() : "";
+    if (!id || !name) continue;
+    out.push({
+      id,
+      name,
+      size: typeof f?.size === "number" ? f.size : 0,
+      type: typeof f?.type === "string" ? f.type : "",
+      chunkCount: typeof f?.chunkCount === "number" ? f.chunkCount : 0,
+    });
+  }
+  return out;
 }
 
 function sanitize(parsed: unknown): Agent[] {
@@ -31,6 +51,7 @@ function sanitize(parsed: unknown): Agent[] {
       name,
       tagline: typeof a?.tagline === "string" ? a.tagline : "",
       systemPrompt: typeof a?.systemPrompt === "string" ? a.systemPrompt : "",
+      knowledgeFiles: sanitizeKnowledgeFiles(a?.knowledgeFiles),
     });
   }
   return out.length ? out : [...SEED_AGENTS];
@@ -79,5 +100,5 @@ export function newDraftAgent(): Agent {
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
       : `agent-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  return { id, name: "New Agent", tagline: "", systemPrompt: "" };
+  return { id, name: "New Agent", tagline: "", systemPrompt: "", knowledgeFiles: [] };
 }

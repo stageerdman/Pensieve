@@ -283,7 +283,8 @@ pub fn run() {
             ai_vision::describe_journal_page,
             assistant::ask_agent,
             knowledge::commands::ingest_knowledge_file,
-            knowledge::commands::remove_knowledge_file
+            knowledge::commands::remove_knowledge_file,
+            knowledge::commands::remove_agent_knowledge
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

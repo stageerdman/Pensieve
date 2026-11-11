@@ -2,13 +2,16 @@ import { useEffect, useState } from "react";
 import { Plus, Trash } from "../../components/icons";
 import { useAssistantContext } from "./AssistantContext";
 import { newDraftAgent } from "../../lib/ai/agentStore";
-import type { Agent } from "../../lib/ai/agents";
+import type { Agent, KnowledgeFile } from "../../lib/ai/agents";
+import { removeAgentKnowledge, removeKnowledgeFile } from "../../lib/ai/knowledgeFiles";
+import { KnowledgeManager } from "./KnowledgeManager";
 
 // The Agents editor — masters-wheel's Agents.tsx shape (a nav list of agents + a form
-// for whichever is selected), adapted to Pensieve's filesystem-only backend: no per-agent
-// knowledge files/RAG (deliberately not ported, see this update's wiki.md), just
+// for whichever is selected), adapted to Pensieve's filesystem-only backend:
 // name/tagline/system-prompt persisted as one shared agents.json via
-// AssistantContext.setRoster → lib/ai/agentStore.ts.
+// AssistantContext.setRoster → lib/ai/agentStore.ts. Knowledge files (AGENT-RAG) persist
+// immediately on add/remove instead of waiting on the explicit Save button below — see
+// this update's wiki.md for why.
 export function AgentsEditor({
   startWithNewDraft = false,
 }: {
@@ -54,11 +57,28 @@ export function AgentsEditor({
     const next = agents.filter((a) => a.id !== id);
     await setRoster(next);
     setSelectedId(next[0]?.id ?? "");
+    void removeAgentKnowledge(id);
   };
 
   const cancelDraft = () => {
     setDraftAgent(null);
     setSelectedId(agents[0]?.id ?? "");
+  };
+
+  // Knowledge files (AGENT-RAG) persist immediately, unlike name/tagline/instructions
+  // below which wait on the explicit Save button — ingesting a file is a real,
+  // expensive embed pass that's already happened on disk by the time this fires, so
+  // losing track of it by requiring a separate Save click would be a silent data loss.
+  // For an already-saved agent this writes straight into the roster; for a still-unsaved
+  // draft it only updates the draft in place (Save still finalizes everything else).
+  const onKnowledgeFilesChange = async (forAgentId: string, knowledgeFiles: KnowledgeFile[]) => {
+    if (draftAgent?.id === forAgentId) {
+      setDraftAgent({ ...draftAgent, knowledgeFiles });
+      return;
+    }
+    const existing = agents.find((a) => a.id === forAgentId);
+    if (!existing) return;
+    await setRoster(agents.map((a) => (a.id === forAgentId ? { ...a, knowledgeFiles } : a)));
   };
 
   return (
@@ -107,6 +127,7 @@ export function AgentsEditor({
           onSave={save}
           onDelete={isNew ? undefined : () => remove(selected.id)}
           onCancelNew={isNew ? cancelDraft : undefined}
+          onKnowledgeFilesChange={onKnowledgeFilesChange}
         />
       ) : (
         <div className="flex flex-1 items-center justify-center text-sm text-text-muted">
@@ -123,12 +144,14 @@ function AgentEditorForm({
   onSave,
   onDelete,
   onCancelNew,
+  onKnowledgeFilesChange,
 }: {
   agent: Agent;
   isNew: boolean;
   onSave: (agent: Agent) => void;
   onDelete?: () => void;
   onCancelNew?: () => void;
+  onKnowledgeFilesChange: (agentId: string, knowledgeFiles: KnowledgeFile[]) => void;
 }) {
   const [name, setName] = useState(agent.name);
   const [tagline, setTagline] = useState(agent.tagline);
@@ -191,6 +214,22 @@ function AgentEditorForm({
             placeholder="What this agent is for, and how it should behave."
           />
         </label>
+
+        <KnowledgeManager
+          agentId={agent.id}
+          files={agent.knowledgeFiles}
+          onAddFile={(file) =>
+            onKnowledgeFilesChange(agent.id, [...agent.knowledgeFiles, file])
+          }
+          onRemoveFile={(id) => {
+            const file = agent.knowledgeFiles.find((f) => f.id === id);
+            onKnowledgeFilesChange(
+              agent.id,
+              agent.knowledgeFiles.filter((f) => f.id !== id),
+            );
+            if (file) void removeKnowledgeFile(agent.id, file);
+          }}
+        />
 
         <div className="flex items-center justify-end gap-2 pt-1">
           {isNew && onCancelNew && (

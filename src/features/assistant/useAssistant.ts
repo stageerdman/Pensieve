@@ -166,6 +166,7 @@ export function useAssistant() {
           jobId,
           trimmed,
           agent.systemPrompt,
+          agent.id,
           priorSessionId,
         );
         patchMessage(forAgentId, replyId, {

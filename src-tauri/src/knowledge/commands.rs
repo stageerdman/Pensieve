@@ -114,6 +114,26 @@ pub async fn remove_knowledge_file(app: AppHandle, agent_id: String, file_id: St
     .map_err(|e| format!("Internal error removing this file ({e})."))?
 }
 
+// Deletes everything an agent "knows" — its whole knowledge folder and database — in
+// one shot. Called when the agent itself is deleted from the roster (lib/ai/agentStore.ts
+// only drops the agents.json entry; this is what actually frees the disk space and stops
+// a deleted agent's id from resolving to stale knowledge if it's ever reused).
+#[tauri::command]
+pub async fn remove_agent_knowledge(app: AppHandle, agent_id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        let agent_dir = agent_knowledge_dir(&app, &agent_id)?
+            .parent()
+            .ok_or_else(|| "Couldn't resolve this agent's data folder".to_string())?
+            .to_path_buf();
+        if agent_dir.exists() {
+            std::fs::remove_dir_all(&agent_dir).map_err(|e| format!("Couldn't remove this agent's knowledge: {e}"))?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Internal error removing this agent's knowledge ({e})."))?
+}
+
 // Used internally by assistant.rs before every reply. Returns an empty list (not an
 // error) whenever an agent has no indexed knowledge at all, so callers can always just
 // check `.is_empty()` instead of separately branching on "does this agent even have

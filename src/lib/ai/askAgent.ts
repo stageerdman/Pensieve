@@ -11,12 +11,14 @@ export async function askAgent(
   jobId: string,
   message: string,
   instructions: string,
+  agentId: string,
   sessionId: string | undefined,
 ): Promise<AgentReply> {
   return invoke<AgentReply>("ask_agent", {
     jobId,
     message,
     instructions,
+    agentId,
     sessionId: sessionId ?? null,
   });
 }
