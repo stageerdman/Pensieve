@@ -2,9 +2,10 @@
 // the already-authenticated local Claude Code CLI rather than a pay-per-token API key
 // (CLAUDE.md: "use the logged-in Claude account, no API key"). Ported from
 // masters-wheel's assistant.rs (same proven shape — streaming `claude -p`, the app's own
-// binary as the MCP server), stripped of its knowledge/RAG and multi-Space machinery
-// Pensieve doesn't need: one vault, and an agent's persona is just the system prompt the
-// frontend sends, not a per-agent indexed knowledge base.
+// binary as the MCP server), originally stripped of its knowledge/RAG machinery and
+// later given it back (AGENT-RAG) once a per-agent knowledge base became a real
+// requirement — see `crate::knowledge` and this update's wiki.md. Still stripped of
+// masters-wheel's multi-Space machinery: Pensieve has exactly one vault.
 //
 // Run from `std::env::temp_dir()`, not this repo's root — Claude Code discovers
 // CLAUDE.md by walking up from the subprocess's cwd, and this project's own CLAUDE.md
@@ -83,6 +84,11 @@ fn emit_notes_found(app: &AppHandle, job_id: &str, notes: Vec<NoteRef>) {
     let _ = app.emit("assistant-notes-found", NotesFoundEvent { job_id: job_id.to_string(), notes });
 }
 
+// How many knowledge excerpts to pull into one reply's prompt — enough to cover a
+// question thoroughly without ballooning every turn's token cost, regardless of how
+// large the agent's underlying knowledge base is (see knowledge/prompt.rs).
+const RETRIEVAL_TOP_K: usize = 8;
+
 // A note tool's result content (search_notes::search_notes/list_recent return a JSON
 // array, get_note a single JSON object) — only ever asking for id/title, so this reads
 // fine against any of NoteSummary/SearchMatch/NoteContent without caring which. An
@@ -111,10 +117,23 @@ pub async fn ask_agent(
     job_id: String,
     message: String,
     instructions: String,
+    agent_id: String,
     session_id: Option<String>,
 ) -> Result<AgentReply, String> {
     let vault_root = crate::vault_root(&app)?;
     tauri::async_runtime::spawn_blocking(move || -> Result<AgentReply, String> {
+        // Knowledge grounding: if this agent has any indexed knowledge files, pull the
+        // chunks most relevant to this message and weave them into the system prompt
+        // ahead of the persona instructions. A retrieval failure (e.g. the embedding
+        // model hasn't finished loading) shouldn't block a reply — it just falls back
+        // to persona-only, same as an agent with no knowledge files at all. The system
+        // prompt always goes through build_augmented_system_prompt (never a bare
+        // `instructions.clone()`) — the persona wrapper it applies isn't optional
+        // cosmetic framing, it's what keeps Claude Code from breaking character and
+        // self-identifying instead of the persona (see knowledge/prompt.rs).
+        let chunks = crate::knowledge::commands::retrieve_for_agent(&app, &agent_id, &message, RETRIEVAL_TOP_K).unwrap_or_default();
+        let system_prompt = crate::knowledge::prompt::build_augmented_system_prompt(&instructions, &chunks);
+
         // --mcp-config points the CLI at this app's own MCP server (a re-exec of this
         // same binary — see mcp/server.rs); --strict-mcp-config means only that server's
         // tools are even considered. --tools "" is still required in addition to all of
@@ -134,7 +153,7 @@ pub async fn ask_agent(
             .arg("--include-partial-messages")
             .arg("--verbose")
             .arg("--system-prompt")
-            .arg(&instructions)
+            .arg(&system_prompt)
             .arg("--permission-mode")
             .arg("dontAsk")
             .arg("--mcp-config")

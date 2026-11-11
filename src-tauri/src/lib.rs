@@ -12,6 +12,7 @@ use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 
 mod ai_vision;
 mod assistant;
+mod knowledge;
 mod media_transfer;
 pub mod mcp;
 mod sync;
@@ -165,6 +166,8 @@ pub fn run() {
     {
         builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
     }
+    // AGENT-RAG: native "pick knowledge files" dialog for the Agents editor.
+    builder = builder.plugin(tauri_plugin_dialog::init());
     builder
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -278,7 +281,9 @@ pub fn run() {
             transcribe::transcribe_audio,
             transcribe::cancel_transcription,
             ai_vision::describe_journal_page,
-            assistant::ask_agent
+            assistant::ask_agent,
+            knowledge::commands::ingest_knowledge_file,
+            knowledge::commands::remove_knowledge_file
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
