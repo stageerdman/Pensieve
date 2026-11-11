@@ -54,6 +54,6 @@ swapped for Pensieve's own four MCP tools (search_notes/get_note/list_recent/lis
   drop zone (`ingest_knowledge_bytes`) replacing the dead ported Tauri-event hook.
   Typecheck, `npm test` (1193 passed), `cargo test` (21 passed), `npm run tauri:build` all
   green again after the fix; app rebuilt/reinstalled.
-- Next: owner re-testing now — add a file (both via click-to-pick and via drag), confirm
-  a chunk count appears, ask the agent something only that file could answer, confirm the
-  reply draws on it, and confirm no repeat of the navigate-away bug.
+- Owner-confirmed working 2026-11-11: file add (click + drag), chunk count, and a
+  retrieval-grounded reply all check out, with no repeat of the navigate-away bug. Closing
+  the update.
