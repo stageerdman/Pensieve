@@ -73,3 +73,14 @@ describe("phone form session", () => {
     expect(fm.extra).toEqual({ fromForm: "form-1", formStatus: "awaiting" });
   });
 });
+
+describe("reel preview of a form memory", () => {
+  it("shows the rating as its meaning and hides charm/code", async () => {
+    const { stripMediaForPreview } = await import("../media/noteMedia");
+    const s = startSession(form, "s1", new Date(2026, 10, 12));
+    const md = sessionMarkdown(s, { [s.fields[0].id]: { scale: 4 } });
+    const out = stripMediaForPreview(md + "\n\n```pensieve:charm\nname: X\ny\n```");
+    expect(out).toContain("4 · Mini high");
+    expect(out).not.toContain("```");
+  });
+});

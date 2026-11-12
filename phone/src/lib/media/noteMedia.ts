@@ -15,6 +15,10 @@
 // (they share only design tokens), and the desktop helpers drag the Tauri store chain, so we
 // re-state the small, stable format here rather than import across the app boundary.
 
+// FORMS blocks are the exception: the pure, dependency-free forms module (src/lib/forms) is
+// shared by both apps on purpose — see updates/2026-11-12 FORMS wiki.md.
+import { CHARM_LANG, SCALE_LANG, encodeScale, parseScale } from "../../../../src/lib/forms/fences";
+
 /** The fence language carrying an ordered image group (matches src/lib/md/gallery.ts). */
 export const GALLERY_FENCE = "pensieve:gallery";
 /** The ` | ` separator between a gallery line's ref and its caption (matches desktop). */
@@ -44,6 +48,7 @@ export const DEFAULT_VIDEO_WIDTH = 0.75;
  *  parseGalleryLines), just a different fence language and no `h=` height line (journal
  *  has no drag-resize). Rendered as a sequential page strip, not a free grid. */
 export const JOURNAL_FENCE = "pensieve:journal";
+export { SCALE_LANG as SCALE_FENCE, CHARM_LANG as CHARM_FENCE } from "../../../../src/lib/forms/fences";
 
 /** One image: a vault-relative ref (`media/...`) or a direct url (data:/blob:/http). */
 export interface MediaImage {
@@ -70,7 +75,12 @@ export type NoteBlock =
   | { kind: "list"; items: ListItemNode[] }
   | { kind: "audio"; ref: string; caption?: string }
   | { kind: "video"; ref: string; caption?: string; width?: number }
-  | { kind: "journal"; pages: MediaImage[] };
+  | { kind: "journal"; pages: MediaImage[] }
+  // FORMS: a form's rating (tappable on the phone) and a form's charm (a named AI command —
+  // desktop-only, shown as a quiet read-only line here). Both round-trip byte-for-byte via the
+  // shared forms fence codecs (src/lib/forms/fences), so a phone edit never alters them.
+  | { kind: "scale"; anchors: string[]; value?: number }
+  | { kind: "charm"; body: string };
 
 /** The desktop gallery's dragged display HEIGHT rides an optional leading `h=<px>` fence line
  *  (matches src/lib/md/gallery.ts). The phone ignores it for layout but MUST round-trip it so the
@@ -144,6 +154,16 @@ function parseImageFenceLines(inner: string[]): NoteBlock | null {
     ...(aspect > 0 && Math.abs(posX - 50) > 1e-6 ? { posX } : {}),
     ...(aspect > 0 && Math.abs(posY - 50) > 1e-6 ? { posY } : {}),
   };
+}
+
+/** A form's rating → its `pensieve:scale` fence (the shared codec — same bytes as desktop). */
+export function encodeScaleNoteBlock(b: Extract<NoteBlock, { kind: "scale" }>): string {
+  return "```" + SCALE_LANG + "\n" + encodeScale({ anchors: b.anchors, ...(b.value ? { value: b.value } : {}) }) + "\n```";
+}
+
+/** A form's charm → its `pensieve:charm` fence, body carried verbatim. */
+export function encodeCharmNoteBlock(b: Extract<NoteBlock, { kind: "charm" }>): string {
+  return "```" + CHARM_LANG + "\n" + b.body + "\n```";
 }
 
 /** Serialize a voice recording block → a `pensieve:audio` fence (mirrors desktop's
@@ -295,6 +315,8 @@ export function parseNoteContent(content: string): NoteBlock[] {
   const audioFenceOpen = "```" + AUDIO_FENCE;
   const videoFenceOpen = "```" + VIDEO_FENCE;
   const journalFenceOpen = "```" + JOURNAL_FENCE;
+  const scaleFenceOpen = "```" + SCALE_LANG;
+  const charmFenceOpen = "```" + CHARM_LANG;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (line.trim() === galleryFenceOpen) {
@@ -365,6 +387,18 @@ export function parseNoteContent(content: string): NoteBlock[] {
       i = j;
       continue;
     }
+    if (line.trim() === scaleFenceOpen || line.trim() === charmFenceOpen) {
+      const inner: string[] = [];
+      let j = i + 1;
+      for (; j < lines.length; j++) {
+        if (lines[j].trim() === "```") break;
+        inner.push(lines[j]);
+      }
+      if (line.trim() === scaleFenceOpen) blocks.push({ kind: "scale", ...parseScale(inner.join("\n")) });
+      else blocks.push({ kind: "charm", body: inner.join("\n") });
+      i = j;
+      continue;
+    }
     const m = line.trim().match(IMAGE_LINE);
     if (m) {
       const caption = m[1] || undefined;
@@ -398,6 +432,8 @@ export function serializeBlocks(blocks: NoteBlock[]): string {
       if (b.kind === "list") return listMd(b.items);
       if (b.kind === "audio") return encodeAudioNoteBlock(b);
       if (b.kind === "video") return encodeVideoNoteBlock(b);
+      if (b.kind === "scale") return encodeScaleNoteBlock(b);
+      if (b.kind === "charm") return encodeCharmNoteBlock(b);
       if (b.kind === "journal") return journalMd(b.pages);
       return galleryMd(b.images, b.height);
     })
@@ -436,6 +472,8 @@ const IMAGE_FENCE_BLOCK = new RegExp("```" + IMAGE_FENCE + "[\\s\\S]*?```", "g")
 const AUDIO_FENCE_BLOCK = new RegExp("```" + AUDIO_FENCE + "[\\s\\S]*?```", "g");
 const VIDEO_FENCE_BLOCK = new RegExp("```" + VIDEO_FENCE + "[\\s\\S]*?```", "g");
 const JOURNAL_FENCE_BLOCK = new RegExp("```" + JOURNAL_FENCE + "[\\s\\S]*?```", "g");
+const SCALE_FENCE_BLOCK = new RegExp("```" + SCALE_LANG + "\\n([\\s\\S]*?)```", "g");
+const CHARM_FENCE_BLOCK = new RegExp("```" + CHARM_LANG + "[\\s\\S]*?```\\n?", "g");
 
 /** Strip media markdown from a body so the reel snippet shows clean prose, not raw refs.
  *  A single image becomes its caption (or a 📷 marker); a gallery becomes a 📷 marker; a
@@ -450,6 +488,12 @@ export function stripMediaForPreview(content: string): string {
     .replace(AUDIO_FENCE_BLOCK, "🎙️ Recording")
     .replace(VIDEO_FENCE_BLOCK, "🎬 Video")
     .replace(JOURNAL_FENCE_BLOCK, "📓 Journal")
+    // a form's rating reads as its picked point ("4 · Mini high…"); a charm never shows
+    .replace(SCALE_FENCE_BLOCK, (_m, body: string) => {
+      const sc = parseScale(body);
+      return sc.value ? `${sc.value} · ${sc.anchors[sc.value - 1] ?? ""}`.trim() : "";
+    })
+    .replace(CHARM_FENCE_BLOCK, "")
     .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, cap) => (cap ? `📷 ${cap}` : "📷 Photo"))
     .replace(/\n{2,}/g, "\n")
     .trim();

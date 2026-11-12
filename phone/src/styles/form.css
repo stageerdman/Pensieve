@@ -256,3 +256,15 @@
   text-align: left;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* a form's rating / charm inside an ordinary memory (mediaDom) */
+.note-body .ph-scale { margin: 6px 0 2px; }
+.note-body .ph-scale .ph-form-anchor { margin-top: 8px; font-size: 14px; }
+.note-body .ph-charm {
+  margin: 6px 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px dashed hsl(var(--border));
+  font-size: 13px;
+  color: hsl(var(--text-muted));
+}

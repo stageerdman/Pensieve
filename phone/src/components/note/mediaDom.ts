@@ -19,6 +19,8 @@ import {
   encodeAudioNoteBlock,
   encodeImageNoteBlock,
   encodeVideoNoteBlock,
+  encodeScaleNoteBlock,
+  encodeCharmNoteBlock,
   galleryMd,
   journalMd,
   mediaAlt,
@@ -656,6 +658,60 @@ function buildJournalEl(block: Extract<NoteBlock, { kind: "journal" }>, ctx: Med
   return el;
 }
 
+// ---- forms: a rating (tappable) and a charm (desktop-only, read-only here) ----
+
+/** A form's 1–N rating: tap a number to rate, tap it again to clear; the picked point's
+ *  meaning shows under the row. Same look as the walk-through's rating (.ph-form-scale). */
+function buildScaleEl(block: Extract<NoteBlock, { kind: "scale" }>, ctx: MediaCtx): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "ph-media ph-scale";
+  el.contentEditable = "false";
+  const row = document.createElement("div");
+  row.className = "ph-form-scale";
+  row.setAttribute("role", "radiogroup");
+  row.setAttribute("aria-label", "Rating");
+  const meaning = document.createElement("p");
+  meaning.className = "ph-form-anchor";
+  let cur = block;
+  const paint = () => {
+    writeBlock(el, cur);
+    Array.from(row.children).forEach((b, i) => {
+      const on = cur.value === i + 1;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-checked", on ? "true" : "false");
+    });
+    meaning.textContent = cur.value ? cur.anchors[cur.value - 1] ?? "" : "";
+  };
+  cur.anchors.forEach((a, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-label", a ? `${i + 1}: ${a}` : String(i + 1));
+    b.textContent = String(i + 1);
+    wireMediaTap(b, () => {
+      const n = i + 1;
+      cur = cur.value === n ? { kind: "scale", anchors: cur.anchors } : { kind: "scale", anchors: cur.anchors, value: n };
+      paint();
+      ctx.onChange();
+    });
+    row.appendChild(b);
+  });
+  el.append(row, meaning);
+  paint();
+  return el;
+}
+
+/** A charm (a named AI command in a form) only runs on the computer — show its name quietly. */
+function buildCharmEl(block: Extract<NoteBlock, { kind: "charm" }>): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "ph-media ph-charm";
+  el.contentEditable = "false";
+  writeBlock(el, block);
+  const name = /^name:\s*(.*)$/im.exec(block.body)?.[1]?.trim() || "Charm";
+  el.textContent = `✦ ${name} · runs on the computer`;
+  return el;
+}
+
 // ---- markdown list rendering (bullet / numbered / checklist) ----
 //
 // The DOM <ul>/<ol>/<li> tree IS the model here (unlike media, which needs a data-media
@@ -667,7 +723,7 @@ function buildJournalEl(block: Extract<NoteBlock, { kind: "journal" }>, ctx: Med
 /** Build a `<ul>`/`<ol>` from a sibling run of list items (recursing into children). The
  *  group's tag follows its first item — markdown doesn't really support mixing ordered/
  *  unordered at the same level, so this matches what was actually written. */
-function buildListGroup(items: ListItemNode[]): HTMLElement {
+function buildListGroup(items: ListItemNode[], ctx?: MediaCtx): HTMLElement {
   const ordered = items[0]?.ordered ?? false;
   const listEl = document.createElement(ordered ? "ol" : "ul");
   listEl.className = "ph-list";
@@ -681,9 +737,16 @@ function buildListGroup(items: ListItemNode[]): HTMLElement {
       mark.contentEditable = "false";
       mark.setAttribute("aria-hidden", "true");
       li.appendChild(mark);
+      // Tap the box to tick/untick (a form's checklist, or any to-do) — no keyboard pops up.
+      if (ctx) {
+        wireMediaTap(mark, () => {
+          li.dataset.checked = li.dataset.checked === "true" ? "false" : "true";
+          ctx.onChange();
+        });
+      }
     }
     li.appendChild(document.createTextNode(n.text || ""));
-    if (n.children.length) li.appendChild(buildListGroup(n.children));
+    if (n.children.length) li.appendChild(buildListGroup(n.children, ctx));
     listEl.appendChild(li);
   }
   return listEl;
@@ -724,7 +787,9 @@ function serializeListEl(listEl: HTMLElement, depth = 0): string[] {
 function buildBlockEl(block: NoteBlock, ctx: MediaCtx, noteBody: HTMLElement): HTMLElement {
   if (block.kind === "image") return buildImageEl(block, ctx);
   if (block.kind === "gallery") return buildGalleryEl(block, ctx, noteBody);
-  if (block.kind === "list") return buildListGroup(block.items);
+  if (block.kind === "list") return buildListGroup(block.items, ctx);
+  if (block.kind === "scale") return buildScaleEl(block, ctx);
+  if (block.kind === "charm") return buildCharmEl(block);
   if (block.kind === "audio") return buildAudioEl(block, ctx);
   if (block.kind === "video") return buildVideoEl(block, ctx);
   if (block.kind === "journal") return buildJournalEl(block, ctx);
@@ -793,6 +858,8 @@ export function serializeNoteBody(noteBody: HTMLElement): { title: string; conte
       else if (b?.kind === "audio") parts.push(encodeAudioNoteBlock(b));
       else if (b?.kind === "video") parts.push(encodeVideoNoteBlock(b));
       else if (b?.kind === "journal") parts.push(journalMd(b.pages));
+      else if (b?.kind === "scale") parts.push(encodeScaleNoteBlock(b));
+      else if (b?.kind === "charm") parts.push(encodeCharmNoteBlock(b));
     } else if (el.tagName === "UL" || el.tagName === "OL") {
       parts.push(serializeListEl(el).join("\n"));
     } else {
