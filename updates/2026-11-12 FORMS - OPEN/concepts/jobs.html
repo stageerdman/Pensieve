@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Forms — Steve Jobs team</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Real app stylesheets, linked in place (same technique as RAW-MEMORY-JOURNAL's real-UI files).
+     Desktop: compiled Tailwind (tokens + utilities) + the editor skin + audio + Patronus.
+     Phone: tokens / wand / dock / spellmenu — every .screen/.note/.dock/.spell-* class is real. -->
+<link rel="stylesheet" href="tw-compiled.css">
+<link rel="stylesheet" href="../../../src/components/editor/blocknote-skin.css">
+<link rel="stylesheet" href="../../../src/components/audio/audio.css">
+<link rel="stylesheet" href="../../../src/features/assistant/patronus.css">
+<link rel="stylesheet" href="../../../phone/src/styles/tokens.css">
+<link rel="stylesheet" href="../../../phone/src/styles/wand.css">
+<link rel="stylesheet" href="../../../phone/src/styles/dock.css">
+<link rel="stylesheet" href="../../../phone/src/styles/spellmenu.css">
+<style>
+/* wand.css pins html/body (the PWA shell never scrolls) — this page must scroll. */
+html, body { position: static !important; overflow: auto !important; height: auto !important; inset: auto !important; }
+body { margin: 0; background: hsl(var(--surface)); color: hsl(var(--text)); font-family: var(--font-sans); }
+kbd { font-family: var(--font-mono); font-size: 11px; padding: 1px 5px; border: 1px solid hsl(var(--border)); border-radius: 4px; background: hsl(var(--surface-raised)); }
+
+/* ================= page chrome (not app UI) ================= */
+.pg { max-width: 1120px; margin: 0 auto; padding: 48px 24px 160px; }
+.pg-top { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.pg-kicker { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: hsl(var(--text-muted)); }
+.pg-theme { font-size: 12px; border: 1px solid hsl(var(--border)); border-radius: 999px; padding: 6px 12px; color: hsl(var(--text-muted)); background: transparent; cursor: pointer; }
+.pg-theme:hover { color: hsl(var(--text)); background: hsl(var(--surface-raised)); }
+.pg h1.pg-title { font-size: 2.25rem; font-weight: 700; letter-spacing: -.02em; margin: 10px 0 6px; }
+.pg-thesis { font-size: 1.25rem; line-height: 1.45; max-width: 760px; margin: 0 0 14px; }
+.pg-thesis em { font-style: normal; color: hsl(var(--accent)); }
+.pg-lede { font-size: 14px; line-height: 1.6; color: hsl(var(--text-muted)); max-width: 760px; margin: 0; }
+.pg-rules { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 26px 0 10px; }
+.pg-rule { border: 1px solid hsl(var(--border)); border-radius: 14px; padding: 14px 16px; background: hsl(var(--surface-sunken)); }
+.pg-rule b { display: block; font-size: 14px; margin-bottom: 4px; }
+.pg-rule span { font-size: 12px; line-height: 1.5; color: hsl(var(--text-muted)); }
+.pg-nav { display: flex; gap: 8px; flex-wrap: wrap; margin: 22px 0 0; }
+.pg-nav a { font-size: 12px; color: hsl(var(--text-muted)); text-decoration: none; border: 1px solid hsl(var(--border)); border-radius: 999px; padding: 5px 12px; }
+.pg-nav a:hover { color: hsl(var(--text)); }
+
+.concept { margin: 72px 0 0; padding-top: 28px; border-top: 1px solid hsl(var(--border)); }
+.c-head { display: flex; align-items: flex-start; gap: 14px; }
+.c-num { flex: none; width: 34px; height: 34px; border-radius: 999px; display: grid; place-items: center; font-family: var(--font-mono); font-size: 14px; border: 1px solid hsl(var(--border)); color: hsl(var(--text-muted)); }
+.c-head h2 { font-size: 1.5rem; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+.c-head p { margin: 4px 0 0; font-size: 14px; color: hsl(var(--text-muted)); max-width: 760px; line-height: 1.5; }
+.c-pick { margin-left: auto; flex: none; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: hsl(var(--gold)); border: 1px solid hsl(var(--gold) / .45); border-radius: 999px; padding: 4px 10px; }
+.surf-tabs { display: flex; gap: 6px; margin: 20px 0 10px; flex-wrap: wrap; }
+.surf-tab { font-size: 13px; border: 1px solid hsl(var(--border)); background: transparent; color: hsl(var(--text-muted)); border-radius: 999px; padding: 6px 13px; cursor: pointer; }
+.surf-tab b { font-family: var(--font-mono); font-weight: 600; margin-right: 5px; }
+.surf-tab:hover { color: hsl(var(--text)); }
+.surf-tab.on { background: hsl(var(--accent)); border-color: hsl(var(--accent)); color: hsl(var(--surface)); }
+.surf-note { font-size: 13px; line-height: 1.55; color: hsl(var(--text-muted)); margin: 0 0 14px; max-width: 820px; min-height: 2.6em; }
+.surf-note b { color: hsl(var(--text)); font-weight: 600; }
+.stage { display: flex; justify-content: center; }
+.why { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+.why div { font-size: 13px; line-height: 1.55; color: hsl(var(--text-muted)); border-left: 2px solid hsl(var(--border)); padding: 2px 0 2px 12px; }
+.why b { display: block; color: hsl(var(--text)); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px; }
+.verdict { margin-top: 80px; padding: 26px 28px; border: 1px solid hsl(var(--gold) / .4); border-radius: 20px; background: hsl(var(--gold) / .05); }
+.verdict h2 { margin: 0 0 10px; font-size: 1.25rem; }
+.verdict p, .verdict li { font-size: 14px; line-height: 1.6; }
+.verdict table { border-collapse: collapse; margin: 10px 0 14px; font-size: 13px; width: 100%; }
+.verdict td, .verdict th { text-align: left; padding: 7px 10px; border-bottom: 1px solid hsl(var(--border)); vertical-align: top; }
+.verdict th { color: hsl(var(--text-muted)); font-weight: 600; font-size: 12px; }
+.pg-toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(10px); opacity: 0; pointer-events: none; background: hsl(var(--surface-raised)); border: 1px solid hsl(var(--border)); color: hsl(var(--text)); font-size: 13px; padding: 9px 16px; border-radius: 999px; z-index: 50; transition: opacity .2s, transform .2s; }
+.pg-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ================= desktop window (real header markup) ================= */
+.dk-win { position: relative; width: 100%; height: 660px; display: flex; flex-direction: column; border: 1px solid hsl(var(--border)); border-radius: 14px; overflow: hidden; background: hsl(var(--surface)); }
+.dk-lights { position: absolute; left: 16px; top: 18px; display: flex; gap: 8px; }
+.dk-lights i { width: 12px; height: 12px; border-radius: 50%; background: hsl(var(--danger) / .8); }
+.dk-lights i:nth-child(2) { background: hsl(var(--warn) / .8); } .dk-lights i:nth-child(3) { background: hsl(var(--success) / .8); }
+.dk-formtab { font-size: 11px; color: hsl(var(--accent)); }
+.dk-doc { max-width: 72ch; margin: 0 auto; font-size: calc(1rem * var(--font-scale)); line-height: 1.6; position: relative; }
+.dk-h1 { font-size: 1.875rem; font-weight: 700; letter-spacing: -.015em; line-height: 1.25; margin: 6px 0 14px; outline: none; }
+.dk-h1:empty::before { content: attr(data-ph); color: hsl(var(--text-muted) / .45); }
+.dk-sub { font-size: 12px; color: hsl(var(--text-muted)); margin: -8px 0 18px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* form fields — ONE look for every surface */
+.fq { position: relative; margin: 0 0 22px; }
+.fq-q { font-weight: 600; outline: none; }
+.fq-guide { font-size: 14px; color: hsl(var(--text-muted)); font-style: italic; white-space: pre-line; margin-top: 2px; outline: none; }
+.fq-ans { min-height: 1.6em; outline: none; margin-top: 3px; }
+.fq-ans:empty::before { content: attr(data-ph); color: hsl(var(--text-muted) / .45); }
+.fq-ans ul, .dk-doc ul.ro { list-style: disc; padding-left: 1.3em; margin: 0; }
+.fq-ans ol, .dk-doc ol.ro { list-style: decimal; padding-left: 1.4em; margin: 0; }
+.fs { display: flex; gap: 8px; margin: 8px 0 4px; }
+.fs button { width: 34px; height: 34px; border-radius: 999px; border: 1px solid hsl(var(--border)); background: transparent; color: hsl(var(--text-muted)); font-family: var(--font-mono); font-size: 13px; cursor: pointer; transition: background .12s, color .12s, border-color .12s; }
+.fs button:hover { border-color: hsl(var(--accent) / .6); color: hsl(var(--text)); }
+.fs button.on { background: hsl(var(--accent)); border-color: hsl(var(--accent)); color: hsl(var(--surface)); }
+.fs button.wet-ring { border: 1.5px dashed hsl(var(--accent)); color: hsl(var(--accent)); }
+.fs[tabindex]:focus-visible { outline: 2px solid hsl(var(--accent) / .5); outline-offset: 4px; border-radius: 999px; }
+.fs-anchor { font-size: 14px; color: hsl(var(--text-muted)); min-height: 1.5em; }
+.fcl { margin-top: 4px; }
+.fc { display: flex; gap: .6em; align-items: baseline; cursor: pointer; padding: 1px 0; outline: none; border-radius: 4px; }
+.fc:focus-visible { background: hsl(var(--accent) / .08); }
+.fc-box { flex: none; width: 1em; height: 1em; border: 1.5px solid hsl(var(--text-muted) / .55); border-radius: 4px; transform: translateY(.15em); position: relative; transition: background .12s; }
+.fc.on .fc-box { background: hsl(var(--accent)); border-color: hsl(var(--accent)); }
+.fc.on .fc-box::after { content: ""; position: absolute; left: 4px; top: 0; width: 5px; height: 9px; border: solid hsl(var(--surface)); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.fc.wet .fc-box { border-style: dashed; border-color: hsl(var(--accent)); }
+
+/* AI ink — "pale until you touch it" */
+.wet { color: hsl(var(--text-muted)); background-image: linear-gradient(hsl(var(--accent) / .35), hsl(var(--accent) / .35)); background-size: 100% 1px; background-position: 0 100%; background-repeat: no-repeat; transition: color .4s; }
+.src, .cite { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-family: var(--font-mono); line-height: 1; padding: 3px 6px; margin-left: 5px; border-radius: 999px; border: 1px solid hsl(var(--accent) / .35); color: hsl(var(--accent)); vertical-align: 2px; cursor: pointer; user-select: none; white-space: nowrap; }
+.cite { font-family: var(--font-sans); }
+.cite.lit, .cite:hover, .src:hover { background: hsl(var(--accent) / .12); }
+.ghost { color: hsl(var(--text-muted) / .6); }
+.ink-banner { display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 8px 12px; border-radius: 10px; border: 1px solid hsl(var(--accent) / .3); background: hsl(var(--accent) / .06); margin: 0 0 18px; color: hsl(var(--text)); }
+.ink-banner .grow { flex: 1; color: hsl(var(--text-muted)); }
+.btn-q { font-size: 13px; border: 1px solid hsl(var(--border)); border-radius: 6px; padding: 4px 10px; background: hsl(var(--surface)); color: hsl(var(--text)); cursor: pointer; white-space: nowrap; }
+.btn-q:hover { background: hsl(var(--surface-raised)); }
+.btn-q.acc { background: hsl(var(--accent)); color: hsl(var(--surface)); border-color: hsl(var(--accent)); }
+.skipnote { font-size: 11px; color: hsl(var(--text-muted)); margin-top: 2px; }
+
+/* Patronus button (the real Orb D svg) */
+.pt-btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid hsl(var(--border)); border-radius: 999px; padding: 3px 14px 3px 3px; background: hsl(var(--surface)); color: hsl(var(--text)); font-size: 13px; cursor: pointer; }
+.pt-btn:hover { background: hsl(var(--surface-raised)); }
+.pt-btn.working .patronus-ring { animation-duration: 1.1s; }
+.pt-btn.working .patronus-breathe { animation-duration: 1s; }
+.pt-btn[disabled] { cursor: default; }
+
+/* builder */
+.bq { position: relative; margin: 0 0 22px; padding: 6px 10px; margin-left: -10px; border-radius: 8px; }
+.bq:hover, .bq.sel { background: hsl(var(--surface-raised) / .5); }
+.tchip { position: absolute; left: -104px; top: 8px; width: 88px; text-align: right; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: hsl(var(--text-muted)); background: none; border: none; cursor: pointer; opacity: .55; }
+.bq:hover .tchip { opacity: 1; color: hsl(var(--accent)); }
+.tchip::after { content: " ⇅"; opacity: .6; }
+.b-seed { color: hsl(var(--text-muted) / .5); font-size: 15px; }
+.b-anch { list-style: decimal; padding-left: 1.4em; margin: 6px 0 0; font-size: 14px; color: hsl(var(--text-muted)); outline: none; }
+.b-add { color: hsl(var(--text-muted) / .6); font-size: 15px; cursor: text; padding: 4px 0; }
+.b-add:hover { color: hsl(var(--text-muted)); }
+.b-slash { position: absolute; z-index: 20; margin-top: 4px; }
+.b-flag { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; border-radius: 999px; padding: 3px 10px; border: 1px solid hsl(var(--border)); background: transparent; color: hsl(var(--text-muted)); cursor: pointer; }
+.b-flag.on { border-color: hsl(var(--accent) / .5); color: hsl(var(--accent)); background: hsl(var(--accent) / .08); }
+.dissolve { transition: opacity .6s, max-height .6s, margin .6s; opacity: 0 !important; max-height: 0 !important; overflow: hidden; margin: 0 !important; }
+
+/* empty-memory offer (desktop + phone share the idea) */
+.offer { display: flex; align-items: center; gap: 8px; margin: -4px 0 16px; transition: opacity .2s; flex-wrap: wrap; }
+.offer.gone { opacity: 0; pointer-events: none; }
+.offer-l { font-size: 13px; color: hsl(var(--text-muted)); }
+.offer button { font-size: 13px; color: hsl(var(--text)); border: 1px solid hsl(var(--border)); border-radius: 999px; padding: 4px 12px; background: transparent; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.offer button:hover { background: hsl(var(--surface-raised)); border-color: hsl(var(--accent) / .5); }
+.dk-foot { display: flex; align-items: center; gap: 10px; margin-top: 28px; padding-top: 12px; border-top: 1px solid hsl(var(--border)); font-size: 12px; color: hsl(var(--text-muted)); }
+.dk-foot .grow { flex: 1; }
+pre.md { font-family: var(--font-mono); font-size: 12px; line-height: 1.55; background: hsl(var(--surface-sunken)); border: 1px solid hsl(var(--border)); border-radius: 10px; padding: 12px 14px; white-space: pre-wrap; margin-top: 12px; color: hsl(var(--text-muted)); }
+.dk-photo { width: 120px; height: 150px; border-radius: 10px; border: 1px solid hsl(var(--border)); margin-top: 8px; background: repeating-linear-gradient(180deg, transparent 0 13px, hsl(var(--text-muted) / .18) 13px 14px), hsl(var(--cat-yellow-bg)); }
+.dk-aud { margin-top: 8px; max-width: 420px; }
+.dk-aud .pensieve-audio-wave svg { width: 100%; height: 100%; color: hsl(var(--text-muted) / .5); }
+.dk-aud .tick { position: absolute; top: -2px; bottom: -2px; width: 2px; background: hsl(var(--gold)); border-radius: 1px; }
+.dk-aud .head { position: absolute; top: -3px; bottom: -3px; width: 2px; background: hsl(var(--accent)); transition: left .3s; }
+
+/* drawer (same shape as SyncStatus' slide-in panel) */
+.dk-drawer-scrim { position: absolute; inset: 0; z-index: 30; background: hsl(var(--surface) / .3); }
+.dk-drawer { position: absolute; top: 0; right: 0; bottom: 0; width: 360px; z-index: 40; }
+.pb-2 { padding-bottom: .5rem; }
+.proc-bar { height: 3px; margin: 0 12px 8px; border-radius: 999px; background: hsl(var(--border)); overflow: hidden; }
+.proc-bar i { display: block; height: 100%; background: hsl(var(--accent)); transition: width .5s; }
+
+/* desktop deck (concept 2) */
+.deck { max-width: 62ch; margin: 34px auto 0; outline: none; }
+.deck-top { display: flex; align-items: center; gap: 12px; margin-bottom: 30px; }
+.dots { display: flex; gap: 6px; flex: 1; }
+.dots span { width: 7px; height: 7px; border-radius: 50%; background: hsl(var(--border)); transition: background .2s, transform .2s; }
+.dots span.done { background: hsl(var(--text-muted)); }
+.dots span.ai { background: hsl(var(--accent) / .5); }
+.dots span.cur { background: hsl(var(--accent)); transform: scale(1.35); }
+.deck-n { font-family: var(--font-mono); font-size: 12px; color: hsl(var(--text-muted)); }
+.deck-q { font-size: 1.5rem; font-weight: 700; letter-spacing: -.01em; line-height: 1.3; }
+.deck-body { margin-top: 18px; min-height: 180px; font-size: 1.125rem; line-height: 1.6; }
+.deck-body .fs button { width: 44px; height: 44px; font-size: 15px; }
+.deck-foot { display: flex; align-items: center; gap: 10px; margin-top: 26px; font-size: 12px; color: hsl(var(--text-muted)); }
+.deck-foot .grow { flex: 1; }
+.said { font-size: 13px; color: hsl(var(--text-muted)); margin-top: 14px; border-left: 2px solid hsl(var(--border)); padding-left: 10px; }
+
+/* float-label fill (concept 3) */
+.fl { position: relative; margin: 0 0 18px; padding-top: 18px; }
+.fl-label { position: absolute; left: 0; top: 18px; color: hsl(var(--text-muted) / .55); pointer-events: none; transition: top .18s, font-size .18s, color .18s; font-size: 1rem; }
+.fl.up .fl-label { top: 0; font-size: 12px; color: hsl(var(--text-muted)); font-weight: 600; }
+.fl .fq-ans { min-height: 1.6em; }
+.fl.static { padding-top: 0; } .fl.static .fl-label { position: static; font-size: 12px; color: hsl(var(--text-muted)); font-weight: 600; }
+
+/* sources rail (concept 3 E) */
+.rail { width: 300px; flex: none; border-left: 1px solid hsl(var(--border)); background: hsl(var(--surface-sunken)); padding: 14px; overflow-y: auto; }
+.rail h4 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: hsl(var(--text-muted)); margin: 0 0 10px; font-weight: 600; }
+.rail-item { border: 1px solid transparent; border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; font-size: 13px; transition: background .25s, border-color .25s; }
+.rail-item .d { display: flex; justify-content: space-between; font-weight: 600; font-size: 12px; }
+.rail-item .d span { font-family: var(--font-mono); color: hsl(var(--text-muted)); font-weight: 400; }
+.rail-item p { margin: 3px 0 0; color: hsl(var(--text-muted)); line-height: 1.45; }
+.rail-item.reading { border-color: hsl(var(--accent) / .6); background: hsl(var(--accent) / .08); }
+.rail-item.read { opacity: .75; }
+.rail-item.lit { border-color: hsl(var(--gold) / .7); background: hsl(var(--gold) / .1); opacity: 1; }
+.peek { position: absolute; z-index: 30; width: 260px; padding: 10px 12px; border-radius: 10px; border: 1px solid hsl(var(--border)); background: hsl(var(--surface-raised)); font-size: 13px; line-height: 1.45; pointer-events: none; box-shadow: 0 10px 30px -10px hsl(0 0% 0% / .35); }
+.peek b { display: block; font-size: 12px; margin-bottom: 2px; }
+.dsc { font-size: 12px; color: hsl(var(--accent)); cursor: pointer; background: none; border: none; padding: 0; margin-left: 6px; }
+
+/* ================= phone frame ================= */
+.ph-row { display: flex; gap: 28px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
+.frame { position: relative; width: 390px; height: 720px; border-radius: 18px; overflow: hidden; flex: none; box-shadow: 0 0 0 1px hsl(var(--border)); }
+.frame .screen { border-radius: 18px; }
+.frame .spell-overlay, .frame .ph-voice-overlay { position: absolute; }
+.ph-side { max-width: 300px; font-size: 13px; line-height: 1.55; color: hsl(var(--text-muted)); padding-top: 10px; }
+.ph-side b { color: hsl(var(--text)); }
+.ph-side ol { padding-left: 1.2em; margin: 6px 0; list-style: decimal; }
+.ring-cap { position: absolute; left: 0; right: 0; bottom: 104px; text-align: center; font-size: 12px; color: hsl(var(--text-muted)); pointer-events: none; }
+.ring-cap b { color: hsl(var(--conditional)); font-weight: 600; }
+/* Raw Memory card (verbatim from the RAW-MEMORY-JOURNAL picked variant) */
+.card.is-raw { gap: 0; }
+.card.is-raw .flask-gutter { width: calc(36px * var(--m, 1)); flex: none; height: calc(48px * var(--m, 1)); border: 1.5px dashed hsl(var(--border)); border-radius: 8px; }
+.card.is-raw .body { margin-left: 13px; }
+.card.is-raw .title { color: hsl(var(--text-muted)); font-weight: 600; }
+.card.is-raw .meta { display: flex; align-items: center; gap: 5px; }
+.meta-dot { width: 6px; height: 6px; border-radius: 50%; background: hsl(var(--accent)); flex: none; animation: ph-voice-pulse 1.8s var(--ease) infinite; }
+.card.flash-in { animation: raw-card-flash 1.1s var(--ease); }
+@keyframes raw-card-flash { 0% { background: hsl(var(--gold) / .22); } 100% { background: transparent; } }
+/* phone form (lives inside the real .note-body) */
+.pf-offer { margin: 14px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.pf-offer .l { font-size: 13px; color: hsl(var(--text-muted)); }
+.pf-offer button { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; font-size: 16px; font-weight: 600; color: hsl(var(--text)); padding: 13px 14px; border-radius: 14px; border: 1px solid hsl(var(--border)); background: hsl(var(--surface-raised) / .7); cursor: pointer; }
+.pf-offer button span { font-weight: 400; font-size: 12px; color: hsl(var(--text-muted)); display: block; }
+.pf-offer button svg { color: hsl(var(--gold)); flex: none; }
+.pf-q { position: relative; font-weight: 650; margin-top: 22px; cursor: pointer; line-height: 1.35; }
+.pf-q.cur::before { content: ""; position: absolute; left: -13px; top: 3px; bottom: 3px; width: 3px; border-radius: 2px; background: hsl(var(--conditional)); box-shadow: 0 0 8px hsl(var(--conditional-glow) / .6); }
+.pf-guide { font-size: 13px; color: hsl(var(--text-muted)); font-style: italic; white-space: pre-line; line-height: 1.4; margin-top: 2px; }
+.pf-ans { outline: none; min-height: 1.5em; margin-top: 2px; }
+.pf-ans:empty::before { content: attr(data-ph); color: hsl(var(--text-muted) / .45); }
+.pf-ans ul { list-style: disc; padding-left: 1.2em; margin: 0; } .pf-ans ol { list-style: decimal; padding-left: 1.3em; margin: 0; }
+.pf-scale { display: flex; gap: 8px; margin: 8px 0 4px; }
+.pf-scale button { width: 44px; height: 44px; border-radius: 50%; border: 1px solid hsl(var(--border)); background: hsl(var(--surface-raised) / .5); color: hsl(var(--text-muted)); font-size: 16px; font-weight: 600; cursor: pointer; }
+.pf-scale button.on { background: hsl(var(--accent)); border-color: hsl(var(--accent)); color: hsl(var(--surface)); }
+.pf-anchor { font-size: 13px; color: hsl(var(--text-muted)); min-height: 1.3em; }
+.pf-check { display: flex; gap: 10px; align-items: baseline; padding: 4px 0; cursor: pointer; font-size: 16px; line-height: 1.4; }
+.pf-check .fc-box { transform: translateY(.18em); }
+.pf-check.on .fc-box { background: hsl(var(--accent)); border-color: hsl(var(--accent)); }
+.pf-check.on .fc-box::after { content: ""; position: absolute; left: 4px; top: 0; width: 5px; height: 9px; border: solid hsl(var(--surface)); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.pf-cap { margin-top: 8px; }
+.pf-cap .ph-audio-bar { padding: 10px 12px; gap: 10px; }
+.pf-cap .ph-audio-play { width: 34px; height: 34px; }
+.pf-thumb { display: inline-block; width: 70px; height: 90px; border-radius: 8px; margin: 8px 6px 0 0; border: 1px solid hsl(var(--border)); background: repeating-linear-gradient(180deg, transparent 0 9px, hsl(var(--text-muted) / .2) 9px 10px), hsl(var(--cat-yellow-bg)); vertical-align: top; }
+.pf-thumb.vid { width: 120px; height: 70px; background: hsl(222 30% 6%); display: inline-grid; place-items: center; color: hsl(var(--text-muted)); font-size: 11px; }
+/* deck + teleprompter (phone) */
+.qd { position: absolute; inset: 0; z-index: 140; display: flex; flex-direction: column; padding: calc(16px + env(safe-area-inset-top)) 24px 0; background: hsl(var(--surface)); background-image: radial-gradient(120% 60% at 50% -10%, hsl(var(--accent-glow) / .12), transparent 55%); touch-action: pan-x; user-select: none; }
+.qd-info { display: flex; justify-content: center; gap: 8px; font-size: 12.5px; color: hsl(var(--text-muted)); align-items: center; }
+.qd-info .rec { color: hsl(var(--danger)); font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 6px; }
+.qd-q { font-size: 25px; font-weight: 700; letter-spacing: -.4px; line-height: 1.25; margin-top: 34px; animation: qd-in .32s var(--spring); }
+@keyframes qd-in { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+.qd-body { flex: 1; overflow-y: auto; margin-top: 14px; font-size: 17px; line-height: 1.55; padding-bottom: 170px; user-select: text; }
+.qd-peek { position: absolute; left: 16px; right: 16px; bottom: 96px; z-index: 141; display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 14px; border: 1px solid hsl(var(--border)); background: hsl(var(--surface-raised) / .85); backdrop-filter: blur(var(--ctrl-blur)); -webkit-backdrop-filter: blur(var(--ctrl-blur)); font-size: 13px; color: hsl(var(--text-muted)); cursor: pointer; }
+.qd-peek b { color: hsl(var(--text)); font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qd .dock { z-index: 142; }
+.dock-spell.is-rec { border-color: hsl(var(--danger)); color: hsl(var(--danger)); background: hsl(var(--danger) / .14); }
+.dock-spell.is-rec::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; border: 1.5px solid hsl(var(--danger) / .5); animation: ph-voice-pulse 1.4s var(--ease) infinite; }
+.dock-spell.is-next { border-color: hsl(var(--gold) / .7); color: hsl(var(--gold)); background: hsl(var(--gold) / .1); }
+.tp-list { flex: 1; overflow: hidden; margin-top: 18px; position: relative; padding-bottom: 120px; }
+.tp-item { font-size: 15px; color: hsl(var(--text-muted) / .55); margin: 0 0 14px; line-height: 1.35; transition: all .35s var(--spring); }
+.tp-item.past { font-size: 13px; color: hsl(var(--text-muted) / .45); }
+.tp-item.past::before { content: "✓ "; color: hsl(var(--gold)); }
+.tp-item.cur { font-size: 25px; font-weight: 700; color: hsl(var(--text)); letter-spacing: -.4px; line-height: 1.25; margin: 6px 0 12px; }
+.tp-mark { font-family: var(--font-mono); font-size: 11px; color: hsl(var(--gold)); margin-left: 6px; }
+.tp-inline { margin: -2px 0 16px; }
+.done-card { position: absolute; inset: 0; z-index: 145; display: grid; place-items: center; text-align: center; background: hsl(var(--surface) / .92); }
+.done-card div { font-size: 20px; font-weight: 700; } .done-card p { font-size: 13px; color: hsl(var(--text-muted)); margin: 6px 0 0; }
+/* concept-2 builder rows */
+.b2 { max-width: 64ch; margin: 10px auto 0; }
+.b2-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 10px; cursor: default; }
+.b2-row:hover { background: hsl(var(--surface-raised) / .45); }
+.b2-row.sel { background: hsl(var(--surface-raised) / .8); }
+.b2-type { flex: none; width: 42px; height: 26px; border-radius: 6px; border: 1px solid hsl(var(--border)); background: hsl(var(--surface)); color: hsl(var(--text-muted)); font-size: 12px; font-family: var(--font-mono); cursor: pointer; }
+.b2-type:hover { border-color: hsl(var(--accent)); color: hsl(var(--accent)); }
+.b2-main { flex: 1; min-width: 0; }
+.b2-q { font-weight: 600; outline: none; }
+.b2-det { margin-top: 8px; font-size: 14px; color: hsl(var(--text-muted)); }
+.b2-det [contenteditable] { outline: none; }
+.b2-det .ln { display: flex; gap: 8px; padding: 2px 0; } .b2-det .ln i { font-style: normal; font-family: var(--font-mono); width: 16px; color: hsl(var(--text-muted) / .6); }
+.seg { display: inline-flex; border: 1px solid hsl(var(--border)); border-radius: 6px; overflow: hidden; margin-top: 8px; }
+.seg button { font-size: 12px; padding: 3px 10px; background: transparent; border: none; color: hsl(var(--text-muted)); cursor: pointer; }
+.seg button.on { background: hsl(var(--accent) / .14); color: hsl(var(--accent)); }
+.b2-grip { color: hsl(var(--text-muted) / .4); padding-top: 3px; }
+@media (max-width: 860px) { .pg-rules, .why { grid-template-columns: 1fr; } .dk-win { height: 600px; } .tchip { position: static; width: auto; text-align: left; display: block; margin-bottom: 2px; } }
+</style>
+</head>
+<body>
+<div class="pg">
+  <div class="pg-top">
+    <span class="pg-kicker">FORMS · concept round · UX team: Steve Jobs</span>
+    <button class="pg-theme" data-a="theme" type="button">Light / dark</button>
+  </div>
+  <h1 class="pg-title">A form is a memory with its questions already written.</h1>
+  <p class="pg-thesis">There's no form app, no builder screen, no "submit" button. You open a memory and <em>the questions are already there</em>. You answer by typing, tapping, or talking. When the desktop gets the take, Patronus writes the rest, and it stays obviously Patronus's until you touch it.</p>
+  <p class="pg-lede">Three concepts, each covering all five surfaces (A build · B fill by hand · C phone capture · D after sync · E memory compressing). Everything clickable is built from the real app's stylesheets and markup: the desktop tab bar and editor column, the Process drawer, the audio bar, Patronus's Orb D, and on the phone the reel, the memory sheet, the Dock and the Spell Menu ring. The content is the owner's own Daily Review.</p>
+  <div class="pg-rules">
+    <div class="pg-rule"><b>1 · One way in</b><span>Forms start from an empty memory, the same on desktop and phone. There's no Forms menu, no gallery, no separate list.</span></div>
+    <div class="pg-rule"><b>2 · Three field types</b><span>Question, Scale, Checklist. Freeform, lists, numbered lists, guided prompts and "fail → lesson" are all just a Question.</span></div>
+    <div class="pg-rule"><b>3 · Your words are sacred</b><span>AI can add after what you wrote but never rewrites it. You can always see what the AI wrote, and a single touch makes it yours.</span></div>
+  </div>
+  <nav class="pg-nav"><a href="#c1">1 · Just a Note</a><a href="#c2">2 · One Question</a><a href="#c3">3 · Say It Once</a><a href="#verdict">Field types + pick</a></nav>
+
+  <section class="concept" id="c1">
+    <div class="c-head"><span class="c-num">1</span><div><h2>Just a Note</h2><p>A template is an ordinary memory with a "Form" flag. You build it in the editor you already use, and the field types come from Markdown you already write. AI text appears in pale ink.</p></div><span class="c-pick">Team pick</span></div>
+    <div class="surf-tabs" data-c="c1"></div><p class="surf-note" id="note-c1"></p><div class="stage" id="stage-c1"></div>
+    <div class="why">
+      <div><b>Key idea</b>There's no builder. Write the questions in a note and flip <i>Use as form</i>. A bold line becomes a Question, <code>- [ ]</code> becomes a Checklist, and five numbered anchors become a Scale. Every new memory then offers it while it's still empty.</div>
+      <div><b>Why it's Jobs</b>Nothing new to learn: one editor, one way to start, and the result is the same <code>.md</code> memory as everything else. AI text only needs one rule: pale until touched. There are no accept or reject buttons anywhere.</div>
+      <div><b>Trade-off</b>Inference can guess a type wrong (the gutter chip fixes it, but you have to notice). There are no required fields or validation. A page with nine questions on it can feel long on the phone.</div>
+    </div>
+  </section>
+
+  <section class="concept" id="c2">
+    <div class="c-head"><span class="c-num">2</span><div><h2>One Question</h2><p>You never see the form as a page. Every surface shows one question at a time, full screen. On the phone your daily form is a single spell, and a recording follows you from question to question.</p></div></div>
+    <div class="surf-tabs" data-c="c2"></div><p class="surf-note" id="note-c2"></p><div class="stage" id="stage-c2"></div>
+    <div class="why">
+      <div><b>Key idea</b>Focus is the feature. The phone deck pages by swipe, and if you move on mid-recording, the take splits itself at the question boundary. On desktop, AI suggestions show as ghost text you keep with <kbd>Tab</kbd> or drop with <kbd>Esc</kbd>, one card at a time.</div>
+      <div><b>Why it's Jobs</b>There's one thing on screen at any moment, so there are no layout decisions and nothing to overwhelm you. A daily ritual you can do half-asleep. The Dock holds only Snap, Record and Back.</div>
+      <div><b>Trade-off</b>You lose the overview and the ability to jump around. It's a new surface (a deck, not the editor), so there's more to build. Reviewing AI one card at a time is slower than reading a page.</div>
+    </div>
+  </section>
+
+  <section class="concept" id="c3">
+    <div class="c-head"><span class="c-num">3</span><div><h2>Say It Once</h2><p>Capture is a single take. The questions scroll past like a teleprompter while you talk, and you tap <i>Next</i> to mark each boundary. The desktop cuts the take at the marks and writes every answer, each one a click away from your own voice. You make forms by example from an old entry.</p></div></div>
+    <div class="surf-tabs" data-c="c3"></div><p class="surf-note" id="note-c3"></p><div class="stage" id="stage-c3"></div>
+    <div class="why">
+      <div><b>Key idea</b>Talking is the most natural input, so make it one gesture. You don't approve AI answers. You trust them through provenance: every answer carries <span class="src" style="margin:0">▶ 1:04</span> and a <i>What I said</i> disclosure. Weekly compressing shows exactly which days it's reading.</div>
+      <div><b>Why it's Jobs</b>One button and one recording. A form is made from an entry you already wrote (1,980 of them are in Notion), so there's no blank builder at all. It just works.</div>
+      <div><b>Trade-off</b>The marks depend on you tapping Next, and a missed tap merges two answers. AI text looks like your text, which favours trust over control. One long audio file is less flexible than per-question clips.</div>
+    </div>
+  </section>
+
+  <section class="verdict" id="verdict">
+    <h2>Recommended field-type set: three, not eight</h2>
+    <table>
+      <tr><th>Type</th><th>Answer</th><th>Absorbs from the Daily Review</th><th>In the .md</th></tr>
+      <tr><td><b>Question</b></td><td>rich text; optional <i>guidance</i> line; optional starting shape (text · • bullets · 1. numbers)</td><td>open question, Freeform, bulleted list, numbered list, guided prompt (Mr Nice Guy), two-part "failed → lesson"</td><td><code>**Question**</code> + answer below</td></tr>
+      <tr><td><b>Scale</b></td><td>one integer 1–N; each number has an anchor sentence and only the chosen one is shown</td><td>"Last day of your life (1-5)" + its 5 anchors</td><td><code>**Q (1–5)** 4 — Mini high</code></td></tr>
+      <tr><td><b>Checklist</b></td><td>fixed items, each ticked or not</td><td>Sales Progress Tracking, Life Success Tracking</td><td><code>- [x] Hour of Power</code></td></tr>
+    </table>
+    <p><b>Team pick:</b> build <b>Concept 1 (Just a Note)</b> as the backbone: template = memory, Markdown field types, the empty-memory offer on both platforms, pale ink. Borrow two things from Concept 3: the <b>provenance chip</b> (<span class="src" style="margin:0">▶ 0:42</span> on every AI sentence, plus day citations when compressing) and, once the owner has used it a few weeks, the <b>single-take teleprompter</b> as a second phone capture mode.</p>
+    <p><b>The single strongest idea:</b> there is no form builder. A form is a memory you flag as a form, and its questions are plain Markdown, so a template is portable, searchable, syncs through the existing pipeline, and can even be made from any old Notion entry.</p>
+  </section>
+</div>
+<div class="pg-toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ======================================================================
+   helpers
+   ====================================================================== */
+var $ = function (s, r) { return (r || document).querySelector(s); };
+var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+var UID = 0; function uid(p) { return (p || "u") + (++UID); }
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+function fmt(sec) { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0"); }
+var toastT; function toast(m) { var t = $("#toast"); t.textContent = m; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(function () { t.classList.remove("show"); }, 2200); }
+
+/* ======================================================================
+   content — the owner's real Daily Review + a plausible Weekly Summary
+   ====================================================================== */
+var ANCH = ["I could delete it (blank page)", "Background noise (mildly boring, one or two things happened)", "I enjoyed the day (fine day, some parts were nice or fun)", "Mini high (joy, connection, growth, good energy)", "Core memory (full of energy, alive, excited, fulfilled, aligned)"];
+var DAILY = [
+  { id: "last", type: "scale", q: "If this was the last day of your life, how satisfied are you?", anchors: ANCH },
+  { id: "sales", type: "check", q: "Sales Progress Tracking", items: ["Hour of Power", "Mindset. Giving to god before every call.", "Acquisition. Recordings uploaded, transcribed, analyzed, and conditioning improved.", "Conditioning. At least 30 minutes of repeating questions or frames."] },
+  { id: "king", type: "q", q: "Was I a king? What can I do next time to be more of a king?" },
+  { id: "free", type: "q", q: "Freeform" },
+  { id: "shaped", type: "q", q: "How this day shaped my or other's life or character", shape: "ul" },
+  { id: "reward", type: "q", q: "What effort can I reward today? 🏆", shape: "ol" },
+  { id: "failed", type: "q", q: "What I feel I failed at today? → What's the lesson?", shape: "ul" },
+  { id: "life", type: "check", q: "Life Success Tracking", items: ["Body Movement", "PEAK - Walk, talk sit like a BOSS", "Celebrating Wins"] },
+  { id: "nice", type: "q", q: "Mr Nice Guy Fights", guide: "Traits: Ownership, Honesty, Fortitude, Confidence, Intentionality, Assertive\nWhere have I shown a trait today? Where I wish I'd shown it but I didn't? Why?" }
+];
+var WEEKLY = [
+  { id: "wscore", type: "scale", q: "How did this week feel, overall?", anchors: ["Lost week", "Drifted", "Solid", "Strong", "Defining"] },
+  { id: "wins", type: "q", q: "Biggest wins", shape: "ol" },
+  { id: "lessons", type: "q", q: "Lessons that kept coming back", shape: "ul" },
+  { id: "wking", type: "q", q: "Where was I a king this week — and where wasn't I?" },
+  { id: "habits", type: "q", q: "Which trackers slipped?" },
+  { id: "next", type: "q", q: "The one thing I change next week" }
+];
+var WEEK = [
+  { d: "Mon", n: 3, t: "Slow start. Skipped conditioning again, 9 calls." },
+  { d: "Tue", n: 4, t: "Held the frame on the Novak call — didn't over-explain the price." },
+  { d: "Wed", n: 2, t: "Stayed quiet when the meeting ran over. Classic nice-guy move." },
+  { d: "Thu", n: 5, t: "Closed Novak. Celebrated with the team. Hour of Power done." },
+  { d: "Fri", n: 4, t: "14 calls. Re-recorded the opener three times until it landed." },
+  { d: "Sat", n: 4, t: "Long walk, no phone. Decided: no email before 10." }
+];
+var AI_WEEK = {
+  wscore: { scale: 4, why: "average 3.7 across 6 days; Thursday was a 5", reads: [0, 1, 2, 3, 4, 5] },
+  wins: { items: [["Closed Novak after holding the frame on price", ["Tue", "Thu"]], ["14 calls on Friday, the opener re-recorded until it landed", ["Fri"]], ["No email before 10, decided on the Saturday walk", ["Sat"]]], reads: [1, 3, 4, 5] },
+  lessons: { items: [["Conditioning slips whenever it's left for \"later\". Book it before lunch.", ["Mon"]], ["Staying quiet to be liked costs more than the awkward moment.", ["Wed"]]], reads: [0, 2] },
+  wking: { items: [["King on Tuesday and Thursday: held the price and asked for the decision.", ["Tue", "Thu"]], ["Not on Wednesday: let the meeting run over to stay liked.", ["Wed"]]], reads: [1, 2, 3] },
+  habits: { items: [["Conditioning on 2 of 6 days. Body Movement 3 of 6. Hour of Power 5 of 6.", ["Mon", "Thu"]]], reads: [0, 3] },
+  next: { items: [["Conditioning first thing after lunch, booked in the calendar like a call.", ["Mon", "Wed"]]], reads: [0, 2] }
+};
+/* what the phone captured (shared by C → D) */
+var PHONE_RAW = {
+  last: { scale: 4 }, sales: { checks: [0, 1] }, life: { checks: [0] },
+  free: { own: "Long walk after lunch, cleared my head.", photo: 1 },
+  reward: { own: ["Made 14 calls"] },
+  king: { voice: "0:42" }, shaped: { voice: "0:31" }, failed: { voice: "0:55" }, nice: { voice: "1:12" }
+};
+var AI_DAILY = {
+  king: { text: "Mostly yes. I held the frame on the Novak call and didn't over-explain the price. Next time: ask for the decision instead of waiting for it.", src: "▶ 0:42" },
+  free: { text: "From the notebook page: three call openers, the second one circled — that's the one to drill.", src: "photo" },
+  shaped: { items: ["Told Petr the delay was mine — he relaxed and the call got easier.", "Showed the team a \"no\" isn't the end of a deal."], src: "▶ 0:31" },
+  reward: { items: ["Re-recorded the opener three times until it landed"], src: "▶ 0:42" },
+  failed: { items: ["Skipped conditioning again → book it before lunch, never \"later\"."], src: "▶ 0:55" },
+  nice: { text: "Ownership: owned the delay with Petr. I wish I'd been Assertive when the meeting ran over; I stayed quiet to be liked.", src: "▶ 1:12" }
+};
+var SAID = {
+  last: "okay so… honestly I'd say a four today, it was a good one",
+  sales: "hour of power yes, mindset yes, the recordings no, conditioning no — again",
+  king: "uh, was I a king… mostly, yeah. The Novak call I held it, I didn't, you know, explain the price five times. Next time I just ask for the decision, I keep waiting for them to give it",
+  free: "walked after lunch, it cleared my head, and I sketched three openers in the notebook",
+  shaped: "I told Petr the delay was on me and he just… relaxed. And I think the team saw that a no isn't the end",
+  reward: "fourteen calls, and I re-recorded the opener like three times until it landed",
+  failed: "conditioning, again. I keep leaving it for later. Lesson — book it before lunch",
+  life: "movement yes, peak… not really, celebrating — no",
+  nice: "ownership, the Petr thing. But in the meeting that ran over I just sat there, to be liked, I should've been assertive"
+};
+var AI_TAKE = {
+  last: { scale: 4 }, sales: { checks: [0, 1] }, life: { checks: [0] },
+  king: "Mostly yes — I held the frame on the Novak call and didn't over-explain the price. Next time: ask for the decision instead of waiting for it.",
+  free: "Walked after lunch; it cleared my head. Sketched three call openers in the notebook.",
+  shaped: ["Owned the delay with Petr — he relaxed.", "The team saw a \"no\" isn't the end of a deal."],
+  reward: ["14 calls", "Re-recorded the opener three times until it landed"],
+  failed: ["Conditioning, again → book it before lunch, never \"later\"."],
+  nice: "Ownership with Petr. Wasn't Assertive when the meeting ran over — stayed quiet to be liked."
+};
+var MARKS = { last: 0, sales: 21, king: 58, free: 107, shaped: 150, reward: 185, failed: 221, life: 270, nice: 292 };
+var TAKE_LEN = 372;
+
+/* ======================================================================
+   real-UI building blocks
+   ====================================================================== */
+var GP = {
+  camera: '<path d="M9 6.2 9.9 4.6a1.4 1.4 0 0 1 1.2-.7h1.8a1.4 1.4 0 0 1 1.2.7l.9 1.6H19a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8.2a2 2 0 0 1 2-2Z"/><circle cx="12" cy="12.4" r="3.4"/>',
+  mic: '<path d="M9 5.5a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0Z"/><path d="M6 11a6 6 0 0 0 12 0"/><path d="M12 17v3M9 20h6"/>',
+  write: '<path d="M4 20l1.3-4L15 6.3a1.8 1.8 0 0 1 2.5 2.5L8.3 18.5 4 20Z"/><path d="M13.5 7.8l2.7 2.7"/><path d="M19 3.4v3M17.5 4.9h3"/>',
+  accio: '<g transform="translate(1,1)"><circle cx="10.5" cy="10.5" r="5.3"/><path d="M14.6 14.6 19.5 19.5"/><path d="M8.4 8.4v2.2M7.3 9.5h2.2"/></g>',
+  back: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11"/>',
+  video: '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10.3 20.3 7.6a1 1 0 0 1 1.5.85v7.1a1 1 0 0 1-1.5.85L16 13.7"/>',
+  book: '<path d="M12 7.2c-2.4-1.3-5.1-1.7-8-1.1v12.4c2.9-.6 5.6-.2 8 1.1Z"/><path d="M12 7.2c2.4-1.3 5.1-1.7 8-1.1v12.4c-2.9-.6-5.6-.2-8 1.1Z"/><path d="M12 7.2v12.4"/>',
+  upload: '<path d="M12 15V4M8.3 7.5 12 4l3.7 3.5"/><path d="M5 15.5v2.7a1.8 1.8 0 0 0 1.8 1.8h10.4a1.8 1.8 0 0 0 1.8-1.8v-2.7"/>',
+  sync: '<path d="M5 12a7 7 0 0 1 12-4.9M19 12a7 7 0 0 1-12 4.9"/><path d="M17 4v4h-4M7 20v-4h4"/>',
+  next: '<path d="M6 9.5l6 6 6-6"/>',
+  skip: '<path d="M5 6l7 6-7 6"/><path d="M13 6l7 6-7 6"/>',
+  check: '<path d="M5 12.5l4.2 4.2L19 7"/>',
+  pause: '<path d="M9 6v12M15 6v12"/>',
+  trash: '<path d="M5 7h14"/><path d="M9 7V5.6c0-.9.7-1.6 1.6-1.6h2.8c.9 0 1.6.7 1.6 1.6V7"/><path d="M7 7l.9 12.2a1.8 1.8 0 0 0 1.8 1.6h4.6a1.8 1.8 0 0 0 1.8-1.6L17 7"/>'
+};
+function glyph(n, s) { s = s || 24; return '<svg viewBox="0 0 24 24" width="' + s + '" height="' + s + '" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="stroke-width:var(--glyph-stroke)" aria-hidden="true">' + (GP[n] || "") + "</svg>"; }
+function ember() {
+  var id = uid("em"), pts = [[16, 5], [25.53, 10.5], [25.53, 21.5], [16, 27], [6.47, 21.5], [6.47, 10.5]];
+  return '<svg viewBox="0 0 32 32" width="44" height="44" aria-hidden="true"><defs><radialGradient id="' + id + '" cx="40%" cy="34%" r="66%"><stop offset="0%" stop-color="hsl(45 100% 95%)"/><stop offset="34%" stop-color="hsl(var(--gold-glow))"/><stop offset="72%" stop-color="hsl(var(--gold-mid))"/><stop offset="100%" stop-color="hsl(var(--gold-deep))"/></radialGradient></defs>' +
+    pts.map(function (p) { return '<circle class="sm-orb" cx="' + p[0] + '" cy="' + p[1] + '" r="3.1" fill="url(#' + id + ')"/>'; }).join("") + "</svg>";
+}
+/* the real 4-cell Dock. cells: null | {menu:act} | {accio:1} | {g, a, label, cls, extra} */
+function dock(cells) {
+  return '<div class="dock">' + cells.map(function (c, i) {
+    if (!c) return "";
+    if (c.menu) return '<div class="dock-cell" style="grid-column:' + (i + 1) + '"><button type="button" class="spell-fab" aria-label="Open spell menu" data-a="' + c.menu + '">' + ember() + "</button></div>";
+    if (c.accio) return '<div class="dock-cell dock-exp" style="grid-column:1 / span 3"><div class="accio-bar" role="button" data-a="toast" data-msg="Accio — search is unchanged by Forms (filled forms are ordinary memories)"><span class="accio-sigil">' + glyph("accio", 22) + '</span><span class="accio-ph">Accio a memory…</span></div></div>';
+    return '<div class="dock-cell" style="grid-column:' + (i + 1) + '"><button type="button" class="dock-spell' + (c.cls ? " " + c.cls : "") + '" aria-label="' + c.label + '" data-a="' + c.a + '">' + glyph(c.g, 24) + "</button>" + (c.extra || "") + "</div>";
+  }).join("") + "</div>";
+}
+/* the real radial Spell Menu ring (static resting arc, same math as the RAW-MEMORY prototype) */
+function ring(spells, hue, close, cap) {
+  var n = spells.length, R = n <= 2 ? 110 : 150, arc = n <= 2 ? 70 : 150;
+  var nodes = spells.map(function (s, i) {
+    var t = n === 1 ? 0 : i / (n - 1) - 0.5, rad = t * arc * Math.PI / 180, x = Math.sin(rad) * R, y = -Math.cos(rad) * R + R * 0.62;
+    return '<div class="spell-node label-above" style="transform:translate(-50%,-50%) translate(' + x.toFixed(1) + "px," + y.toFixed(1) + 'px)"><div class="spell-bloom" style="--bloom-delay:' + i * 25 + 'ms"><button type="button" class="spell-btn ' + (s.hue || "") + '" aria-label="' + esc(s.name) + '" data-a="' + s.a + '"' + (s.msg ? ' data-msg="' + esc(s.msg) + '"' : "") + ">" + glyph(s.g, 30) + '</button></div><span class="spell-label">' + esc(s.name) + "</span></div>";
+  }).join("");
+  return '<div class="spell-overlay" data-a="' + close + '"><div class="spell-ring hue-' + hue + '" role="menu">' + nodes + '<span class="spell-core" aria-hidden="true"></span></div>' + (cap ? '<div class="ring-cap">' + cap + "</div>" : "") + "</div>";
+}
+function generalSpells(extra, writeAct) {
+  var m = "Not part of this concept demo";
+  var base = [
+    { name: "Write", g: "write", a: writeAct || "toast", msg: m },
+    { name: "Accio", g: "accio", a: "toast", msg: m, hue: "spell-violet" },
+    { name: "Sync", g: "sync", a: "toast", msg: m, hue: "spell-syncgold" },
+    { name: "Snap", g: "camera", a: "toast", msg: m },
+    { name: "Record", g: "mic", a: "toast", msg: m },
+    { name: "Film", g: "video", a: "toast", msg: m }
+  ];
+  return extra ? base.concat(extra) : base;
+}
+/* flask glyph — ported verbatim from phone/src/lib/wand/flaskSvg.ts (via the RAW-MEMORY prototype) */
+var SHAPE = {
+  round: { body: "M24 10v10a14 14 0 1 1-0.001 0Z M18 10h12", top: 20, bottom: 58, clip: "M24 20a14 14 0 1 0 0.001 0Z" },
+  vial: { body: "M18 8h12v40a6 6 0 0 1-12 0z M17 8h14", top: 18, bottom: 52, clip: "M18 18h12v30a6 6 0 0 1-12 0z" },
+  potion: { body: "M21 8h6v6c5 2 9 7 9 14a15 15 0 0 1-30 0c0-7 4-12 9-14z M20 8h8", top: 22, bottom: 58, clip: "M24 22a13 13 0 1 0 0.001 0Z" },
+  erlenmeyer: { body: "M20 8h8v14l9 30a3 3 0 0 1-3 4H14a3 3 0 0 1-3-4l9-30z M19 8h10", top: 22, bottom: 54, clip: "M20 22 12 52a3 3 0 0 0 3 4h18a3 3 0 0 0 3-4L28 22z" }
+};
+function flaskSVG(shape, hue, fill) {
+  var id = uid("g"), liquid = "hsl(" + hue + ")", hp = hue.split(" "), deep = "hsl(" + hp[0] + " " + hp[1] + " 46%)", s = SHAPE[shape], fh = s.bottom - s.top;
+  var top = s.bottom - Math.max(6, fh * Math.max(0.12, Math.min(1, fill)));
+  return '<svg viewBox="0 0 48 68" width="100%" height="100%" aria-hidden="true"><defs><radialGradient id="' + id + 'g" cx="50%" cy="60%" r="60%"><stop offset="0%" stop-color="' + liquid + '" stop-opacity=".55"/><stop offset="100%" stop-color="' + liquid + '" stop-opacity="0"/></radialGradient><linearGradient id="' + id + 'l" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="' + liquid + '" stop-opacity=".9"/><stop offset="100%" stop-color="' + deep + '" stop-opacity=".95"/></linearGradient><clipPath id="' + id + 'c"><path d="' + s.clip + '"/></clipPath></defs><ellipse cx="24" cy="46" rx="22" ry="22" fill="url(#' + id + 'g)"/><g clip-path="url(#' + id + 'c)"><rect x="0" y="' + top + '" width="48" height="' + (s.bottom - top + 2) + '" fill="url(#' + id + 'l)"/><rect x="0" y="' + top + '" width="48" height="2" fill="#fff" opacity=".25"/></g><path d="' + s.body + '" fill="hsl(216 20% 92% / .05)" stroke="hsl(216 30% 88% / .55)" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/><rect x="19" y="' + (s.top + 2) + '" width="2.4" height="' + Math.max(8, fh * 0.5) + '" rx="1.2" fill="#fff" opacity=".35" clip-path="url(#' + id + 'c)"/></svg>';
+}
+var HOME_NOTES = [["Novak call — what worked", "Yesterday", "potion", "var(--cat-blue)", 0.7], ["Daily Review", "Wed 11 Nov", "round", "var(--cat-gold)", 0.9], ["Opener v3 — the circled one", "Tue 10 Nov", "vial", "var(--cat-green)", 0.4], ["Walk thoughts", "Mon 9 Nov", "erlenmeyer", "var(--cat-purple)", 0.55], ["Daily Review", "Sun 8 Nov", "round", "var(--cat-gold)", 0.8], ["Book notes — No More Mr Nice Guy", "Sat 7 Nov", "potion", "var(--cat-pink)", 0.6]];
+function homeCards() {
+  return HOME_NOTES.map(function (n) {
+    var hue = getComputedStyle(document.documentElement).getPropertyValue(n[3].slice(4, -1)).trim() || "212 70% 68%";
+    return '<div class="slot"><div class="card"><div class="flask">' + flaskSVG(n[2], hue, n[4]) + '</div><div class="body"><div class="title">' + esc(n[0]) + '</div><div class="meta">' + n[1] + "</div></div></div></div>";
+  }).join("");
+}
+function rawCard(title, meta) { return '<div class="slot"><div class="card is-raw flash-in"><div class="flask-gutter"></div><div class="body"><div class="title">' + esc(title) + '</div><div class="meta"><span class="meta-dot"></span>' + esc(meta) + "</div></div></div></div>"; }
+function phHome(raw, menuAct) {
+  return '<div class="app"><div class="header"><h1>Pensieve</h1><span class="count">' + (raw ? 95 : 94) + '</span></div><div class="reel">' + (raw || "") + homeCards() + "</div></div>" + dock([{ accio: 1 }, null, null, { menu: menuAct }]);
+}
+function phNote(body, cells, extra) {
+  return '<div class="note open"><div class="note-top"><div class="note-date">Thu 12 Nov · 21:40</div><div class="note-saved show"><i></i> Saved</div></div><div class="note-surface"><div class="note-body">' + body + "</div></div>" + dock(cells) + "</div>" + (extra || "");
+}
+function phFrame(inner) { return '<div class="frame"><div class="screen">' + inner + "</div></div>"; }
+function voiceCard(q, stopAct) {
+  var bars = ""; for (var i = 0; i < 22; i++) bars += '<span class="ph-voice-bar" style="transform:scaleY(.2)"></span>';
+  return '<div class="ph-voice-overlay" role="dialog"><div class="ph-voice-card"><div class="ph-voice-status"><span class="ph-voice-dot"></span>Recording · into “' + esc(q.length > 28 ? q.slice(0, 28) + "…" : q) + '”</div><div class="ph-voice-time" data-rt>0:00</div><div class="ph-voice-wave" data-rw>' + bars + '</div><div class="ph-voice-controls"><button type="button" class="ph-voice-pause" data-a="toast" data-msg="Pause — same as the shipped recorder">Pause</button><button type="button" class="ph-voice-primary" data-a="' + stopAct + '">Done</button></div></div></div>';
+}
+function phAudio(dur, cap) { return '<div class="pf-cap ph-media ph-audio"><div class="ph-audio-bar"><span class="ph-audio-play">' + '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10-6.5a1 1 0 0 0 0-1.72l-10-6.5A1 1 0 0 0 8 5.5z"/></svg></span><span class="ph-audio-track"></span><span class="ph-audio-time">' + dur + "</span></div>" + (cap ? '<div class="ph-audio-caption">' + cap + "</div>" : "") + "</div>"; }
+function phCaps(list) {
+  return (list || []).map(function (c) {
+    if (c.k === "voice") return phAudio(c.d, "Voice · transcribed on the desktop");
+    if (c.k === "video") return '<span class="pf-thumb vid">▶ ' + c.d + "</span>";
+    return '<span class="pf-thumb"></span>';
+  }).join("");
+}
+/* desktop */
+var LOGO = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><ellipse cx="12" cy="15" rx="8" ry="4"/><path d="M4 15c0-4 3.6-9 8-9s8 5 8 9"/><path d="M9 13.5c1.5-1 4.5-1 6 0"/></svg>';
+var XS = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+var TABFLASK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="shrink-0"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/></svg>';
+var PLAY = '<svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10-6.5a1 1 0 0 0 0-1.72l-10-6.5A1 1 0 0 0 8 5.5z"/></svg>';
+function lemni(s) { return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path class="lemniscate" pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z"/></svg>'; }
+function syncBtn(a, dot) { return '<button type="button" data-a="' + a + '" aria-label="OneDrive sync" title="Sync" class="sync-icon relative inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-surface-raised" data-state="idle">' + lemni(18) + (dot ? '<span class="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-accent"></span>' : "") + "</button>"; }
+function dkWin(o) {
+  var tabs = (o.tabs || []).map(function (t) {
+    return '<div role="tab" class="group flex h-7 shrink-0 cursor-default items-center gap-1.5 rounded-md border px-2 text-sm ' + (t.active ? "border-border bg-surface-raised text-text" : "border-transparent text-text-muted hover:bg-surface-raised/60 hover:text-text") + '">' + TABFLASK + '<span class="max-w-[120px] truncate">' + esc(t.t) + "</span>" + (t.form ? '<span class="dk-formtab">form</span>' : "") + '<span class="-mr-0.5 shrink-0 rounded p-0.5 text-text-muted/60 hover:bg-surface hover:text-text">' + XS + "</span></div>";
+  }).join("");
+  return '<div class="dk-win"><header class="relative flex h-12 items-center gap-2 border-b border-border bg-surface-sunken pr-3 pl-20"><span class="dk-lights"><i></i><i></i><i></i></span><div class="flex min-w-0 flex-1 items-center gap-1"><button type="button" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-text transition-colors hover:bg-surface-raised">' + LOGO + '</button><span class="h-5 w-px shrink-0 bg-border"></span><div class="no-scrollbar flex min-w-0 items-center gap-1 overflow-x-auto">' + tabs + '</div></div><div class="flex shrink-0 items-center gap-0.5">' + (o.right || "") + '</div></header><div class="relative flex min-h-0 flex-1"><section class="flex-1 overflow-y-auto"><div class="w-full px-6 pt-4 pb-16">' + o.body + "</div></section>" + (o.aside || "") + "</div>" + (o.overlay || "") + "</div>";
+}
+function orb(size) {
+  var id = uid("po");
+  return '<svg viewBox="0 0 100 100" width="' + size + '" height="' + size + '" class="patronus-orb" aria-hidden="true"><defs><radialGradient id="' + id + 'c" cx="50%" cy="45%" r="60%"><stop offset="0%" stop-color="#ffffff" stop-opacity=".95"/><stop offset="30%" stop-color="hsl(var(--accent-glow))" stop-opacity=".9"/><stop offset="55%" stop-color="hsl(var(--accent))" stop-opacity=".7"/><stop offset="80%" stop-color="hsl(var(--accent))" stop-opacity=".3"/><stop offset="100%" stop-color="hsl(var(--accent))" stop-opacity="0"/></radialGradient><radialGradient id="' + id + 'b" cx="50%" cy="48%" r="60%"><stop offset="0%" stop-color="hsl(var(--accent-glow))" stop-opacity=".35"/><stop offset="100%" stop-color="hsl(var(--accent-glow))" stop-opacity="0"/></radialGradient><filter id="' + id + 'f" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="1.8"/></filter></defs><g stroke="hsl(var(--accent-glow))" stroke-width="1" fill="none"><circle cx="50" cy="50" r="16" class="patronus-ring"/><circle cx="50" cy="50" r="16" class="patronus-ring" style="animation-delay:1.2s"/><circle cx="50" cy="50" r="16" class="patronus-ring" style="animation-delay:2.4s"/></g><circle cx="50" cy="50" r="24" fill="url(#' + id + 'b)" filter="url(#' + id + 'f)"/><g class="patronus-breathe"><circle cx="50" cy="50" r="16" fill="url(#' + id + 'c)" filter="url(#' + id + 'f)"/></g></svg>';
+}
+function waveSVG() { var r = ""; for (var i = 0; i < 60; i++) { var h = 6 + Math.abs(Math.sin(i * 1.7) * 18 + Math.sin(i * .37) * 8); r += '<rect x="' + (i * 5) + '" y="' + (16 - h / 2) + '" width="3" height="' + h + '" rx="1.5" fill="currentColor"/>'; } return '<svg viewBox="0 0 300 32" preserveAspectRatio="none">' + r + "</svg>"; }
+function dkAudio(dur, cap, ticks, head, act) {
+  var t = (ticks || []).map(function (p) { return '<span class="tick" style="left:' + p + '%"></span>'; }).join("");
+  return '<div class="pensieve-audio-host dk-aud"><div class="pensieve-audio-bar is-compact' + (head != null ? " is-playing" : "") + '"><button type="button" class="pensieve-audio-play" aria-label="Play"' + (act ? ' data-a="' + act + '"' : "") + ">" + PLAY + '</button><div class="pensieve-audio-wave">' + waveSVG() + t + (head != null ? '<span class="head" style="left:' + head + '%"></span>' : "") + '</div><span class="pensieve-audio-time">' + (head != null ? fmt(head / 100 * TAKE_LEN) + " / " : "0:00 / ") + dur + "</span></div>" + (cap ? '<div class="pensieve-audio-caption" style="font-size:12px;color:hsl(var(--text-muted));margin-top:4px">' + cap + "</div>" : "") + "</div>";
+}
+function procDrawer(k, title, meta, st) {
+  var run = st.phase === "run";
+  return '<div class="dk-drawer-scrim" data-a="' + k + '.close"></div><div class="dk-drawer flex flex-col border-l border-border bg-surface-raised shadow-lg"><div class="flex-none p-3"><div class="flex items-start gap-2"><span class="sync-icon mt-px shrink-0 text-text-muted" data-state="idle">' + lemni(16) + '</span><div class="min-w-0 flex-1"><p class="text-sm font-medium text-text">Synced</p><p class="mt-0.5 text-xs leading-snug text-text-muted">1 raw memory arrived from your phone</p></div></div></div><section class="flex min-h-0 flex-1 flex-col border-t border-border"><header class="flex items-center gap-1.5 border-b border-border px-3.5 py-2.5"><span class="mr-auto text-sm text-text">Process</span><button type="button" data-a="' + k + '.run" title="Run" class="grid h-7 w-[34px] place-items-center rounded-md bg-accent text-surface hover:bg-accent-glow">' + PLAY + '</button></header><div class="min-h-0 flex-1 overflow-y-auto p-1.5"><div class="relative flex items-center gap-2.5 rounded-lg px-2 py-2 bg-accent/5"><span class="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-accent bg-accent text-surface font-mono text-xs tabular-nums">1</span><span class="min-w-0 flex-1 truncate text-sm text-text">' + esc(title) + "</span></div>" +
+    (run ? '<div class="px-3 py-2 text-xs text-text-muted">' + esc(st.step) + '</div><div class="proc-bar"><i style="width:' + st.pct + '%"></i></div>' : '<div class="px-3 pb-2 text-xs text-text-muted">' + esc(meta) + " · press ▶</div>") + "</div></section></div>";
+}
+
+/* shared desktop field renderer — ONE look across every concept */
+function srcChip(s) { return '<span class="src" contenteditable="false" data-a="src" data-s="' + esc(s) + '">' + esc(s) + "</span>"; }
+function ansInner(f, v, o) {
+  var own = v.own, ai = v.ai;
+  function wet(t) { return '<span class="wet">' + esc(t) + "</span>" + (ai.src && o.src !== false ? srcChip(ai.src) : ""); }
+  if (f.shape) {
+    var items = (own || []).map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("");
+    if (ai && ai.items) items += ai.items.map(function (t) { return "<li>" + wet(t) + "</li>"; }).join("");
+    if (!items) items = "<li><br></li>";
+    return "<" + f.shape + ">" + items + "</" + f.shape + ">";
+  }
+  var s = own ? esc(own) : "";
+  if (ai && ai.text) s += (own ? " " : "") + wet(ai.text);
+  return s;
+}
+function dkField(f, v, o) {
+  v = v || {}; o = o || {};
+  var h = '<div class="fq" data-fid="' + f.id + '"><div class="fq-q">' + esc(f.q) + (f.type === "scale" ? ' <span class="text-text-muted" style="font-weight:400">(1–5)</span>' : "") + "</div>";
+  if (f.guide) h += '<div class="fq-guide">' + esc(f.guide) + "</div>";
+  if (f.type === "scale") {
+    h += '<div class="fs">' + [1, 2, 3, 4, 5].map(function (n) { return '<button type="button" class="' + (v.scale === n ? "on" : "") + (v.aiScale === n && v.scale !== n ? " wet-ring" : "") + '" data-a="' + o.k + '.scale" data-id="' + f.id + '" data-n="' + n + '" data-hov="' + esc(f.anchors[n - 1]) + '">' + n + "</button>"; }).join("") + "</div>";
+    h += '<div class="fs-anchor">' + (v.scale ? esc(f.anchors[v.scale - 1]) : v.aiScale ? '<span class="wet">' + v.aiScale + " — " + esc(f.anchors[v.aiScale - 1]) + "</span> <span class=\"text-xs\">(" + esc(v.aiWhy) + ")</span>" : '<span style="opacity:.5">Hover a number to see what it means</span>') + "</div>";
+  } else if (f.type === "check") {
+    h += '<div class="fcl">' + f.items.map(function (it, i) { return '<div class="fc ' + ((v.checks || []).indexOf(i) >= 0 ? "on" : "") + '" data-a="' + o.k + '.check" data-id="' + f.id + '" data-i="' + i + '"><span class="fc-box"></span><span>' + esc(it) + "</span></div>"; }).join("") + "</div>";
+  } else {
+    h += '<div class="fq-ans" contenteditable="' + (o.edit === false ? "false" : "true") + '" data-in="' + o.k + '.ans" data-id="' + f.id + '" data-ph="' + esc(o.ph || "") + '">' + ansInner(f, v, o) + "</div>";
+  }
+  if (o.extra) h += o.extra(f, v);
+  return h + "</div>";
+}
+function readAns(el, f) {
+  if (f.shape) return $$("li", el).map(function (li) { return li.innerText.trim(); }).filter(Boolean);
+  return el.innerText.trim();
+}
+function toMd(title, fields, vals) {
+  var s = "<!-- form: " + title.split(" —")[0].toLowerCase().replace(/ /g, "-") + " -->\n# " + title + "\n\n";
+  fields.forEach(function (f) {
+    var v = vals[f.id] || {};
+    if (f.type === "scale") s += "**" + f.q + " (1–5)** " + (v.scale ? v.scale + " — " + f.anchors[v.scale - 1] : "") + "\n\n";
+    else if (f.type === "check") s += "**" + f.q + "**\n" + f.items.map(function (it, i) { return "- [" + ((v.checks || []).indexOf(i) >= 0 ? "x" : " ") + "] " + it; }).join("\n") + "\n\n";
+    else {
+      s += "**" + f.q + "**\n" + (f.guide ? "*" + f.guide.replace(/\n/g, " ") + "*\n" : "");
+      if (f.shape) s += ((v.own || []).length ? v.own : [""]).map(function (t, i) { return (f.shape === "ol" ? (i + 1) + ". " : "- ") + t; }).join("\n") + "\n\n";
+      else s += (v.own || "") + "\n\n";
+    }
+  });
+  return s.trim();
+}
+
+/* ======================================================================
+   state + render plumbing
+   ====================================================================== */
+var SURF = [["A", "Build"], ["B", "Fill by hand"], ["C", "Phone capture"], ["D", "After sync"], ["E", "Compress"]];
+var S = { c1: { surf: "A" }, c2: { surf: "A" }, c3: { surf: "A" } };
+var R = {}, H = {}, IN = {}, K = {}, AFTER = {}, timers = {};
+var NOTES = {};
+function draw(cs) {
+  var c = cs.slice(0, 2); if (S[c].surf !== cs.slice(2)) return;
+  var stage = $("#stage-" + c); stage.innerHTML = R[cs]();
+  $("#note-" + c).innerHTML = NOTES[cs] || "";
+  if (AFTER[cs]) AFTER[cs](stage);
+}
+function setSurf(c, s) { S[c].surf = s; $$(".surf-tab", $('.surf-tabs[data-c="' + c + '"]')).forEach(function (b) { b.classList.toggle("on", b.dataset.s === s); }); draw(c + s); }
+function stopT(cs) { if (timers[cs]) { clearInterval(timers[cs]); clearTimeout(timers[cs]); timers[cs] = null; } }
+function seq(cs, steps, ms, onStep, onDone) { stopT(cs); var i = 0; (function go() { if (i >= steps.length) { onDone && onDone(); return; } onStep(steps[i], i); i++; timers[cs] = setTimeout(go, ms); })(); }
+function focusEnd(el) { if (!el) return; el.focus(); var r = document.createRange(); r.selectNodeContents(el); r.collapse(false); var s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+
+/* ======================================================================
+   CONCEPT 1 — JUST A NOTE
+   ====================================================================== */
+var TYPE_LABEL = { q: "Question", scale: "Scale 1–5", check: "Checklist" };
+function defaultsFor(t, f) {
+  if (t === "scale") { f.anchors = f.anchors || ["Awful", "Meh", "Fine", "Good", "Great"]; }
+  if (t === "check") { f.items = f.items || ["First item"]; }
+  f.type = t; return f;
+}
+S.c1.A = { isForm: true, fields: clone(DAILY), slash: false };
+NOTES.c1A = "<b>Try it:</b> hover a block and click its type in the left gutter (Question, Scale, Checklist) to correct a guess. Click the last line to open the real slash menu and add a field. Every block is plain Markdown, so this <i>is</i> the template file.";
+function bField(f) {
+  var h = '<div class="bq" data-fid="' + f.id + '"><button type="button" class="tchip" data-a="c1A.type" data-id="' + f.id + '">' + TYPE_LABEL[f.type] + '</button><div class="fq-q" contenteditable="true" data-in="c1A.q" data-id="' + f.id + '">' + esc(f.q) + "</div>";
+  if (f.guide) h += '<div class="fq-guide" contenteditable="true">' + esc(f.guide) + "</div>";
+  if (f.type === "scale") h += '<div class="fs">' + [1, 2, 3, 4, 5].map(function (n) { return '<button type="button" tabindex="-1">' + n + "</button>"; }).join("") + '</div><ol class="b-anch" contenteditable="true">' + f.anchors.map(function (a) { return "<li>" + esc(a) + "</li>"; }).join("") + "</ol>";
+  else if (f.type === "check") h += '<div class="fcl">' + f.items.map(function (it) { return '<div class="fc"><span class="fc-box"></span><span contenteditable="true" style="outline:none">' + esc(it) + "</span></div>"; }).join("") + "</div>";
+  else h += '<div class="b-seed">' + (f.shape === "ul" ? "•" : f.shape === "ol" ? "1." : "Answer…") + "</div>";
+  return h + "</div>";
+}
+var SLASH = '<div class="pensieve-slashmenu b-slash" role="listbox"><div class="pensieve-slashmenu-group">Form fields</div>' +
+  [["q", "Aa", "Question", "Open answer — text, bullets or numbers"], ["scale", "1–5", "Scale", "A number, each with what it means"], ["check", "☑", "Checklist", "Things you tick every time"]].map(function (x, i) {
+    return '<button type="button" class="pensieve-slashmenu-item' + (i === 0 ? " is-active" : "") + '" data-a="c1A.ins" data-t="' + x[0] + '"><span class="pensieve-slashmenu-icon" style="width:28px;font-family:var(--font-mono);font-size:12px">' + x[1] + '</span><span class="pensieve-slashmenu-text"><span class="pensieve-slashmenu-title">' + x[2] + '</span><span class="pensieve-slashmenu-sub">' + x[3] + "</span></span></button>";
+  }).join("") + "</div>";
+R.c1A = function () {
+  var st = S.c1.A;
+  var body = '<div class="dk-doc"><h1 class="dk-h1" contenteditable="true">Daily Review</h1><div class="dk-sub"><button type="button" class="b-flag ' + (st.isForm ? "on" : "") + '" data-a="c1A.flag">' + (st.isForm ? "✓ Form" : "Use as form") + "</button><span>" + (st.isForm ? "Every empty memory now offers this. Its answers stay blank here." : "An ordinary memory. Flip it to make every empty memory offer it.") + "</span></div>" +
+    st.fields.map(bField).join("") + '<div class="b-add" data-a="c1A.slash">Type <kbd>/</kbd> to add a question, a scale or a checklist</div>' + (st.slash ? SLASH : "") + "</div>";
+  return dkWin({ tabs: [{ t: "Daily Review", active: 1, form: st.isForm }, { t: "Weekly Summary", form: 1 }, { t: "Novak call" }], right: syncBtn("toast"), body: body });
+};
+H["c1A.flag"] = function () { S.c1.A.isForm = !S.c1.A.isForm; draw("c1A"); };
+H["c1A.type"] = function (el) { var f = S.c1.A.fields.filter(function (x) { return x.id === el.dataset.id; })[0]; var nx = { q: "scale", scale: "check", check: "q" }[f.type]; defaultsFor(nx, f); draw("c1A"); toast("Now a " + TYPE_LABEL[nx] + " — the .md changes with it"); };
+H["c1A.slash"] = function () { S.c1.A.slash = !S.c1.A.slash; draw("c1A"); };
+H["c1A.ins"] = function (el) { var t = el.dataset.t, f = defaultsFor(t, { id: uid("f"), q: t === "q" ? "New question" : t === "scale" ? "How was it?" : "New checklist" }); S.c1.A.fields.push(f); S.c1.A.slash = false; draw("c1A"); var q = $('[data-fid="' + f.id + '"] .fq-q'); if (q) { q.scrollIntoView({ block: "center" }); focusEnd(q); document.execCommand && document.execCommand("selectAll"); } };
+IN["c1A.q"] = function (el) { var f = S.c1.A.fields.filter(function (x) { return x.id === el.dataset.id; })[0]; if (f) f.q = el.innerText; };
+
+/* ---- B: fill by hand ---- */
+S.c1.B = { picked: null, vals: {}, md: false };
+NOTES.c1B = "<b>Try it:</b> a brand-new memory shows its forms while it's empty. Start typing and the offer goes away. Pick <b>Daily Review</b>, then tick, rate (hover a number to read its anchor) and type. <b>Show the .md</b> proves it's an ordinary memory.";
+R.c1B = function () {
+  var st = S.c1.B, body;
+  if (!st.picked) {
+    body = '<div class="dk-doc"><h1 class="dk-h1" contenteditable="true" data-in="c1B.type" data-ph="Untitled"></h1><div class="offer" id="c1B-offer"><span class="offer-l">Start from</span><button type="button" data-a="c1B.pick" data-f="daily">' + glyph("book", 15) + ' Daily Review</button><button type="button" data-a="c1B.pick" data-f="weekly">' + glyph("book", 15) + ' Weekly Summary</button></div><div class="fq-ans" contenteditable="true" data-in="c1B.type" data-ph="…or just start writing"></div></div>';
+  } else {
+    var fields = st.picked === "daily" ? DAILY : WEEKLY, title = (st.picked === "daily" ? "Daily Review" : "Weekly Summary") + " — Thu 12 Nov";
+    body = '<div class="dk-doc"><h1 class="dk-h1" contenteditable="true">' + title + "</h1>" + fields.map(function (f) { return dkField(f, st.vals[f.id], { k: "c1B", ph: f.shape ? "" : "Write…" }); }).join("") +
+      '<div class="dk-foot"><span class="grow">Saved · an ordinary memory, searchable like any other</span><button type="button" class="btn-q" data-a="c1B.md">' + (st.md ? "Hide" : "Show") + ' the .md</button><button type="button" class="btn-q" data-a="c1B.reset">New memory</button></div>' + (st.md ? '<pre class="md">' + esc(toMd(title, fields, st.vals)) + "</pre>" : "") + "</div>";
+  }
+  return dkWin({ tabs: [{ t: "Novak call" }, { t: st.picked ? (st.picked === "daily" ? "Daily Review" : "Weekly Summary") : "New memory", active: 1 }], right: syncBtn("toast"), body: body });
+};
+IN["c1B.type"] = function () { var any = $$('#stage-c1 [data-in="c1B.type"]').some(function (e) { return e.innerText.trim(); }); var o = $("#c1B-offer"); if (o) o.classList.toggle("gone", any); };
+H["c1B.pick"] = function (el) { S.c1.B.picked = el.dataset.f; S.c1.B.vals = {}; draw("c1B"); };
+H["c1B.reset"] = function () { S.c1.B.picked = null; S.c1.B.md = false; draw("c1B"); };
+H["c1B.md"] = function () { S.c1.B.md = !S.c1.B.md; draw("c1B"); };
+function vget(st, id) { return st.vals[id] || (st.vals[id] = {}); }
+function fieldsOf(st) { return st.picked === "weekly" ? WEEKLY : DAILY; }
+H["c1B.scale"] = function (el) { vget(S.c1.B, el.dataset.id).scale = +el.dataset.n; draw("c1B"); };
+H["c1B.check"] = function (el) { var v = vget(S.c1.B, el.dataset.id), c = v.checks || (v.checks = []), i = +el.dataset.i, p = c.indexOf(i); p >= 0 ? c.splice(p, 1) : c.push(i); el.classList.toggle("on"); };
+IN["c1B.ans"] = function (el) { var f = fieldsOf(S.c1.B).filter(function (x) { return x.id === el.dataset.id; })[0]; vget(S.c1.B, f.id).own = readAns(el, f); };
+
+/* ---- C: phone ---- */
+S.c1.C = { view: "home", ring: null, picked: false, cur: "king", vals: {}, caps: {}, rec: false, raw: false };
+NOTES.c1C = "<b>Try it:</b> tap the gold Spell Menu, then <b>Write</b>. The empty memory offers your forms, the same as on desktop. Pick Daily Review. Tap a question to aim at it (blue rune), then cast <b>Record / Film / Snap / Write</b> from the Spell Menu. Ticks and ratings are a tap. <b>Back</b> leaves a Raw Memory in the reel.";
+function c1Phone() {
+  var st = S.c1.C, inner;
+  if (st.view === "home") {
+    inner = phHome(st.raw ? rawCard("Daily Review", "4 voice · 1 photo · waiting for desktop") : "", "c1C.gen");
+    if (st.ring === "gen") inner += ring(generalSpells(null, "c1C.write"), "gold", "c1C.close");
+  } else {
+    var body;
+    if (!st.picked) {
+      body = '<h1 style="color:hsl(var(--text-muted)/.45)">Title</h1><div class="pf-offer"><div class="l">Start from a form</div><button type="button" data-a="c1C.pick">' + glyph("book", 24) + '<div>Daily Review<span>9 questions · last filled yesterday</span></div></button><button type="button" data-a="toast" data-msg="Weekly Summary is a desktop compressing form — see surface E">' + glyph("book", 24) + "<div>Weekly Summary<span>filled on the desktop with Patronus</span></div></button></div><p style=\"margin-top:18px;color:hsl(var(--text-muted)/.5)\">…or just start writing</p>";
+    } else {
+      body = "<h1>Daily Review</h1>" + DAILY.map(function (f) {
+        var v = st.vals[f.id] || {}, h = '<div class="pf-q' + (st.cur === f.id ? " cur" : "") + '" data-a="c1C.cur" data-id="' + f.id + '">' + esc(f.q) + "</div>";
+        if (f.guide) h += '<div class="pf-guide">' + esc(f.guide) + "</div>";
+        if (f.type === "scale") h += '<div class="pf-scale">' + [1, 2, 3, 4, 5].map(function (n) { return '<button type="button" class="' + (v.scale === n ? "on" : "") + '" data-a="c1C.scale" data-id="' + f.id + '" data-n="' + n + '">' + n + "</button>"; }).join("") + '</div><div class="pf-anchor">' + (v.scale ? esc(f.anchors[v.scale - 1]) : "") + "</div>";
+        else if (f.type === "check") h += f.items.map(function (it, i) { return '<div class="pf-check' + ((v.checks || []).indexOf(i) >= 0 ? " on" : "") + '" data-a="c1C.check" data-id="' + f.id + '" data-i="' + i + '"><span class="fc-box"></span><span>' + esc(it) + "</span></div>"; }).join("");
+        else h += '<div class="pf-ans" contenteditable="true" data-in="c1C.ans" data-id="' + f.id + '" data-ph="' + (st.cur === f.id ? "Type, or cast Record…" : "") + '">' + (v.own ? esc(v.own) : "") + "</div>";
+        return h + phCaps(st.caps[f.id]);
+      }).join("");
+    }
+    var q = DAILY.filter(function (f) { return f.id === st.cur; })[0];
+    var extra = "";
+    if (st.ring === "cond") extra = ring([{ name: "Record", g: "mic", a: "c1C.rec" }, { name: "Film", g: "video", a: "c1C.film" }, { name: "Snap", g: "camera", a: "c1C.snap" }, { name: "Write", g: "write", a: "c1C.writeq" }], "accent", "c1C.close", "into · <b>" + esc(q.q.length > 34 ? q.q.slice(0, 34) + "…" : q.q) + "</b>");
+    if (st.rec) extra += voiceCard(q.q, "c1C.stop");
+    inner = phNote(body, [null, null, { g: "back", a: "c1C.back", label: "back" }, { menu: st.picked ? "c1C.cond" : "c1C.close" }], extra);
+  }
+  return '<div class="ph-row">' + phFrame(inner) + '<div class="ph-side"><b>The rule:</b> one form surface, so the phone memory page <i>is</i> the form. Nothing new in the Dock. Capture lives in the Conditional ring, aimed at the question you tapped last.<ol><li>Spell Menu → Write</li><li>Pick “Daily Review”</li><li>Tap a question → ring → Record</li><li>Back → Raw Memory card</li></ol>No AI here. Voice and video just wait for the desktop.</div></div>';
+}
+R.c1C = c1Phone;
+H["c1C.gen"] = function () { S.c1.C.ring = "gen"; draw("c1C"); };
+H["c1C.cond"] = function () { S.c1.C.ring = "cond"; draw("c1C"); };
+H["c1C.close"] = function () { S.c1.C.ring = null; draw("c1C"); };
+H["c1C.write"] = function () { var st = S.c1.C; st.ring = null; st.view = "note"; st.picked = false; st.vals = {}; st.caps = {}; st.cur = "king"; draw("c1C"); };
+H["c1C.pick"] = function () { S.c1.C.picked = true; draw("c1C"); };
+H["c1C.cur"] = function (el) { S.c1.C.cur = el.dataset.id; draw("c1C"); };
+H["c1C.scale"] = function (el) { vget(S.c1.C, el.dataset.id).scale = +el.dataset.n; S.c1.C.cur = el.dataset.id; draw("c1C"); };
+H["c1C.check"] = function (el) { var v = vget(S.c1.C, el.dataset.id), c = v.checks || (v.checks = []), i = +el.dataset.i, p = c.indexOf(i); p >= 0 ? c.splice(p, 1) : c.push(i); el.classList.toggle("on"); };
+IN["c1C.ans"] = function (el) { vget(S.c1.C, el.dataset.id).own = el.innerText.trim(); };
+function capAdd(st, k, d) { (st.caps[st.cur] || (st.caps[st.cur] = [])).push({ k: k, d: d }); }
+function curField(st) { return DAILY.filter(function (f) { return f.id === st.cur; })[0]; }
+function c1Capturable(st) { var f = curField(st); if (f.type !== "q") { toast("Scales and checklists are a tap. Aim at a question to capture"); return false; } return true; }
+H["c1C.rec"] = function () { var st = S.c1.C; st.ring = null; if (!c1Capturable(st)) { draw("c1C"); return; } st.rec = true; draw("c1C"); startVoice("c1C"); };
+H["c1C.stop"] = function () { var st = S.c1.C; st.rec = false; capAdd(st, "voice", fmt(voiceSecs["c1C"] || 8)); stopT("c1C"); draw("c1C"); };
+H["c1C.film"] = function () { var st = S.c1.C; st.ring = null; if (c1Capturable(st)) { capAdd(st, "video", "0:18"); toast("Film → clip attached to this question"); } draw("c1C"); };
+H["c1C.snap"] = function () { var st = S.c1.C; st.ring = null; if (c1Capturable(st)) { capAdd(st, "photo"); toast("Snap → photo attached to this question"); } draw("c1C"); };
+H["c1C.writeq"] = function () { var st = S.c1.C; st.ring = null; draw("c1C"); focusEnd($('#stage-c1 [data-in="c1C.ans"][data-id="' + st.cur + '"]')); };
+H["c1C.back"] = function () { var st = S.c1.C; st.ring = null; st.view = "home"; st.raw = st.picked; draw("c1C"); };
+var voiceSecs = {};
+function startVoice(cs) {
+  stopT(cs); voiceSecs[cs] = 0; var t0 = Date.now();
+  timers[cs] = setInterval(function () {
+    var s = (Date.now() - t0) / 1000 * 3; voiceSecs[cs] = s; var c = cs.slice(0, 2), st = $("#stage-" + c);
+    var t = $("[data-rt]", st); if (t) t.textContent = fmt(s);
+    $$("[data-rw] .ph-voice-bar", st).forEach(function (b, i) { b.style.transform = "scaleY(" + (0.15 + Math.abs(Math.sin(s * 2 + i * .7)) * Math.random() * .85).toFixed(2) + ")"; });
+  }, 110);
+}
+
+/* ---- D: after sync ---- */
+S.c1.D = { phase: "raw" };
+NOTES.c1D = "<b>Try it:</b> the sync rune has a dot. Open it and press ▶. Pensieve transcribes, then Patronus fills the empty answers and <i>adds to</i> the ones you typed on the phone. Its words are <span class=\"wet\">pale ink</span>. Click into any pale sentence and type: it turns into normal text, because it's now yours. The chips link back to the source clip.";
+function c1DBody(processed) {
+  var vals = {};
+  DAILY.forEach(function (f) { var r = PHONE_RAW[f.id] || {}; vals[f.id] = { scale: r.scale, checks: r.checks, own: r.own }; if (processed && AI_DAILY[f.id]) vals[f.id].ai = AI_DAILY[f.id]; });
+  var html = '<div class="dk-doc"><h1 class="dk-h1">Daily Review — Thu 12 Nov</h1>';
+  if (!processed) html += '<div class="dk-sub">Raw memory from your phone · 4 voice · 1 photo · not processed yet</div>';
+  else html += '<div class="ink-banner" id="c1D-banner">' + orb(22) + '<span class="grow">Patronus filled <b>4</b> answers and added to <b>2</b> of yours. Pale ink is Patronus. Type into it and it becomes yours.</span><button type="button" class="btn-q acc" data-a="c1D.keep">Keep all</button></div>';
+  html += DAILY.map(function (f) {
+    var r = PHONE_RAW[f.id] || {};
+    return dkField(f, vals[f.id], { k: "c1D", extra: function () { return (!processed && r.voice ? dkAudio(r.voice, "Voice · from the phone") : "") + (r.photo && !processed ? '<div class="dk-photo"></div>' : ""); } });
+  }).join("");
+  if (processed) html += '<div class="dk-foot"><span class="grow">Originals kept with the memory: 4 voice clips · 1 photo · transcripts in the side split</span></div>';
+  return html + "</div>";
+}
+R.c1D = function () {
+  var st = S.c1.D, processed = st.phase === "done";
+  return dkWin({ tabs: [{ t: "Daily Review", active: 1 }], right: syncBtn("c1D.open", !processed), body: c1DBody(processed), overlay: (st.phase === "drawer" || st.phase === "run") ? procDrawer("c1D", "Daily Review — 4 voice · 1 photo", "Raw memory · form", st) : "" });
+};
+H["c1D.open"] = function () { if (S.c1.D.phase === "done") { S.c1.D.phase = "raw"; } else S.c1.D.phase = "drawer"; draw("c1D"); };
+H["c1D.close"] = function () { if (S.c1.D.phase === "drawer") { S.c1.D.phase = "raw"; draw("c1D"); } };
+H["c1D.run"] = function () {
+  var st = S.c1.D; if (st.phase === "run") return;
+  st.phase = "run";
+  seq("c1D", ["Transcribing voice 1 of 4…", "Transcribing voice 2 of 4…", "Transcribing voice 3 of 4…", "Transcribing voice 4 of 4…", "Reading the photo…", "Patronus is filling answers…"], 520, function (s, i) { st.step = s; st.pct = Math.round((i + 1) / 6 * 100); draw("c1D"); }, function () { st.phase = "done"; draw("c1D"); toast("Processed — the raw memory is now a Daily Review"); });
+};
+H["c1D.keep"] = function () { $$("#stage-c1 .wet").forEach(dry); var b = $("#c1D-banner"); if (b) b.innerHTML = '<span class="grow">All yours. Edit anything; nothing is marked any more.</span>'; };
+function dry(w) { var n = w.nextElementSibling; if (n && n.classList.contains("src")) n.remove(); w.classList.remove("wet"); }
+H["c1D.scale"] = H["c1D.check"] = function () { toast("Already answered on the phone — click to change works the same as B"); };
+
+/* ---- E: compress ---- */
+S.c1.E = { running: false, done: false };
+NOTES.c1E = "<b>Try it:</b> press the Patronus orb. It reads the week's 6 Daily Reviews and fills the form in pale ink, citing days. <b>Click into any answer first and start typing:</b> Patronus skips whatever field you're in. Hover a day chip to see what it read.";
+R.c1E = function () {
+  var st = S.c1.E;
+  var body = '<div class="dk-doc"><h1 class="dk-h1">Weekly Summary — 9–15 Nov</h1><div class="dk-sub" style="margin-bottom:22px"><button type="button" class="pt-btn" data-a="c1E.go" id="c1E-btn">' + orb(30) + '<span id="c1E-lbl">' + (st.done ? "Compress again" : "Compress this week") + '</span></button><span id="c1E-sub">Reads 6 Daily Reviews · Mon 9 – Sat 14. You can type the whole time.</span></div>' +
+    WEEKLY.map(function (f) { return dkField(f, {}, { k: "c1E", ph: "Write, or let Patronus…" }); }).join("") + "</div>";
+  return dkWin({ tabs: [{ t: "Daily Review" }, { t: "Weekly Summary", active: 1 }], right: syncBtn("toast"), body: body });
+};
+function citeChips(days) { return days.map(function (d) { return '<span class="cite" contenteditable="false" data-day="' + d + '">' + d + "</span>"; }).join(""); }
+function streamInto(cs, el, f, ai, wetCls, done) {
+  /* writes AI text into a field char-by-char, never touching what the owner typed */
+  var items = ai.items, idx = 0, container;
+  if (f.shape) { container = el.querySelector(f.shape) || el; var first = container.querySelector("li"); if (first && !first.innerText.trim()) first.remove(); }
+  function nextItem() {
+    if (idx >= items.length) { done(); return; }
+    var it = items[idx++], target;
+    if (f.shape) { target = document.createElement("li"); container.appendChild(target); } else { target = el; if (el.innerText.trim()) target.appendChild(document.createTextNode(" ")); }
+    var span = document.createElement("span"); if (wetCls) span.className = wetCls; target.appendChild(span);
+    var txt = it[0], c = 0;
+    (function type() {
+      if (!document.body.contains(span)) return;
+      c += 3; span.textContent = txt.slice(0, c);
+      if (c < txt.length) timers[cs] = setTimeout(type, 16);
+      else { span.insertAdjacentHTML("afterend", citeChips(it[1])); timers[cs] = setTimeout(nextItem, 120); }
+    })();
+  }
+  nextItem();
+}
+function compress(cs, opts) {
+  var root = $("#stage-" + cs.slice(0, 2)), order = WEEKLY.slice(), i = 0;
+  function nextField() {
+    if (i >= order.length) { opts.done(); return; }
+    var f = order[i++], ai = AI_WEEK[f.id], box = root.querySelector('[data-fid="' + f.id + '"]');
+    if (!box) return;
+    opts.onField && opts.onField(f, ai);
+    if (f.type === "scale") {
+      var on = box.querySelector(".fs button.on");
+      if (on) { box.insertAdjacentHTML("beforeend", '<div class="skipnote">You rated this — Patronus left it alone.</div>'); timers[cs] = setTimeout(nextField, 300); return; }
+      var b = box.querySelector('.fs button[data-n="' + ai.scale + '"]'); if (b) b.classList.add(opts.wet ? "wet-ring" : "on");
+      box.querySelector(".fs-anchor").innerHTML = '<span class="' + (opts.wet ? "wet" : "") + '">' + ai.scale + " — " + esc(f.anchors[ai.scale - 1]) + '</span> <span class="text-xs">(' + esc(ai.why) + ")</span>";
+      timers[cs] = setTimeout(nextField, 500); return;
+    }
+    var el = box.querySelector(".fq-ans");
+    if (el === document.activeElement || (el.innerText.trim() && el.dataset.typed)) { box.insertAdjacentHTML("beforeend", '<div class="skipnote">You\'re writing here — Patronus skipped it.</div>'); timers[cs] = setTimeout(nextField, 300); return; }
+    streamInto(cs, el, f, ai, opts.wet ? "wet" : "", function () { timers[cs] = setTimeout(nextField, 200); });
+  }
+  nextField();
+}
+H["c1E.go"] = function () {
+  var st = S.c1.E; if (st.running) return;
+  if (st.done) { st.done = false; draw("c1E"); }
+  st.running = true; var btn = $("#c1E-btn"); btn.classList.add("working"); $("#c1E-lbl").textContent = "Reading the week…";
+  compress("c1E", { wet: true, done: function () { st.running = false; st.done = true; btn.classList.remove("working"); $("#c1E-lbl").textContent = "Compress again"; $("#c1E-sub").innerHTML = 'Done. Pale ink stays pale until you touch it. <button type="button" class="dsc" data-a="c1E.keep">Keep all</button>'; } });
+};
+H["c1E.keep"] = function () { $$("#stage-c1 .wet").forEach(function (w) { w.classList.remove("wet"); }); $$("#stage-c1 .wet-ring").forEach(function (b) { b.classList.remove("wet-ring"); b.classList.add("on"); }); };
+H["c1E.scale"] = function (el) { var box = el.closest(".fq"); $$(".fs button", box).forEach(function (b) { b.classList.remove("on", "wet-ring"); }); el.classList.add("on"); var f = WEEKLY[0]; box.querySelector(".fs-anchor").textContent = f.anchors[+el.dataset.n - 1]; };
+IN["c1E.ans"] = function (el) { el.dataset.typed = "1"; };
+
+/* ======================================================================
+   CONCEPT 2 — ONE QUESTION
+   ====================================================================== */
+var T2 = { q: "Aa", scale: "1–5", check: "☑" };
+S.c2.A = { fields: clone(DAILY), sel: "last" };
+NOTES.c2A = "<b>Try it:</b> the template is a list of questions, one line each. Click the small type key on the left to cycle Question → Scale → Checklist. Select a row and its details open in place: anchors, items, or guidance plus answer shape. <kbd>+ New question</kbd> adds one.";
+R.c2A = function () {
+  var st = S.c2.A;
+  var rows = st.fields.map(function (f) {
+    var sel = st.sel === f.id, det = "";
+    if (sel) {
+      if (f.type === "scale") det = f.anchors.map(function (a, i) { return '<div class="ln"><i>' + (i + 1) + '</i><span contenteditable="true">' + esc(a) + "</span></div>"; }).join("");
+      else if (f.type === "check") det = f.items.map(function (a) { return '<div class="ln"><i>☐</i><span contenteditable="true">' + esc(a) + "</span></div>"; }).join("") + '<div class="ln" style="opacity:.6"><i>+</i><span>Add item</span></div>';
+      else det = '<div contenteditable="true" style="font-style:italic;min-height:1.4em" data-ph="Guidance (optional)">' + esc(f.guide || "") + '</div><div class="seg">' + [["", "Text"], ["ul", "• List"], ["ol", "1. List"]].map(function (s) { return '<button type="button" class="' + ((f.shape || "") === s[0] ? "on" : "") + '" data-a="c2A.shape" data-id="' + f.id + '" data-v="' + s[0] + '">' + s[1] + "</button>"; }).join("") + "</div>";
+      det = '<div class="b2-det">' + det + "</div>";
+    }
+    return '<div class="b2-row' + (sel ? " sel" : "") + '" data-a="c2A.sel" data-id="' + f.id + '"><button type="button" class="b2-type" data-a="c2A.type" data-id="' + f.id + '" title="Change type">' + T2[f.type] + '</button><div class="b2-main"><div class="b2-q" contenteditable="true" data-in="c2A.q" data-id="' + f.id + '">' + esc(f.q) + "</div>" + det + '</div><span class="b2-grip">⋮⋮</span></div>';
+  }).join("");
+  var body = '<div class="b2"><h1 class="dk-h1">Daily Review</h1><div class="dk-sub">Form · 9 questions · answered one at a time</div>' + rows + '<div class="b2-row" data-a="c2A.add" style="color:hsl(var(--text-muted))"><span class="b2-type" style="display:grid;place-items:center">+</span><span>New question</span></div></div>';
+  return dkWin({ tabs: [{ t: "Daily Review", active: 1, form: 1 }], right: syncBtn("toast"), body: body });
+};
+H["c2A.sel"] = function (el, ev) { if (S.c2.A.sel === el.dataset.id) return; S.c2.A.sel = el.dataset.id; draw("c2A"); if (ev.target.classList.contains("b2-q")) focusEnd($('#stage-c2 .b2-row.sel .b2-q')); };
+H["c2A.type"] = function (el) { var f = S.c2.A.fields.filter(function (x) { return x.id === el.dataset.id; })[0]; defaultsFor({ q: "scale", scale: "check", check: "q" }[f.type], f); S.c2.A.sel = f.id; draw("c2A"); };
+H["c2A.shape"] = function (el) { var f = S.c2.A.fields.filter(function (x) { return x.id === el.dataset.id; })[0]; f.shape = el.dataset.v || undefined; draw("c2A"); };
+H["c2A.add"] = function () { var f = { id: uid("f"), type: "q", q: "New question" }; S.c2.A.fields.push(f); S.c2.A.sel = f.id; draw("c2A"); var q = $("#stage-c2 .b2-row.sel .b2-q"); focusEnd(q); };
+IN["c2A.q"] = function (el) { var f = S.c2.A.fields.filter(function (x) { return x.id === el.dataset.id; })[0]; if (f) f.q = el.innerText; };
+
+/* ---- B: desktop deck ---- */
+S.c2.B = { i: 0, vals: {}, done: false };
+NOTES.c2B = "<b>Try it:</b> one question at a time, keyboard first. <kbd>↵</kbd> next, <kbd>⇧↵</kbd> new line, <kbd>1</kbd>–<kbd>5</kbd> to rate, number keys tick checklist items, <kbd>←</kbd>/<kbd>→</kbd> when not typing. After the last question you get the finished memory.";
+function deckAnswer(k, f, v, big) {
+  if (f.type === "scale") return '<div class="fs">' + [1, 2, 3, 4, 5].map(function (n) { return '<button type="button" class="' + (v.scale === n ? "on" : "") + '" data-a="' + k + '.scale" data-n="' + n + '" data-hov="' + esc(f.anchors[n - 1]) + '">' + n + "</button>"; }).join("") + '</div><div class="fs-anchor">' + (v.scale ? esc(f.anchors[v.scale - 1]) : "Press 1–5") + "</div>";
+  if (f.type === "check") return '<div class="fcl">' + f.items.map(function (it, i) { return '<div class="fc ' + ((v.checks || []).indexOf(i) >= 0 ? "on" : "") + '" data-a="' + k + '.check" data-i="' + i + '"><span class="fc-box"></span><span><span class="font-mono text-xs text-text-muted">' + (i + 1) + "</span> " + esc(it) + "</span></div>"; }).join("") + "</div>";
+  return '<div class="fq-ans" contenteditable="true" data-in="' + k + '.ans" data-ph="' + (f.shape === "ul" ? "• " : f.shape === "ol" ? "1. " : "") + 'Type your answer…">' + (v.own ? esc(v.own).replace(/\n/g, "<br>") : "") + "</div>";
+}
+function dots(n, cur, cls) { var h = ""; for (var i = 0; i < n; i++) h += '<span class="' + (i === cur ? "cur" : cls(i)) + '"></span>'; return '<div class="dots">' + h + "</div>"; }
+function hasVal(v) { return v && (v.scale || (v.checks && v.checks.length) || (v.own && v.own.length)); }
+function compiled(fields, getV) {
+  return fields.map(function (f) {
+    var v = getV(f) || {}, a;
+    if (f.type === "scale") a = v.scale ? v.scale + " — " + esc(f.anchors[v.scale - 1]) : "—";
+    else if (f.type === "check") a = f.items.map(function (it, i) { return '<div class="fc ' + ((v.checks || []).indexOf(i) >= 0 ? "on" : "") + '"><span class="fc-box"></span><span>' + esc(it) + "</span></div>"; }).join("");
+    else { var lines = Array.isArray(v.own) ? v.own : String(v.own || "").split("\n").filter(Boolean); a = !lines.length ? '<span class="text-text-muted">—</span>' : f.shape ? "<" + f.shape + ' class="ro">' + lines.map(function (l) { return "<li>" + esc(l.replace(/^([-•]|\d+\.)\s*/, "")) + "</li>"; }).join("") + "</" + f.shape + ">" : esc(lines.join(" ")); }
+    return '<div class="fq"><div class="fq-q">' + esc(f.q) + "</div><div>" + a + "</div></div>";
+  }).join("");
+}
+R.c2B = function () {
+  var st = S.c2.B, f = DAILY[st.i], v = st.vals[f.id] || {}, body;
+  if (st.done) body = '<div class="dk-doc"><h1 class="dk-h1">Daily Review — Thu 12 Nov</h1><div class="dk-sub">Saved as a memory · <button type="button" class="dsc" data-a="c2B.again">Step through again</button></div>' + compiled(DAILY, function (f) { return st.vals[f.id]; }) + "</div>";
+  else body = '<div class="deck" tabindex="-1" data-keys="c2B"><div class="deck-top">' + dots(DAILY.length, st.i, function (i) { return hasVal(st.vals[DAILY[i].id]) ? "done" : ""; }) + '<span class="deck-n">' + (st.i + 1) + " / " + DAILY.length + '</span></div><div class="deck-q" style="animation:qd-in .3s var(--spring)">' + esc(f.q) + "</div>" + (f.guide ? '<div class="fq-guide">' + esc(f.guide) + "</div>" : "") + '<div class="deck-body">' + deckAnswer("c2B", f, v) + '</div><div class="deck-foot"><button type="button" class="btn-q" data-a="c2B.prev">←</button><span class="grow">↵ next · ⇧↵ new line' + (f.type === "scale" ? " · 1–5 rate" : f.type === "check" ? " · 1–" + f.items.length + " tick" : "") + '</span><button type="button" class="btn-q acc" data-a="c2B.next">' + (st.i === DAILY.length - 1 ? "Finish" : "Next ↵") + "</button></div></div>";
+  return dkWin({ tabs: [{ t: "Daily Review", active: 1 }], right: syncBtn("toast"), body: body });
+};
+AFTER.c2B = function (stage) { var a = $("[data-in='c2B.ans']", stage); if (a) focusEnd(a); else { var d = $(".deck", stage); if (d) d.focus(); } };
+H["c2B.next"] = function () { var st = S.c2.B; if (st.i < DAILY.length - 1) st.i++; else st.done = true; draw("c2B"); };
+H["c2B.prev"] = function () { var st = S.c2.B; if (st.i > 0) st.i--; draw("c2B"); };
+H["c2B.again"] = function () { S.c2.B.done = false; S.c2.B.i = 0; draw("c2B"); };
+H["c2B.scale"] = function (el) { vget(S.c2.B, DAILY[S.c2.B.i].id).scale = +el.dataset.n; draw("c2B"); };
+H["c2B.check"] = function (el) { var v = vget(S.c2.B, DAILY[S.c2.B.i].id), c = v.checks || (v.checks = []), i = +el.dataset.i, p = c.indexOf(i); p >= 0 ? c.splice(p, 1) : c.push(i); draw("c2B"); };
+IN["c2B.ans"] = function (el) { vget(S.c2.B, DAILY[S.c2.B.i].id).own = el.innerText.trim(); };
+K.c2B = function (e) {
+  var st = S.c2.B, f = DAILY[st.i], typing = e.target.isContentEditable;
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); H["c2B.next"](); return; }
+  if (!typing && e.key === "ArrowRight") { H["c2B.next"](); return; }
+  if (!typing && e.key === "ArrowLeft") { H["c2B.prev"](); return; }
+  if (!typing && /^[1-9]$/.test(e.key)) {
+    var n = +e.key;
+    if (f.type === "scale" && n <= 5) { vget(st, f.id).scale = n; draw("c2B"); }
+    if (f.type === "check" && n <= f.items.length) { H["c2B.check"]({ dataset: { i: n - 1 } }); }
+  }
+};
+
+/* ---- C: phone deck ---- */
+S.c2.C = { view: "home", ring: null, i: 0, vals: {}, caps: {}, rec: null, raw: false };
+NOTES.c2C = "<b>Try it:</b> Spell Menu → <b>Daily</b>. Your daily form is one spell, so there's no picker. Swipe up, or tap the card at the bottom, for the next question. <b>Record</b> in the Dock keeps going while you move on, and the take splits itself at each question. Snap attaches a photo. Back saves the Raw Memory.";
+R.c2C = function () {
+  var st = S.c2.C, inner;
+  if (st.view === "home") {
+    inner = phHome(st.raw ? rawCard("Daily Review", st.raw) : "", "c2C.gen");
+    if (st.ring === "gen") inner += ring(generalSpells([{ name: "Daily", g: "book", a: "c2C.start", hue: "spell-syncgold" }]), "gold", "c2C.close");
+  } else {
+    var f = DAILY[st.i], v = st.vals[f.id] || {}, nx = DAILY[st.i + 1], recS = st.rec ? Math.round((Date.now() - st.rec) / 1000 * 3) : 0;
+    var ans;
+    if (f.type === "scale") ans = '<div class="pf-scale">' + [1, 2, 3, 4, 5].map(function (n) { return '<button type="button" class="' + (v.scale === n ? "on" : "") + '" data-a="c2C.scale" data-n="' + n + '">' + n + "</button>"; }).join("") + '</div><div class="pf-anchor" style="font-size:15px;margin-top:8px">' + (v.scale ? esc(f.anchors[v.scale - 1]) : "Tap a number — or just say it") + "</div>";
+    else if (f.type === "check") ans = f.items.map(function (it, i) { return '<div class="pf-check' + ((v.checks || []).indexOf(i) >= 0 ? " on" : "") + '" data-a="c2C.check" data-i="' + i + '"><span class="fc-box"></span><span>' + esc(it) + "</span></div>"; }).join("");
+    else ans = '<div class="pf-ans" contenteditable="true" data-in="c2C.ans" data-ph="Tap to type — or hold the thought and Record">' + (v.own ? esc(v.own) : "") + "</div>";
+    inner = '<div class="qd" data-swipe="c2C"><div class="qd-info">' + (st.rec ? '<span class="rec"><span class="ph-voice-dot"></span><span data-rt2>' + fmt(recS) + "</span></span> · " : "") + "<span>" + (st.i + 1) + " of " + DAILY.length + " · Daily Review</span></div>" +
+      '<div class="qd-q" key="' + st.i + '">' + esc(f.q) + "</div>" + (f.guide ? '<div class="pf-guide" style="font-size:14px;margin-top:6px">' + esc(f.guide) + "</div>" : "") + '<div class="qd-body">' + ans + phCaps(st.caps[f.id]) + "</div>" +
+      '<div class="qd-peek" data-a="c2C.next">' + (nx ? "<span>Next</span><b>" + esc(nx.q) + "</b><span>↑</span>" : "<b>That's the last one</b><span>Done ↑</span>") + "</div>" +
+      dock([{ g: "camera", a: "c2C.snap", label: "Snap" }, { g: "mic", a: "c2C.rec", label: "Record", cls: st.rec ? "is-rec" : "" }, { g: "back", a: "c2C.exit", label: "back" }, { menu: "c2C.cond" }]) + "</div>";
+    if (st.ring === "cond") inner += ring([{ name: "Film", g: "video", a: "c2C.film" }, { name: "Skip", g: "skip", a: "c2C.next" }, { name: "Finish", g: "check", a: "c2C.exit" }], "accent", "c2C.close", "for · <b>" + esc(f.q.slice(0, 30)) + (f.q.length > 30 ? "…" : "") + "</b>");
+    if (st.finish) inner += '<div class="done-card"><div>Saved.<p>Raw memory · the desktop finishes it.</p></div></div>';
+  }
+  return '<div class="ph-row">' + phFrame(inner) + '<div class="ph-side"><b>Dock:</b> Snap · Record · Back, plus the gold menu (Film / Skip / Finish), all bottom, per the standard. The top line is info only.<br><br><b>Recording follows you.</b> Move to the next question mid-sentence and the clip is cut there and attached to the question you were on. One take, already sorted.</div></div>';
+};
+H["c2C.gen"] = function () { S.c2.C.ring = "gen"; draw("c2C"); };
+H["c2C.cond"] = function () { S.c2.C.ring = "cond"; draw("c2C"); };
+H["c2C.close"] = function () { S.c2.C.ring = null; draw("c2C"); };
+H["c2C.start"] = function () { var st = S.c2.C; st.ring = null; st.view = "deck"; st.i = 0; st.vals = {}; st.caps = {}; st.rec = null; st.finish = false; draw("c2C"); };
+function c2cut(st) { if (!st.rec) return; var s = Math.max(4, Math.round((Date.now() - st.rec) / 1000 * 3)); (st.caps[DAILY[st.i].id] || (st.caps[DAILY[st.i].id] = [])).push({ k: "voice", d: fmt(s) }); st.rec = Date.now(); }
+H["c2C.next"] = function () { var st = S.c2.C; st.ring = null; if (st.i < DAILY.length - 1) { c2cut(st); st.i++; draw("c2C"); } else H["c2C.exit"](); };
+H["c2C.prev"] = function () { var st = S.c2.C; if (st.i > 0) { c2cut(st); st.i--; draw("c2C"); } };
+H["c2C.rec"] = function () {
+  var st = S.c2.C;
+  if (st.rec) { c2cut(st); st.rec = null; stopT("c2C"); draw("c2C"); return; }
+  st.rec = Date.now(); draw("c2C"); stopT("c2C");
+  timers.c2C = setInterval(function () { var t = $("#stage-c2 [data-rt2]"); if (t && st.rec) t.textContent = fmt((Date.now() - st.rec) / 1000 * 3); }, 200);
+};
+H["c2C.snap"] = function () { var st = S.c2.C; (st.caps[DAILY[st.i].id] || (st.caps[DAILY[st.i].id] = [])).push({ k: "photo" }); draw("c2C"); };
+H["c2C.film"] = function () { var st = S.c2.C; st.ring = null; (st.caps[DAILY[st.i].id] || (st.caps[DAILY[st.i].id] = [])).push({ k: "video", d: "0:21" }); draw("c2C"); };
+H["c2C.scale"] = function (el) { vget(S.c2.C, DAILY[S.c2.C.i].id).scale = +el.dataset.n; draw("c2C"); };
+H["c2C.check"] = function (el) { var v = vget(S.c2.C, DAILY[S.c2.C.i].id), c = v.checks || (v.checks = []), i = +el.dataset.i, p = c.indexOf(i); p >= 0 ? c.splice(p, 1) : c.push(i); el.classList.toggle("on"); };
+IN["c2C.ans"] = function (el) { vget(S.c2.C, DAILY[S.c2.C.i].id).own = el.innerText.trim(); };
+H["c2C.exit"] = function () {
+  var st = S.c2.C; c2cut(st); st.rec = null; stopT("c2C"); st.ring = null; st.finish = true; draw("c2C");
+  var nv = 0, np = 0; Object.keys(st.caps).forEach(function (k) { st.caps[k].forEach(function (c) { c.k === "voice" ? nv++ : np++; }); });
+  timers.c2C = setTimeout(function () { st.finish = false; st.view = "home"; st.raw = nv + " voice · " + np + " media · waiting for desktop"; draw("c2C"); }, 1100);
+};
+
+/* ---- D: ghost-text review deck ---- */
+var C2D_IDS = ["king", "free", "shaped", "reward", "failed", "nice"];
+S.c2.D = { phase: "raw", i: 0, dec: {} };
+NOTES.c2D = "<b>Try it:</b> open the sync rune and press ▶. Review is a deck, one answer at a time. Your phone words are solid and Patronus's continuation is <span class=\"ghost\">ghost text</span>. <kbd>Tab</kbd> keeps it, <kbd>Esc</kbd> drops it, and typing takes over. <i>You said</i> shows the transcript.";
+R.c2D = function () {
+  var st = S.c2.D, body;
+  if (st.phase === "raw" || st.phase === "drawer" || st.phase === "run") body = c1DBody(false);
+  else if (st.phase === "done") body = '<div class="dk-doc"><h1 class="dk-h1">Daily Review — Thu 12 Nov</h1><div class="dk-sub">Reviewed · ' + Object.keys(st.dec).filter(function (k) { return st.dec[k] === "keep"; }).length + " of 6 suggestions kept</div>" + compiled(DAILY, function (f) { var r = PHONE_RAW[f.id] || {}, ai = AI_DAILY[f.id], v = { scale: r.scale, checks: r.checks }; var own = f.shape ? (r.own || []).slice() : (r.own || ""); if (ai && st.dec[f.id] === "keep") { if (f.shape) own = own.concat(ai.items); else own = (own ? own + " " : "") + ai.text; } v.own = own; return v; }) + "</div>";
+  else {
+    var id = C2D_IDS[st.i], f = DAILY.filter(function (x) { return x.id === id; })[0], r = PHONE_RAW[id] || {}, ai = AI_DAILY[id], d = st.dec[id];
+    var ans;
+    if (f.shape) ans = "<" + f.shape + ">" + (r.own || []).map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + (d === "drop" ? "" : ai.items.map(function (t) { return '<li class="' + (d === "keep" ? "" : "ghost") + '">' + esc(t) + "</li>"; }).join("")) + "</" + f.shape + ">";
+    else ans = (r.own ? esc(r.own) + " " : "") + (d === "drop" ? "" : '<span class="' + (d === "keep" ? "" : "ghost") + '">' + esc(ai.text) + "</span>");
+    body = '<div class="deck" tabindex="-1" data-keys="c2D"><div class="deck-top">' + dots(6, st.i, function (i) { var x = st.dec[C2D_IDS[i]]; return x === "keep" ? "done" : x === "drop" ? "" : "ai"; }) + '<span class="deck-n">' + (st.i + 1) + ' / 6 suggestions</span></div><div class="deck-q">' + esc(f.q) + '</div><div class="deck-body"><div class="fq-ans" contenteditable="true" data-in="c2D.ans">' + ans + "</div>" + (SAID[id] ? '<div class="said">You said · <span class="src" style="margin:0">' + esc(r.voice ? "▶ " + r.voice : "photo") + "</span><br>“" + esc(SAID[id]) + "”</div>" : "") + '</div><div class="deck-foot"><button type="button" class="btn-q" data-a="c2D.drop">Drop <kbd>Esc</kbd></button><span class="grow"></span><button type="button" class="btn-q acc" data-a="c2D.keep">Keep <kbd>Tab</kbd></button></div></div>';
+  }
+  return dkWin({ tabs: [{ t: "Daily Review", active: 1 }], right: syncBtn("c2D.open", st.phase === "raw" || st.phase === "drawer"), body: body, overlay: (st.phase === "drawer" || st.phase === "run") ? procDrawer("c2D", "Daily Review — 4 voice · 1 photo", "Raw memory · form", st) : "" });
+};
+AFTER.c2D = function (stage) { var d = $(".deck", stage); if (d) d.focus(); };
+H["c2D.open"] = function () { var st = S.c2.D; if (st.phase === "raw") { st.phase = "drawer"; draw("c2D"); } else if (st.phase === "done") { st.phase = "raw"; st.dec = {}; st.i = 0; draw("c2D"); } };
+H["c2D.close"] = function () { if (S.c2.D.phase === "drawer") { S.c2.D.phase = "raw"; draw("c2D"); } };
+H["c2D.run"] = function () { var st = S.c2.D; if (st.phase === "run") return; st.phase = "run"; seq("c2D", ["Transcribing 4 voice clips…", "Reading the photo…", "Patronus is drafting 6 answers…"], 650, function (s, i) { st.step = s; st.pct = Math.round((i + 1) / 3 * 100); draw("c2D"); }, function () { st.phase = "review"; st.i = 0; draw("c2D"); }); };
+function c2Dadv(st, d) { st.dec[C2D_IDS[st.i]] = d; draw("c2D"); timers.c2D = setTimeout(function () { if (st.i < 5) st.i++; else st.phase = "done"; draw("c2D"); }, 320); }
+H["c2D.keep"] = function () { c2Dadv(S.c2.D, "keep"); };
+H["c2D.drop"] = function () { c2Dadv(S.c2.D, "drop"); };
+IN["c2D.ans"] = function (el) { $$(".ghost", el).forEach(function (g) { g.remove(); }); };
+K.c2D = function (e) { if (S.c2.D.phase !== "review") return; if (e.key === "Tab") { e.preventDefault(); H["c2D.keep"](); } if (e.key === "Escape") { e.preventDefault(); H["c2D.drop"](); } };
+
+/* ---- E: weekly deck with drafts ---- */
+S.c2.E = { i: 0, drafting: false, drafts: {}, dec: {}, typed: {} };
+NOTES.c2E = "<b>Try it:</b> press the orb. Patronus drafts all six cards in the background and the dots light up as each arrives. Meanwhile, type on the current card: a card you've written on is never drafted. <kbd>Tab</kbd> keep · <kbd>Esc</kbd> drop · <kbd>→</kbd> next.";
+R.c2E = function () {
+  var st = S.c2.E, f = WEEKLY[st.i], dr = st.drafts[f.id], d = st.dec[f.id], ans;
+  if (f.type === "scale") ans = '<div class="fs">' + [1, 2, 3, 4, 5].map(function (n) { return '<button type="button" class="' + ((d === "keep" && dr && dr.scale === n) ? "on" : (dr && dr.scale === n && !d) ? "wet-ring" : "") + '" data-a="c2E.kscale">' + n + '</button>'; }).join("") + '</div><div class="fs-anchor">' + (dr && d !== "drop" ? '<span class="' + (d ? "" : "ghost") + '">' + dr.scale + " — " + esc(f.anchors[dr.scale - 1]) + " (" + esc(dr.why) + ")</span>" : "") + "</div>";
+  else {
+    var own = st.typed[f.id] || "", g = (dr && !st.typed[f.id] && d !== "drop") ? dr.items.map(function (it) { return it[0]; }) : [];
+    ans = '<div class="fq-ans" contenteditable="true" data-in="c2E.ans" data-ph="' + (st.drafting && !dr ? "Patronus is drafting… or type" : "Type, or press the orb") + '">' + esc(own) + (g.length ? (f.shape ? "<" + f.shape + ">" + g.map(function (t) { return '<li class="' + (d === "keep" ? "" : "ghost") + '">' + esc(t) + "</li>"; }).join("") + "</" + f.shape + ">" : '<span class="' + (d === "keep" ? "" : "ghost") + '">' + esc(g.join(" ")) + "</span>") : "") + "</div>";
+  }
+  var body = '<div class="deck" tabindex="-1" data-keys="c2E"><div class="deck-top"><button type="button" class="pt-btn' + (st.drafting ? " working" : "") + '" data-a="c2E.go">' + orb(26) + "<span>" + (st.drafting ? "Drafting…" : Object.keys(st.drafts).length ? "Drafted" : "Draft from this week") + "</span></button>" + dots(WEEKLY.length, st.i, function (i) { var id = WEEKLY[i].id; return st.dec[id] === "keep" || st.typed[id] ? "done" : st.drafts[id] ? "ai" : ""; }) + '<span class="deck-n">' + (st.i + 1) + " / " + WEEKLY.length + '</span></div><div class="deck-q">' + esc(f.q) + '</div><div class="deck-body">' + ans + (dr && dr.items ? '<div class="said">From ' + dr.items.map(function (it) { return it[1].join(", "); }).join(" · ") + "</div>" : "") + '</div><div class="deck-foot"><button type="button" class="btn-q" data-a="c2E.prev">←</button><span class="grow">Tab keep · Esc drop · typing wins</span><button type="button" class="btn-q acc" data-a="c2E.next">Next →</button></div></div>';
+  return dkWin({ tabs: [{ t: "Weekly Summary", active: 1 }], right: syncBtn("toast"), body: body });
+};
+AFTER.c2E = function (stage) { var a = $("[data-in='c2E.ans']", stage); if (a && S.c2.E.typed[WEEKLY[S.c2.E.i].id]) focusEnd(a); else { var d = $(".deck", stage); if (d && !stage.contains(document.activeElement)) d.focus(); } };
+H["c2E.go"] = function () {
+  var st = S.c2.E; if (st.drafting) return; st.drafting = true; st.drafts = {}; st.dec = {}; draw("c2E");
+  var k = 0; (function nx() {
+    if (k >= WEEKLY.length) { st.drafting = false; draw2E(); return; }
+    var f = WEEKLY[k++]; if (!st.typed[f.id]) st.drafts[f.id] = AI_WEEK[f.id];
+    draw2E(); timers.c2E = setTimeout(nx, 650);
+  })();
+};
+function draw2E() { var a = document.activeElement; if (a && a.dataset && a.dataset.in === "c2E.ans") { var s = $("#stage-c2 .deck-top"); var tmp = document.createElement("div"); tmp.innerHTML = R.c2E(); var nt = $(".deck-top", tmp); if (s && nt) s.innerHTML = nt.innerHTML; return; } draw("c2E"); }
+H["c2E.next"] = function () { var st = S.c2.E; if (st.i < WEEKLY.length - 1) st.i++; draw("c2E"); };
+H["c2E.prev"] = function () { var st = S.c2.E; if (st.i > 0) st.i--; draw("c2E"); };
+H["c2E.kscale"] = function () { H["c2E.keep"](); };
+H["c2E.keep"] = function () { var st = S.c2.E, id = WEEKLY[st.i].id; if (st.drafts[id]) { st.dec[id] = "keep"; draw("c2E"); } };
+H["c2E.drop"] = function () { var st = S.c2.E, id = WEEKLY[st.i].id; if (st.drafts[id]) { st.dec[id] = "drop"; draw("c2E"); } };
+IN["c2E.ans"] = function (el) { var st = S.c2.E, id = WEEKLY[st.i].id; $$(".ghost", el).forEach(function (g) { g.remove(); }); st.typed[id] = el.innerText.trim(); };
+K.c2E = function (e) { var typing = e.target.isContentEditable; if (e.key === "Tab") { e.preventDefault(); H["c2E.keep"](); } else if (e.key === "Escape") H["c2E.drop"](); else if (!typing && e.key === "ArrowRight") H["c2E.next"](); else if (!typing && e.key === "ArrowLeft") H["c2E.prev"](); };
+
+/* ======================================================================
+   CONCEPT 3 — SAY IT ONCE
+   ====================================================================== */
+S.c3.A = { phase: "memory", chips: {} };
+NOTES.c3A = "<b>Try it:</b> this is a real-shaped Daily Review from 23 Oct (imported from Notion). Press <b>Make form from this</b>: the answers dissolve and the questions stay, with their types detected from the Markdown. Click a type label to correct it.";
+var OLD = { last: { scale: 3 }, sales: { checks: [0, 2] }, king: { own: "Half. I talked too much on the second call. Next time: say less, pause longer." }, free: { own: "Rain all day. Good book." }, shaped: { own: ["Helped Jana with her pitch"] }, reward: { own: ["Woke up at 6 without snoozing", "Did the hard call first"] }, failed: { own: ["Checked email at 8 → phone stays in the kitchen"] }, life: { checks: [0, 1, 2] }, nice: { own: "Honesty — told the client the real timeline." } };
+R.c3A = function () {
+  var st = S.c3.A, body;
+  if (st.phase !== "form") {
+    body = '<div class="dk-doc"><h1 class="dk-h1">Daily Review — Thu 23 Oct</h1><div class="dk-sub">Imported from Notion · one of 1,980</div>' + DAILY.map(function (f) { return dkField(f, OLD[f.id], { k: "c3A", edit: false }); }).join("") + "</div>";
+  } else {
+    body = '<div class="dk-doc"><div class="ink-banner"><span class="grow">Form made from your 23 Oct entry — <b>9 questions</b>. Types were read from the Markdown; click one to correct it.</span><button type="button" class="btn-q" data-a="c3A.undo">Undo</button></div><h1 class="dk-h1" contenteditable="true">Daily Review</h1>' +
+      DAILY.map(function (f) { var t = st.chips[f.id] || f.type; var nf = clone(f); defaultsFor(t, nf); return bField(nf).replace('data-a="c1A.type"', 'data-a="c3A.type"').replace(/data-in="c1A.q"/, ""); }).join("") + "</div>";
+  }
+  var right = (st.phase === "form" ? "" : '<button type="button" class="btn-q acc" data-a="c3A.make" style="margin-right:6px">Make form from this</button>') + syncBtn("toast");
+  return dkWin({ tabs: [{ t: st.phase === "form" ? "Daily Review" : "Daily Review — 23 Oct", active: 1, form: st.phase === "form" }], right: right, body: body });
+};
+H["c3A.make"] = function () {
+  var st = S.c3.A; if (st.phase === "anim") return; st.phase = "anim";
+  $$("#stage-c3 .fq-ans, #stage-c3 .fs-anchor").forEach(function (e) { e.style.maxHeight = e.scrollHeight + "px"; e.offsetHeight; e.classList.add("dissolve"); });
+  $$("#stage-c3 .fs button.on, #stage-c3 .fc.on").forEach(function (e) { e.classList.remove("on"); });
+  timers.c3A = setTimeout(function () { st.phase = "form"; draw("c3A"); }, 750);
+};
+H["c3A.undo"] = function () { S.c3.A.phase = "memory"; S.c3.A.chips = {}; draw("c3A"); };
+H["c3A.type"] = function (el) { var f = DAILY.filter(function (x) { return x.id === el.dataset.id; })[0], cur = S.c3.A.chips[f.id] || f.type; S.c3.A.chips[f.id] = { q: "scale", scale: "check", check: "q" }[cur]; draw("c3A"); };
+H["c3A.scale"] = H["c3A.check"] = function () { toast("Old entry: read-only here"); };
+
+/* ---- B: the page asks ---- */
+S.c3.B = { vals: {} };
+NOTES.c3B = "<b>Try it:</b> the form barely looks like a form. Each question sits <i>inside</i> its answer as grey text and floats up into a label once you start. <kbd>Tab</kbd> moves through everything: on a scale press <kbd>1</kbd>–<kbd>5</kbd>, on a checklist item press <kbd>Space</kbd>.";
+R.c3B = function () {
+  var st = S.c3.B;
+  var body = '<div class="dk-doc"><h1 class="dk-h1" contenteditable="true">Daily Review — Thu 12 Nov</h1>' + DAILY.map(function (f) {
+    var v = st.vals[f.id] || {};
+    if (f.type === "scale") return '<div class="fl static"><div class="fl-label">' + esc(f.q) + '</div><div class="fs" tabindex="0" data-scalekey="' + f.id + '">' + [1, 2, 3, 4, 5].map(function (n) { return '<button type="button" tabindex="-1" class="' + (v.scale === n ? "on" : "") + '" data-a="c3B.scale" data-id="' + f.id + '" data-n="' + n + '" data-hov="' + esc(f.anchors[n - 1]) + '">' + n + '</button>'; }).join("") + '</div><div class="fs-anchor">' + (v.scale ? esc(f.anchors[v.scale - 1]) : "") + "</div></div>";
+    if (f.type === "check") return '<div class="fl static"><div class="fl-label">' + esc(f.q) + '</div><div class="fcl">' + f.items.map(function (it, i) { return '<div class="fc ' + ((v.checks || []).indexOf(i) >= 0 ? "on" : "") + '" tabindex="0" data-a="c3B.check" data-id="' + f.id + '" data-i="' + i + '"><span class="fc-box"></span><span>' + esc(it) + "</span></div>"; }).join("") + "</div></div>";
+    var has = v.own && v.own.length;
+    return '<div class="fl' + (has ? " up" : "") + '"><div class="fl-label">' + esc(f.q) + '</div><div class="fq-ans fl-ans" contenteditable="true" data-in="c3B.ans" data-id="' + f.id + '">' + (f.shape ? "<" + f.shape + ">" + (has ? v.own.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") : "") + "</" + f.shape + ">" : (has ? esc(v.own) : "")) + "</div>" + (f.guide ? '<div class="fq-guide" style="font-size:12px">' + esc(f.guide) + "</div>" : "") + "</div>";
+  }).join("") + '<div class="dk-foot"><span class="grow">Tab → next · 1–5 rate · Space tick · it saves as you go</span></div></div>';
+  return dkWin({ tabs: [{ t: "Daily Review", active: 1 }], right: syncBtn("toast"), body: body });
+};
+H["c3B.scale"] = function (el) { vget(S.c3.B, el.dataset.id).scale = +el.dataset.n; draw("c3B"); var g = $('#stage-c3 [data-scalekey="' + el.dataset.id + '"]'); if (g) g.focus(); };
+H["c3B.check"] = function (el) { var v = vget(S.c3.B, el.dataset.id), c = v.checks || (v.checks = []), i = +el.dataset.i, p = c.indexOf(i); p >= 0 ? c.splice(p, 1) : c.push(i); el.classList.toggle("on"); };
+IN["c3B.ans"] = function (el) { var f = DAILY.filter(function (x) { return x.id === el.dataset.id; })[0]; vget(S.c3.B, f.id).own = readAns(el, f); };
+
+/* ---- C: teleprompter, one take ---- */
+S.c3.C = { view: "home", ring: null, rec: false, t: 0, i: 0, marks: {}, snaps: {}, vals: {}, raw: false };
+NOTES.c3C = "<b>Try it:</b> Spell Menu → <b>Daily</b>, then press <b>Record</b> once. The questions scroll like a teleprompter. Talk, and tap the gold <b>Next</b> to mark where each answer ends. Tick or rate on screen without stopping. Snap pins a photo to the current question. After the last mark the take saves itself.";
+R.c3C = function () {
+  var st = S.c3.C, inner;
+  if (st.view === "home") {
+    inner = phHome(st.raw ? rawCard("Daily Review", st.raw) : "", "c3C.gen");
+    if (st.ring === "gen") inner += ring(generalSpells([{ name: "Daily", g: "book", a: "c3C.start", hue: "spell-syncgold" }]), "gold", "c3C.close");
+  } else {
+    var items = DAILY.map(function (f, i) {
+      var cls = i < st.i ? "past" : i === st.i ? "cur" : "";
+      if (i < st.i - 2) return "";
+      var h = '<div class="tp-item ' + cls + '">' + esc(f.q) + (st.marks[f.id] != null && i < st.i ? '<span class="tp-mark">' + fmt(st.marks[f.id]) + "</span>" : "") + (st.snaps[f.id] ? ' <span class="tp-mark">· ' + st.snaps[f.id] + " photo</span>" : "") + "</div>";
+      if (i === st.i) {
+        var v = st.vals[f.id] || {};
+        if (f.guide) h += '<div class="pf-guide tp-inline">' + esc(f.guide) + "</div>";
+        if (f.type === "scale") h += '<div class="tp-inline"><div class="pf-scale">' + [1, 2, 3, 4, 5].map(function (n) { return '<button type="button" class="' + (v.scale === n ? "on" : "") + '" data-a="c3C.scale" data-n="' + n + '">' + n + '</button>'; }).join("") + '</div><div class="pf-anchor">' + (v.scale ? esc(f.anchors[v.scale - 1]) : "Say it, or tap") + "</div></div>";
+        if (f.type === "check") h += '<div class="tp-inline">' + f.items.map(function (it, j) { return '<div class="pf-check' + ((v.checks || []).indexOf(j) >= 0 ? " on" : "") + '" data-a="c3C.check" data-i="' + j + '" style="font-size:14px"><span class="fc-box"></span><span>' + esc(it) + "</span></div>"; }).join("") + "</div>";
+      }
+      return h;
+    }).join("");
+    inner = '<div class="qd"><div class="qd-info">' + (st.rec ? '<span class="rec"><span class="ph-voice-dot"></span><span data-rt3>' + fmt(st.t) + "</span></span> · one take" : "<span>Ready · press Record and just talk</span>") + '</div><div class="tp-list">' + items + "</div>" +
+      dock([{ g: "camera", a: "c3C.snap", label: "Snap" }, st.rec ? { g: "next", a: "c3C.next", label: "Next", cls: "is-next" } : { g: "mic", a: "c3C.rec", label: "Record" }, { g: "back", a: "c3C.exit", label: "back" }, { menu: "c3C.cond" }]) + "</div>";
+    if (st.ring === "cond") inner += ring([{ name: "Pause", g: "pause", a: "c3C.pause" }, { name: "Film", g: "video", a: "toast", msg: "Film swaps the take to video — same marks" }, { name: "Finish", g: "check", a: "c3C.exit" }], "accent", "c3C.close");
+    if (st.finish) inner += '<div class="done-card"><div>One take saved.<p>' + fmt(st.t) + " · " + Object.keys(st.marks).length + " marks · the desktop splits it</p></div></div>";
+  }
+  return '<div class="ph-row">' + phFrame(inner) + '<div class="ph-side"><b>One control does everything.</b> The cell that said Record becomes Next once you&rsquo;re talking. Each tap is a gold mark on the take, and the desktop cuts there.<br><br>Ratings and ticks are taps on the screen, so you can say “a four” or tap 4. Both work.</div></div>';
+};
+H["c3C.gen"] = function () { S.c3.C.ring = "gen"; draw("c3C"); };
+H["c3C.cond"] = function () { S.c3.C.ring = "cond"; draw("c3C"); };
+H["c3C.close"] = function () { S.c3.C.ring = null; draw("c3C"); };
+H["c3C.start"] = function () { var st = S.c3.C; st.ring = null; st.view = "tele"; st.rec = false; st.t = 0; st.i = 0; st.marks = {}; st.snaps = {}; st.vals = {}; st.finish = false; draw("c3C"); };
+H["c3C.rec"] = function () { var st = S.c3.C; st.rec = true; st.marks[DAILY[0].id] = st.t; draw("c3C"); stopT("c3C"); timers.c3C = setInterval(function () { st.t += 1; var e = $("#stage-c3 [data-rt3]"); if (e) e.textContent = fmt(st.t); }, 180); };
+H["c3C.pause"] = function () { var st = S.c3.C; st.ring = null; stopT("c3C"); st.rec = false; draw("c3C"); toast("Paused — Record resumes the same take"); };
+H["c3C.next"] = function () { var st = S.c3.C; if (st.i < DAILY.length - 1) { st.i++; st.marks[DAILY[st.i].id] = st.t; draw("c3C"); } else H["c3C.exit"](); };
+H["c3C.snap"] = function () { var st = S.c3.C, id = DAILY[st.i].id; st.snaps[id] = (st.snaps[id] || 0) + 1; draw("c3C"); toast("Photo pinned at " + fmt(st.t)); };
+H["c3C.scale"] = function (el) { vget(S.c3.C, DAILY[S.c3.C.i].id).scale = +el.dataset.n; draw("c3C"); };
+H["c3C.check"] = function (el) { var v = vget(S.c3.C, DAILY[S.c3.C.i].id), c = v.checks || (v.checks = []), i = +el.dataset.i, p = c.indexOf(i); p >= 0 ? c.splice(p, 1) : c.push(i); el.classList.toggle("on"); };
+H["c3C.exit"] = function () {
+  var st = S.c3.C; stopT("c3C"); st.ring = null;
+  if (!st.t) { st.view = "home"; draw("c3C"); return; }
+  st.rec = false; st.finish = true; draw("c3C");
+  timers.c3C = setTimeout(function () { st.finish = false; st.view = "home"; st.raw = "1 take " + fmt(st.t) + " · " + Object.keys(st.marks).length + " marks · waiting for desktop"; draw("c3C"); }, 1200);
+};
+
+/* ---- D: one take → answers with provenance ---- */
+S.c3.D = { phase: "raw", head: null, open: {} };
+NOTES.c3D = "<b>Try it:</b> one take with 9 gold marks arrives. Open the sync rune and press ▶. Each answer is written straight in (no pale ink, no approvals). Its <span class=\"src\" style=\"margin:0\">▶ time</span> chip jumps the player to that moment, and <i>What I said</i> shows the verbatim slice. Editing is just editing.";
+R.c3D = function () {
+  var st = S.c3.D, ticks = DAILY.map(function (f) { return (MARKS[f.id] / TAKE_LEN * 100).toFixed(1); }), body;
+  var player = dkAudio(fmt(TAKE_LEN), "One take · 9 marks · from the phone", ticks, st.head, "toast");
+  if (st.phase !== "done") body = '<div class="dk-doc"><h1 class="dk-h1">Daily Review — Thu 12 Nov</h1><div class="dk-sub">Raw memory · one take, not processed yet</div>' + player + '<div style="margin-top:22px">' + DAILY.map(function (f) { return '<div class="fq"><div class="fq-q">' + esc(f.q) + '</div><div class="text-text-muted text-sm">Mark at ' + fmt(MARKS[f.id]) + "</div></div>"; }).join("") + "</div></div>";
+  else {
+    var vals = {}; DAILY.forEach(function (f) { var a = AI_TAKE[f.id]; vals[f.id] = typeof a === "string" ? { own: a } : Array.isArray(a) ? { own: a } : a; });
+    body = '<div class="dk-doc"><h1 class="dk-h1">Daily Review — Thu 12 Nov</h1><div style="position:sticky;top:0;z-index:5;background:hsl(var(--surface));padding-bottom:8px">' + player + "</div>" + DAILY.map(function (f) {
+      return dkField(f, vals[f.id], { k: "c3D", extra: function () { return '<div style="margin-top:2px"><span class="src" style="margin-left:0" data-a="c3D.seek" data-id="' + f.id + '">▶ ' + fmt(MARKS[f.id]) + '</span><button type="button" class="dsc" data-a="c3D.said" data-id="' + f.id + '">' + (st.open[f.id] ? "Hide" : "What I said") + "</button></div>" + (st.open[f.id] ? '<div class="said">“' + esc(SAID[f.id]) + "”</div>" : ""); } });
+    }).join("") + "</div>";
+  }
+  return dkWin({ tabs: [{ t: "Daily Review", active: 1 }], right: syncBtn("c3D.open", st.phase !== "done"), body: body, overlay: (st.phase === "drawer" || st.phase === "run") ? procDrawer("c3D", "Daily Review — 1 take · 6:12", "9 marks · form", st) : "" });
+};
+H["c3D.open"] = function () { var st = S.c3.D; if (st.phase === "raw") st.phase = "drawer"; else if (st.phase === "done") { st.phase = "raw"; st.head = null; st.open = {}; } draw("c3D"); };
+H["c3D.close"] = function () { if (S.c3.D.phase === "drawer") { S.c3.D.phase = "raw"; draw("c3D"); } };
+H["c3D.run"] = function () { var st = S.c3.D; if (st.phase === "run") return; st.phase = "run"; seq("c3D", ["Transcribing the take (6:12)…", "Cutting at 9 marks…", "Patronus is writing each answer…"], 700, function (s, i) { st.step = s; st.pct = Math.round((i + 1) / 3 * 100); draw("c3D"); }, function () { st.phase = "done"; draw("c3D"); }); };
+H["c3D.seek"] = function (el) { var sc = $("#stage-c3 section"), y = sc ? sc.scrollTop : 0; S.c3.D.head = +(MARKS[el.dataset.id] / TAKE_LEN * 100).toFixed(1); draw("c3D"); sc = $("#stage-c3 section"); if (sc) sc.scrollTop = y; toast("Playing from " + fmt(MARKS[el.dataset.id])); };
+H["c3D.said"] = function (el) { var sc = $("#stage-c3 section"), y = sc ? sc.scrollTop : 0; S.c3.D.open[el.dataset.id] = !S.c3.D.open[el.dataset.id]; draw("c3D"); sc = $("#stage-c3 section"); if (sc) sc.scrollTop = y; };
+H["c3D.scale"] = H["c3D.check"] = function () { toast("Heard from the take — click works like B to change it"); };
+
+/* ---- E: compress with a sources rail ---- */
+S.c3.E = { running: false };
+NOTES.c3E = "<b>Try it:</b> press <b>Compress</b>. The rail on the right shows exactly which Daily Reviews Patronus is reading, lit live, while answers arrive with day citations. Hover a citation to light up its source. Type into any field at any time; Patronus skips it.";
+R.c3E = function () {
+  var rail = '<aside class="rail"><h4>Reading · this week</h4>' + WEEK.map(function (w, i) { return '<div class="rail-item" data-day="' + w.d + '"><div class="d">' + w.d + " · Daily Review<span>" + w.n + "/5</span></div><p>" + esc(w.t) + "</p></div>"; }).join("") + "</aside>";
+  var body = '<div class="dk-doc"><h1 class="dk-h1">Weekly Summary — 9–15 Nov</h1><div class="dk-sub" style="margin-bottom:22px"><button type="button" class="pt-btn" data-a="c3E.go" id="c3E-btn">' + orb(30) + '<span id="c3E-lbl">Compress</span></button><span>Patronus reads → you see what → it writes. You type whenever you like.</span></div>' + WEEKLY.map(function (f) { return dkField(f, {}, { k: "c3E", ph: "Write, or Compress…" }); }).join("") + "</div>";
+  return dkWin({ tabs: [{ t: "Weekly Summary", active: 1 }], right: syncBtn("toast"), body: body, aside: rail });
+};
+H["c3E.go"] = function () {
+  var st = S.c3.E; if (st.running) return;
+  if (st.ran) draw("c3E");
+  st.running = true; var btn = $("#c3E-btn"); btn.classList.add("working"); $("#c3E-lbl").textContent = "Reading…";
+  compress("c3E", { wet: false, onField: function (f, ai) { $$("#stage-c3 .rail-item").forEach(function (r) { r.classList.remove("reading"); }); (ai.reads || []).forEach(function (i) { var r = $$("#stage-c3 .rail-item")[i]; if (r) { r.classList.add("reading", "read"); } }); },
+    done: function () { st.running = false; st.ran = true; btn.classList.remove("working"); $("#c3E-lbl").textContent = "Compress again"; $$("#stage-c3 .rail-item").forEach(function (r) { r.classList.remove("reading"); }); } });
+};
+H["c3E.scale"] = function (el) { var box = el.closest(".fq"); $$(".fs button", box).forEach(function (b) { b.classList.remove("on", "wet-ring"); }); el.classList.add("on"); box.querySelector(".fs-anchor").textContent = WEEKLY[0].anchors[+el.dataset.n - 1]; };
+IN["c3E.ans"] = function (el) { el.dataset.typed = "1"; };
+
+/* ======================================================================
+   global event wiring
+   ====================================================================== */
+$$(".surf-tabs").forEach(function (t) { t.innerHTML = SURF.map(function (s) { return '<button type="button" class="surf-tab" data-a="surf" data-c="' + t.dataset.c + '" data-s="' + s[0] + '"><b>' + s[0] + "</b>" + s[1] + "</button>"; }).join(""); });
+H.surf = function (el) { setSurf(el.dataset.c, el.dataset.s); };
+H.toast = function (el) { toast(el.dataset.msg || "Not part of this demo"); };
+H.src = function (el) { toast(el.dataset.s === "photo" ? "Opens the notebook photo" : "Plays the voice clip from " + el.dataset.s.replace("▶ ", "")); };
+H.theme = function () { document.documentElement.classList.toggle("dark"); ["c1", "c2", "c3"].forEach(function (c) { draw(c + S[c].surf); }); };
+document.addEventListener("click", function (e) {
+  var el = e.target.closest("[data-a]"); if (!el) return;
+  var a = el.dataset.a; if (!H[a]) return;
+  if (el.tagName === "BUTTON" || el.classList.contains("spell-overlay")) e.preventDefault();
+  if (el.classList.contains("spell-overlay") && e.target !== el && !e.target.classList.contains("spell-ring") && !e.target.classList.contains("ring-cap")) return;
+  H[a](el, e);
+});
+document.addEventListener("input", function (e) {
+  var el = e.target.closest("[data-in]");
+  var sel = getSelection(), n = sel && sel.anchorNode; var p = n && (n.nodeType === 1 ? n : n.parentElement);
+  var w = p && p.closest && p.closest(".wet"); if (w) dry(w);
+  if (el && IN[el.dataset.in]) IN[el.dataset.in](el, e);
+});
+document.addEventListener("keydown", function (e) {
+  var k = e.target.closest && e.target.closest("[data-keys]");
+  if (k && K[k.dataset.keys]) { K[k.dataset.keys](e); return; }
+  var g = e.target.closest && e.target.closest("[data-scalekey]");
+  if (g && /^[1-5]$/.test(e.key)) { var b = g.querySelector('[data-n="' + e.key + '"]'); if (b) b.click(); return; }
+  if (e.target.classList && e.target.classList.contains("fc") && e.key === " ") { e.preventDefault(); e.target.click(); }
+  if (e.key === "Tab" && e.target.classList && e.target.classList.contains("fl-ans")) { /* native Tab order walks the page */ }
+});
+document.addEventListener("focusin", function (e) { var f = e.target.closest && e.target.closest(".fl"); if (f && !f.classList.contains("static")) f.classList.add("up"); });
+document.addEventListener("focusout", function (e) { var f = e.target.closest && e.target.closest(".fl"); if (f && !f.classList.contains("static")) { var a = f.querySelector(".fl-ans"); if (a && !a.innerText.trim()) f.classList.remove("up"); } });
+/* hover: scale anchors preview, citation peeks */
+var peekEl = null;
+document.addEventListener("mouseover", function (e) {
+  var b = e.target.closest && e.target.closest("[data-hov]");
+  if (b) { var anc = b.parentElement.nextElementSibling; if (anc && anc.classList.contains("fs-anchor")) { if (anc.dataset.orig == null) anc.dataset.orig = anc.innerHTML; anc.textContent = b.dataset.n + " — " + b.dataset.hov; } }
+  var c = e.target.closest && e.target.closest(".cite");
+  if (c) {
+    var day = c.dataset.day, w = WEEK.filter(function (x) { return x.d === day; })[0], win = c.closest(".dk-win");
+    $$(".rail-item", win).forEach(function (r) { r.classList.toggle("lit", r.dataset.day === day); });
+    if (w && win && !$(".rail", win)) { peekEl = document.createElement("div"); peekEl.className = "peek"; peekEl.innerHTML = "<b>" + day + " · Daily Review · " + w.n + "/5</b>" + esc(w.t); var r1 = c.getBoundingClientRect(), r0 = win.getBoundingClientRect(); peekEl.style.left = Math.min(r1.left - r0.left, r0.width - 280) + "px"; peekEl.style.top = (r1.bottom - r0.top + 6) + "px"; win.appendChild(peekEl); }
+  }
+});
+document.addEventListener("mouseout", function (e) {
+  var b = e.target.closest && e.target.closest("[data-hov]");
+  if (b) { var anc = b.parentElement.nextElementSibling; if (anc && anc.dataset.orig != null) { anc.innerHTML = anc.dataset.orig; delete anc.dataset.orig; } }
+  var c = e.target.closest && e.target.closest(".cite");
+  if (c) { if (peekEl) { peekEl.remove(); peekEl = null; } $$(".rail-item.lit").forEach(function (r) { r.classList.remove("lit"); }); }
+});
+/* swipe on the phone deck (concept 2) */
+var swY = null;
+document.addEventListener("pointerdown", function (e) { var d = e.target.closest && e.target.closest("[data-swipe]"); swY = d ? { y: e.clientY, k: d.dataset.swipe } : null; });
+document.addEventListener("pointerup", function (e) { if (!swY) return; var dy = e.clientY - swY.y; if (dy < -50) H[swY.k + ".next"](); else if (dy > 50) H[swY.k + ".prev"](); swY = null; });
+
+["c1", "c2", "c3"].forEach(function (c) { setSurf(c, "A"); });
+</script>
+</body>
+</html>

@@ -55,3 +55,8 @@ Each build phase ends with tests + a real run; commit + push per phase.
 
 ## Live status
 - 2026-11-12: update opened on `update/forms`; concept teams launched.
+- 2026-11-12: all 6 teams delivered (18 concepts, `concepts/*.html`, hub `concepts/index.html`). All parse;
+  jsdom click-throughs clean; headless-Chrome screenshots checked (dark). Unprompted convergence:
+  3 field types (Question w/ shape+guide · Scale w/ anchors · Checklist); phone "One Take" with
+  chapter marks (5/6); AI writes in a second ink, never overwrites, Weekly skips fields being typed;
+  template = a note flagged as a form. **Next: owner review (Phase 1).**
