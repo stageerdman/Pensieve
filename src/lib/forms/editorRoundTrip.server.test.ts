@@ -33,4 +33,14 @@ describe("forms through the desktop editor", () => {
     expect(f[2].text).toEqual(["Yes — held the frame."]);
     expect(f[4].text).toEqual(["* Helped Tom", "* Called mum"]);
   });
+
+  it("loads the fences as real scale/charm blocks (not code blocks)", async () => {
+    const blocks = (await extendedMdToBlocks(editor, DAILY_REVIEW)) as { type: string; props: Record<string, unknown> }[];
+    const scale = blocks.find((b) => b.type === "scale");
+    const charm = blocks.find((b) => b.type === "charm");
+    expect(JSON.parse(String(scale?.props.anchors))).toHaveLength(5);
+    expect(scale?.props.value).toBe(0);
+    expect(charm?.props).toEqual({ name: "Compress", prompt: "Summarise what mattered across my recent Daily Reviews." });
+    expect(blocks.some((b) => b.type === "codeBlock")).toBe(false);
+  });
 });

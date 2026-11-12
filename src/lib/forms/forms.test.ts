@@ -107,6 +107,14 @@ describe("instantiate", () => {
     expect(parseForm(memory).charms).toHaveLength(0);
     expect(memory.endsWith("\n")).toBe(false);
   });
+
+  it("starts blank even if the form itself was rated/ticked", () => {
+    const ids = parseForm(DAILY_REVIEW).fields.map((f) => f.id);
+    const touched = applyAnswers(DAILY_REVIEW, { [ids[0]]: { scale: 3 }, [ids[1]]: { check: ["Hour of Power"] } });
+    const f = parseForm(instantiate(touched)).fields;
+    expect(f[0].scale?.value).toBeUndefined();
+    expect(f[1].items?.every((i) => !i.checked)).toBe(true);
+  });
 });
 
 describe("applyAnswers", () => {

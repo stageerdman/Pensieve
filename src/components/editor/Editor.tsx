@@ -27,7 +27,7 @@ import { makeUploadFile } from "./media/insertImage";
 import { insertImagesSmart, type GroupEditor } from "./media/insertGroup";
 import { insertVideoFromFile, type InsertEditor as VideoInsertEditor } from "./media/insertVideo";
 import { mediaToast } from "./media/mediaToast";
-import { Image as ImageIcon, Images as ImagesIcon, AudioLines as AudioIcon, VideoIcon } from "../icons";
+import { Image as ImageIcon, Images as ImagesIcon, AudioLines as AudioIcon, VideoIcon, ScaleIcon, Sparkles } from "../icons";
 import { GutterHandle } from "./GutterHandle";
 import { makeSlashMenu } from "./SlashMenu";
 import { useBlockMarquee } from "./useBlockMarquee";
@@ -404,6 +404,30 @@ export function Editor({
                   // desktop camera control (no media kind gets one here — see video-capture-design).
                   onItemClick: () =>
                     insertOrUpdateBlockForSlashMenu(editor, { type: "video", props: {} } as never),
+                },
+                // Forms (FORMS update): a form is just a memory with questions in it. A
+                // question is a bold line, a checklist is a to-do list — only the rating and
+                // the charm need their own blocks.
+                {
+                  title: "Scale",
+                  aliases: ["scale", "rating", "rate", "score", "1-5", "form"],
+                  group: "Form",
+                  icon: <ScaleIcon size={18} />,
+                  subtext: "A 1–5 rating, each point with what it means",
+                  onItemClick: () =>
+                    insertOrUpdateBlockForSlashMenu(editor, {
+                      type: "scale",
+                      props: { anchors: JSON.stringify(["", "", "", "", ""]), value: 0 },
+                    } as never),
+                },
+                {
+                  title: "Charm",
+                  aliases: ["charm", "ai", "compress", "command", "spell", "form"],
+                  group: "Form",
+                  icon: <Sparkles size={18} />,
+                  subtext: "A named AI command for this form",
+                  onItemClick: () =>
+                    insertOrUpdateBlockForSlashMenu(editor, { type: "charm", props: { name: "", prompt: "" } } as never),
                 },
               ],
               query,

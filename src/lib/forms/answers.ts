@@ -9,13 +9,23 @@
 import { SCALE_LANG, encodeScale, fence } from "./fences";
 import { parseForm, CHECK_ITEM, type FormField } from "./parse";
 
-/** A form template → the body of a new memory: the same questions, with every charm
- *  left out (charms live only in the template; a memory shows them as buttons). */
+/** A form template → the body of a new memory: the same questions, blank (no rating, no
+ *  ticks), with every charm left out (charms live only in the template; a memory shows
+ *  them as buttons). */
 export function instantiate(templateMd: string): string {
   const lines = templateMd.split("\n");
-  const { charms } = parseForm(templateMd);
+  const { charms, fields } = parseForm(templateMd);
   const drop = new Set<number>();
   for (const c of charms) for (let i = c.start; i <= c.end; i++) drop.add(i);
+  // A new memory starts blank: a rating or tick left on the form itself isn't carried over.
+  for (const f of fields) {
+    for (const it of f.items ?? []) lines[it.line] = lines[it.line].replace(CHECK_ITEM, "$1[ ]$3$4");
+    if (f.scale?.value !== undefined) {
+      for (let i = f.scale.fenceStart + 1; i < f.scale.fenceEnd; i++) {
+        if (/^\s*value:/i.test(lines[i])) drop.add(i);
+      }
+    }
+  }
   const kept = lines.filter((_, i) => !drop.has(i));
   // Collapse the blank runs a removed charm leaves behind, and trailing blanks.
   const out: string[] = [];

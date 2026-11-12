@@ -234,6 +234,27 @@ export const Sigil = (p: IconProps) =>
   );
 
 // A little "magic"/dissolve mark for the clear-all control.
+/** A form: a page with question lines. */
+export const FormIcon = (p: IconProps) =>
+  svg(
+    <>
+      <rect x="5" y="3" width="14" height="18" rx="2" />
+      <path d="M9 8h6M9 12h6M9 16h3" />
+    </>,
+    p,
+  );
+
+/** A row of rating points — the form Scale block. */
+export const ScaleIcon = (p: IconProps) =>
+  svg(
+    <>
+      <circle cx="5" cy="12" r="2" />
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="19" cy="12" r="2.5" fill="currentColor" />
+    </>,
+    p,
+  );
+
 export const Sparkles = (p: IconProps) =>
   svg(
     <>

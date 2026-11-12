@@ -7,6 +7,8 @@ import {
 import { TimelinePanel } from "./components/TimelinePanel";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { OverflowMenu } from "./components/OverflowMenu";
+import { FormStrip } from "./features/forms/FormStrip";
+import { FORM_KEY, isFormTemplate, withExtra } from "./lib/forms";
 import { FlaskButton } from "./components/FlaskButton";
 import { TabBar, HOME, type ExtraTab } from "./components/TabBar";
 import { IconButton } from "./components/IconButton";
@@ -24,7 +26,7 @@ import { Assistant } from "./features/assistant/Assistant";
 import { AssistantProvider } from "./features/assistant/AssistantContext";
 import { AssistantFullscreen } from "./features/assistant/AssistantFullscreen";
 import { AgentsEditor } from "./features/assistant/AgentsEditor";
-import { Sparkles, Sigil } from "./components/icons";
+import { Sparkles, Sigil, FormIcon } from "./components/icons";
 import { useSystemTabs, type SystemTabId } from "./hooks/useSystemTabs";
 import { TranscriptSplit } from "./components/audio/TranscriptSplit";
 import { JournalTranscriptSplit } from "./components/editor/media/journal/JournalTranscriptSplit";
@@ -390,6 +392,14 @@ export default function App() {
                               active: timelineOpen,
                             },
                             {
+                              icon: <FormIcon size={16} />,
+                              label: isFormTemplate(current.extra) ? "Stop using as form" : "Use as form",
+                              onSelect: () =>
+                                updateMeta((n) => ({
+                                  extra: withExtra(n.extra, FORM_KEY, isFormTemplate(n.extra) ? undefined : "true"),
+                                })),
+                            },
+                            {
                               icon: <Trash size={16} />,
                               label: "Delete note",
                               shortcut: "⌘⌫",
@@ -469,6 +479,7 @@ export default function App() {
                           />
                         </div>
                       )}
+                      {!focusMode && <FormStrip note={current} />}
                       {previewEntry ? (
                         <div className="mx-auto max-w-[72ch]">
                           <div className="mb-3 flex items-center justify-between rounded border border-border bg-surface-sunken px-3 py-1.5 text-xs text-text-muted">

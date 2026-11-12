@@ -62,6 +62,7 @@ export class BrowserStore implements Store {
         categories: n.categories,
         tags: n.tags,
         icon: n.icon,
+        extra: n.extra,
         pinned: n.pinned,
         starred: n.starred,
         openCount: n.openCount ?? 0,

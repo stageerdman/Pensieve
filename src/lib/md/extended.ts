@@ -132,6 +132,7 @@ import { encodeImageGroupBlock, isImageGroupBlock, reconstructGalleryFence } fro
 import { encodeAudioBlock, isAudioBlock, reconstructAudioFence } from "./audio";
 import { encodeVideoBlock, isVideoBlock, reconstructVideoFence } from "./video";
 import { encodeJournalBlock, isJournalBlock, reconstructJournalFence } from "./journal";
+import { encodeCharmBlock, encodeScaleBlock, isCharmBlock, isScaleBlock, reconstructFormFence } from "./formBlocks";
 
 const LIST_TYPES = new Set(["bulletListItem", "numberedListItem", "checkListItem"]);
 
@@ -195,6 +196,12 @@ async function encodeStructure(editor: MdEditor, blocks: Block[]): Promise<Block
       // url → ref, carried on a pensieve:audio fence (see lib/md/audio). The transcript
       // is a separate sidecar, deliberately NOT written into the .md.
       out.push(encodeAudioBlock(b));
+    } else if (isScaleBlock(b)) {
+      // A form's rating → pensieve:scale fence (see lib/md/formBlocks, lib/forms/fences).
+      out.push(encodeScaleBlock(b));
+    } else if (isCharmBlock(b)) {
+      // A form's named AI command → pensieve:charm fence.
+      out.push(encodeCharmBlock(b));
     } else if (isVideoBlock(b)) {
       // Same shape as audio — url → ref on a pensieve:video fence; its transcript sidecar
       // is keyed off the same ref, so it's reused unchanged (see lib/md/video).
@@ -245,6 +252,11 @@ async function reconstructStructure(editor: MdEditor, blocks: Block[]): Promise<
     const video = reconstructVideoFence(b);
     if (video) {
       out.push(video);
+      continue;
+    }
+    const formBlock = reconstructFormFence(b);
+    if (formBlock) {
+      out.push(formBlock);
       continue;
     }
     const lang = langOf(b);
