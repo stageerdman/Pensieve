@@ -47,6 +47,10 @@ struct Frontmatter {
     categories: Vec<String>,
     tags: Vec<String>,
     links: Vec<String>,
+    /// Every other key (icon, forms' form/fromForm/formStatus, legacy `category`, …),
+    /// kept verbatim in file order and written back unchanged — mirrors the frontend's
+    /// NoteFields.extra so an MCP edit never erases metadata it doesn't model.
+    extra: Vec<(String, String)>,
 }
 
 // Matches src/lib/md/frontmatter.ts's FENCE regex /^---\n([\s\S]*?)\n---\n?\n?/ and its
@@ -77,7 +81,8 @@ fn parse_frontmatter(raw: &str) -> (Frontmatter, String) {
                     "categories" => fm.categories = list(value),
                     "tags" => fm.tags = list(value),
                     "links" => fm.links = list(value),
-                    _ => {}
+                    "" => {}
+                    _ => fm.extra.push((key.to_string(), value.to_string())),
                 }
             }
             return (fm, rest[body_start..].to_string());
@@ -89,7 +94,7 @@ fn parse_frontmatter(raw: &str) -> (Frontmatter, String) {
 // Mirrors src/lib/md/frontmatter.ts's composeFrontmatter exactly (byte-for-byte spacing)
 // so a note an MCP write tool touches round-trips through the frontend's own parser.
 fn compose_frontmatter(fm: &Frontmatter, body: &str) -> String {
-    if fm.categories.is_empty() && fm.tags.is_empty() && fm.links.is_empty() {
+    if fm.categories.is_empty() && fm.tags.is_empty() && fm.links.is_empty() && fm.extra.is_empty() {
         return body.to_string();
     }
     let mut lines = vec!["---".to_string()];
@@ -98,6 +103,9 @@ fn compose_frontmatter(fm: &Frontmatter, body: &str) -> String {
     }
     lines.push(format!("tags: [{}]", fm.tags.join(", ")));
     lines.push(format!("links: [{}]", fm.links.join(", ")));
+    for (k, v) in &fm.extra {
+        lines.push(format!("{k}: {v}"));
+    }
     lines.push("---".to_string());
     lines.push(String::new());
     format!("{}\n{}", lines.join("\n"), body)
@@ -339,7 +347,7 @@ pub fn get_note(vault_root: &Path, id: &str) -> Result<NoteContent, String> {
 pub fn create_note(vault_root: &Path, body: String, categories: Vec<String>, tags: Vec<String>) -> Result<String, String> {
     let id = new_id();
     let now = now_millis();
-    let fm = Frontmatter { categories: categories.clone(), tags: tags.clone(), links: Vec::new() };
+    let fm = Frontmatter { categories: categories.clone(), tags: tags.clone(), links: Vec::new(), extra: Vec::new() };
     let file = compose_frontmatter(&fm, &body);
     std::fs::create_dir_all(notes_dir(vault_root)).map_err(|e| e.to_string())?;
     std::fs::write(note_path(vault_root, &id), file).map_err(|e| e.to_string())?;
@@ -414,4 +422,23 @@ pub fn link_note(vault_root: &Path, id: &str, linked_id: &str) -> Result<(), Str
     let mut meta = read_meta(vault_root, id);
     meta.updated_at = Some(now_millis());
     write_meta(vault_root, id, &meta)
+}
+
+#[cfg(test)]
+mod frontmatter_tests {
+    use super::*;
+
+    #[test]
+    fn unknown_keys_and_icon_survive_a_round_trip() {
+        let raw = "---\ncategories: [Journal]\ntags: [x]\nlinks: []\nicon: round-bottom/blue\nform: true\nfromForm: t-1\n---\n\n# Body\n";
+        let (fm, body) = parse_frontmatter(raw);
+        assert_eq!(fm.extra.len(), 3);
+        assert_eq!(compose_frontmatter(&fm, &body), raw);
+    }
+
+    #[test]
+    fn extra_alone_still_writes_a_block() {
+        let (fm, body) = parse_frontmatter("---\nform: true\n---\n\nq");
+        assert!(compose_frontmatter(&fm, &body).starts_with("---\n"));
+    }
 }

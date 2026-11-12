@@ -76,4 +76,19 @@ describe("frontmatter", () => {
     const { fields } = parseFrontmatter("---\nicon: teapot/chartreuse\n---\nx");
     expect(fields.icon).toBeUndefined();
   });
+
+  it("keeps unknown keys verbatim and writes them back (forms keys must survive a save)", () => {
+    const raw = "---\ntags: [x]\nform: true\nfromForm: abc-123\nformStatus: awaiting\n---\n\n# Body\n";
+    const { fields, body } = parseFrontmatter(raw);
+    expect(fields.extra).toEqual({ form: "true", fromForm: "abc-123", formStatus: "awaiting" });
+    const out = composeFrontmatter(fields, body);
+    expect(parseFrontmatter(out).fields).toEqual(fields);
+    expect(out).toContain("form: true\nfromForm: abc-123\nformStatus: awaiting\n---");
+  });
+
+  it("writes a frontmatter block for unknown keys alone", () => {
+    const out = composeFrontmatter({ categories: [], tags: [], links: [], extra: { form: "true" } }, "q\n");
+    expect(out.startsWith("---\n")).toBe(true);
+    expect(parseFrontmatter(out).fields.extra).toEqual({ form: "true" });
+  });
 });

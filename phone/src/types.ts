@@ -28,6 +28,9 @@ export interface ForeignMeta {
   iconColor: string | number;
   iconVibrancy?: number;
   iconShine?: number;
+  /** Frontmatter keys the phone doesn't model (forms' form/fromForm/formStatus…),
+   *  carried verbatim so they round-trip. Read via lib/forms, not by string-poking. */
+  extra?: Record<string, string>;
 }
 
 export interface Note {

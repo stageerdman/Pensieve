@@ -144,6 +144,14 @@ describe("Note <-> remote content", () => {
     updatedAt: 2_000,
   };
 
+  it("unknown frontmatter keys (forms' form/fromForm/formStatus) survive a pull → push", () => {
+    const desktop = "---\ntags: [x]\nicon: vial/blue\nform: true\nfromForm: t-1\n---\n\nDaily Review\n\n**Q**";
+    const pulled = noteFromRemoteContent("abc123", desktop, { createdAt: 1, updatedAt: 2 });
+    expect(pulled.foreign?.extra).toEqual({ form: "true", fromForm: "t-1" });
+    const pushed = noteToRemoteContent(pulled);
+    expect(parseFrontmatter(pushed).fields.extra).toEqual({ form: "true", fromForm: "t-1" });
+  });
+
   it("every phone note carries its flask icon in frontmatter (the Wand has no 'no icon' state)", () => {
     const content = noteToRemoteContent(BASE);
     expect(content).toContain("icon: vial/blue");

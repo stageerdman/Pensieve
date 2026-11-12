@@ -52,13 +52,21 @@ export function parseFrontmatter(raw: string): { fields: NoteFields; body: strin
       const icon = parseIcon(value.replace(/^["']|["']$/g, ""));
       if (icon) fields.icon = icon;
     }
+    // Any key this app doesn't model is kept verbatim (raw value) and written back
+    // unchanged, so a newer key (e.g. forms' `form`/`fromForm`/`formStatus`) or one
+    // written by another tool never silently vanishes on the next save.
+    else if (key) (fields.extra ??= {})[key] = value;
   }
   return { fields, body: raw.slice(m[0].length) };
 }
 
 function hasMeta(f: NoteFields): boolean {
   return (
-    f.categories.length > 0 || f.tags.length > 0 || f.links.length > 0 || !!f.icon
+    f.categories.length > 0 ||
+    f.tags.length > 0 ||
+    f.links.length > 0 ||
+    !!f.icon ||
+    Object.keys(f.extra ?? {}).length > 0
   );
 }
 
@@ -70,6 +78,7 @@ export function composeFrontmatter(fields: NoteFields, body: string): string {
   lines.push(`tags: [${fields.tags.join(", ")}]`);
   lines.push(`links: [${fields.links.join(", ")}]`);
   if (fields.icon) lines.push(`icon: ${encodeIcon(fields.icon)}`);
+  for (const [k, v] of Object.entries(fields.extra ?? {})) lines.push(`${k}: ${v}`);
   lines.push("---", "");
   return lines.join("\n") + "\n" + body;
 }

@@ -96,6 +96,7 @@ export class TauriStore implements Store {
         categories: m.categories ?? [],
         tags: m.tags ?? [],
         icon: parsed?.fields.icon,
+        extra: parsed?.fields.extra,
         pinned: m.pinned ?? false,
         starred: m.starred ?? false,
         openCount: m.openCount ?? 0,
@@ -154,6 +155,7 @@ export class TauriStore implements Store {
       tags: fields.tags,
       links: fields.links,
       icon: fields.icon,
+      extra: fields.extra,
       pinned: m.pinned ?? false,
       starred: m.starred ?? false,
     };
@@ -178,7 +180,7 @@ export class TauriStore implements Store {
       lastOpenedAt: prev?.lastOpenedAt,
     };
     const file = composeFrontmatter(
-      { categories: note.categories, tags: note.tags, links: note.links, icon: note.icon },
+      { categories: note.categories, tags: note.tags, links: note.links, icon: note.icon, extra: note.extra },
       note.markdown,
     );
     await writeText(notePath(note.id), file);

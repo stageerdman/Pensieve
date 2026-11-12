@@ -45,6 +45,9 @@ export interface NoteMeta {
   // The note's chosen flask icon (shape + colour), surfaced for the sidebar row.
   // Undefined means "not chosen" — the row renders DEFAULT_ICON (see flasks/icon).
   icon?: NoteIcon;
+  // Frontmatter keys this app doesn't model, kept verbatim and round-tripped (see
+  // NoteFields.extra). Surfaced in listings so forms (`form: true`) are listable.
+  extra?: Record<string, string>;
   // Surfaced into the fast-list sidecar so the sidebar can render pin state and a
   // preview without reading note bodies (see lib/sidebar). Not in .md frontmatter.
   pinned?: boolean; // user-pinned to the top of the sidebar (the "workbench")
@@ -85,6 +88,10 @@ export interface NoteFields {
   tags: string[];
   links: string[];
   icon?: NoteIcon; // optional — only written when the owner has chosen a flask
+  /** Frontmatter keys this app doesn't model, kept verbatim (key → raw value) so they
+   *  round-trip untouched. Forms keys (`form`, `fromForm`, `formStatus`) live here —
+   *  read them through lib/forms/meta.ts, never by string-poking. Absent when empty. */
+  extra?: Record<string, string>;
 }
 
 export const EMPTY_FIELDS: NoteFields = { categories: [], tags: [], links: [] };

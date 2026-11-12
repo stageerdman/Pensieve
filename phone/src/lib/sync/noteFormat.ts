@@ -25,6 +25,8 @@ export interface Frontmatter {
   tags: string[];
   links: string[];
   icon?: { shape: string; color: string | number; vibrancy?: number; shine?: number };
+  /** Keys this app doesn't model, kept verbatim (mirrors desktop NoteFields.extra). */
+  extra?: Record<string, string>;
 }
 
 function parseList(value: string): string[] {
@@ -79,19 +81,28 @@ export function parseFrontmatter(raw: string): { fields: Frontmatter; body: stri
       const icon = parseIconValue(value.replace(/^["']|["']$/g, ""));
       if (icon) fields.icon = icon;
     }
+    // Unknown keys ride through verbatim (forms' form/fromForm/formStatus, or any
+    // future desktop key) — mirrors desktop frontmatter.ts.
+    else if (key) (fields.extra ??= {})[key] = value;
   }
   return { fields, body: raw.slice(m[0].length) };
 }
 
 /** Compose frontmatter + body into raw `.md` file text. No metadata → body unchanged. */
 export function composeFrontmatter(fields: Frontmatter, body: string): string {
-  const hasMeta = fields.categories.length > 0 || fields.tags.length > 0 || fields.links.length > 0 || !!fields.icon;
+  const hasMeta =
+    fields.categories.length > 0 ||
+    fields.tags.length > 0 ||
+    fields.links.length > 0 ||
+    !!fields.icon ||
+    Object.keys(fields.extra ?? {}).length > 0;
   if (!hasMeta) return body;
   const lines: string[] = ["---"];
   if (fields.categories.length) lines.push(`categories: [${fields.categories.join(", ")}]`);
   lines.push(`tags: [${fields.tags.join(", ")}]`);
   lines.push(`links: [${fields.links.join(", ")}]`);
   if (fields.icon) lines.push(`icon: ${encodeIconValue(fields.icon)}`);
+  for (const [k, v] of Object.entries(fields.extra ?? {})) lines.push(`${k}: ${v}`);
   lines.push("---", "");
   return lines.join("\n") + "\n" + body;
 }
@@ -272,6 +283,7 @@ export function noteToRemoteContent(note: Note): string {
       vibrancy: f?.iconVibrancy,
       shine: f?.iconShine,
     },
+    extra: f?.extra,
   };
   return composeFrontmatter(fields, body);
 }
@@ -295,6 +307,7 @@ export function noteFromRemoteContent(id: string, content: string, times: Remote
     iconColor: icon?.color ?? existing?.foreign?.iconColor ?? cat.replace(/^--cat-/, ""),
     iconVibrancy: icon?.vibrancy,
     iconShine: icon?.shine,
+    ...(fields.extra ? { extra: fields.extra } : {}),
   };
   return {
     id,
