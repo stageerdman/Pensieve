@@ -361,7 +361,12 @@ export default function App() {
                   sync={sync}
                   titleFor={titleFor}
                   pending={pendingSync}
-                  onNotesCreated={() => void refresh()}
+                  onNotesCreated={(ids) => {
+                    void refresh();
+                    // A filled form memory that's open right now: reload it so the editor
+                    // shows the answers (and its next save can't write the old body back).
+                    if (currentId && ids.includes(currentId)) void open(currentId);
+                  }}
                 />
                 {!systemTabs.active &&
                   (onHome ? (

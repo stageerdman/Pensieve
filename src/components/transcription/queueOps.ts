@@ -4,6 +4,7 @@ import type { TranscriptionModel } from "../../lib/transcripts/models";
 import type { TranscribePhase } from "../../lib/transcripts/engine";
 import type { AudioQueueItem } from "../../lib/transcripts/queue";
 import type { RawBatchQueueItem } from "../../lib/raw/queue";
+import type { FormQueueItem } from "../../lib/formFill/queue";
 
 export type QueueMode = "all" | "one";
 
@@ -31,7 +32,15 @@ export interface JournalProcessItem extends BaseProcessItem {
   pageCount: number;
 }
 
-export type ProcessItem = AudioProcessItem | JournalProcessItem;
+/** A phone form session awaiting its fill (FORMS Phase 5): transcript → AI writes the answers
+ *  in → the memory is "forged". Same row shell; no model, no preview. ref = `form:<noteId>`. */
+export interface FormProcessItem extends BaseProcessItem {
+  type: "form";
+  noteId: string;
+  title: string;
+}
+
+export type ProcessItem = AudioProcessItem | JournalProcessItem | FormProcessItem;
 
 export function isAudioItem(i: ProcessItem): i is AudioProcessItem {
   return i.type === "audio";
@@ -39,6 +48,10 @@ export function isAudioItem(i: ProcessItem): i is AudioProcessItem {
 export function isJournalItem(i: ProcessItem): i is JournalProcessItem {
   return i.type === "journal";
 }
+export function isFormItem(i: ProcessItem): i is FormProcessItem {
+  return i.type === "form";
+}
+export const formRef = (noteId: string) => `form:${noteId}`;
 
 export const byOrder = (a: ProcessItem, b: ProcessItem) => a.order - b.order;
 
@@ -128,6 +141,25 @@ export function mergeNewJournalItems(
       phase: null,
       error: false,
     });
+  }
+  return added.length ? [...prev, ...added] : prev;
+}
+
+/** Append any phone form sessions ready to fill, not already queued. Mirrors
+ *  mergeNewJournalItems. */
+export function mergeNewFormItems(
+  prev: ProcessItem[],
+  found: FormQueueItem[],
+  persisted?: Record<string, { order: number }>,
+): ProcessItem[] {
+  const have = new Set(prev.map((i) => i.ref));
+  let order = prev.length;
+  const added: ProcessItem[] = [];
+  for (const q of found) {
+    const ref = formRef(q.noteId);
+    if (have.has(ref)) continue;
+    order += 1;
+    added.push({ ref, type: "form", noteId: q.noteId, title: q.title, order: persisted?.[ref]?.order ?? order, pct: 0, phase: null, error: false });
   }
   return added.length ? [...prev, ...added] : prev;
 }

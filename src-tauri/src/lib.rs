@@ -11,6 +11,7 @@ use tauri::menu::{Menu, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 
 mod ai_vision;
+mod ai_text;
 mod assistant;
 mod knowledge;
 mod media_transfer;
@@ -281,6 +282,7 @@ pub fn run() {
             transcribe::transcribe_audio,
             transcribe::cancel_transcription,
             ai_vision::describe_journal_page,
+            ai_text::ask_claude_text,
             assistant::ask_agent,
             knowledge::commands::ingest_knowledge_file,
             knowledge::commands::ingest_knowledge_bytes,
