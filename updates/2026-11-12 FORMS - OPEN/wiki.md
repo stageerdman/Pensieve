@@ -30,6 +30,13 @@ All concepts dropped except the Steve Jobs team's (`concepts/jobs.html`, git his
   owner especially likes. **What Compress does must be defined when the form is created** (the template
   carries its compress instruction, e.g. which memories and over what range), so AI knows what to do.
 
+- **Phone entry = a Form spell** in the gold Spell Menu (one form → straight in; several → pick).
+- **Charms (owner's concept, 2026-11-12):** Compress is not a setting. It's a `/charm` block placed in the
+  template: the owner names it (e.g. "Compress") and writes a plain prompt. It's **invisible** in memories
+  copied from the form, where it appears only as a button with its name. **AI decides by itself** the period
+  and what to find/filter. "A command for AI added to the form"; more charm concepts will come later, so
+  build it as a general mechanism, not a Compress special case.
+
 ## Open questions (for owner, after concept review)
 - Is a filled form one Memory, or does each answer become linkable/searchable on its own?
 - Ratings/checklists over time: should they become trackable (trend of "satisfaction" across days)?

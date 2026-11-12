@@ -6,7 +6,9 @@ into a step-by-step build plan grounded in the real code (three research passes,
 
 ## The product, as decided
 - **A form is a memory.** Write the questions in an ordinary memory and flip **Use as form**. No builder.
-  The form also carries its **Compress instruction**, which tells AI what Compress does for it.
+  A form can also hold **Charms**: named AI commands written with `/charm` (e.g. a charm named
+  **Compress** whose body is a plain prompt). Charms are invisible in memories made from the form; they
+  show up there only as a button with the charm's name.
 - **Three field types, plain Markdown:**
   | Type | In the template `.md` | Filled |
   |---|---|---|
@@ -23,9 +25,10 @@ into a step-by-step build plan grounded in the real code (three research passes,
   expands ones you typed, sets a blank rating/tick only if you said it out loud, never overrides yours) →
   **the original recording stays at the bottom** → the "awaiting" mark is removed. It's now **forged**: a
   normal memory, editable anywhere.
-- **Compress (desktop):** a memory made from a form that has a Compress instruction shows one
-  **Compress** button, and nothing else beside it. AI reads the past memories the instruction names and fills the answers,
-  citing each fact with **date chips** that link to the memory of that day.
+- **Charms → Compress (desktop):** a memory made from a form shows one button per charm (e.g. **Compress**),
+  with nothing else beside it. Pressing it runs the charm's prompt. **AI decides by itself** which period and which
+  memories to search/filter (via Pensieve's read tools), then fills the answers, citing each fact with
+  **date chips** that link to the memory of that day. Charms are a general mechanism: more will come later.
 
 ## Ground truth from the code (what shapes the plan)
 1. **Frontmatter drops unknown keys** in all three parsers: desktop `src/lib/md/frontmatter.ts:34/66`,
@@ -57,27 +60,27 @@ into a step-by-step build plan grounded in the real code (three research passes,
 
 ### Phase 1: Foundations (no UI)
 - Frontmatter round-trips **unknown keys** in desktop TS, phone, and Rust MCP (fixes the MCP `icon` loss too).
-  New keys: `form: true` (template), `compress: "…"` (template), `fromForm: <templateId>` (made from a form),
+  New keys: `form: true` (template), `fromForm: <templateId>` (made from a form),
   `formStatus: awaiting` (phone session waiting for desktop).
 - `lib/forms/`, a pure module: parse a template `.md` → fields `[{kind, question, guidance, anchors|items}]`;
   locate each field's answer region in a filled memory; write answers back. Tested on the owner's
   Daily Review verbatim (9 fields → 3 types).
-- `pensieve:scale` fence codec (desktop) + phone parser parity.
+- `pensieve:scale` and `pensieve:charm` (name + prompt) fence codecs (desktop) + phone parser parity.
 - **Test:** round-trip suites (unknown keys survive edit+save on all 3 sides), parser on the real form.
 
 ### Phase 2: Desktop: author a form
-- **Use as form** toggle on a memory (in the existing memory menu), with the **Compress instruction** field
-  shown once it's a form.
+- **Use as form** toggle on a memory (in the existing memory menu).
+- **Charm block** (`/charm`): a named AI-command block (name + prompt), visible only in the template.
 - **Scale block** in the editor (slash menu `/scale`, edit N + anchors inline; owner's 1–5 anchors
   convert from the pasted numbered lines).
 - Build the owner's Daily Review as the first real form.
 
 ### Phase 3: Desktop: fill by hand
 - Empty new memory → offer "Start from a form" (disappears on first keystroke) → pick → questions
-  written in, `fromForm` set. Type / tick / rate in the normal editor. **`tauri:build`, owner tries it.**
+  written in (charms left out), `fromForm` set. Type / tick / rate in the normal editor. **`tauri:build`, owner tries it.**
 
 ### Phase 4: Phone: One Question deck
-- Entry point (see open question 1) → full-screen deck (scroll-snap pager), Dock per the standard
+- Entry: a **Form spell** in the gold Spell Menu (one form → straight in; several → pick) → full-screen deck (scroll-snap pager), Dock per the standard
   (Record · Back + gold menu), answer in place (type / tick / rate), progress dots.
 - **Session take:** one Record across all questions; live level visual at the top; screen-lock **pauses**
   and resumes into the same take instead of ending it.
@@ -93,11 +96,12 @@ into a step-by-step build plan grounded in the real code (three research passes,
   checkpoint first; reload the editor if that memory is open; remove `formStatus` → forged; sync.
 - **`tauri:build` + end-to-end on the real phone → sync → desktop.**
 
-### Phase 6: Compress
-- Compress button on memories whose form has a `compress` instruction (no caption).
-- Gather the named memories by date (existing date ranges + `fromForm`), one Claude call → answers with
-  date citations → date chips linking to those memories. Fields you're typing in are skipped.
-- Build the owner's **Weekly Summary** form as the first compress form. **`tauri:build`, owner tries it.**
+### Phase 6: Charms (Compress first)
+- One button per charm (its name, no caption) on memories made from a form.
+- Run = Claude with the Pensieve MCP **read** tools (add a date-range listing tool + `fromForm` filter so
+  AI can pick its own period), given the charm prompt + the form's fields → answers with date citations →
+  date chips linking to those memories. Fields you're typing in are skipped.
+- Build the owner's **Weekly Summary** form with a **Compress** charm as the first one. **`tauri:build`, owner tries it.**
 
 ### Phase 7: Close-out
 - Merge `update/forms` → `main`, final `tauri:build` + `deploy:phone`, folder → CLOSED.
@@ -105,3 +109,5 @@ into a step-by-step build plan grounded in the real code (three research passes,
 ## Live status
 - 2026-11-12: direction locked by owner (Jobs: Just a Note + One Question + Just a Note compress, with
   owner changes). Other concepts removed from the folder (in git history). Plan v2 written. Next: Phase 1.
+- 2026-11-12: owner answers: phone entry = a Form spell; Compress is a **`/charm`** block (named AI command,
+  free prompt, AI picks period/filters, hidden in copies). Plan updated. Next: Phase 1.
