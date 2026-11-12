@@ -130,9 +130,9 @@ describe("PhoneApp — the Spell Menu", () => {
     const ring = container.querySelector(".spell-ring");
     expect(ring).toBeTruthy();
     expect(ring?.classList.contains("hue-gold")).toBe(true);
-    // the seven real daily spells: Write, Accio, Sync, Snap, Record, Film, Journal
-    expect(GENERAL_SPELLS.map((s) => s.id)).toEqual(["write", "accio", "sync", "snap", "voice", "film", "journal"]);
-    expect(container.querySelectorAll(".spell-node").length).toBe(7);
+    // the eight real daily spells: Write, Accio, Sync, Snap, Record, Film, Journal, Form
+    expect(GENERAL_SPELLS.map((s) => s.id)).toEqual(["write", "accio", "sync", "snap", "voice", "film", "journal", "form"]);
+    expect(container.querySelectorAll(".spell-node").length).toBe(8);
     // no "see local" toggle on home — there's nothing page-local to suggest
     expect(container.querySelector(".spell-center-label")).toBeNull();
   });

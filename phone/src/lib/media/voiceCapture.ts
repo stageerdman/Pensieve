@@ -606,6 +606,19 @@ export async function stopRecording(): Promise<void> {
   if (active === a) active = null;
 }
 
+/** The take so far as one playable WAV, WITHOUT finishing it (the session stays open, so
+ *  recording can continue into the same file). The Forms review screen plays this back
+ *  before Done. Null when nothing is recording or nothing has been captured yet. */
+export async function previewTake(): Promise<Blob | null> {
+  if (!active) return null;
+  const a = active;
+  flushPending(a);
+  await a.lastAppend;
+  const chunks = await readChunksOrdered(a.session.id);
+  if (!chunks.length || a.session.mimeType !== "audio/wav") return null;
+  return buildWavBlob(chunks, a.session.sampleRate);
+}
+
 /** A live snapshot for the panel's rAF loop — null when nothing is recording. */
 export function activeSnapshot(): {
   state: VoiceRecorderState;

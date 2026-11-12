@@ -62,7 +62,11 @@ import { mintAudioRef, mintMediaRef, mintVideoRef, registerLocalMedia } from "./
 import { offerSaveToPhotos } from "./lib/media/saveToPhotos";
 import type { MediaImage } from "./lib/media/noteMedia";
 import { pauseAllAudio } from "./lib/media/audioController";
-import { recoverOrphanedRecordings, type VoiceCaptureDeps } from "./lib/media/voiceCapture";
+import { isRecording, pauseRecording, recoverOrphanedRecordings, resumeRecording, startRecording, stopRecording, activeSnapshot, type VoiceCaptureDeps } from "./lib/media/voiceCapture";
+import { FormSession } from "./components/form/FormSession";
+import { FormPicker } from "./components/form/FormPicker";
+import { applySession, finishSession, formsIn, mediaBlocksOf, sessionHasContent, startSession, type FormSessionModel, type SessionAnswer, type SessionAnswers } from "./lib/forms/session";
+import { serializeBlocks, type NoteBlock } from "./lib/media/noteMedia";
 
 const DICTATION_SAMPLE =
   "I keep coming back to the idea that the phone shouldn't make me think. It should just catch the thought before it escapes.";
@@ -167,6 +171,15 @@ export function PhoneApp() {
   const [detailBatchId, setDetailBatchId] = useState<string | null>(null);
   const [confirmDeleteRaw, setConfirmDeleteRaw] = useState(false);
   const detailBatch = rawBatches.find((b) => b.id === detailBatchId) ?? null;
+  // FORMS: the One Question walk-through in progress (null = none), and the "Which form?"
+  // picker. The session's memory object lives in formNoteRef — it's the SAME object that goes
+  // into the vault once it has something real in it (an answer or a recording).
+  const [formRun, setFormRun] = useState<{ model: FormSessionModel; answers: SessionAnswers; recording: boolean } | null>(null);
+  const formRunRef = useRef(formRun);
+  formRunRef.current = formRun;
+  const formNoteRef = useRef<Note | null>(null);
+  const formSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [formPicker, setFormPicker] = useState<Note[] | null>(null);
 
   const updateRawBatch = (b: RawMemory) => {
     setRawBatches((prev) => {
@@ -217,7 +230,7 @@ export function PhoneApp() {
   // The Spell Menu is context-aware: an open photo collection offers only "Photo" (add to that
   // gallery); a memory offers "Photo" + "Gallery"; home opens General. The collection sits on top
   // of the memory, so its context must win.
-  const menu = useSpellMenu(detailBatch ? "raw-detail" : collectionOpen ? "collection" : noteMounted ? "note" : "home");
+  const menu = useSpellMenu(formRun ? "form" : detailBatch ? "raw-detail" : collectionOpen ? "collection" : noteMounted ? "note" : "home");
 
   const kb = useKeyboardInset(rootRef, {
     onUp: () => fns.current.onKbUp(),
@@ -560,6 +573,20 @@ export function PhoneApp() {
   }
 
   function onPickFiles(files: FileList | null) {
+    if (formRunRef.current && formNoteRef.current) {
+      // The form walk-through's "Photo" extra: saved at the bottom of its memory.
+      const note = formNoteRef.current;
+      const images: MediaImage[] = [];
+      for (const file of Array.from(files ?? [])) {
+        if (!file.type.startsWith("image/")) continue;
+        const ref = mintMediaRef(note.id, file);
+        registerLocalMedia(ref, file);
+        images.push({ ref });
+      }
+      pickModeRef.current = "photo";
+      if (images.length) addFormMedia(images.length === 1 ? { kind: "image", ref: images[0].ref } : { kind: "gallery", images });
+      return;
+    }
     const noteBody = noteBodyRef.current;
     const note = currentRef.current;
     const mode = pickModeRef.current;
@@ -634,6 +661,15 @@ export function PhoneApp() {
 
   function onPickVideoFile(files: FileList | null) {
     const file = files?.[0];
+    if (formRunRef.current && formNoteRef.current) {
+      // The form walk-through's "Video" extra: saved at the bottom of its memory.
+      pickVideoModeRef.current = "film";
+      if (!file) return;
+      const ref = mintVideoRef(formNoteRef.current.id, file);
+      registerLocalMedia(ref, file);
+      addFormMedia({ kind: "video", ref });
+      return;
+    }
     const noteBody = noteBodyRef.current;
     const note = currentRef.current;
     const mode = pickVideoModeRef.current;
@@ -773,6 +809,146 @@ export function PhoneApp() {
     sparkleTimer.current = setTimeout(() => setSparkle(0), 300);
   }
 
+  // ---- FORMS: the One Question walk-through ----
+
+  /** The Form spell: one form → straight in; several → "Which form?"; none → how to make one. */
+  function castForm() {
+    const forms = formsIn(dataRef.current!);
+    if (!forms.length) showToast("No forms yet — on the computer: open a memory → ⋯ → Use as form");
+    else if (forms.length === 1) startForm(forms[0]);
+    else setFormPicker(forms);
+  }
+
+  function startForm(form: Note) {
+    setFormPicker(null);
+    accio.clearSearch();
+    const now = Date.now();
+    const id = newId();
+    const model = startSession(form, id, new Date(now));
+    const note: Note = {
+      id,
+      t: "",
+      c: "",
+      cat: form.cat,
+      shape: form.shape,
+      fill: 0.18,
+      d: "Just now",
+      created: "Just now",
+      createdAt: now,
+      updatedAt: now,
+      when: fmtNow(),
+    };
+    applySession(note, model, {});
+    formNoteRef.current = note;
+    setFormRun({ model, answers: {}, recording: false });
+    haptic(10);
+  }
+
+  /** Not in the vault until there's something real (like a Snap/Record capture). */
+  function ensureFormNoteSaved(): Note {
+    const note = formNoteRef.current!;
+    if (!dataRef.current!.some((n) => n.id === note.id)) {
+      dataRef.current!.unshift(note);
+      persistVault(dataRef.current!);
+      renderAll(filterQueryRef.current);
+    }
+    return note;
+  }
+
+  function saveFormNoteSoon() {
+    if (formSaveTimer.current) clearTimeout(formSaveTimer.current);
+    formSaveTimer.current = setTimeout(() => {
+      formSaveTimer.current = null;
+      persistVault(dataRef.current!);
+      renderAll(filterQueryRef.current);
+    }, 400);
+  }
+
+  function onFormAnswer(fieldId: string, a: SessionAnswer) {
+    const run = formRunRef.current;
+    const note = formNoteRef.current;
+    if (!run || !note) return;
+    const answers = { ...run.answers, [fieldId]: a };
+    applySession(note, run.model, answers);
+    note.updatedAt = Date.now();
+    note.d = "Just now";
+    note.fill = Math.min(1, Math.max(0.18, note.c.length / 220));
+    setFormRun({ ...run, answers });
+    if (sessionHasContent(note, answers)) {
+      ensureFormNoteSaved();
+      saveFormNoteSoon();
+      sync.edit();
+    }
+  }
+
+  function addFormMedia(block: NoteBlock) {
+    const run = formRunRef.current;
+    const note = ensureFormNoteSaved();
+    if (!run) return;
+    note.c = `${note.c}\n\n${serializeBlocks([block])}`;
+    applySession(note, run.model, run.answers);
+    note.updatedAt = Date.now();
+    persistVault(dataRef.current!);
+    renderAll(filterQueryRef.current);
+    sync.edit();
+    setFormRun({ ...run });
+    haptic(10);
+  }
+
+  /** Record in the Dock: start the ONE session take; then it toggles pause/resume. A phone lock
+   *  pauses it too (session mode) — tapping Record again picks the same take back up. */
+  async function onFormRecord() {
+    const run = formRunRef.current;
+    if (!run) return;
+    haptic(10);
+    const snap = activeSnapshot();
+    if (!run.recording) {
+      const note = ensureFormNoteSaved();
+      const r = await startRecording(note.id, note.c, voiceDeps, { keepOnHide: true });
+      if (!r.ok) {
+        showToast(r.error);
+        return;
+      }
+      setFormRun((cur) => (cur ? { ...cur, recording: true } : cur));
+      sync.edit();
+    } else if (snap?.state === "recording") pauseRecording();
+    else if (snap?.state === "paused") {
+      const r = await resumeRecording();
+      if (!r.ok) showToast(r.error);
+    }
+  }
+
+  /** Done (review) or Back (any question): stop + save the take, then mark the memory for the
+   *  desktop (transcribe → fill the answers). Nothing real in it → it never existed. */
+  async function finishForm() {
+    const run = formRunRef.current;
+    const note = formNoteRef.current;
+    if (!run || !note) return;
+    if (formSaveTimer.current) clearTimeout(formSaveTimer.current);
+    if (run.recording && isRecording()) await stopRecording(); // finalizes the WAV into note.c
+    const idx = dataRef.current!.findIndex((n) => n.id === note.id);
+    if (idx !== -1 && sessionHasContent(note, run.answers)) {
+      applySession(note, run.model, run.answers);
+      finishSession(note, run.model);
+      note.updatedAt = Date.now();
+      note.d = "Just now";
+      sync.edit();
+      showToast("Saved — the desktop fills in your answers after it syncs");
+    } else if (idx !== -1) {
+      dataRef.current!.splice(idx, 1);
+    }
+    persistVault(dataRef.current!);
+    renderAll(filterQueryRef.current);
+    formNoteRef.current = null;
+    setFormRun(null);
+    haptic(14);
+  }
+
+  function onFormSpell(id: "form-record" | "back" | "form-done") {
+    if (id === "form-record") void onFormRecord();
+    else void finishForm();
+  }
+
   /** A leaf spell was cast from the ring (no children, no window). A quick tap on Sync
    *  backs up immediately (see longCastSpell for the hold-to-open-panel half). */
   function castSpellAction(s: Spell) {
@@ -793,6 +969,9 @@ export function PhoneApp() {
     else if (s.id === "delete") setConfirmDelete(true); // never deletes on the tap — confirm first
     else if (s.id === "edit") phoneCollection.toggleEditMode(); // board-scoped: arrange/remove mode
     else if (s.id === "journal") setCaptureBatch(createRawBatch()); // mint + jump straight into the camera
+    else if (s.id === "form") castForm();
+    else if (s.id === "form-photo") openImagePicker("photo"); // lands at the bottom of the form's memory (onPickFiles)
+    else if (s.id === "form-film") openVideoPicker("upload"); // iOS offers Take Video / Library
     else if (s.id === "raw-add") {
       // "Add pages" from the detail ring: leave the detail sheet, resume shooting into
       // the SAME batch (not a new one) — the whole point of it still being editable.
@@ -907,7 +1086,7 @@ export function PhoneApp() {
   // so every touchmove inside them hit this guard's preventDefault(). Add any FUTURE
   // full-screen overlay here too, or it will look identically "dead" on a real device.
   useEffect(() => {
-    const SCROLLABLE = ".reel,.note,.search-results,.ph-lightbox,.ph-collection,.ph-reader,.ph-journal-capture,.ph-journal-strip";
+    const SCROLLABLE = ".reel,.note,.search-results,.ph-lightbox,.ph-collection,.ph-reader,.ph-journal-capture,.ph-journal-strip,.ph-form-deck,.ph-form-card";
     const onTouchMove = (e: TouchEvent) => {
       const t = e.target as Element | null;
       if (!t || !t.closest(SCROLLABLE)) e.preventDefault();
@@ -988,6 +1167,23 @@ export function PhoneApp() {
           />
         </>
       ) : null}
+
+      {/* FORMS: the One Question walk-through (below the Spell Menu overlay so the ring blooms over it) */}
+      {formRun ? (
+        <FormSession
+          session={formRun.model}
+          answers={formRun.answers}
+          onAnswer={onFormAnswer}
+          media={mediaBlocksOf(formNoteRef.current?.c ?? "")}
+          recording={formRun.recording}
+          onSpell={onFormSpell}
+          onOpenMenu={() => {
+            haptic(10);
+            menu.openMenu();
+          }}
+        />
+      ) : null}
+      {formPicker ? <FormPicker forms={formPicker} onPick={startForm} onCancel={() => setFormPicker(null)} /> : null}
 
       {/* THE SPELL MENU — radial overlay bloomed from the gold button */}
       <SpellMenu

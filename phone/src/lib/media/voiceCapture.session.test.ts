@@ -14,7 +14,7 @@ vi.mock("./recordingStore", () => ({
 const putMedia = vi.fn(async () => {});
 vi.mock("./mediaStore", () => ({ mintAudioRef: (noteId: string) => `media/${noteId}/a.wav`, putMedia: (...a: unknown[]) => putMedia(...(a as [])) }));
 
-import { activeSnapshot, resumeRecording, startRecording, stopRecording } from "./voiceCapture";
+import { activeSnapshot, pauseRecording, previewTake, resumeRecording, startRecording, stopRecording } from "./voiceCapture";
 import type { Note } from "../../types";
 
 let processors: { onaudioprocess: ((e: unknown) => void) | null }[] = [];
@@ -101,6 +101,22 @@ describe("voiceCapture session mode (keepOnHide)", () => {
     setHidden(true);
     await new Promise((r) => setTimeout(r, 0));
     expect(activeSnapshot()).toBeNull();
+    expect(putMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it("previewTake plays the take so far WITHOUT finishing it (the review screen)", async () => {
+    putMedia.mockClear();
+    await startRecording("n1", "", deps, { keepOnHide: true });
+    feed(2);
+    pauseRecording();
+    const wav = await previewTake();
+    expect(wav?.type).toBe("audio/wav");
+    expect(wav!.size).toBeGreaterThan(44); // header + samples
+    expect(activeSnapshot()?.state).toBe("paused"); // still open
+    expect(putMedia).not.toHaveBeenCalled();
+    await resumeRecording();
+    feed(1);
+    await stopRecording();
     expect(putMedia).toHaveBeenCalledTimes(1);
   });
 });

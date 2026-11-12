@@ -9,6 +9,7 @@ import "./styles/index.css";
 import "./styles/wand.css";
 import "./styles/dock.css";
 import "./styles/spellmenu.css";
+import "./styles/form.css";
 
 const CLEARED_FLAG = "pensieve.phone.clearedSeedOnce";
 

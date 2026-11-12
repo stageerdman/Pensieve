@@ -106,6 +106,14 @@ const PATHS: Record<Exclude<IconName, "menu" | "sync">, React.ReactNode> = {
   // an open book (two leaves meeting at a spine) — "digitize a paper journal," distinct
   // from every other capture glyph (camera/mic/video) since this isn't a single take, it's
   // a growing batch of pages (see updates/2026-11-09 RAW-MEMORY-JOURNAL).
+  // a page with question lines and a ticked box — "fill in one of your forms" (FORMS update).
+  form: (
+    <>
+      <rect x="5" y="3.5" width="14" height="17" rx="2" />
+      <path d="M9 8.5h6M9 12.5h6" />
+      <path d="m8.6 16.4 1.3 1.3 2.4-2.6" />
+    </>
+  ),
   book: (
     <>
       <path d="M12 7.2c-2.4-1.3-5.1-1.7-8-1.1v12.4c2.9-.6 5.6-.2 8 1.1Z" />

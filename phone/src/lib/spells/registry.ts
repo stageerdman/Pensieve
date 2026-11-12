@@ -29,6 +29,10 @@ export const GENERAL_SPELLS: Spell[] = [
   // getUserMedia session that stays open across the whole batch, since file-input
   // capture (what Snap/Film use) is single-shot by design and can't do that.
   { id: "journal", name: "Journal", icon: "book" },
+  // FORMS: walk one of your forms (e.g. the Daily Review) one question per screen, talking
+  // through it in one recording. One form → straight in; several → a picker. Shown only when
+  // the phone has at least one form (see PhoneApp's general roster).
+  { id: "form", name: "Form", icon: "form" },
 ];
 
 const BY_ID: Record<string, Spell> = {};
@@ -53,6 +57,14 @@ export function spellById(id: string): Spell | undefined {
  */
 export function conditionalSpells(context: PageContext): Spell[] {
   if (context === "home") return [];
+  // The form walk-through: the only extras are the rare "just in case" ones — a photo or a
+  // video, saved at the bottom of the memory with the recording.
+  if (context === "form") {
+    return [
+      { id: "form-photo", name: "Photo", icon: "camera" },
+      { id: "form-film", name: "Video", icon: "video" },
+    ];
+  }
   // inside an open photo collection: "Edit" toggles arrange/remove mode on the board; "Photo"
   // adds a photo to THAT gallery. No "Gallery" spell here: you can't nest a gallery in a gallery.
   if (context === "collection") {

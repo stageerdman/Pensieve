@@ -220,7 +220,7 @@ const PLAY_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentC
 const PAUSE_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5" width="3.6" height="14" rx="1"/><rect x="13.9" y="5" width="3.6" height="14" rx="1"/></svg>';
 const TRANSCRIPT_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6h14"/><path d="M5 10h10"/><path d="M5 14h14"/><path d="M5 18h8"/></svg>';
 
-function buildAudioEl(block: Extract<NoteBlock, { kind: "audio" }>, ctx: MediaCtx): HTMLElement {
+export function buildAudioEl(block: Extract<NoteBlock, { kind: "audio" }>, ctx: MediaCtx): HTMLElement {
   const el = document.createElement("div");
   el.className = "ph-media ph-audio";
   el.contentEditable = "false";

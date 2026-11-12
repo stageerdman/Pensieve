@@ -18,9 +18,12 @@ export interface DockProps {
   accio?: ExpandedAccioProps;
   /** tap handler for collapsed spells (non-home views). */
   onSpell?: (id: string) => void;
+  /** a collapsed spell that's "live" right now (e.g. the form walk-through's Record while the
+   *  take runs) — drawn hot (danger pulse) so its state reads at a glance. */
+  recordingSpell?: string;
 }
 
-export function Dock({ layout, onOpenMenu, menuBadge, accio, onSpell }: DockProps) {
+export function Dock({ layout, onOpenMenu, menuBadge, accio, onSpell, recordingSpell }: DockProps) {
   const placed = placeDock(layout);
   return (
     <div className="dock">
@@ -35,13 +38,20 @@ export function Dock({ layout, onOpenMenu, menuBadge, accio, onSpell }: DockProp
         if (p.kind === "expanded") {
           return (
             <div className="dock-cell dock-exp" style={{ gridColumn: `${p.startCell + 1} / span 3` }} key={`exp-${p.id}`}>
-              {p.id === "accio" && accio ? <ExpandedAccio {...accio} /> : null}
+              {p.id === "accio" && accio ? (
+                <ExpandedAccio {...accio} />
+              ) : p.id !== "accio" ? (
+                <button type="button" className="dock-action" onClick={() => onSpell?.(p.id)}>
+                  {p.icon ? <SpellGlyph icon={p.icon} size={22} /> : null}
+                  <span>{p.label ?? p.id}</span>
+                </button>
+              ) : null}
             </div>
           );
         }
         return (
           <div className="dock-cell" style={{ gridColumn: p.cell + 1 }} key={`c-${p.id}`}>
-            <button type="button" className="dock-spell" aria-label={p.id} data-badge={p.badge} onClick={() => onSpell?.(p.id)}>
+            <button type="button" className={"dock-spell" + (p.id === recordingSpell ? " is-rec" : "")} aria-label={p.id} data-badge={p.badge} onClick={() => onSpell?.(p.id)}>
               <SpellGlyph icon={p.icon} size={24} />
             </button>
           </div>

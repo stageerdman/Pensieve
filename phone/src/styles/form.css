@@ -1,0 +1,258 @@
+/* form.css — the Forms "One Question" walk-through (FORMS update; components/form/).
+   Full-screen like the photo collection: above the note (140), BELOW the Spell Menu overlay
+   (150) so the ring blooms over it. Controls are the Dock; the top line is info only. */
+
+.ph-form {
+  position: fixed;
+  inset: 0;
+  z-index: 145;
+  display: flex;
+  flex-direction: column;
+  background: hsl(var(--surface));
+  background-image: radial-gradient(120% 55% at 50% -12%, hsl(var(--accent-glow) / 0.12), transparent 55%);
+  animation: ph-form-in 0.32s var(--spring);
+}
+@keyframes ph-form-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ── top line: where you are + the live voice movement ─────────────────── */
+.ph-form-top {
+  flex: none;
+  padding: calc(14px + env(safe-area-inset-top)) 24px 4px;
+  min-height: calc(46px + env(safe-area-inset-top));
+}
+.ph-form-where {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: hsl(var(--text-muted));
+}
+.ph-form-rec {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: hsl(var(--danger));
+  font-variant-numeric: tabular-nums;
+}
+.ph-form-rec.is-paused { color: hsl(var(--text-muted)); }
+.ph-form-wave {
+  height: 30px;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.ph-form-wave .ph-voice-bar { max-width: 4px; }
+.ph-form-wave.is-paused .ph-voice-bar { background: hsl(var(--text-muted) / 0.5); }
+
+/* ── the deck: one question per screen, native vertical snap ──────────── */
+.ph-form-deck {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.ph-form-card {
+  position: relative;
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  overflow-y: auto;
+  padding: 26px 24px calc(190px + env(safe-area-inset-bottom));
+}
+.ph-form-q {
+  margin: 0;
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  line-height: 1.25;
+  color: hsl(var(--text));
+}
+.ph-form-guide {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: hsl(var(--text-muted));
+  white-space: pre-line;
+}
+.ph-form-hint { margin-top: 18px; }
+.ph-form-answer { margin-top: 18px; }
+
+.ph-form-text {
+  width: 100%;
+  min-height: 3.2em;
+  resize: none;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: hsl(var(--text));
+  font: inherit;
+  font-size: 17px;
+  line-height: 1.55;
+  padding: 0;
+}
+.ph-form-text::placeholder { color: hsl(var(--text-muted) / 0.5); }
+
+.ph-form-scale { display: flex; gap: 10px; flex-wrap: wrap; }
+.ph-form-scale button {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface-raised) / 0.5);
+  color: hsl(var(--text-muted));
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s var(--ease), background 0.12s var(--ease);
+}
+.ph-form-scale button:active { transform: scale(0.94); }
+.ph-form-scale button.on {
+  background: hsl(var(--accent));
+  border-color: hsl(var(--accent));
+  color: hsl(var(--surface));
+}
+.ph-form-anchor {
+  margin: 12px 0 0;
+  min-height: 1.4em;
+  font-size: 15px;
+  line-height: 1.4;
+  color: hsl(var(--text-muted));
+}
+
+.ph-form-check {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
+  font-size: 17px;
+  line-height: 1.4;
+  color: hsl(var(--text));
+  -webkit-tap-highlight-color: transparent;
+}
+.ph-form-box {
+  flex: none;
+  position: relative;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid hsl(var(--text-muted) / 0.55);
+  border-radius: 5px;
+  transform: translateY(3px);
+  transition: background 0.12s var(--ease), border-color 0.12s var(--ease);
+}
+.ph-form-check.on .ph-form-box { background: hsl(var(--accent)); border-color: hsl(var(--accent)); }
+.ph-form-check.on .ph-form-box::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  width: 5px;
+  height: 10px;
+  border: solid hsl(var(--surface));
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* "Next: …" — a tap target to move on (swiping works too), resting above the Dock. */
+.ph-form-peek {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: 14px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface-raised) / 0.85);
+  backdrop-filter: blur(var(--ctrl-blur));
+  -webkit-backdrop-filter: blur(var(--ctrl-blur));
+  font: inherit;
+  font-size: 13px;
+  color: hsl(var(--text-muted));
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.ph-form-peek b {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: hsl(var(--text));
+  font-weight: 600;
+}
+
+.ph-form-audio { margin-top: 4px; }
+.ph-form-extras { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; align-items: center; }
+.ph-form-thumb { width: 72px; height: 92px; border-radius: 10px; overflow: hidden; border: 1px solid hsl(var(--border)); }
+.ph-form-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.ph-form .dock { z-index: 146; }
+.app-root.kb-open .ph-form-peek { display: none; }
+
+/* the live Record spell + the expanded Done action */
+.dock-spell.is-rec {
+  border-color: hsl(var(--danger));
+  color: hsl(var(--danger));
+  background: hsl(var(--danger) / 0.14);
+}
+.dock-spell.is-rec::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 1.5px solid hsl(var(--danger) / 0.5);
+  animation: ph-voice-pulse 1.4s var(--ease) infinite;
+}
+.dock-action {
+  width: 100%;
+  height: var(--spell);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--gold) / 0.6);
+  background: hsl(var(--gold) / 0.12);
+  color: hsl(var(--gold));
+  font: inherit;
+  font-size: 16px;
+  font-weight: 650;
+  backdrop-filter: blur(var(--ctrl-blur)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--ctrl-blur)) saturate(1.3);
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s var(--ease);
+}
+.dock-action:active { transform: scale(0.97); }
+
+/* the "Which form?" picker (more than one form on the phone) */
+.ph-form-picker { display: flex; flex-direction: column; gap: 8px; }
+.ph-form-pick {
+  width: 100%;
+  padding: 13px 14px;
+  border-radius: 14px;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface-raised) / 0.7);
+  color: hsl(var(--text));
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}

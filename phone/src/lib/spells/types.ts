@@ -9,7 +9,7 @@
 //   · the radial Spell Menu overlay             — Spell / SpellMenuForm
 
 /** The glyph set (SVG lives in components/spellmenu/SpellGlyph). "menu" = the Orbit hero. */
-export type IconName = "menu" | "write" | "accio" | "sync" | "image" | "gallery" | "edit" | "back" | "camera" | "mic" | "trash" | "upload" | "video" | "book";
+export type IconName = "menu" | "write" | "accio" | "sync" | "image" | "gallery" | "edit" | "back" | "camera" | "mic" | "trash" | "upload" | "video" | "book" | "form";
 
 /** Sync's live status, mirrored from lib/wand/syncMachine so the dock/menu can badge it. */
 export type SyncBadge = "synced" | "reminder" | "syncing" | "failed" | "offline";
@@ -45,14 +45,14 @@ export type SpellMenuForm = "general" | "conditional";
 /** The page context that decides the menu's entry form + its conditional roster.
  *  "collection" = the full-screen photo board open on top of a memory (add a Photo to it; you
  *  can't nest a gallery in a gallery, so no "Gallery" spell there). */
-export type PageContext = "home" | "note" | "collection" | "raw-detail";
+export type PageContext = "home" | "note" | "collection" | "raw-detail" | "form";
 
 // ---- Dock (bottom control bar) ----
 
 /** A collapsed spell takes one cell; an expanded spell spans the 3 non-menu cells. */
 export type DockSpell =
   | { kind: "collapsed"; id: string; icon: IconName; label?: string; badge?: SyncBadge }
-  | { kind: "expanded"; id: string };
+  | { kind: "expanded"; id: string; icon?: IconName; label?: string };
 
 /**
  * A view declares its dock: which cell holds the gold menu button, and what fills the rest.

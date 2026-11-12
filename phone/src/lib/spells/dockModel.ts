@@ -24,6 +24,8 @@ export interface PlacedCollapsed {
 export interface PlacedExpanded {
   kind: "expanded";
   id: string;
+  icon?: IconName;
+  label?: string;
   startCell: DockCell; // 0 or 1
   span: 3;
 }
@@ -57,7 +59,7 @@ export function placeDock(layout: DockLayout): Placed[] {
     }
     const startCell: DockCell = menuSlot === 0 ? 1 : 0;
     const s = spells[0] as Extract<DockSpell, { kind: "expanded" }>;
-    out.push({ kind: "expanded", id: s.id, startCell, span: 3 });
+    out.push({ kind: "expanded", id: s.id, icon: s.icon, label: s.label, startCell, span: 3 });
     return out;
   }
 
