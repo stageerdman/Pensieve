@@ -178,6 +178,14 @@ interface ActiveState {
   /** The most recently scheduled chunk write — awaited before finalize reads chunks back, so
    *  the fire-and-forget IndexedDB write can never lose a race. */
   lastAppend: Promise<void>;
+  /** Session mode (Forms' one-take walk-through): a phone lock PAUSES the take instead of
+   *  finishing it. The mic is released (iOS gives a hidden PWA none anyway) and the session
+   *  stays open; the next resumeRecording() re-opens the mic and keeps appending to the SAME
+   *  session, so the whole walk-through is still one WAV. */
+  keepOnHide: boolean;
+  /** True while paused by a hide in keepOnHide mode — the graph is torn down, so resume must
+   *  re-acquire the mic first. */
+  suspended: boolean;
 }
 
 let active: ActiveState | null = null;
@@ -350,9 +358,27 @@ async function ensureNotificationPermission(): Promise<void> {
   }
 }
 
+/** Session mode's answer to a hide: pause, save what's captured, release the mic, keep the
+ *  session open for resumeRecording(). The chunks are already durable, so if the OS kills
+ *  the page while hidden, next launch's recovery sweep still finalizes the take. */
+async function suspendForHide(a: ActiveState) {
+  if (a.suspended || a.state === "stopping") return;
+  if (a.state === "recording") a.clock.pause(clockNow());
+  a.state = "paused";
+  a.capturing = false;
+  a.suspended = true;
+  flushPending(a);
+  await a.lastAppend;
+  await teardownStream(a);
+}
+
 async function onBackgrounded() {
   if (!active || active.state === "stopping") return;
   const a = active;
+  if (a.keepOnHide) {
+    await suspendForHide(a);
+    return;
+  }
   const elapsed = a.clock.elapsedSec(clockNow());
   notifyBackgroundStop(elapsed);
   a.state = "stopping";
@@ -381,9 +407,14 @@ async function requestWakeLock(a: ActiveState) {
   }
 }
 
-async function handleCaptureFailure() {
-  if (!active) return;
+async function handleCaptureFailure(from?: ActiveState) {
+  if (!active || (from && active !== from)) return;
   const a = active;
+  // In session mode a dying mic (iOS ends the track as the phone locks) is a pause, not the end.
+  if (a.keepOnHide) {
+    await suspendForHide(a);
+    return;
+  }
   active = null;
   a.capturing = false;
   flushPending(a);
@@ -403,12 +434,19 @@ export function isRecording(): boolean {
  *  untouched" apart from "the user added real content while this was running" (see
  *  VoiceCaptureDeps.removeIfUntouched). Resolves `{ok:false}` if the mic can't be opened — the
  *  caller shows that as an inline error, no note mutation happens. */
-export async function startRecording(
-  noteId: string,
-  placeholderBody: string,
-  deps: VoiceCaptureDeps,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (active) return { ok: false, error: "A recording is already in progress." };
+interface Graph {
+  stream: MediaStream;
+  audioCtx: AudioContext;
+  source: MediaStreamAudioSourceNode;
+  processor: ScriptProcessorNode;
+  silentGain: GainNode;
+  analyser: AnalyserNode | null;
+  data: Uint8Array<ArrayBuffer> | null;
+}
+
+/** Open the mic and build the capture graph (mic → analyser + silent ScriptProcessor). Used by
+ *  a fresh start AND by resuming a suspended session-mode take. */
+async function openGraph(): Promise<{ ok: true; graph: Graph } | { ok: false; error: string }> {
   let stream: MediaStream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -442,6 +480,46 @@ export async function startRecording(
   source.connect(processor);
   processor.connect(silentGain);
   silentGain.connect(audioCtx.destination);
+  return { ok: true, graph: { stream, audioCtx, source, processor, silentGain, analyser, data } };
+}
+
+/** Wire a freshly opened graph into the active session (start, or resume-after-suspend). */
+function attachGraph(a: ActiveState, g: Graph) {
+  a.stream = g.stream;
+  a.audioCtx = g.audioCtx;
+  a.source = g.source;
+  a.processor = g.processor;
+  a.silentGain = g.silentGain;
+  a.analyser = g.analyser;
+  a.data = g.data;
+  a.resample = createResampleState();
+  bindProcessor(a);
+  // ScriptProcessorNode has no 'error' event — the one real failure mode worth catching here is
+  // the mic track itself dying mid-session (device unplugged, OS revokes permission, etc).
+  g.stream.getAudioTracks()[0]?.addEventListener("ended", () => void handleCaptureFailure(a));
+  void requestWakeLock(a);
+}
+
+export interface StartOptions {
+  /** Session mode: a phone lock pauses (keeps the take open) instead of finishing it. */
+  keepOnHide?: boolean;
+}
+
+/** Start capturing into `noteId`. `placeholderBody` is the note's untouched content at this
+ *  exact moment — stored on the session so a later zero-chunk finalize can tell "still
+ *  untouched" apart from "the user added real content while this was running" (see
+ *  VoiceCaptureDeps.removeIfUntouched). Resolves `{ok:false}` if the mic can't be opened — the
+ *  caller shows that as an inline error, no note mutation happens. */
+export async function startRecording(
+  noteId: string,
+  placeholderBody: string,
+  deps: VoiceCaptureDeps,
+  opts: StartOptions = {},
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (active) return { ok: false, error: "A recording is already in progress." };
+  const opened = await openGraph();
+  if (!opened.ok) return opened;
+  const g = opened.graph;
 
   const mimeType = "audio/wav";
   const session: RecordingSessionMeta = {
@@ -458,13 +536,7 @@ export async function startRecording(
   const a: ActiveState = {
     session,
     deps,
-    stream,
-    audioCtx,
-    source,
-    processor,
-    silentGain,
-    analyser,
-    data,
+    ...g,
     resample: createResampleState(),
     seq: 0,
     clock,
@@ -474,16 +546,14 @@ export async function startRecording(
     pendingChunks: [],
     pendingSampleCount: 0,
     lastAppend: Promise.resolve(),
+    keepOnHide: !!opts.keepOnHide,
+    suspended: false,
   };
   active = a;
-  bindProcessor(a);
-  // ScriptProcessorNode has no 'error' event — the one real failure mode worth catching here is
-  // the mic track itself dying mid-session (device unplugged, OS revokes permission, etc).
-  stream.getAudioTracks()[0]?.addEventListener("ended", () => void handleCaptureFailure());
+  attachGraph(a, g);
   clock.start(clockNow());
 
   installVisibilityHandlerOnce();
-  void requestWakeLock(a);
   void ensureNotificationPermission();
   return { ok: true };
 }
@@ -500,12 +570,27 @@ export function pauseRecording(): void {
   flushPending(a); // don't leave up to ~1s of audio only in memory for an open-ended pause
 }
 
-export function resumeRecording(): void {
-  if (!active || active.state !== "paused") return;
+export async function resumeRecording(): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!active || active.state !== "paused") return { ok: true };
   const a = active;
+  if (a.suspended) {
+    // Paused by a phone lock in session mode: the mic was released — open it again and keep
+    // writing into the same session (seq continues, so finalize stitches one WAV).
+    const opened = await openGraph();
+    if (!opened.ok) return opened;
+    if (active !== a || a.state !== "paused") {
+      // stopped meanwhile — don't leak the freshly opened mic
+      opened.graph.stream.getTracks().forEach((t) => t.stop());
+      void opened.graph.audioCtx.close().catch(() => {});
+      return { ok: true };
+    }
+    attachGraph(a, opened.graph);
+    a.suspended = false;
+  }
   a.clock.resume(clockNow());
   a.state = "recording";
   a.capturing = true;
+  return { ok: true };
 }
 
 /** Manual stop — finalize into the note and tear down. Resolves once the note has the block. */
@@ -516,16 +601,22 @@ export async function stopRecording(): Promise<void> {
   a.capturing = false;
   flushPending(a);
   await a.lastAppend;
-  await teardownStream(a);
+  if (!a.suspended) await teardownStream(a);
   await finalizeAndCleanup(a.session, a.deps, "Recording saved");
   if (active === a) active = null;
 }
 
 /** A live snapshot for the panel's rAF loop — null when nothing is recording. */
-export function activeSnapshot(): { state: VoiceRecorderState; elapsedSec: number; sampleAmplitude: number } | null {
+export function activeSnapshot(): {
+  state: VoiceRecorderState;
+  elapsedSec: number;
+  sampleAmplitude: number;
+  /** Paused by a phone lock (session mode) — resuming re-opens the mic. */
+  suspended: boolean;
+} | null {
   if (!active) return null;
   const amp = active.state === "recording" && active.analyser && active.data ? sampleAmplitude(active.analyser, active.data) : 0;
-  return { state: active.state, elapsedSec: active.clock.elapsedSec(clockNow()), sampleAmplitude: amp };
+  return { state: active.state, elapsedSec: active.clock.elapsedSec(clockNow()), sampleAmplitude: amp, suspended: active.suspended };
 }
 
 /** Startup recovery sweep: finalize any session left behind by a harder kill than the
