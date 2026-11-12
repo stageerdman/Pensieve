@@ -42,3 +42,17 @@ All concepts dropped except the Steve Jobs team's (`concepts/jobs.html`, git his
 - Ratings/checklists over time: should they become trackable (trend of "satisfaction" across days)?
 - When AI expands a hand-typed answer, how is AI text distinguished from the owner's words?
 - Template editing after use: do old filled forms keep their version of the questions?
+
+## Phase 1 lessons (2026-11-12)
+- **Frontmatter now round-trips unknown keys** everywhere (desktop `NoteFields.extra`, phone
+  `ForeignMeta.extra`, Rust MCP `Frontmatter.extra`). Forms keys ride there: `form`, `fromForm`,
+  `formStatus`. Read them only via `src/lib/forms/meta.ts`.
+- **One forms module, shared**: `src/lib/forms/` is pure and dependency-free, and the phone imports it
+  directly (`../../../src/lib/forms`). That breaks the old "phone duplicates desktop parsers" habit on
+  purpose: this logic (field parsing, answer merge) is too important to keep two copies of.
+- **Field grammar works on the stored .md, line-based** — no editor in the loop, identical on both
+  platforms. Proven: the Daily Review round-trips byte-for-byte through the real BlockNote converter
+  (bar a trailing newline) AND through the phone's `parseNoteContent`/`serializeBlocks`.
+- BlockNote today loads `pensieve:scale`/`pensieve:charm` as plain code blocks (lossless); Phase 2 gives
+  them real blocks. The phone shows them as raw text lines until Phase 4 renders them.
+- Field ids are slugs of the question text, so they are stable between a template and memories made from it.

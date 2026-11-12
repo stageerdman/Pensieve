@@ -111,3 +111,6 @@ into a step-by-step build plan grounded in the real code (three research passes,
   owner changes). Other concepts removed from the folder (in git history). Plan v2 written. Next: Phase 1.
 - 2026-11-12: owner answers: phone entry = a Form spell; Compress is a **`/charm`** block (named AI command,
   free prompt, AI picks period/filters, hidden in copies). Plan updated. Next: Phase 1.
+- 2026-11-12: **Phase 1 DONE.** Frontmatter round-trips unknown keys (desktop/phone/MCP, + MCP icon-loss
+  fix) `06b9946`. `src/lib/forms/` (meta, scale/charm codecs, parseForm, instantiate, applyAnswers) shared
+  with the phone; 22 tests incl. the real Daily Review through BlockNote + the phone parser. Next: Phase 2.
