@@ -4,6 +4,7 @@ import { getStore } from "../lib/store";
 import { wordCount } from "../lib/text";
 import { makeEntry, truncateAfter, IDLE_MS } from "../lib/timeline";
 import { log } from "../lib/logger";
+import { FROM_FORM_KEY, memoryFromForm, withExtra } from "../lib/forms";
 
 export type SaveStatus = "idle" | "saving" | "saved";
 const SAVE_DEBOUNCE = 500;
@@ -209,6 +210,35 @@ export function useNotes() {
     [store, persist, startSession],
   );
 
+  // Start the open (empty) memory from a form: write the form's questions in (blank, dated
+  // title, charms left out) and remember which form it came from (`fromForm`, so its charm
+  // buttons can find their prompts later). Same out-of-band body swap as a Restore: cancel
+  // queued saves, remount the Editor via loadEpoch, persist, baseline a fresh session.
+  const startFromForm = useCallback(
+    async (templateId: string) => {
+      const note = currentRef.current;
+      if (!note) return;
+      const template = await store.load(templateId);
+      if (!template) return;
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (idleTimer.current) clearTimeout(idleTimer.current);
+      session.current = null;
+      const next: Note = {
+        ...note,
+        markdown: memoryFromForm(template.markdown, new Date()),
+        extra: withExtra(note.extra, FROM_FORM_KEY, templateId),
+      };
+      setCurrent(next);
+      currentRef.current = next;
+      setLoadEpoch((n) => n + 1);
+      await persist(next);
+      await startSession(next);
+      await refresh();
+      log.info("forms", "start", { id: note.id, form: templateId, title: template.title });
+    },
+    [store, persist, startSession, refresh],
+  );
+
   // Pin/unpin any note (not only the open one). Goes through the dedicated store
   // path so updatedAt is untouched, then refreshes the list so the Pinned band
   // updates. The open note's own pinned flag is kept in sync if it's the target.
@@ -275,5 +305,5 @@ export function useNotes() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [flushSave, closeSession]);
 
-  return { notes: notesWithBacklinks, current, status, loadEpoch, open, create, remove, change, updateMeta, togglePin, setCreatedAt, restoreVersion, refresh, recordOpen };
+  return { notes: notesWithBacklinks, current, status, loadEpoch, open, create, remove, change, updateMeta, togglePin, setCreatedAt, restoreVersion, startFromForm, refresh, recordOpen };
 }

@@ -12,6 +12,7 @@ import {
   parseForm,
   parseScale,
   withExtra,
+  memoryFromForm,
 } from "./index";
 import { DAILY_REVIEW } from "./dailyReview.fixture";
 
@@ -165,5 +166,17 @@ describe("applyAnswers", () => {
 
   it("ignores unknown ids and out-of-range ratings", () => {
     expect(applyAnswers(memory, { nope: { text: "x" }, [ids[0]]: { scale: 9 } })).toBe(memory);
+  });
+});
+
+describe("memoryFromForm", () => {
+  it("dates the title and keeps the questions", () => {
+    const md = memoryFromForm(DAILY_REVIEW, new Date(2026, 10, 12));
+    expect(md.split("\n")[0]).toBe("Daily Review — Thu 12 Nov");
+    expect(parseForm(md).fields).toHaveLength(9);
+    expect(parseForm(md).charms).toHaveLength(0);
+  });
+  it("keeps a heading mark on the title", () => {
+    expect(memoryFromForm("# Weekly\n\n**Wins?**", new Date(2026, 10, 16)).split("\n")[0]).toBe("# Weekly — Mon 16 Nov");
   });
 });

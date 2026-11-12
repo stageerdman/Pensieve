@@ -71,6 +71,7 @@ export default function App() {
     togglePin,
     setCreatedAt,
     restoreVersion,
+    startFromForm,
     refresh,
     recordOpen,
   } = useNotes();
@@ -479,7 +480,9 @@ export default function App() {
                           />
                         </div>
                       )}
-                      {!focusMode && <FormStrip note={current} />}
+                      {!focusMode && (
+                        <FormStrip note={current} notes={notes} onStartFrom={(id) => void startFromForm(id)} />
+                      )}
                       {previewEntry ? (
                         <div className="mx-auto max-w-[72ch]">
                           <div className="mb-3 flex items-center justify-between rounded border border-border bg-surface-sunken px-3 py-1.5 text-xs text-text-muted">
