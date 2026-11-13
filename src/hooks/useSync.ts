@@ -128,6 +128,7 @@ export function useSync(onChanged?: () => void) {
           setUi((u) => ({ ...u, phase: "error", errorKind: "expired", error: e.message, transfer: null }));
         } else if (e instanceof TransientSyncError) {
           setUi((u) => ({ ...u, phase: "error", errorKind: "offline", error: e.message, transfer: null }));
+          void refreshInfo(); // say WHICH account is unreachable (best-effort)
         } else {
           log.error("sync", "sync.failed", { error: String(e) });
           setUi((u) => ({

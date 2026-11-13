@@ -17,6 +17,16 @@ import { log } from "../logger";
 /** The signed-in account (Graph /me). Personal accounts expose the address as
  *  `userPrincipalName`; `mail` is often null, so fall back to it. */
 export async function getAccount(graph: GraphClient): Promise<SyncAccount> {
+  // The DRIVE's owner first: it's the account we actually back up to, and it answers even
+  // when the profile service (/me) is down — seen live 2026-11-13: /me → 502 UnknownError
+  // for a whole morning while /me/drive worked, so the panel could only say "OneDrive".
+  try {
+    const drive = await graph.json<{ owner?: { user?: { email?: string; displayName?: string } } }>("/me/drive?$select=owner");
+    const u = drive.owner?.user;
+    if (u?.email) return { email: u.email, displayName: u.displayName };
+  } catch {
+    /* fall through to the profile */
+  }
   const me = await graph.json<{ displayName?: string; mail?: string; userPrincipalName?: string }>(
     "/me?$select=displayName,mail,userPrincipalName",
   );

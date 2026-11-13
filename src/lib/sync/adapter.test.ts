@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { GraphClient, GraphFetchOptions } from "./graph";
 import {
+  getAccount,
   createRoot,
   deleteNote,
   deleteRawRecord,
@@ -125,6 +126,23 @@ describe("uploadNote", () => {
   it("maps 412 to ConflictError", async () => {
     const { graph } = fakeGraph([() => ({ status: 412 })]);
     await expect(uploadNote(graph, "n", "# hi", "stale")).rejects.toBeInstanceOf(ConflictError);
+  });
+});
+
+describe("getAccount", () => {
+  it("reads the drive owner (works even when /me is down)", async () => {
+    const { graph, calls } = fakeGraph([() => ({ status: 200, body: { owner: { user: { email: "a@b.c", displayName: "A" } } } })]);
+    expect(await getAccount(graph)).toEqual({ email: "a@b.c", displayName: "A" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].path).toContain("/me/drive");
+  });
+
+  it("falls back to the profile when the owner has no email", async () => {
+    const { graph } = fakeGraph([
+      () => ({ status: 200, body: { owner: { user: {} } } }),
+      () => ({ status: 200, body: { userPrincipalName: "p@q.r", displayName: "P" } }),
+    ]);
+    expect(await getAccount(graph)).toEqual({ email: "p@q.r", displayName: "P" });
   });
 });
 
