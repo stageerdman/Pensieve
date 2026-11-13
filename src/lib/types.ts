@@ -106,6 +106,9 @@ export interface TimelineEntry {
   wordDelta: number; // net words added (may be negative)
   created?: boolean; // true for the very first session of a note
   markdown?: string; // snapshot of the body at session close — the restorable version
+  /** Why an out-of-band snapshot exists: "before-ai" = what arrived before an AI fill (the
+   *  version a Redo goes back to); "before-redo" = the AI result a Redo replaced. */
+  label?: "before-ai" | "before-redo";
 }
 
 /** Storage backend. Implemented by the browser adapter (dev) and Tauri (native). */

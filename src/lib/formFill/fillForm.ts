@@ -63,7 +63,7 @@ export async function fillFormMemory(noteId: string, deps: FillDeps): Promise<Fi
   // A restore point first: the Timeline can always bring back exactly what the phone sent.
   if (markdown !== note.markdown) {
     const entries = await deps.loadTimeline(noteId);
-    await deps.saveTimeline(noteId, [...entries, { ts: Date.now() - 1, wordDelta: 0, markdown: note.markdown }]);
+    await deps.saveTimeline(noteId, [...entries, { ts: Date.now() - 1, wordDelta: 0, markdown: note.markdown, label: "before-ai" }]);
   }
   await deps.save({ ...note, markdown, extra: withExtra(note.extra, FORM_STATUS_KEY, undefined) });
   log.info("form", "fill.done", { id: noteId, filled });

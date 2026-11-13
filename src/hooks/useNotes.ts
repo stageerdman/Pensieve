@@ -328,5 +328,5 @@ export function useNotes() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [flushSave, closeSession]);
 
-  return { notes: notesWithBacklinks, current, status, loadEpoch, open, create, remove, change, updateMeta, togglePin, setCreatedAt, restoreVersion, startFromForm, reloadFromDisk, refresh, recordOpen };
+  return { notes: notesWithBacklinks, current, status, loadEpoch, open, create, remove, change, updateMeta, togglePin, setCreatedAt, restoreVersion, startFromForm, reloadFromDisk, flush: flushSave, refresh, recordOpen };
 }

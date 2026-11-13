@@ -9,6 +9,10 @@ import { audioRefsOf } from "./fillForm";
 export interface FormQueueItem {
   noteId: string;
   title: string;
+  /** Its recordings — the queue holds the form back while any is still queued to transcribe
+   *  (a Redo re-transcribes on top of an existing transcript, which would otherwise count
+   *  as "ready" and fill from the OLD transcript). */
+  audioRefs: string[];
 }
 
 export type FormQueueStore = Pick<Store, "list" | "load" | "loadTranscript">;
@@ -22,7 +26,7 @@ export async function listFormsToFill(store: FormQueueStore): Promise<FormQueueI
     if (!note) continue;
     const refs = audioRefsOf(note.markdown);
     const ready = (await Promise.all(refs.map((r) => store.loadTranscript(r)))).every((t) => t !== null);
-    if (ready) out.push({ noteId: m.id, title: m.title || "Form" });
+    if (ready) out.push({ noteId: m.id, title: m.title || "Form", audioRefs: refs });
   }
   return out;
 }

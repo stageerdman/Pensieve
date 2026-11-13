@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { processQueue } from "./transcription/processQueueController";
 import { useDismiss } from "../hooks/useDismiss";
 import { SyncRune } from "./icons";
 import { SyncFlask } from "./SyncFlask";
@@ -50,6 +51,9 @@ export function SyncStatus({
     sync;
   const [open, setOpen] = useState(false);
   const [justSynced, setJustSynced] = useState(false);
+  // A manual Transcribe / Regenerate / Redo slides the drawer open, so the new row (and its
+  // progress) is visible right away instead of hiding behind a closed panel (owner report).
+  useEffect(() => processQueue.onReveal(() => setOpen(true)), []);
   const ref = useDismiss<HTMLDivElement>(() => setOpen(false), { enabled: open });
 
   // Brief success flash right after a sync, then settle back to calm muted.
