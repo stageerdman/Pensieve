@@ -3,7 +3,7 @@ import { Plugin, PluginKey } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { log } from "../../../lib/logger";
 
-// Cmd+V paste and drag-drop of image files, added through BlockNote's
+// Drag-drop of media files (+ the ⌘V image paste hook, handleImagePaste), added through BlockNote's
 // `_tiptapOptions.extensions` escape hatch (modelled on blockSelectionDecorations). The
 // plugin only DETECTS images and the drop target; the actual save+insert is delegated to
 // a handler the Editor registers (it owns the BlockNote editor + note id). A calm full-
@@ -67,6 +67,25 @@ const videoFrom = (dt: DataTransfer | null): File[] => {
   return out;
 };
 
+// ⌘V of an image (a copied image file from Finder, a screenshot sent to the clipboard, an
+// image copied from a browser/Preview). Called from BlockNote's `pasteHandler` option — NOT
+// a PM `handlePaste` prop: BlockNote's own paste plugin listens on the DOM `paste` event and
+// calls preventDefault() on EVERY paste, so ProseMirror never reaches any plugin's
+// handlePaste and an image paste silently did nothing (its default handler then found no
+// matching file block in our schema). Returns true when it took the paste.
+export function handleImagePaste(event: ClipboardEvent): boolean {
+  const dt = event.clipboardData;
+  const files = imagesFrom(dt);
+  log.debug("media", "paste.received", {
+    types: Array.from(dt?.types ?? []),
+    files: files.map((f) => `${f.name}:${f.type}:${f.size}`),
+  });
+  if (!files.length) return false;
+  event.preventDefault();
+  onFiles?.(files, null); // at the cursor
+  return true;
+}
+
 const hasFiles = (dt: DataTransfer | null): boolean =>
   !!dt &&
   (Array.from(dt.types).includes("Files") ||
@@ -118,13 +137,6 @@ export const ImagePasteDrop = Extension.create({
       new Plugin({
         key,
         props: {
-          handlePaste: (_view, event) => {
-            const files = imagesFrom(event.clipboardData);
-            if (!files.length) return false;
-            event.preventDefault();
-            onFiles?.(files, null); // at the cursor
-            return true;
-          },
           handleDOMEvents: {
             dragover: (view, event) => {
               if (!hasFiles(event.dataTransfer)) return false;

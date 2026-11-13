@@ -21,7 +21,7 @@ import { blocksToExtendedMd, extendedMdToBlocks } from "../../lib/md/extended";
 import { setNoteLinkOpen, setNoteLinkResolve } from "./noteLink";
 import { editorSchema } from "./editorSchema";
 import { BlockSelectionDecorations } from "./blockSelectionDecorations";
-import { ImagePasteDrop, setImageDropHandlers } from "./media/imagePasteDrop";
+import { ImagePasteDrop, handleImagePaste, setImageDropHandlers } from "./media/imagePasteDrop";
 import { setMediaNoteId } from "./media/mediaContext";
 import { makeUploadFile } from "./media/insertImage";
 import { insertImagesSmart, type GroupEditor } from "./media/insertGroup";
@@ -169,6 +169,8 @@ export function Editor({
     // Phase-0 save flow; uploadFile is BlockNote's own funnel for file selection.
     uploadFile: makeUploadFile(() => selfId),
     _tiptapOptions: { extensions: [BlockSelectionDecorations, ImagePasteDrop] },
+    // An image on the clipboard → our save+insert flow; anything else → BlockNote's default.
+    pasteHandler: ({ event, defaultPasteHandler }) => handleImagePaste(event) || defaultPasteHandler(),
   });
   const loading = useRef(true);
   const wrapRef = useRef<HTMLDivElement>(null);
