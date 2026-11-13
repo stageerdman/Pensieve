@@ -78,6 +78,19 @@ export async function listNotes(graph: GraphClient): Promise<RemoteItem[]> {
   return out;
 }
 
+/** A failed CONTENT download (`:/content`). Graph answers with a 302 to OneDrive's content
+ *  host; a 401 there survives the client's token refresh (seen live 2026-11-13: every file
+ *  on my.microsoftpersonalcontent.com → 401 HTML while listing/metadata with the same token
+ *  worked) — that's OneDrive's content service down, not our login. Transient, like a 5xx:
+ *  sync backs off and tries again instead of showing raw HTML. */
+async function contentError(what: string, res: Response): Promise<Error> {
+  const text = await res.text().catch(() => "");
+  if (res.status === 401 || res.status === 429 || res.status >= 500) {
+    return new TransientSyncError(`OneDrive can't hand out file contents right now (${res.status}) — sync will try again.`);
+  }
+  return new Error(`${what} failed (${res.status}): ${text.slice(0, 200)}`);
+}
+
 export async function downloadNote(graph: GraphClient, name: string): Promise<{ content: string; item: RemoteItem } | null> {
   const metaRes = await graph.fetch(`${filePath(name)}?$select=id,name,eTag,cTag,size,lastModifiedDateTime`);
   if (metaRes.status === 404) return null;
@@ -87,10 +100,7 @@ export async function downloadNote(graph: GraphClient, name: string): Promise<{ 
   }
   const item = (await metaRes.json()) as RemoteItem;
   const contentRes = await graph.fetch(`${filePath(name)}:/content`);
-  if (!contentRes.ok) {
-    const text = await contentRes.text().catch(() => "");
-    throw new Error(`downloadNote content failed (${contentRes.status}): ${text.slice(0, 200)}`);
-  }
+  if (!contentRes.ok) throw await contentError("downloadNote content", contentRes);
   const content = await contentRes.text();
   return { content, item };
 }
@@ -171,10 +181,7 @@ export async function downloadRawRecord(graph: GraphClient, id: string): Promise
   }
   const item = (await metaRes.json()) as RemoteItem;
   const contentRes = await graph.fetch(`${rawFilePath(id)}:/content`);
-  if (!contentRes.ok) {
-    const text = await contentRes.text().catch(() => "");
-    throw new Error(`downloadRawRecord content failed (${contentRes.status}): ${text.slice(0, 200)}`);
-  }
+  if (!contentRes.ok) throw await contentError("downloadRawRecord content", contentRes);
   const content = await contentRes.text();
   return { content, item };
 }
@@ -266,10 +273,7 @@ export async function uploadMedia(graph: GraphClient, ref: string, bytes: Uint8A
 export async function downloadMedia(graph: GraphClient, ref: string): Promise<Uint8Array | null> {
   const res = await graph.fetch(`${mediaItemPath(ref)}:/content`);
   if (res.status === 404) return null;
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`downloadMedia failed (${res.status}): ${text.slice(0, 200)}`);
-  }
+  if (!res.ok) throw await contentError("downloadMedia", res);
   return new Uint8Array(await res.arrayBuffer());
 }
 
