@@ -48,7 +48,11 @@ const STATE_KEY = "pensieve.phone.syncState";
 export function phoneVault(): LocalVault {
   return {
     async listNotes() {
-      return loadVault().map((n) => ({ id: n.id, updatedAt: n.updatedAt }));
+      // A form walk-through in progress (`draft`) never syncs as a memory — it leaves the
+      // phone as a sealed package on Done (see lib/forms/session packageFromSession).
+      return loadVault()
+        .filter((n) => !n.draft)
+        .map((n) => ({ id: n.id, updatedAt: n.updatedAt }));
     },
 
     async readNote(id) {

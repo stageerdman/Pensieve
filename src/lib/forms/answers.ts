@@ -7,6 +7,7 @@
 // Pure + dependency-free (shared with the phone PWA).
 
 import { SCALE_LANG, encodeScale, fence } from "./fences";
+import { PATRONUS_LANG } from "../packages/patronus";
 import { parseForm, scanFences, CHECK_ITEM, type FormField } from "./parse";
 
 /** A form template → the body of a new memory: the same questions, blank (no rating, no
@@ -17,6 +18,9 @@ export function instantiate(templateMd: string): string {
   const { charms, fields } = parseForm(templateMd);
   const drop = new Set<number>();
   for (const c of charms) for (let i = c.start; i <= c.end; i++) drop.add(i);
+  // The form's own Patronus block (its sync spell) stays in the template too — a phone
+  // package gets a copy at its END (lib/packages), a desktop memory never needs it.
+  for (const f of scanFences(lines)) if (f.lang === PATRONUS_LANG) for (let i = f.start; i <= f.end; i++) drop.add(i);
   // A new memory starts blank: a rating or tick left on the form itself isn't carried over.
   for (const f of fields) {
     for (const it of f.items ?? []) lines[it.line] = lines[it.line].replace(CHECK_ITEM, "$1[ ]$3$4");

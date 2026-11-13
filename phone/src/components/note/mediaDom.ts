@@ -13,6 +13,7 @@
 // reorder, merge) updates the payload + rebuilds visuals + calls ctx.onChange() so autosave
 // serializes the new body.
 
+import { parsePatronus } from "../../../../src/lib/packages/patronus";
 import { esc, haptic } from "../../util";
 import {
   collapseImages,
@@ -21,6 +22,7 @@ import {
   encodeVideoNoteBlock,
   encodeScaleNoteBlock,
   encodeCharmNoteBlock,
+  encodePatronusNoteBlock,
   galleryMd,
   journalMd,
   mediaAlt,
@@ -701,6 +703,28 @@ function buildScaleEl(block: Extract<NoteBlock, { kind: "scale" }>, ctx: MediaCt
   return el;
 }
 
+/** The Patronus block (a package's sync spell): a small breathing orb, "Patronus", and the
+ *  instruction — read-only; it runs on the computer when the package syncs. */
+function buildPatronusEl(block: Extract<NoteBlock, { kind: "patronus" }>): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "ph-media ph-patronus";
+  el.contentEditable = "false";
+  writeBlock(el, block);
+  const head = document.createElement("div");
+  head.className = "ph-patronus-head";
+  const orb = document.createElement("span");
+  orb.className = "ph-patronus-orb";
+  orb.setAttribute("aria-hidden", "true");
+  const label = document.createElement("span");
+  label.textContent = "Patronus";
+  head.append(orb, label);
+  const spell = document.createElement("div");
+  spell.className = "ph-patronus-spell";
+  spell.textContent = parsePatronus(block.body).instruction;
+  el.append(head, spell);
+  return el;
+}
+
 /** A charm (a named AI command in a form) only runs on the computer — show its name quietly. */
 function buildCharmEl(block: Extract<NoteBlock, { kind: "charm" }>): HTMLElement {
   const el = document.createElement("div");
@@ -790,6 +814,7 @@ function buildBlockEl(block: NoteBlock, ctx: MediaCtx, noteBody: HTMLElement): H
   if (block.kind === "list") return buildListGroup(block.items, ctx);
   if (block.kind === "scale") return buildScaleEl(block, ctx);
   if (block.kind === "charm") return buildCharmEl(block);
+  if (block.kind === "patronus") return buildPatronusEl(block);
   if (block.kind === "audio") return buildAudioEl(block, ctx);
   if (block.kind === "video") return buildVideoEl(block, ctx);
   if (block.kind === "journal") return buildJournalEl(block, ctx);
@@ -860,6 +885,7 @@ export function serializeNoteBody(noteBody: HTMLElement): { title: string; conte
       else if (b?.kind === "journal") parts.push(journalMd(b.pages));
       else if (b?.kind === "scale") parts.push(encodeScaleNoteBlock(b));
       else if (b?.kind === "charm") parts.push(encodeCharmNoteBlock(b));
+      else if (b?.kind === "patronus") parts.push(encodePatronusNoteBlock(b));
     } else if (el.tagName === "UL" || el.tagName === "OL") {
       parts.push(serializeListEl(el).join("\n"));
     } else {
