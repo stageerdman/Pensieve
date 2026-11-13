@@ -117,6 +117,6 @@ describe("listFormsToFill", () => {
     };
     expect(await listFormsToFill(store)).toEqual([]);
     store.loadTranscript.mockResolvedValue(transcript("hi"));
-    expect(await listFormsToFill(store)).toEqual([{ noteId: "s1", title: s.title }]);
+    expect(await listFormsToFill(store)).toEqual([{ noteId: "s1", title: s.title, audioRefs: [AUDIO] }]);
   });
 });

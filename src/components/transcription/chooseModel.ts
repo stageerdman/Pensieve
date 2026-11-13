@@ -1,9 +1,9 @@
 // A tiny imperative model chooser for the manual "Create / Regenerate transcript" action.
 // The owner's rule: automatic transcription is silent (Czech), but a MANUAL transcribe asks
-// one quick question — English (fast / Parakeet) or Czech (best quality / default). Promise
+// one quick question — English (fast / Parakeet, the default) or Czech (best for Czech). Promise
 // resolves with the chosen model, or null if dismissed. Plain DOM + token CSS vars so it
 // reads correctly in either theme and needs no React tree.
-import type { TranscriptionModel } from "../../lib/transcripts/models";
+import { DEFAULT_MODEL, type TranscriptionModel } from "../../lib/transcripts/models";
 
 export function chooseTranscriptionModel(): Promise<TranscriptionModel | null> {
   return new Promise((resolve) => {
@@ -58,22 +58,24 @@ export function chooseTranscriptionModel(): Promise<TranscriptionModel | null> {
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") { e.preventDefault(); close(null); }
-      else if (e.key === "Enter") { e.preventDefault(); close("czech-whisper"); }
+      else if (e.key === "Enter") { e.preventDefault(); close(DEFAULT_MODEL); }
     };
 
-    const czech = makeBtn("Czech", "best quality · default", true, () => close("czech-whisper"));
-    const english = makeBtn("English", "fast", false, () => close("parakeet"));
+    // Default first + primary (English since 2026-11-13); Enter picks it.
+    const english = makeBtn("English", "fast · default", DEFAULT_MODEL === "parakeet", () => close("parakeet"));
+    const czech = makeBtn("Czech", "best for Czech · slower", DEFAULT_MODEL === "czech-whisper", () => close("czech-whisper"));
+    const [first, second] = DEFAULT_MODEL === "parakeet" ? [english, czech] : [czech, english];
     const cancel = document.createElement("button");
     cancel.type = "button";
     cancel.textContent = "Cancel";
     cancel.style.cssText = css("margin-top:12px;width:100%;border:none;background:transparent;color:hsl(var(--text-muted));font-size:12px;cursor:pointer;");
     cancel.onclick = () => close(null);
 
-    card.append(czech, english, cancel);
+    card.append(first, second, cancel);
     overlay.append(card);
     overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(null); });
     document.addEventListener("keydown", onKey);
     document.body.appendChild(overlay);
-    czech.focus();
+    first.focus();
   });
 }

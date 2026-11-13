@@ -15,6 +15,7 @@ type ReqListener = (r: TranscribeRequest) => void;
 type ResultListener = (ok: boolean) => void;
 
 const reqSubs = new Set<ReqListener>();
+const revealSubs = new Set<() => void>();
 const resultSubs = new Map<string, Set<ResultListener>>();
 
 export const processQueue = {
@@ -22,7 +23,14 @@ export const processQueue = {
    *  received it (0 → the queue isn't mounted, so the caller should fall back). */
   request(r: TranscribeRequest): number {
     reqSubs.forEach((f) => f(r));
+    if (reqSubs.size) revealSubs.forEach((f) => f());
     return reqSubs.size;
+  },
+  /** The sync drawer listens here to slide open when a manual request is queued. Kept apart
+   *  from subscribeRequests, whose listener COUNT means "a queue is mounted". */
+  onReveal(l: () => void): () => void {
+    revealSubs.add(l);
+    return () => revealSubs.delete(l);
   },
   /** The queue hook subscribes here. */
   subscribeRequests(l: ReqListener): () => void {

@@ -7,7 +7,7 @@
 // Pure + dependency-free (shared with the phone PWA).
 
 import { SCALE_LANG, encodeScale, fence } from "./fences";
-import { parseForm, CHECK_ITEM, type FormField } from "./parse";
+import { parseForm, scanFences, CHECK_ITEM, type FormField } from "./parse";
 
 /** A form template → the body of a new memory: the same questions, blank (no rating, no
  *  ticks), with every charm left out (charms live only in the template; a memory shows
@@ -49,6 +49,10 @@ export interface FieldAnswer {
 export type Answers = Record<string, FieldAnswer>;
 
 const EMPTY_LIST_ITEM = /^\s*([-*+]|\d+[.)])\s*$/;
+/** The desktop editor keeps a blank paragraph as a zero-width space (lib/md/extended.ts);
+ *  String.trim() does NOT strip it, so it must be named explicitly. */
+const ZWSP = "\u200b";
+const isFiller = (l: string) => !l.replace(/\u200b/g, "").trim() || EMPTY_LIST_ITEM.test(l);
 
 /** The typed answer of a field: its prose lines minus the template's scaffold (the
  *  guidance lines the template already had for that field). */
@@ -96,18 +100,36 @@ export function applyAnswers(markdown: string, answers: Answers): string {
       // above may have shifted them by a line).
       const cur = parseForm(lines.join("\n")).fields.find((x) => x.line === f.line);
       const end = cur ? cur.end : f.end;
-      // Drop empty list starters ("* ", "1.") and trailing blanks at the region's end,
-      // then add the text after the last real line.
+      // The answer goes RIGHT UNDER the question (or under what's already typed). Walk back
+      // from the region's end over its "tail": filler (blank lines, the desktop's ZWSP spacer
+      // paragraphs, empty "* " / "1." starters) and any trailing media fence (a session's
+      // recording sits at the very bottom, inside the LAST field's region — the answer must
+      // land above it, not under it).
+      const media = new Map(
+        scanFences(lines).filter((x) => x.lang !== SCALE_LANG && x.start > f.line && x.end < end).map((x) => [x.end, x] as const),
+      );
       let last = end - 1;
-      while (last > f.line && (!lines[last].trim() || EMPTY_LIST_ITEM.test(lines[last]))) {
-        if (EMPTY_LIST_ITEM.test(lines[last])) lines.splice(last, 1);
+      while (last > f.line) {
+        const fz = media.get(last);
+        if (fz) {
+          last = fz.start - 1;
+          continue;
+        }
+        if (!isFiller(lines[last])) break;
         last--;
       }
-      const insert = ["", ...text.split("\n")];
-      const after = last + 1;
-      // Keep one blank line before whatever follows (next question / charm / EOF).
-      if (after < lines.length && lines[after].trim()) insert.push("");
-      lines.splice(after, 0, ...insert);
+      // Rebuild the tail: answer, then one spacer if the template had one, then the media.
+      const tail = lines.slice(last + 1, end);
+      const hadSpacer = tail.some((l) => l.includes(ZWSP));
+      const keptMedia = [...media.values()]
+        .filter((x) => x.start > last)
+        .sort((x, y) => x.start - y.start)
+        .map((fz) => lines.slice(fz.start, fz.end + 1));
+      const seg = ["", ...text.split("\n")];
+      if (hadSpacer) seg.push("", ZWSP);
+      for (const m of keptMedia) seg.push("", ...m);
+      if (end < lines.length) seg.push(""); // a blank line before the next question
+      lines.splice(last + 1, end - (last + 1), ...seg);
     }
   }
   return lines.join("\n");

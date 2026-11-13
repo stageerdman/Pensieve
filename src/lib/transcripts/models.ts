@@ -5,10 +5,11 @@
 // Ground truth (ported from /dev/transcriber, 2026-10-18):
 //  · "czech-whisper" = mikr/whisper-large-v3-czech-cv13 → Apple-MLX fp16, via mlx-whisper +
 //    Silero-VAD chunking. Best Czech quality and the safe pick for anything complicated/noisy.
-//    Slower. THE DEFAULT (and what automatic transcription always uses).
+//    Slower. The pick for Czech recordings.
 //  · "parakeet" = mlx-community/parakeet-tdt-0.6b-v3, via parakeet-mlx. NVIDIA TDT (not an
 //    encoder-decoder), multilingual + auto-detecting, ~60× realtime, essentially never
-//    hallucinates. Surfaced to the owner as the "simple English" / fast choice.
+//    hallucinates. Surfaced to the owner as "English". THE DEFAULT since 2026-11-13 (owner:
+//    "my default should be in English") — automatic transcription uses it.
 // The owner's mental model is deliberately simple ("simple English" vs "complicated / Czech");
 // we do NOT expose that Parakeet is technically multilingual.
 
@@ -16,7 +17,7 @@ export type TranscriptionModel = "czech-whisper" | "parakeet";
 
 /** The default model: automatic transcription always uses it, and it's the safe pick in the
  *  manual choice. */
-export const DEFAULT_MODEL: TranscriptionModel = "czech-whisper";
+export const DEFAULT_MODEL: TranscriptionModel = "parakeet";
 
 export interface ModelInfo {
   id: TranscriptionModel;
@@ -36,14 +37,14 @@ export const MODELS: Record<TranscriptionModel, ModelInfo> = {
     backendId: "mikr/whisper-large-v3-czech-cv13",
     choiceLabel: "Czech Mix (Slow)",
     chipLabel: "Czech",
-    isDefault: true,
+    isDefault: false,
   },
   parakeet: {
     id: "parakeet",
     backendId: "mlx-community/parakeet-tdt-0.6b-v3",
     choiceLabel: "English (Fast)",
     chipLabel: "English",
-    isDefault: false,
+    isDefault: true,
   },
 };
 

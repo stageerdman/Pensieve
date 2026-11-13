@@ -8,6 +8,7 @@ import { TimelinePanel } from "./components/TimelinePanel";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { OverflowMenu } from "./components/OverflowMenu";
 import { FormStrip } from "./features/forms/FormStrip";
+import { useFormRedo } from "./features/forms/useFormRedo";
 import { FORM_KEY, isFormTemplate, withExtra } from "./lib/forms";
 import { FlaskButton } from "./components/FlaskButton";
 import { TabBar, HOME, type ExtraTab } from "./components/TabBar";
@@ -73,9 +74,11 @@ export default function App() {
     restoreVersion,
     startFromForm,
     reloadFromDisk,
+    flush,
     refresh,
     recordOpen,
   } = useNotes();
+  const formRedo = useFormRedo({ note: current, loadEpoch, flush, reloadFromDisk });
   // A sync that pulled remote changes refreshes the list; if the open note was one
   // of them, reload it into the editor so on-screen content matches disk.
   const currentId = current?.id;
@@ -406,6 +409,15 @@ export default function App() {
                                   extra: withExtra(n.extra, FORM_KEY, isFormTemplate(n.extra) ? undefined : "true"),
                                 })),
                             },
+                            ...(formRedo.available
+                              ? [
+                                  {
+                                    icon: <Sparkles size={16} />,
+                                    label: "Redo with AI…",
+                                    onSelect: () => void formRedo.run(),
+                                  },
+                                ]
+                              : []),
                             {
                               icon: <Trash size={16} />,
                               label: "Delete note",

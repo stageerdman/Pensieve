@@ -158,6 +158,7 @@ export function mergeNewFormItems(
   for (const q of found) {
     const ref = formRef(q.noteId);
     if (have.has(ref)) continue;
+    if (q.audioRefs.some((r) => have.has(r))) continue; // its recording is (re)transcribing first
     order += 1;
     added.push({ ref, type: "form", noteId: q.noteId, title: q.title, order: persisted?.[ref]?.order ?? order, pct: 0, phase: null, error: false });
   }
