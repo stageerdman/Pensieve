@@ -127,9 +127,9 @@ into a step-by-step build plan grounded in the real code (three research passes,
   `ask_claude_text` (timeout + logs), `src/lib/formFill/` (prompt, parse, fillFormMemory, queue scan),
   Process-queue `form` rows, App reloads the open memory after a fill. 1252 tests green.
 
-### WHERE WE STOPPED (owner paused, 2026-11-12 ~23:30) — resume here
-1. Phase 5 verification: run the real `claude -p` fill on a sample (check prompt quality, Czech, JSON),
-   `npm run tauri:build`, then a real phone → sync → desktop pass. Then merge to main.
+### WHERE WE STOPPED (updated 2026-11-13) — resume here
+1. Phase 5: real `claude -p` fill VERIFIED (spike-p5: Czech, 7/9 fields, 14 s, no invention), merged to
+   main `142813e`, `.app` installed. OWED: one real phone → sync → desktop pass by the owner.
 2. Owner device pass for Phase 4 (Form spell, one take across a lock, review playback, Done).
 3. Phase 6: Charms — button per charm on memories made from a form; Claude + Pensieve MCP read tools
    (add a date-range listing tool + fromForm filter); date chips citing source memories; skip fields
@@ -138,3 +138,5 @@ into a step-by-step build plan grounded in the real code (three research passes,
 Known gaps: a session killed mid-recording is recovered by the voice engine but never marked awaiting
 (desktop won't auto-fill it); queue persistence drops non-audio row order (pre-existing).
 
+- 2026-11-13: **Phase 5 verified against the real CLI** (`spike-p5/`), merged to main `142813e`,
+  `tauri:build` installed. Owner phone→desktop pass owed. NB the claude CLI sign-in expires by 2026-11-16.
