@@ -12,6 +12,7 @@
 // same as notes). `updatedAt` is stamped on every mutation so sync can tell a local
 // edit from a stale copy, the same way a note's `updatedAt` already drives that.
 
+import type { PackageKind } from "../../../../src/lib/packages/kinds";
 import { newId } from "../../vaultStore";
 import { mintMediaRef, registerLocalMedia, deleteMedia } from "./mediaStore";
 
@@ -26,6 +27,12 @@ export interface RawMemory {
   // "older than anything", never as a reason to throw.
   updatedAt?: number;
   pages: string[]; // ordered media refs — media/<id>/<mediaId>.<ext>
+  /** PACKAGES (2026-11-13): a raw record can be a package — see src/lib/packages/record.ts. */
+  kind?: PackageKind;
+  title?: string;
+  fromForm?: string;
+  markdown?: string;
+  media?: string[];
 }
 
 const RAW_PREFIX = "pensieve.phone.raw.";

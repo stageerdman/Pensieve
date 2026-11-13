@@ -121,6 +121,7 @@ export function phoneVault(): LocalVault {
         parsed = {};
       }
       saveRawBatch({
+        ...parsed, // keep package fields (kind/title/fromForm/markdown/media) — see lib/packages/record
         id,
         status: parsed.status ?? "synced",
         createdAt: parsed.createdAt ?? Date.now(),
@@ -129,6 +130,8 @@ export function phoneVault(): LocalVault {
       });
     },
     async deleteRawMemory(id) {
+      // A remote tombstone: free a Journal batch's own page photos. A form package's media is
+      // deliberately kept — it resolved into the memory with the SAME id, which now owns it.
       const b = loadRawBatch(id);
       for (const ref of b?.pages ?? []) await deleteMedia(ref);
       deleteRawBatchRecord(id);

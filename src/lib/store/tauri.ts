@@ -337,7 +337,10 @@ export class TauriStore implements Store {
   }
 
   async removeRawMemory(id: string): Promise<void> {
-    const files = await listDir(`media/${id}`).catch(() => [] as string[]);
+    // A form PACKAGE resolves into the memory with the SAME id — that memory owns media/<id>/
+    // now, so only a Journal batch's folder is wiped (see lib/packages/record).
+    const ownedByMemory = (await readText(`notes/${id}.md`).catch(() => null)) !== null;
+    const files = ownedByMemory ? [] : await listDir(`media/${id}`).catch(() => [] as string[]);
     for (const f of files) await removePath(`media/${id}/${f}`).catch(() => undefined);
     await removePath(`raw/${id}.json`);
     log.info("raw", "remove", { id, pagesRemoved: files.length });

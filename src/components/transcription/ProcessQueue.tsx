@@ -8,7 +8,7 @@ import type { TranscriptionEngine } from "../../lib/transcripts/engine";
 import { queueItemLabel } from "../../lib/transcripts/queue";
 import { ProcessRow } from "./ProcessRow";
 import { useProcessQueue } from "./useProcessQueue";
-import { isAudioItem, isFormItem, isJournalItem, type ProcessItem } from "./queueOps";
+import { isAudioItem, isFormItem, isJournalItem, isPackageItem, type ProcessItem } from "./queueOps";
 
 /** Label/tooltip for either row kind — journal batches never had their own category
  *  (wiki.md "A"), they just need their own label text in the one shared row shell. */
@@ -16,6 +16,9 @@ function rowText(it: ProcessItem): { label: string; tooltip: string; filename: b
   if (isFormItem(it)) {
     const label = `Form — ${it.title}`;
     return { label, tooltip: `${it.title}\nFill the answers from the recording`, filename: false };
+  }
+  if (isPackageItem(it)) {
+    return { label: it.title, tooltip: `${it.title}\nPatronus carries out its sync spell`, filename: false };
   }
   if (isJournalItem(it)) {
     const label = `Journal — ${it.pageCount} page${it.pageCount === 1 ? "" : "s"}`;
@@ -125,6 +128,8 @@ export const ProcessQueue = forwardRef<ProcessQueueHandle, Props>(function Proce
                 pct={it.pct}
                 error={it.error}
                 errorMsg={it.errorMsg}
+                errorTitle={isPackageItem(it) ? "Patronus couldn't finish" : undefined}
+                step={isPackageItem(it) ? (it.step ?? "Waiting") : undefined}
                 model={journal ? undefined : it.model}
                 previewing={previewRef === it.ref}
                 onReorder={(pos) => q.reorder(it.ref, pos)}

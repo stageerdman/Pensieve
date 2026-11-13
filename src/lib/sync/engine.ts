@@ -484,9 +484,10 @@ export async function sync(
     const remoteTime = item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : nowMs();
     await vault.writeRawMemory(id, dl.content, { updatedAt: remoteTime });
     try {
-      const parsed = JSON.parse(dl.content) as { pages?: unknown };
-      if (Array.isArray(parsed.pages)) {
-        for (const ref of parsed.pages) if (typeof ref === "string") pulledMediaRefs.add(ref);
+      // pages (a Journal batch's photos) AND media (a package's recordings/photos).
+      const parsed = JSON.parse(dl.content) as { pages?: unknown; media?: unknown };
+      for (const list of [parsed.pages, parsed.media]) {
+        if (Array.isArray(list)) for (const ref of list) if (typeof ref === "string") pulledMediaRefs.add(ref);
       }
     } catch {
       log.error("sync", "raw.pull.parse-error", { id });
@@ -724,9 +725,10 @@ export async function restoreFromCloud(
     const remoteTime = item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : nowMs();
     await vault.writeRawMemory(id, dl.content, { updatedAt: remoteTime });
     try {
-      const parsed = JSON.parse(dl.content) as { pages?: unknown };
-      if (Array.isArray(parsed.pages)) {
-        for (const ref of parsed.pages) if (typeof ref === "string") restoredMediaRefs.add(ref);
+      // pages (a Journal batch's photos) AND media (a package's recordings/photos).
+      const parsed = JSON.parse(dl.content) as { pages?: unknown; media?: unknown };
+      for (const list of [parsed.pages, parsed.media]) {
+        if (Array.isArray(list)) for (const ref of list) if (typeof ref === "string") restoredMediaRefs.add(ref);
       }
     } catch {
       log.error("sync", "raw.restore.parse-error", { id });

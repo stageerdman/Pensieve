@@ -161,7 +161,10 @@ export function tauriVault(): LocalVault {
     },
 
     async deleteRawMemory(id) {
-      const files = await listDir(`${MEDIA_DIR}/${id}`).catch(() => [] as string[]);
+      // A resolved form PACKAGE became the memory with the SAME id, which owns media/<id>/ now
+      // — only a Journal batch's folder is its own to wipe (see lib/packages/record).
+      const ownedByMemory = (await readText(notePath(id)).catch(() => null)) !== null;
+      const files = ownedByMemory ? [] : await listDir(`${MEDIA_DIR}/${id}`).catch(() => [] as string[]);
       for (const f of files) await removePath(`${MEDIA_DIR}/${id}/${f}`).catch(() => undefined);
       await removePath(rawPath(id));
     },
