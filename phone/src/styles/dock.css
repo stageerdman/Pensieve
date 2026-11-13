@@ -113,25 +113,6 @@
   }
 }
 
-/* attention-only sync dot (home has no free cell for a sync spell) */
-.spell-fab[data-alert]::after {
-  content: "";
-  position: absolute;
-  top: -1px;
-  right: -1px;
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  border: 2px solid hsl(var(--surface));
-}
-.spell-fab[data-alert="warn"]::after {
-  background: hsl(var(--warn));
-}
-.spell-fab[data-alert="danger"]::after {
-  background: hsl(var(--danger));
-  animation: syncAlert 1.4s var(--ease) infinite;
-}
-
 /* ── a collapsed spell (non-home views) ──────────────────────────────────── */
 .dock-spell {
   position: relative;
@@ -331,17 +312,3 @@
   }
 }
 
-/* The menu button's sync badge: the flowing rune while syncing (the desktop's
-   animation), green for a moment when it finishes — replaces the old plain dot. */
-.spell-fab-sync {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  width: 22px;
-  height: 22px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: hsl(var(--surface));
-  box-shadow: 0 0 0 1px hsl(var(--border));
-}

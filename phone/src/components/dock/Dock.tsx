@@ -5,7 +5,6 @@
 // whole dock hides on .kb-open (CSS) — Accio then rides the keyboard as the summon bar.
 
 import type { DockLayout } from "../../lib/spells/types";
-import type { SyncRuneState } from "../../hooks/useSyncFlash";
 import { placeDock } from "../../lib/spells/dockModel";
 import { SpellGlyph } from "../spellmenu/SpellGlyph";
 import { SpellMenuButton } from "./SpellMenuButton";
@@ -14,7 +13,6 @@ import { ExpandedAccio, type ExpandedAccioProps } from "./ExpandedAccio";
 export interface DockProps {
   layout: DockLayout;
   onOpenMenu: () => void;
-  menuBadge?: SyncRuneState;
   /** props for the expanded Accio spell (only read when the layout includes it). */
   accio?: ExpandedAccioProps;
   /** tap handler for collapsed spells (non-home views). */
@@ -24,7 +22,7 @@ export interface DockProps {
   recordingSpell?: string;
 }
 
-export function Dock({ layout, onOpenMenu, menuBadge, accio, onSpell, recordingSpell }: DockProps) {
+export function Dock({ layout, onOpenMenu, accio, onSpell, recordingSpell }: DockProps) {
   const placed = placeDock(layout);
   return (
     <div className="dock">
@@ -32,7 +30,7 @@ export function Dock({ layout, onOpenMenu, menuBadge, accio, onSpell, recordingS
         if (p.kind === "menu") {
           return (
             <div className="dock-cell" style={{ gridColumn: p.cell + 1 }} key="menu">
-              <SpellMenuButton onOpen={onOpenMenu} badge={menuBadge} />
+              <SpellMenuButton onOpen={onOpenMenu} />
             </div>
           );
         }

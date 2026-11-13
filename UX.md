@@ -14,6 +14,9 @@ allowed — the controls ARE the Dock.)
 `DockLayout` and let `placeDock()` put them in cells:
 - 4 cells (0..3). The gold **Spell-Menu button** occupies ONE cell (`menuSlot`), normally the
   bottom-RIGHT (cell 3). It is the opener; the radial ring blooms UP from it.
+- **The Spell-Menu button is bare — NOTHING on or next to it.** No status dot (red/yellow/any
+  colour), no badge, no sync rune, no indicator of any kind. Sync status lives in the Sync spell
+  inside the menu. Owner has asked for this more than once; locked by `SpellMenuButton.test.tsx`.
 - The other cells hold EITHER one **expanded** spell (spans the 3 free cells, e.g. home's Accio bar)
   OR up to **3 collapsed** spells (one cell each). Never mixed.
 - A **Back/close is a collapsed spell**, and it may ONLY sit in a real cell **adjacent to the menu

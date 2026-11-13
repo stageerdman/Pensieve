@@ -1163,7 +1163,6 @@ export function PhoneApp() {
           haptic(10);
           menu.openMenu();
         }}
-        menuBadge={runeState}
         accio={{
           query: accio.filterQuery,
           count: scount,
