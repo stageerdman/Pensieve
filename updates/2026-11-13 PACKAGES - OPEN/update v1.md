@@ -73,3 +73,17 @@ of the note/page you're on (its Timeline etc.). Belongs with `updates/2026-11-10
     desktop trigger) rather than gold.
   - NEXT: owner device pass (Form spell → Done → card → preview → desktop row → memory back on
     the phone). Then P5 Journal → package, P6 close-out.
+- 2026-11-13 (evening): **first real owner run — the CANI form package resolved end to end**
+  (phone sealed → OneDrive → desktop pulled 16:07 → transcribed + filled 7 fields → memory
+  `mwel8wrs-lptsf6`, same id → back on the phone). Bugs found + fixed on main:
+  - `e5240ab` the desktop never synced by itself → the package sat "Waiting for the desktop".
+    Now auto-sync every 60s + on window focus (`useSync.ts`, AUTO_SYNC_INTERVAL_MS).
+  - `a635dc3` phone: `**bold**`/`*italic*` render + serialize (`phone/src/components/note/inlineMd.ts`;
+    the toolbar's B was also lost on save); blank md lines → short `.ph-sep` gap; menu-button
+    orange dot → flowing sync rune + 1.2s green flash (`phone/src/hooks/useSyncFlash.ts`); the
+    rune keeps flowing under iOS Reduce Motion.
+  - `5297bc8` / `3087e78` OneDrive account outage handling: content-download 401/5xx →
+    TransientSyncError; the panel shows the account from the drive owner (works when /me is down).
+  - NOT yet owner-confirmed: auto-sync, the phone bold/spacing, the new sync animation.
+  - WHERE WE STOPPED: owner to re-check the phone (reopen PWA) + one more walk-through to see the
+    desktop row live. Then P5 Journal → package, P6 close-out.

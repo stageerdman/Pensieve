@@ -20,3 +20,13 @@
 - Phone large WAVs (8.7 MB seen) upload fine through the simple PUT — the "4 MB cap" comment in
   phone/src/lib/sync/adapter.ts is stale in practice.
 - Two SVG orbs on one page must not share gradient/filter ids → useId per instance.
+- `npm run tauri:build`'s install step QUITS the running app — never rebuild while a Process row
+  is running (it killed the first real package 2s after the memory saved; the owner saw nothing).
+- A phone package only resolves when the desktop SYNCS — the desktop must sync on its own
+  (now every 60s + on focus), or "Waiting for the desktop" is a lie.
+- The phone's note renderer is plain text per line: any inline markdown the desktop writes (bold
+  form questions) must be rendered AND serialized back on the phone (inlineMd.ts), or a phone
+  edit strips it.
+- OneDrive (personal) can fail per-account: listing/metadata OK while every `:/content` → 401 HTML
+  and `/me` → 502 for hours (2026-11-13; onedrive.com also failed for that account). Treat as
+  transient; check other accounts before blaming our code.
