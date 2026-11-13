@@ -108,23 +108,28 @@ export function applyAnswers(markdown: string, answers: Answers): string {
       const media = new Map(
         scanFences(lines).filter((x) => x.lang !== SCALE_LANG && x.start > f.line && x.end < end).map((x) => [x.end, x] as const),
       );
+      // A lone image line (`![…](media/…)`) is media too — a session's photos sit at the end.
+      const LONE_IMAGE = /^\s*!\[[^\]]*\]\([^)]*\)\s*$/;
       let last = end - 1;
+      const keptMedia: string[][] = []; // collected bottom-up, reversed below
       while (last > f.line) {
         const fz = media.get(last);
         if (fz) {
+          keptMedia.push(lines.slice(fz.start, fz.end + 1));
           last = fz.start - 1;
+          continue;
+        }
+        if (LONE_IMAGE.test(lines[last])) {
+          keptMedia.push([lines[last]]);
+          last--;
           continue;
         }
         if (!isFiller(lines[last])) break;
         last--;
       }
+      keptMedia.reverse();
       // Rebuild the tail: answer, then one spacer if the template had one, then the media.
-      const tail = lines.slice(last + 1, end);
-      const hadSpacer = tail.some((l) => l.includes(ZWSP));
-      const keptMedia = [...media.values()]
-        .filter((x) => x.start > last)
-        .sort((x, y) => x.start - y.start)
-        .map((fz) => lines.slice(fz.start, fz.end + 1));
+      const hadSpacer = lines.slice(last + 1, end).some((l) => l.includes(ZWSP));
       const seg = ["", ...text.split("\n")];
       if (hadSpacer) seg.push("", ZWSP);
       for (const m of keptMedia) seg.push("", ...m);
