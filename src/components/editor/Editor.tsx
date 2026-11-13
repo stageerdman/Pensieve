@@ -429,6 +429,24 @@ export function Editor({
                   onItemClick: () =>
                     insertOrUpdateBlockForSlashMenu(editor, { type: "charm", props: { name: "", prompt: "" } } as never),
                 },
+                {
+                  title: "Patronus",
+                  aliases: ["patronus", "sync", "spell", "package", "form"],
+                  group: "Form",
+                  icon: <Sparkles size={18} />,
+                  subtext: "What Patronus does when a phone walk-through syncs",
+                  onItemClick: () => {
+                    // One per form: a second /patronus jumps to the one already there.
+                    const existing = editor.document.find((b) => (b.type as string) === "patronus");
+                    if (existing) {
+                      try {
+                        editor.setTextCursorPosition(existing, "end");
+                      } catch {
+                        /* a content-less block may not take a cursor — leaving it is fine */
+                      }
+                    } else insertOrUpdateBlockForSlashMenu(editor, { type: "patronus", props: { instruction: "" } } as never);
+                  },
+                },
               ],
               query,
             );
