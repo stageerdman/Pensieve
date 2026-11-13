@@ -6,7 +6,7 @@
 //     reindex, fire onTranscribed (→ sync), and drop the row.
 //   · Changing a row's model resets its progress.
 //   · Auto path: enqueueAuto() (called on sync) adds every untranscribed audio and plays
-//     with the default (Czech) model.
+//     with the default model (English/Parakeet since 2026-11-13).
 // NOTE on the real engine: an MLX subprocess can't be suspended mid-file, so Pause stops
 // STARTING new jobs — a job already running finishes. Reordering changes what runs next.
 
@@ -308,7 +308,7 @@ export function useProcessQueue(opts: {
 
   const enqueueAuto = useCallback(async () => {
     await refresh();
-    setPlaying(true); // auto path: Czech default (the item default), start running
+    setPlaying(true); // auto path: the default model (English), start running
   }, [refresh]);
 
   // ── restore + auto-resume on mount ───────────────────────────────────────

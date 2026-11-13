@@ -3,9 +3,9 @@ import { MODELS, DEFAULT_MODEL, modelChoices, coerceModel } from "./models";
 
 describe("transcription model catalog", () => {
   it("the default is Czech Whisper and is marked as such", () => {
-    expect(DEFAULT_MODEL).toBe("czech-whisper");
-    expect(MODELS["czech-whisper"].isDefault).toBe(true);
-    expect(MODELS.parakeet.isDefault).toBe(false);
+    expect(DEFAULT_MODEL).toBe("parakeet");
+    expect(MODELS["czech-whisper"].isDefault).toBe(false);
+    expect(MODELS.parakeet.isDefault).toBe(true);
   });
 
   it("exposes the real backend ids", () => {
@@ -22,7 +22,7 @@ describe("transcription model catalog", () => {
 
   it("lists choices default-first (path of least resistance)", () => {
     const ids = modelChoices().map((m) => m.id);
-    expect(ids).toEqual(["czech-whisper", "parakeet"]);
+    expect(ids).toEqual(["parakeet", "czech-whisper"]);
   });
 
   it("coerces unknown/empty ids to the default, preserves known ones", () => {
