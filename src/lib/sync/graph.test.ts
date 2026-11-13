@@ -128,6 +128,18 @@ describe("fetch() — 429/503 throttling backoff", () => {
     expect(res.status).toBe(200);
   });
 
+  it("retries a 504 gateway timeout (seen live from OneDrive, 2026-11-13)", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(resp(504)).mockResolvedValueOnce(resp(200, {}));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = makeGraphClient(provider());
+
+    const pending = client.fetch("/me");
+    await vi.advanceTimersByTimeAsync(1000);
+    const res = await pending;
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("gives up after maxRetries on sustained 429s and returns the last response (not a throw)", async () => {
     const fetchMock = vi.fn().mockResolvedValue(resp(429, "", { "retry-after": "0" }));
     vi.stubGlobal("fetch", fetchMock);
@@ -193,7 +205,9 @@ describe("json()", () => {
     const fetchMock = vi.fn().mockResolvedValue(resp(500, "oops"));
     vi.stubGlobal("fetch", fetchMock);
     const client = makeGraphClient(provider());
-    await expect(client.json("/x")).rejects.toBeInstanceOf(TransientSyncError);
+    const pending = expect(client.json("/x")).rejects.toBeInstanceOf(TransientSyncError);
+    await vi.runAllTimersAsync(); // a 5xx is now retried with backoff before giving up
+    await pending;
   });
 
   it("maps a 429 that outlived its retries to TransientSyncError, not a hard failure", async () => {

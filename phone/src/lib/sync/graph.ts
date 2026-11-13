@@ -53,7 +53,9 @@ export function makeGraphClient(provider: TokenProvider): GraphClient {
         provider.invalidate?.();
         continue;
       }
-      if ((res.status === 429 || res.status === 503) && attempt < maxRetries) {
+      // 429 = throttled; any 5xx (500/502/503/504) = OneDrive having a moment — a 504
+      // gateway timeout on a plain folder GET was seen live (2026-11-13). Back off + retry.
+      if ((res.status === 429 || res.status >= 500) && attempt < maxRetries) {
         const retryAfter = Number(res.headers.get("retry-after")) || 2 ** attempt;
         await sleep(Math.min(retryAfter, 30) * 1000);
         continue;

@@ -15,6 +15,7 @@
 // Pure + dependency-free (shared with the phone PWA). Line-based on purpose: works on
 // the .md as stored, identically on both platforms, with no editor in the loop.
 
+import { stripForeignColorRuns } from "../md/colorRuns";
 import { CHARM_LANG, SCALE_LANG, parseCharm, parseScale, type Charm, type Scale } from "./fences";
 
 export type FieldKind = "question" | "scale" | "checklist";
@@ -61,7 +62,8 @@ const HEADING = /^\s*#{1,6}\s+(.+?)\s*#*\s*$/;
 export const CHECK_ITEM = /^(\s*[-*+]\s+)\[([ xX])\](\s*)(.*)$/;
 
 /** The question text of a line, or null if the line doesn't start a field. */
-export function questionOf(line: string): string | null {
+export function questionOf(raw: string): string | null {
+  const line = stripForeignColorRuns(raw); // a pasted question can carry `{fg:rgb(…)}` (colorRuns.ts)
   const b = BOLD_ONLY.exec(line);
   if (b) return b[1].trim();
   const h = HEADING.exec(line);
