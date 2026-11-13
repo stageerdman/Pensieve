@@ -174,40 +174,44 @@ export function AudioBar(props: AudioBarProps) {
           </button>
         )}
 
-        <div className="pensieve-audio-menu-wrap" ref={menuRef}>
-          <button
-            type="button"
-            className="pensieve-audio-iconbtn"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            aria-label="More"
-            onClick={() => setMenuOpen((o) => !o)}
-          >
-            <MoreIcon size={16} />
-          </button>
-          {menuOpen && (
-            <div className="pensieve-audio-menu" role="menu">
-              {menuItems.map((it, i) => (
-                <div key={i}>
-                  {it.sep && <div className="pensieve-audio-menu-sep" />}
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className={"pensieve-audio-menu-item" + (it.danger ? " is-danger" : "")}
-                    disabled={it.disabled}
-                    onClick={() => {
-                      setMenuOpen(false);
-                      it.onClick?.();
-                    }}
-                  >
-                    {it.icon}
-                    <span>{it.label}</span>
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* The docked player (side view) has no ⋯: its actions belong to the block in the
+            memory, and here they were wired to nothing (a dead "Regenerate transcript"). */}
+        {!dock && (
+          <div className="pensieve-audio-menu-wrap" ref={menuRef}>
+            <button
+              type="button"
+              className="pensieve-audio-iconbtn"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-label="More"
+              onClick={() => setMenuOpen((o) => !o)}
+            >
+              <MoreIcon size={16} />
+            </button>
+            {menuOpen && (
+              <div className="pensieve-audio-menu" role="menu">
+                {menuItems.map((it, i) => (
+                  <div key={i}>
+                    {it.sep && <div className="pensieve-audio-menu-sep" />}
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className={"pensieve-audio-menu-item" + (it.danger ? " is-danger" : "")}
+                      disabled={it.disabled}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        it.onClick?.();
+                      }}
+                    >
+                      {it.icon}
+                      <span>{it.label}</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       {status && (
         <div className={"pensieve-audio-status" + (status.tone === "gold" ? " is-gold" : "")}>
