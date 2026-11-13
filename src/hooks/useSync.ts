@@ -16,6 +16,11 @@ export type { SyncPhase, SyncErrorKind, SyncUi };
 
 /** Owns OneDrive connection + sync state. `onChanged` is called after a sync that
  *  pulled/removed notes, so the app can refresh its list. */
+/** How often the open desktop app checks OneDrive by itself, and the least gap between two
+ *  automatic syncs (a focus right after an interval tick doesn't double up). */
+export const AUTO_SYNC_INTERVAL_MS = 60_000;
+const AUTO_SYNC_MIN_GAP_MS = 15_000;
+
 export function useSync(onChanged?: () => void) {
   const [ui, setUi] = useState<SyncUi>({
     phase: isTauri() ? "disconnected" : "unavailable",
@@ -147,6 +152,38 @@ export function useSync(onChanged?: () => void) {
   );
 
   const syncNow = useCallback(() => runSync((op) => createEngine().run(op)), [runSync]);
+
+  // Auto-sync. The desktop used to sync only on a click/⌘S, so a phone package sat at
+  // "Waiting for the desktop" until the owner happened to sync (live 2026-11-13: the
+  // CANI form landed 77s after the last sync and was never pulled). Now: every minute
+  // while the app is open, and on returning to the window. A /delta round-trip when
+  // nothing changed is one small request. Skipped while not connected, mid-sync, needing
+  // a summon or a sign-in (those wait for the owner).
+  const phaseRef = useRef(ui);
+  phaseRef.current = ui;
+  useEffect(() => {
+    if (!isTauri()) return;
+    let last = 0;
+    const tick = (why: string) => {
+      const u = phaseRef.current;
+      const ok =
+        u.phase === "idle" || u.phase === "synced" || u.phase === "conflicts" || (u.phase === "error" && u.errorKind === "offline");
+      if (!ok || busy.current || Date.now() - last < AUTO_SYNC_MIN_GAP_MS) return;
+      last = Date.now();
+      log.debug("sync", "auto", { why });
+      void syncNow();
+    };
+    const timer = setInterval(() => tick("interval"), AUTO_SYNC_INTERVAL_MS);
+    const onFocus = () => tick("focus");
+    const onVisible = () => document.visibilityState === "visible" && tick("visible");
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [syncNow]);
 
   // "Summon Pensieve": create the remote folder on this drive, then first-sync.
   const summon = useCallback(() => runSync((op) => createEngine().summon(op)), [runSync]);
