@@ -1,12 +1,11 @@
 import type { ReactNode } from "react";
 import type { Note, NoteFields, NoteMeta } from "../lib/types";
-import type { CategoryApi } from "../hooks/useCategoryDefs";
 import { RightPanel } from "./RightPanel";
-import { CategoryDropdown } from "./CategoryDropdown";
 import { TagEditor } from "./TagEditor";
 import { RelationshipList } from "./RelationshipList";
 
-// The right "Details" dock: per-note metadata — category, tags, relationships.
+// The right "Details" dock: per-note metadata — tags, created date, relationships.
+// (Category lives beside the flask above the editor — one home, one click.)
 // Hidden by default (toggled from the header). Edits persist immediately via
 // updateMeta. Sections are separated by whitespace, each with a quiet micro-label.
 
@@ -14,7 +13,6 @@ interface DetailsPanelProps {
   note: Note;
   notes: NoteMeta[];
   tagSuggestions: string[];
-  categories: CategoryApi;
   onClose: () => void;
   onOpenNote: (id: string) => void;
   updateMeta: (partial: Partial<NoteFields> | ((note: Note) => Partial<NoteFields>)) => void;
@@ -44,7 +42,6 @@ export function DetailsPanel({
   note,
   notes,
   tagSuggestions,
-  categories,
   onClose,
   onOpenNote,
   updateMeta,
@@ -62,22 +59,6 @@ export function DetailsPanel({
   return (
     <RightPanel title="Details" onClose={onClose}>
       <div className="space-y-6 pt-1">
-        <Section label="Category">
-          <CategoryDropdown
-            value={note.categories}
-            defs={categories.defs}
-            onToggle={(c) =>
-              updateMeta((n) => ({
-                categories: n.categories.includes(c)
-                  ? n.categories.filter((x) => x !== c)
-                  : [...n.categories, c],
-              }))
-            }
-            onAdd={categories.addCategory}
-            onSetColor={categories.setColor}
-            onRemove={categories.removeCategory}
-          />
-        </Section>
         <Section label="Tags">
           <TagEditor
             tags={note.tags}

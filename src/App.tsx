@@ -11,6 +11,7 @@ import { FormStrip } from "./features/forms/FormStrip";
 import { useFormRedo } from "./features/forms/useFormRedo";
 import { FORM_KEY, isFormTemplate, withExtra } from "./lib/forms";
 import { FlaskButton } from "./components/FlaskButton";
+import { NoteCategoryControl } from "./components/NoteCategoryControl";
 import { TabBar, HOME, type ExtraTab } from "./components/TabBar";
 import { IconButton } from "./components/IconButton";
 import {
@@ -489,12 +490,18 @@ export default function App() {
                         </div>
                       )}
                       {!focusMode && (
-                        <div className="mx-auto mb-1 max-w-[72ch]">
+                        <div className="group/noterow mx-auto mb-1 flex max-w-[72ch] items-center gap-2">
                           <FlaskButton
                             icon={current.icon}
                             chars={contentCharCount(current.markdown)}
                             seed={current.id}
                             onChange={(icon) => updateMeta({ icon })}
+                          />
+                          <NoteCategoryControl
+                            value={current.categories}
+                            categories={categories}
+                            updateMeta={updateMeta}
+                            variant="inline"
                           />
                         </div>
                       )}
@@ -563,7 +570,6 @@ export default function App() {
                     note={current}
                     notes={notes}
                     tagSuggestions={tagSuggestions}
-                    categories={categories}
                     onClose={() => setDetailsOpen(false)}
                     onOpenNote={(id) => void open(id)}
                     updateMeta={updateMeta}
