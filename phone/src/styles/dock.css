@@ -330,3 +330,18 @@
     transform: translateX(-50%) translateY(0);
   }
 }
+
+/* The menu button's sync badge: the flowing rune while syncing (the desktop's
+   animation), green for a moment when it finishes — replaces the old plain dot. */
+.spell-fab-sync {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: hsl(var(--surface));
+  box-shadow: 0 0 0 1px hsl(var(--border));
+}

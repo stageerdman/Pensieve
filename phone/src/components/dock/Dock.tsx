@@ -4,7 +4,8 @@
 // menu button, collapsed spells (one cell), or the expanded Accio spell (spanning 3). The
 // whole dock hides on .kb-open (CSS) — Accio then rides the keyboard as the summon bar.
 
-import type { DockLayout, SyncBadge } from "../../lib/spells/types";
+import type { DockLayout } from "../../lib/spells/types";
+import type { SyncRuneState } from "../../hooks/useSyncFlash";
 import { placeDock } from "../../lib/spells/dockModel";
 import { SpellGlyph } from "../spellmenu/SpellGlyph";
 import { SpellMenuButton } from "./SpellMenuButton";
@@ -13,7 +14,7 @@ import { ExpandedAccio, type ExpandedAccioProps } from "./ExpandedAccio";
 export interface DockProps {
   layout: DockLayout;
   onOpenMenu: () => void;
-  menuBadge?: SyncBadge;
+  menuBadge?: SyncRuneState;
   /** props for the expanded Accio spell (only read when the layout includes it). */
   accio?: ExpandedAccioProps;
   /** tap handler for collapsed spells (non-home views). */

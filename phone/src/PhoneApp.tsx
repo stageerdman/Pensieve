@@ -12,6 +12,7 @@
 // the reel in place; Sync casts the gold backup spell. (The Wand thumb-wheel it replaced
 // is archived in updates/2026-10-11 SPELL-MENU - OPEN/_archive.)
 
+import { useSyncFlash } from "./hooks/useSyncFlash";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { Note } from "./types";
@@ -227,6 +228,7 @@ export function PhoneApp() {
   // ---- hooks: the imperative subsystems ----
   const sync = useSyncState();
   const syncStatus: SyncStatus = sync.state.status;
+  const runeState = useSyncFlash(syncStatus); // + a green "just synced" moment
 
   const fisheye = useReelFisheye(reelRef, trackRef, glassRef);
   // The Spell Menu is context-aware: an open photo collection offers only "Photo" (add to that
@@ -1136,10 +1138,10 @@ export function PhoneApp() {
       <div className="app">
         <div className="header">
           <h1>Pensieve</h1>
-          {syncStatus === "synced" ? (
+          {runeState === "synced" ? (
             <span className="count">{count}</span>
           ) : (
-            <SyncRune status={syncStatus} size={20} className="header-sync" />
+            <SyncRune status={runeState} size={20} className="header-sync" />
           )}
         </div>
         <Reel
@@ -1161,7 +1163,7 @@ export function PhoneApp() {
           haptic(10);
           menu.openMenu();
         }}
-        menuBadge={syncStatus}
+        menuBadge={runeState}
         accio={{
           query: accio.filterQuery,
           count: scount,
@@ -1217,6 +1219,7 @@ export function PhoneApp() {
         onLongCast={longCastSpell}
         onSparkle={flashSparkle}
         syncState={syncStatus}
+        runeState={runeState}
         syncFailReason={sync.state.failReason}
         syncFailMessage={sync.state.failMessage}
         account={onedrive.account}

@@ -6,7 +6,7 @@
 // mirrors the radial menu it opens; its Conditional variant swaps the hub for a 4-point spark.
 
 import type { IconName } from "../../lib/spells/types";
-import type { SyncStatus } from "../../lib/wand/syncMachine";
+import type { SyncRuneState } from "../../hooks/useSyncFlash";
 import { SyncRune } from "../sync/SyncRune";
 
 /** Line-glyph path markup, keyed by icon. 24-grid; inherits stroke from the <svg>.
@@ -142,7 +142,7 @@ export interface SpellGlyphProps {
   /** menu glyph only: swap the hub for a 4-point spark (Conditional mode). */
   conditional?: boolean;
   /** sync glyph only: drives the rune's colour + flow (see .sync-rune in wand.css). */
-  syncState?: SyncStatus;
+  syncState?: SyncRuneState;
 }
 
 export function SpellGlyph({ icon, size = 22, className, conditional = false, syncState = "synced" }: SpellGlyphProps) {

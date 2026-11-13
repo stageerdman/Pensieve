@@ -15,6 +15,7 @@
 
 import { parsePatronus } from "../../../../src/lib/packages/patronus";
 import { esc, haptic } from "../../util";
+import { appendInline, inlineFromEl, inlineToHtml } from "./inlineMd";
 import {
   collapseImages,
   encodeAudioNoteBlock,
@@ -769,7 +770,7 @@ function buildListGroup(items: ListItemNode[], ctx?: MediaCtx): HTMLElement {
         });
       }
     }
-    li.appendChild(document.createTextNode(n.text || ""));
+    appendInline(li, n.text || "");
     if (n.children.length) li.appendChild(buildListGroup(n.children, ctx));
     listEl.appendChild(li);
   }
@@ -778,12 +779,7 @@ function buildListGroup(items: ListItemNode[], ctx?: MediaCtx): HTMLElement {
 
 /** A `<li>`'s own text, excluding its nested sub-list and checklist glyph. */
 function liOwnText(li: HTMLElement): string {
-  const clone = li.cloneNode(true) as HTMLElement;
-  Array.from(clone.children).forEach((c) => {
-    const child = c as HTMLElement;
-    if (child.tagName === "UL" || child.tagName === "OL" || child.classList.contains("ph-check-mark")) child.remove();
-  });
-  return (clone.textContent || "").trim();
+  return inlineFromEl(li, (el) => el.tagName === "UL" || el.tagName === "OL" || el.classList.contains("ph-check-mark")).trim();
 }
 
 /** Serialize a `<ul>`/`<ol>` (and its nested sub-lists) → markdown list lines. Generic over
@@ -820,7 +816,11 @@ function buildBlockEl(block: NoteBlock, ctx: MediaCtx, noteBody: HTMLElement): H
   if (block.kind === "journal") return buildJournalEl(block, ctx);
   // text
   const div = document.createElement("div");
-  div.innerHTML = block.text.trim() ? esc(block.text) : "<br>";
+  div.innerHTML = block.text.trim() ? inlineToHtml(block.text) : "<br>";
+  // A blank markdown line is a paragraph SEPARATOR on the desktop, not an empty row — shown
+  // as a short gap (ph-sep) so a desktop memory's spacing matches; the desktop's own empty
+  // paragraph (a lone zero-width space) stays a full empty row.
+  if (!block.text.trim()) div.className = "ph-sep";
   return div;
 }
 
@@ -889,7 +889,7 @@ export function serializeNoteBody(noteBody: HTMLElement): { title: string; conte
     } else if (el.tagName === "UL" || el.tagName === "OL") {
       parts.push(serializeListEl(el).join("\n"));
     } else {
-      parts.push(el.textContent || "");
+      parts.push(inlineFromEl(el));
     }
   }
   return { title, content: parts.join("\n").trim() };
