@@ -8,11 +8,15 @@ import type { TranscriptionEngine } from "../../lib/transcripts/engine";
 import { queueItemLabel } from "../../lib/transcripts/queue";
 import { ProcessRow } from "./ProcessRow";
 import { useProcessQueue } from "./useProcessQueue";
-import { isJournalItem, type ProcessItem } from "./queueOps";
+import { isAudioItem, isFormItem, isJournalItem, type ProcessItem } from "./queueOps";
 
 /** Label/tooltip for either row kind — journal batches never had their own category
  *  (wiki.md "A"), they just need their own label text in the one shared row shell. */
 function rowText(it: ProcessItem): { label: string; tooltip: string; filename: boolean } {
+  if (isFormItem(it)) {
+    const label = `Form — ${it.title}`;
+    return { label, tooltip: `${it.title}\nFill the answers from the recording`, filename: false };
+  }
   if (isJournalItem(it)) {
     const label = `Journal — ${it.pageCount} page${it.pageCount === 1 ? "" : "s"}`;
     return { label, tooltip: label, filename: false };
@@ -108,7 +112,7 @@ export const ProcessQueue = forwardRef<ProcessQueueHandle, Props>(function Proce
       <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
         {q.items.map((it) => {
           const { label, tooltip, filename } = rowText(it);
-          const journal = isJournalItem(it);
+          const journal = !isAudioItem(it); // journal + form rows: no model, no preview
           return (
             <div key={it.ref} className="border-b border-border/60 last:border-b-0">
               <ProcessRow

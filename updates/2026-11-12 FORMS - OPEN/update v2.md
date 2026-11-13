@@ -114,3 +114,27 @@ into a step-by-step build plan grounded in the real code (three research passes,
 - 2026-11-12: **Phase 1 DONE.** Frontmatter round-trips unknown keys (desktop/phone/MCP, + MCP icon-loss
   fix) `06b9946`. `src/lib/forms/` (meta, scale/charm codecs, parseForm, instantiate, applyAnswers) shared
   with the phone; 22 tests incl. the real Daily Review through BlockNote + the phone parser. Next: Phase 2.
+- 2026-11-12: **Phase 2 DONE** `0f2e1a4` — /scale + /charm editor blocks, "Use as form" (⋯ menu), Form strip.
+- 2026-11-12: **Phase 3 DONE** `96867b7` — empty memory offers forms → dated, blank copy (charms left out),
+  `fromForm` set. Verified in the browser end to end. Merged to main + `tauri:build` installed (22:53).
+- 2026-11-12: **Phase 4 DONE (device pass owed)** `b4bb442` `117ff83` `00cd484` — Form spell → One Question
+  deck; ONE take across the session (voice engine session mode: a lock PAUSES, Record resumes the same WAV);
+  live voice bars on top; review pauses + plays a preview of the take before Done; Photo/Video extras via
+  the ring; Done → `fromForm` + `formStatus: awaiting`. Phone memory page renders a rating (tappable),
+  toggles checkboxes, shows charms quietly; reel preview clean. Merged to main + **deployed** to
+  pensieve-phone.pages.dev. Headless-Chrome verified (fake mic), incl. lock→resume = 1 audio block.
+- 2026-11-12: **Phase 5 CODE COMMITTED, NOT YET RUN LIVE** (`update/forms`, not merged): Rust
+  `ask_claude_text` (timeout + logs), `src/lib/formFill/` (prompt, parse, fillFormMemory, queue scan),
+  Process-queue `form` rows, App reloads the open memory after a fill. 1252 tests green.
+
+### WHERE WE STOPPED (owner paused, 2026-11-12 ~23:30) — resume here
+1. Phase 5 verification: run the real `claude -p` fill on a sample (check prompt quality, Czech, JSON),
+   `npm run tauri:build`, then a real phone → sync → desktop pass. Then merge to main.
+2. Owner device pass for Phase 4 (Form spell, one take across a lock, review playback, Done).
+3. Phase 6: Charms — button per charm on memories made from a form; Claude + Pensieve MCP read tools
+   (add a date-range listing tool + fromForm filter); date chips citing source memories; skip fields
+   being typed in. First: the owner's Weekly Summary with a Compress charm.
+4. Phase 7: close-out.
+Known gaps: a session killed mid-recording is recovered by the voice engine but never marked awaiting
+(desktop won't auto-fill it); queue persistence drops non-audio row order (pre-existing).
+

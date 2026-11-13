@@ -17,6 +17,9 @@ import { listUntranscribedAudio } from "../../lib/transcripts/queue";
 import { listUnprocessedRawBatches } from "../../lib/raw/queue";
 import { processRawBatch } from "../../lib/raw/processRawBatch";
 import { buildTauriRawBatchDeps } from "../../lib/raw/tauriRawBatchDeps";
+import { listFormsToFill } from "../../lib/formFill/queue";
+import { fillFormMemory } from "../../lib/formFill/fillForm";
+import { askClaudeTauri } from "../../lib/formFill/askClaudeTauri";
 import { parseMediaPath } from "../../lib/media/ref";
 import { DEFAULT_MODEL, type TranscriptionModel } from "../../lib/transcripts/models";
 import { isCancelled, type TranscriptionEngine } from "../../lib/transcripts/engine";
@@ -28,7 +31,10 @@ import {
   type QueueMode,
   activeItem,
   clearErrorsForRetry,
+  isAudioItem,
+  isFormItem,
   isJournalItem,
+  mergeNewFormItems,
   mergeNewItems,
   mergeNewJournalItems,
   reorderItems,
@@ -130,6 +136,40 @@ export function useProcessQueue(opts: {
     [onTranscribed, onNotesCreated],
   );
 
+  // ── one phone form session: transcript(s) → one Claude call → answers written in as plain
+  // text, recording kept at the bottom, "awaiting" mark removed (forged). See lib/formFill.
+  const runFormItem = useCallback(
+    async (ref: string, noteId: string) => {
+      log.info("form", "queue.start", { id: noteId });
+      const store = getStore();
+      setItems((prev) => prev.map((i) => (i.ref === ref ? { ...i, pct: 15 } : i)));
+      try {
+        const res = await fillFormMemory(noteId, {
+          load: (id) => store.load(id),
+          save: (n) => store.save(n),
+          loadTranscript: (r) => store.loadTranscript(r),
+          loadTimeline: (id) => store.loadTimeline(id),
+          saveTimeline: (id, e) => store.saveTimeline(id, e),
+          ask: askClaudeTauri,
+        });
+        reindex.request(noteId);
+        onNotesCreated?.([noteId]); // refresh the list + reload it if it's the open memory
+        onTranscribed?.(); // sync the filled memory back (the phone sees its answers)
+        runningRef.current = null;
+        log.info("form", "queue.done", { id: noteId, ...res });
+        setItems((prev) => prev.filter((i) => i.ref !== ref));
+        if (modeRef.current === "one") setPlaying(false);
+      } catch (e) {
+        runningRef.current = null;
+        const msg = cleanEngineError(e);
+        log.error("form", "queue.error", { id: noteId, error: msg });
+        setItems((prev) => prev.map((i) => (i.ref === ref ? { ...i, error: true, errorMsg: msg, phase: null } : i)));
+        setPlaying(false);
+      }
+    },
+    [onTranscribed, onNotesCreated],
+  );
+
   // ── the one-at-a-time driver — audio goes through the streaming engine; a journal
   // batch goes through processRawBatch (see runJournalItem above). Exactly one job at a
   // time either way, same Run/Pause/mode semantics for both row kinds. ──────────────
@@ -144,6 +184,10 @@ export function useProcessQueue(opts: {
 
     if (isJournalItem(next)) {
       void runJournalItem(next.ref);
+      return;
+    }
+    if (isFormItem(next)) {
+      void runFormItem(next.ref, next.noteId);
       return;
     }
 
@@ -163,6 +207,9 @@ export function useProcessQueue(opts: {
         runningRef.current = null;
         log.info("transcribe", "queue.done", { ref, segments: t.segments.length });
         setItems((prev) => prev.filter((i) => i.ref !== ref));
+        // A finished transcript may make a phone form session ready to fill — rescan so its
+        // row joins the queue right behind (no waiting for the next sync).
+        void refreshRef.current();
         if (modeRef.current === "one") setPlaying(false);
       })
       .catch((e) => {
@@ -181,7 +228,7 @@ export function useProcessQueue(opts: {
         setItems((prev) => prev.map((i) => (i.ref === ref ? { ...i, error: true, errorMsg: msg, phase: null } : i)));
         setPlaying(false);
       });
-  }, [items, playing, enabled, engine, onTranscribed, runJournalItem]);
+  }, [items, playing, enabled, engine, onTranscribed, runJournalItem, runFormItem]);
 
   const togglePlay = useCallback(() => {
     setPlaying((p) => {
@@ -210,12 +257,16 @@ export function useProcessQueue(opts: {
     const store = getStore();
     const found = await listUntranscribedAudio(titleFor, store);
     const foundBatches = await listUnprocessedRawBatches(store);
+    const foundForms = await listFormsToFill(store);
     const persisted = loadQueueState();
     setItems((prev) => {
       const withAudio = mergeNewItems(prev, found, DEFAULT_MODEL, persisted?.rows);
-      return mergeNewJournalItems(withAudio, foundBatches, persisted?.rows);
+      const withJournal = mergeNewJournalItems(withAudio, foundBatches, persisted?.rows);
+      return mergeNewFormItems(withJournal, foundForms, persisted?.rows);
     });
   }, [enabled, titleFor]);
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
 
   // Force one ref into the queue and run it (a manual block "Transcribe" / "Regenerate" —
   // even if it already has a transcript, which the untranscribed scan would skip).
@@ -280,14 +331,14 @@ export function useProcessQueue(opts: {
   // Keyed off a signature of ONLY the durable fields, so the frequent pct/phase progress
   // updates don't thrash localStorage — we save when the queue's shape or run-state changes.
   const persistSig = JSON.stringify({
-    rows: items.map((i) => [i.ref, isJournalItem(i) ? undefined : i.model, i.order]),
+    rows: items.map((i) => [i.ref, isAudioItem(i) ? i.model : undefined, i.order]),
     playing,
     mode,
   });
   useEffect(() => {
     if (!enabled) return;
     const rows: Record<string, PersistedRow> = {};
-    for (const i of items) rows[i.ref] = { model: isJournalItem(i) ? undefined : i.model, order: i.order };
+    for (const i of items) rows[i.ref] = { model: isAudioItem(i) ? i.model : undefined, order: i.order };
     saveQueueState({ rows, playing, mode });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [persistSig, enabled]);
