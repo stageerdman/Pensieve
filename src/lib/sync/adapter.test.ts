@@ -63,9 +63,13 @@ describe("remoteRootExists", () => {
     const { graph } = fakeGraph([() => ({ status: 404 })]);
     expect(await remoteRootExists(graph)).toBe(false);
   });
+  it("a 5xx (e.g. a OneDrive 504 gateway timeout) is temporary, not a real error", async () => {
+    const { graph } = fakeGraph([() => ({ status: 504, body: "{\"error\":{\"code\":\"UnknownError\"}}" })]);
+    await expect(remoteRootExists(graph)).rejects.toThrow(/temporarily unavailable \(504\)/);
+  });
   it("throws on any other status (a real error, not 'missing')", async () => {
-    const { graph } = fakeGraph([() => ({ status: 500, body: "boom" })]);
-    await expect(remoteRootExists(graph)).rejects.toThrow(/root check failed \(500\)/);
+    const { graph } = fakeGraph([() => ({ status: 403, body: "boom" })]);
+    await expect(remoteRootExists(graph)).rejects.toThrow(/root check failed \(403\)/);
   });
 });
 

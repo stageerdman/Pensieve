@@ -10,7 +10,7 @@
 
 import type { GraphClient } from "./graph";
 import { GRAPH_BASE, REMOTE_ROOT } from "./config";
-import { ConflictError, type RemoteItem, type SyncAccount, type SyncQuota } from "./types";
+import { ConflictError, TransientSyncError, type RemoteItem, type SyncAccount, type SyncQuota } from "./types";
 import { isMediaPath, parseMediaPath } from "../media";
 import { log } from "../logger";
 
@@ -54,6 +54,7 @@ export async function remoteRootExists(graph: GraphClient): Promise<boolean> {
   if (res.ok) return true;
   if (res.status === 404) return false;
   const text = await res.text().catch(() => "");
+  if (res.status >= 500 || res.status === 429) throw new TransientSyncError(`OneDrive is temporarily unavailable (${res.status}).`);
   throw new Error(`root check failed (${res.status}): ${text.slice(0, 200)}`);
 }
 
