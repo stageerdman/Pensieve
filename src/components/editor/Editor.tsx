@@ -86,6 +86,10 @@ export function loadBlocksWithoutHistory(editor: LoadableEditor, blocks: unknown
   });
 }
 
+// A brand-new (empty) note opens on an H1 line, so the first thing typed is the title.
+// Not saved until something is typed (the load is muted by `loading`).
+export const titleStarter = () => [{ type: "heading", props: { level: 1 }, content: [] }];
+
 // The minimal slice of the editor restorePosition needs: the raw ProseMirror view
 // (to set the caret) and focus(). Kept loose so we don't fight BlockNote's generics.
 interface PositionableEditor {
@@ -259,7 +263,7 @@ export function Editor({
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const blocks = await extendedMdToBlocks(editor, markdown);
+      const blocks = markdown.trim() ? await extendedMdToBlocks(editor, markdown) : titleStarter();
       if (cancelled) return;
       loadBlocksWithoutHistory(editor as unknown as LoadableEditor, blocks);
       loading.current = false;
