@@ -210,6 +210,29 @@ export function useNotes() {
     [store, persist, startSession],
   );
 
+  // Something outside the editor rewrote a memory on disk (a Process-queue form fill). If it's
+  // the open one, swap the editor onto the disk version — NOT via open(), which no-ops for the
+  // already-open id (that left the stale, pre-fill body on screen, and the next flushSave on
+  // switching memories would have written it back over the answers). Same out-of-band swap
+  // as a Restore: drop queued saves, remount via loadEpoch, baseline a fresh session.
+  const reloadFromDisk = useCallback(
+    async (id: string) => {
+      if (currentRef.current?.id !== id) return;
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (idleTimer.current) clearTimeout(idleTimer.current);
+      session.current = null;
+      const fresh = await store.load(id);
+      if (!fresh || currentRef.current?.id !== id) return;
+      setCurrent(fresh);
+      currentRef.current = fresh;
+      setLoadEpoch((n) => n + 1);
+      setStatus("idle");
+      await startSession(fresh);
+      log.info("notes", "reload.fromDisk", { id });
+    },
+    [store, startSession],
+  );
+
   // Start the open (empty) memory from a form: write the form's questions in (blank, dated
   // title, charms left out) and remember which form it came from (`fromForm`, so its charm
   // buttons can find their prompts later). Same out-of-band body swap as a Restore: cancel
@@ -305,5 +328,5 @@ export function useNotes() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [flushSave, closeSession]);
 
-  return { notes: notesWithBacklinks, current, status, loadEpoch, open, create, remove, change, updateMeta, togglePin, setCreatedAt, restoreVersion, startFromForm, refresh, recordOpen };
+  return { notes: notesWithBacklinks, current, status, loadEpoch, open, create, remove, change, updateMeta, togglePin, setCreatedAt, restoreVersion, startFromForm, reloadFromDisk, refresh, recordOpen };
 }

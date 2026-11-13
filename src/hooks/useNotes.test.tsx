@@ -100,6 +100,35 @@ describe("useNotes (integration)", () => {
     expect(saved?.markdown).toBe("version one body");
   });
 
+  it("reloadFromDisk swaps the open memory onto a body written out-of-band (form fill), and switching away can't write the stale one back", async () => {
+    const store = getStore();
+    const { result } = renderHook(() => useNotes());
+    await act(async () => {
+      await result.current.create();
+    });
+    const id = result.current.current!.id;
+    await act(async () => {
+      result.current.change("Daily\n\n**Q?**\n");
+    });
+    await waitFor(async () => expect((await store.load(id))?.markdown).toContain("Q?"), { timeout: 1500 });
+
+    // The Process queue fills it on disk behind the editor's back.
+    const onDisk = (await store.load(id))!;
+    await store.save({ ...onDisk, markdown: "Daily\n\n**Q?**\n\nFilled answer.\n" });
+
+    const epoch = result.current.loadEpoch;
+    await act(async () => {
+      await result.current.reloadFromDisk(id);
+    });
+    expect(result.current.current!.markdown).toContain("Filled answer.");
+    expect(result.current.loadEpoch).toBe(epoch + 1); // the editor remounts onto it
+
+    await act(async () => {
+      await result.current.create(); // switching away flushes the open memory
+    });
+    expect((await store.load(id))!.markdown).toContain("Filled answer.");
+  });
+
   it("derives linkedByCount — how many other memories link to each note", async () => {
     const store = getStore();
     // Seed: B and C both link to A; A links to nothing. So A has 2 backlinks, B/C have 0.
