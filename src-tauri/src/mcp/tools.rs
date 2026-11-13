@@ -220,24 +220,93 @@ fn summarize(vault_root: &Path, id: &str) -> Option<NoteSummary> {
     })
 }
 
-pub fn list_recent(vault_root: &Path, limit: Option<usize>) -> Vec<NoteSummary> {
-    let mut out: Vec<NoteSummary> =
-        list_ids(vault_root).iter().filter_map(|id| summarize(vault_root, id)).collect();
+pub fn list_recent(vault_root: &Path, limit: Option<usize>, untagged_only: bool) -> Vec<NoteSummary> {
+    let mut out: Vec<NoteSummary> = list_ids(vault_root)
+        .iter()
+        .filter_map(|id| summarize(vault_root, id))
+        .filter(|n| !untagged_only || n.tags.is_empty())
+        .collect();
     out.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
     out.truncate(limit.unwrap_or(DEFAULT_RECENT_LIMIT).max(1));
     out
 }
 
-pub fn list_tags(vault_root: &Path) -> Vec<String> {
-    let mut set = std::collections::BTreeSet::new();
+// ---- Tag vocabulary ------------------------------------------------------------
+// A tag in Pensieve is a THREAD — a promise to retrieve (a project like @CANI, a
+// practice, a focus to study one day), never a description. <vault>/tags.json holds
+// the threads (+ a one-line "what belongs here" definition); the frontend owns the
+// same file (src/lib/tags/store.ts) and treats names case/space/#-insensitively —
+// tag_key mirrors src/lib/tags/vocab.ts tagKey.
+
+const TAGS_FILE: &str = "tags.json";
+
+#[derive(Debug, Default, Deserialize, Serialize, Clone)]
+pub struct TagDef {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub definition: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+struct TagVocabFile {
+    #[serde(default)]
+    version: u32,
+    #[serde(default)]
+    tags: Vec<TagDef>,
+}
+
+fn tag_key(name: &str) -> String {
+    name.trim().trim_start_matches('#').split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
+}
+
+fn clean_tag(raw: &str) -> String {
+    raw.trim().trim_end_matches(',').trim_start_matches('#').split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn read_vocab(vault_root: &Path) -> Vec<TagDef> {
+    std::fs::read_to_string(vault_root.join(TAGS_FILE))
+        .ok()
+        .and_then(|raw| serde_json::from_str::<TagVocabFile>(&raw).ok())
+        .map(|f| f.tags)
+        .unwrap_or_default()
+}
+
+fn write_vocab(vault_root: &Path, tags: Vec<TagDef>) -> Result<(), String> {
+    let json = serde_json::to_string_pretty(&TagVocabFile { version: 1, tags }).map_err(|e| e.to_string())?;
+    std::fs::write(vault_root.join(TAGS_FILE), json).map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Serialize)]
+pub struct TagInfo {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub definition: Option<String>,
+    /// How many notes carry this tag.
+    pub uses: usize,
+}
+
+/// The thread vocabulary ∪ tags in use (vocabulary spelling wins), most-used first.
+pub fn list_tags(vault_root: &Path) -> Vec<TagInfo> {
+    let mut out: Vec<TagInfo> = read_vocab(vault_root)
+        .into_iter()
+        .map(|d| TagInfo { name: d.name, definition: d.definition, uses: 0 })
+        .collect();
     for id in list_ids(vault_root) {
-        if let Some(s) = summarize(vault_root, &id) {
-            for t in s.tags {
-                set.insert(t);
+        let Some(s) = summarize(vault_root, &id) else { continue };
+        let mut seen = std::collections::HashSet::new();
+        for t in s.tags {
+            let k = tag_key(&t);
+            if !seen.insert(k.clone()) {
+                continue;
+            }
+            match out.iter_mut().find(|i| tag_key(&i.name) == k) {
+                Some(i) => i.uses += 1,
+                None => out.push(TagInfo { name: t, definition: None, uses: 1 }),
             }
         }
     }
-    set.into_iter().collect()
+    out.sort_by(|a, b| b.uses.cmp(&a.uses).then_with(|| a.name.cmp(&b.name)));
+    out
 }
 
 #[derive(Debug, Serialize)]
@@ -395,11 +464,35 @@ pub fn edit_note(
     write_meta(vault_root, id, &meta)
 }
 
-pub fn add_tag(vault_root: &Path, id: &str, tag: &str) -> Result<(), String> {
+/// Add a tag (thread) to a note. A known tag (vocabulary or in use, matched
+/// case/space-insensitively) is written with its existing spelling. An unknown tag is
+/// refused unless `create` is set — the AI must ask the owner before starting a new
+/// thread — and when created it joins the vocabulary. Returns the spelling written.
+pub fn add_tag(vault_root: &Path, id: &str, tag: &str, create: bool) -> Result<String, String> {
+    let typed = clean_tag(tag);
+    if typed.is_empty() || typed.contains(',') {
+        return Err("invalid tag name (empty or contains a comma)".into());
+    }
+    let known = list_tags(vault_root).into_iter().find(|t| tag_key(&t.name) == tag_key(&typed)).map(|t| t.name);
+    let name = match known {
+        Some(n) => n,
+        None if create => {
+            let mut vocab = read_vocab(vault_root);
+            vocab.push(TagDef { name: typed.clone(), definition: None });
+            write_vocab(vault_root, vocab)?;
+            typed
+        }
+        None => {
+            return Err(format!(
+                "\"{typed}\" is not an existing tag. Reuse one from list_tags, or ask the owner whether to start this new thread and only then call add_tag again with create: true."
+            ))
+        }
+    };
+
     let raw = std::fs::read_to_string(note_path(vault_root, id)).map_err(|_| format!("no note with id {id}"))?;
     let (mut fm, body) = parse_frontmatter(&raw);
-    if !fm.tags.iter().any(|t| t == tag) {
-        fm.tags.push(tag.to_string());
+    if !fm.tags.iter().any(|t| tag_key(t) == tag_key(&name)) {
+        fm.tags.push(name.clone());
     }
     let file = compose_frontmatter(&fm, &body);
     std::fs::write(note_path(vault_root, id), file).map_err(|e| e.to_string())?;
@@ -407,7 +500,8 @@ pub fn add_tag(vault_root: &Path, id: &str, tag: &str) -> Result<(), String> {
     let mut meta = read_meta(vault_root, id);
     meta.tags = Some(fm.tags);
     meta.updated_at = Some(now_millis());
-    write_meta(vault_root, id, &meta)
+    write_meta(vault_root, id, &meta)?;
+    Ok(name)
 }
 
 pub fn link_note(vault_root: &Path, id: &str, linked_id: &str) -> Result<(), String> {
@@ -422,6 +516,38 @@ pub fn link_note(vault_root: &Path, id: &str, linked_id: &str) -> Result<(), Str
     let mut meta = read_meta(vault_root, id);
     meta.updated_at = Some(now_millis());
     write_meta(vault_root, id, &meta)
+}
+
+#[cfg(test)]
+mod tag_tests {
+    use super::*;
+
+    fn vault() -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("pensieve-tag-test-{}", new_id()));
+        std::fs::create_dir_all(dir.join("notes")).unwrap();
+        dir
+    }
+
+    #[test]
+    fn add_tag_reuses_spelling_and_refuses_unknown_without_create() {
+        let v = vault();
+        write_vocab(&v, vec![TagDef { name: "@CANI".into(), definition: Some("daily actions".into()) }]).unwrap();
+        let id = create_note(&v, "# Hello".into(), vec![], vec![]).unwrap();
+
+        assert_eq!(add_tag(&v, &id, "@cani", false).unwrap(), "@CANI");
+        assert!(add_tag(&v, &id, "@Brand New", false).is_err());
+        assert_eq!(read_vocab(&v).len(), 1);
+
+        assert_eq!(add_tag(&v, &id, "#@Brand  New", true).unwrap(), "@Brand New");
+        assert_eq!(read_vocab(&v).len(), 2);
+        assert_eq!(get_note(&v, &id).unwrap().tags, vec!["@CANI", "@Brand New"]);
+
+        let tags = list_tags(&v);
+        assert_eq!(tags[0].uses, 1);
+        assert_eq!(list_recent(&v, None, true).len(), 0);
+        assert_eq!(list_recent(&v, None, false).len(), 1);
+        let _ = std::fs::remove_dir_all(&v);
+    }
 }
 
 #[cfg(test)]

@@ -8,7 +8,7 @@
 // independent of this roster save.
 
 import { log } from "../logger";
-import { SEED_AGENTS, type Agent, type KnowledgeFile } from "./agents";
+import { PROMPT_MIGRATIONS, SEED_AGENTS, type Agent, type KnowledgeFile } from "./agents";
 
 const FILE = "agents.json";
 const LS_KEY = "pensieve:agents";
@@ -38,6 +38,11 @@ function sanitizeKnowledgeFiles(value: unknown): KnowledgeFile[] {
   return out;
 }
 
+/** Rewrite outdated seeded sentences (see PROMPT_MIGRATIONS); owner edits survive. */
+export function migratePrompt(prompt: string): string {
+  return PROMPT_MIGRATIONS.reduce((p, [from, to]) => p.split(from).join(to), prompt);
+}
+
 function sanitize(parsed: unknown): Agent[] {
   const list = (parsed as Stored)?.agents ?? (parsed as Agent[]);
   if (!Array.isArray(list)) return [...SEED_AGENTS];
@@ -50,7 +55,7 @@ function sanitize(parsed: unknown): Agent[] {
       id,
       name,
       tagline: typeof a?.tagline === "string" ? a.tagline : "",
-      systemPrompt: typeof a?.systemPrompt === "string" ? a.systemPrompt : "",
+      systemPrompt: typeof a?.systemPrompt === "string" ? migratePrompt(a.systemPrompt) : "",
       knowledgeFiles: sanitizeKnowledgeFiles(a?.knowledgeFiles),
     });
   }
