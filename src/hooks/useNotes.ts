@@ -166,6 +166,26 @@ export function useNotes() {
     [persist],
   );
 
+  // The desktop AI (add_tag MCP tool) may have written tags into notes on disk while
+  // the app was open. Refresh the list, and fold any tags the OPEN note gained on disk
+  // into the in-memory note (union — never drops a tag), then persist, so the next
+  // autosave can't write the old tag list back over the AI's.
+  const adoptDiskTags = useCallback(async () => {
+    await refresh();
+    const note = currentRef.current;
+    if (!note) return;
+    const disk = await store.load(note.id);
+    const latest = currentRef.current;
+    if (!disk || !latest || latest.id !== note.id) return;
+    const gained = disk.tags.filter((t) => !latest.tags.includes(t));
+    if (!gained.length) return;
+    const next = { ...latest, tags: [...latest.tags, ...gained] };
+    setCurrent(next);
+    currentRef.current = next;
+    log.info("notes", "tags.adoptedFromDisk", { id: note.id, count: gained.length });
+    void persist(next);
+  }, [store, refresh, persist]);
+
   // Set the open note's creation date (e.g. a thought actually had earlier, logged
   // now). Persists immediately; the store keeps createdAt as a system field.
   const setCreatedAt = useCallback(
@@ -328,5 +348,5 @@ export function useNotes() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [flushSave, closeSession]);
 
-  return { notes: notesWithBacklinks, current, status, loadEpoch, open, create, remove, change, updateMeta, togglePin, setCreatedAt, restoreVersion, startFromForm, reloadFromDisk, flush: flushSave, refresh, recordOpen };
+  return { notes: notesWithBacklinks, current, status, loadEpoch, open, create, remove, change, updateMeta, togglePin, setCreatedAt, restoreVersion, startFromForm, reloadFromDisk, adoptDiskTags, flush: flushSave, refresh, recordOpen };
 }

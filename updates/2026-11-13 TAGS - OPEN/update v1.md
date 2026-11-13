@@ -1,6 +1,6 @@
 # Update v1 — TAGS (what a tag is, and how AI tags well)
 
-Status: **PROPOSAL — awaiting owner decisions (see "Open decisions").** Nothing built yet.
+Status: **BUILDING on `update/tags`** — owner decided 2026-11-13 (see Decisions). Live status at the bottom.
 
 ## Goal
 Redefine tags around how the owner actually uses them — **fast filtering / pulling a thread
@@ -53,22 +53,46 @@ read the whole thread: "what have I learned about sales mindset across 40 entrie
   worth knowing.
 - Notion: ~700 sprawling `Dags` to be imported later.
 
-## Phased roadmap (after decisions)
-- [ ] **P1 — Vocabulary.** `tags.json` (name, optional definition, archived); whisper ranked
-      by recent use; case-insensitive dedupe on add; rename + merge (rewrites notes).
-- [ ] **P2 — Tags beside the flask.** Tag chips on the same row as category above the editor
-      (like category, no Details trip).
-- [ ] **P3 — Thread view.** Clicking a tag opens its thread (filtered gallery, time order);
-      desktop "Ask the coach about this thread".
-- [ ] **P4 — AI tagger.** Ghost-chip proposals following the rules above; on journal
-      processing + on demand. Enable Patronus `add_tag`.
-- [ ] **P5 — Gardening pass.** Merge / rename / retire proposals.
-- [ ] **P6 — Phone.** See + add tags (no AI); filter by tag in Accio.
-- [ ] **P7 — Notion tags.** AI clusters ~700 Dags into ~30 threads on one review screen;
-      dropped ones kept hidden (`notionTags`) so search still finds them. Feeds NOTION-IMPORT P5.
+## Decisions (owner, 2026-11-13)
+- **Meaning locked:** a tag is a thread (promise to retrieve). Name stays "tag". Recorded in
+  UX.md "Tags are threads — DECIDED" + auto-memory `tags-are-threads`.
+- **One kind** (Concept A). No lenses.
+- **Owner tags by default**, on the flask row beside category.
+- **AI tags only when asked** (e.g. "check my last entries, take the untagged ones, tag
+  them") — never automatically during journal processing.
+- **Seed the vocabulary from Notion:** analyse the Notion `Dags`, keep only the real
+  threads, add them to `tags.json`.
 
-## Open decisions (owner)
-1. **One kind or two?** A: every tag is a thread (recommended). B: threads + "lenses" for
-   states like `Emotional Low` that AI may create more freely (risk: Notion-style sprawl).
-2. **AI applies or proposes?** Recommended: always proposes (ghost chips) at first.
-3. **Tags next to category above the editor?** Recommended: yes.
+## Phased roadmap
+- [x] **P1 — Vocabulary.** `src/lib/tags/vocab.ts` (pure: tagKey/cleanTag/canonicalTag,
+      buildSuggestions ranked by use, whisper) + `store.ts` (`<vault>/tags.json`) +
+      `hooks/useTagVocab`. Typing a case-variant reuses the existing spelling; a new name is an
+      explicit "＋ New tag" row and joins the vocabulary. Whisper shows threads + their
+      definition on focus; ↑/↓/Enter.
+- [x] **P2 — Tags beside the flask.** `TagEditor variant="inline"` on the flask row after
+      category; Tags + Category removed from Details (one home).
+- [x] **P3 — AI tags on request.** MCP: `list_tags` → vocabulary with definitions + use
+      counts; `list_recent untagged_only`; `add_tag` enabled — reuses spelling, refuses an
+      unknown tag unless `create: true` (owner consent), created tags join `tags.json`. Rules
+      in the tool description + `TAGGING_GUIDE` in agent prompts; saved Patronus/Curator
+      prompts migrated (old "writing tools aren't enabled" sentences rewritten on load).
+      After every agent reply the app re-reads notes + vocabulary and folds tags the open
+      note gained on disk into the editor (union, so autosave can't drop them).
+- [x] **P4 — Seed threads from Notion.** 1,008 `Dags` options classified (31 threads ←
+      62 merged options; 752 topic, 94 mood, 20 person, 13 time, 67 other). The **22
+      threads seen in use** were written to the real vault's `tags.json` with definitions
+      (no prior file existed). 9 deliberate @-tags not seen in the 406-entry sample are held
+      back for the owner: @Quarterly Reflection, @Discovering Me, @Philosophy, @What Would A
+      Leader Do, @Questions For Successful People, @Quotes, @Post, @Business, @Anki. Full
+      analysis + merges: `notion-threads.json`.
+- [ ] **P5 — Ship.** Merge to main, `tauri:build`, owner tries it.
+- Later (not this update): thread view + "ask the coach about this thread"; gardening
+  pass (merge/rename/retire); phone tags; definition editing UI; Notion import maps `Dags`
+  → these threads (NOTION-IMPORT P5).
+
+## Known limits
+- If the owner is typing in a note at the exact moment the AI tags *that same* note, the
+  editor's autosave can write the old tag list over the AI's before the reply ends.
+  Rare; the AI reports what it tagged, so it's visible.
+- `tags.json` is desktop-local like `categories.json` (not synced to the phone, which has
+  no tag UI yet).

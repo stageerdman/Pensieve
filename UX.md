@@ -76,6 +76,23 @@ From the vision exploration (`updates/2026-10-05 PENSIEVE-VISION/`):
   home — a ⌘K retrieval layer. **Keep as inspiration for the search engine (later).**
 - **The Mind Map** — fascinating but not actually useful. **Dropped.**
 
+## Tags are threads — DECIDED (2026-11-13, owner)
+**A tag is a promise to retrieve, not a description.** It names a thread the owner will
+deliberately pull up later: a project (`@CANI` → daily actions, weekly review), a practice
+(`@Success Bag`), or a focus to study one day (`@Sales Mindset`, `@Mindset Review`). Test:
+*"Can I picture the day I'll search for this?"* If not, it isn't a tag. The name stays
+"tag"; the meaning is "thread".
+- **Not tags:** words in the text (search finds them) · the kind of note (category) ·
+  importance (starred/pinned) · people / related notes (links) · dates (Accio time lens) ·
+  mood, status, life chapter (future properties).
+- **The vocabulary** (`<vault>/tags.json`) holds every thread + a one-line "what belongs
+  here". Whispering offers it; a case-variant reuses the existing spelling; a new tag is an
+  explicit "＋ New tag" choice (creating a tag = creating a thread).
+- **The owner tags by default** — on the flask row beside category, no Details trip.
+- **AI tags only when asked** (desktop, e.g. "tag my last untagged entries"): reuses the
+  vocabulary, 0–2 per note, never a tag that repeats the note's own words, and must ask
+  before starting a new thread (the tool refuses unknown tags without explicit consent).
+
 ## Working rule
 Iterate with **at most two concepts at a time** from here on.
 

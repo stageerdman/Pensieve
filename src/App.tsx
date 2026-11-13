@@ -12,6 +12,10 @@ import { useFormRedo } from "./features/forms/useFormRedo";
 import { FORM_KEY, isFormTemplate, withExtra } from "./lib/forms";
 import { FlaskButton } from "./components/FlaskButton";
 import { NoteCategoryControl } from "./components/NoteCategoryControl";
+import { TagEditor } from "./components/TagEditor";
+import { useTagVocab } from "./hooks/useTagVocab";
+import { VAULT_TOUCHED_EVENT } from "./features/assistant/useAssistant";
+import { buildSuggestions } from "./lib/tags/vocab";
 import { TabBar, HOME, type ExtraTab } from "./components/TabBar";
 import { IconButton } from "./components/IconButton";
 import {
@@ -75,6 +79,7 @@ export default function App() {
     restoreVersion,
     startFromForm,
     reloadFromDisk,
+    adoptDiskTags,
     flush,
     refresh,
     recordOpen,
@@ -205,11 +210,21 @@ export default function App() {
       : { id, label: "Agents", icon: <Sigil size={13} /> },
   );
 
-  // Live set of tags in use across notes — the source for tag whispering.
+  // Tag whispering = the thread vocabulary (tags.json) ∪ tags in use, ranked by use.
+  const tagVocab = useTagVocab();
   const tagSuggestions = useMemo(
-    () => Array.from(new Set(notes.flatMap((n) => n.tags ?? []))).sort(),
-    [notes],
+    () => buildSuggestions(tagVocab.defs, notes.map((n) => n.tags ?? [])),
+    [tagVocab.defs, notes],
   );
+  // After any AI reply: re-read tags it may have added (notes + vocabulary).
+  useEffect(() => {
+    const onTouched = () => {
+      tagVocab.reload();
+      void adoptDiskTags();
+    };
+    window.addEventListener(VAULT_TOUCHED_EVENT, onTouched);
+    return () => window.removeEventListener(VAULT_TOUCHED_EVENT, onTouched);
+  }, [tagVocab.reload, adoptDiskTags]);
 
   // The right dock holds one panel at a time — opening either closes the other. Only
   // meaningful with a note open, so they are no-ops on Home.
@@ -490,7 +505,7 @@ export default function App() {
                         </div>
                       )}
                       {!focusMode && (
-                        <div className="group/noterow mx-auto mb-1 flex max-w-[72ch] items-center gap-2">
+                        <div className="group/noterow mx-auto mb-1 flex max-w-[72ch] flex-wrap items-center gap-x-2 gap-y-1">
                           <FlaskButton
                             icon={current.icon}
                             chars={contentCharCount(current.markdown)}
@@ -501,6 +516,13 @@ export default function App() {
                             value={current.categories}
                             categories={categories}
                             updateMeta={updateMeta}
+                            variant="inline"
+                          />
+                          <TagEditor
+                            tags={current.tags}
+                            suggestions={tagSuggestions}
+                            onChange={(tags) => updateMeta({ tags })}
+                            onCreate={tagVocab.ensure}
                             variant="inline"
                           />
                         </div>
@@ -569,7 +591,6 @@ export default function App() {
                   <DetailsPanel
                     note={current}
                     notes={notes}
-                    tagSuggestions={tagSuggestions}
                     onClose={() => setDetailsOpen(false)}
                     onOpenNote={(id) => void open(id)}
                     updateMeta={updateMeta}
