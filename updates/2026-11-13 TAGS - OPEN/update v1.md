@@ -78,8 +78,13 @@ read the whole thread: "what have I learned about sales mindset across 40 entrie
       prompts migrated (old "writing tools aren't enabled" sentences rewritten on load).
       After every agent reply the app re-reads notes + vocabulary and folds tags the open
       note gained on disk into the editor (union, so autosave can't drop them).
-- [ ] **P4 — Seed threads from Notion.** Analyse `Dags` → thread vocabulary with
-      definitions → write to the real vault's `tags.json` (backup first).
+- [x] **P4 — Seed threads from Notion.** 1,008 `Dags` options classified (31 threads ←
+      62 merged options; 752 topic, 94 mood, 20 person, 13 time, 67 other). The **22
+      threads seen in use** were written to the real vault's `tags.json` with definitions
+      (no prior file existed). 9 deliberate @-tags not seen in the 406-entry sample are held
+      back for the owner: @Quarterly Reflection, @Discovering Me, @Philosophy, @What Would A
+      Leader Do, @Questions For Successful People, @Quotes, @Post, @Business, @Anki. Full
+      analysis + merges: `notion-threads.json`.
 - [ ] **P5 — Ship.** Merge to main, `tauri:build`, owner tries it.
 - Later (not this update): thread view + "ask the coach about this thread"; gardening
   pass (merge/rename/retire); phone tags; definition editing UI; Notion import maps `Dags`

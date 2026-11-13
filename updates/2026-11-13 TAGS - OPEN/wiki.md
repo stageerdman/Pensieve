@@ -24,3 +24,18 @@
   enforceable rather than a prompt hope.
 
 ## Audit (2026-11-13) — see update v1.md "Facts".
+
+## Notion Dags analysis (2026-11-13)
+- Notion MCP was slow: grouped SQL queries all errored, workspace hit the Query Data Source
+  allowance (~25 calls/hour on this plan). Counts are a SAMPLE of 406/~1,990 entries
+  (mid-2024→Jan 2025 + Sep–Nov 2026); the option list (1,008, not ~700) came from the
+  2026-10-28 survey fetch. For exact counts later: plain paged `SELECT "Dags", createdTime
+  … LIMIT 100 OFFSET n` after the allowance resets.
+- Of 1,008 options only ~3% are threads; ~75% are plain topics search already covers —
+  confirms the "tags are threads" decision.
+- Merges worth remembering (apply in NOTION-IMPORT): @Mindset Capture/@Mindset Resolution/
+  "sales mindset" → @Sales Mindset; @sales_training_protocol/@sales_repport/"objection
+  handling" → @Sales Training; fashtag/FashTek/FashTac/Fashion Tech → @Fashtag; 8 "…patterns"
+  → @Patterns; #question → @Open Questions; "Breaking Pattern" → @Pattern Break; emoji
+  stripped (@🟣CANI → @CANI).
+- Definitions are AI-inferred from names + a few entries — owner may want to reword.

@@ -1,0 +1,4148 @@
+{
+ "source": {
+  "totalOptions": 1008,
+  "optionsSnapshot": "Dags schema as fetched 2026-10-28 (live schema fetch timed out on 2026-11-13; options added since then are missing)",
+  "countsMethod": "sampled 406 of ~1,990 entries (300 via SQL in Notion's internal order, ~mid-2024 to Jan 2025 plus a few 2023; 100 most-recently-modified via the Mobile view, Sep-Nov 2026; 6 from the Oct-28 survey). Uses and lastUsed are sample-only and undercount; null lastUsed = not seen in sample.",
+  "fetchedAt": "2026-11-13",
+  "notionDataSource": "collection://80b931ad-abca-481d-a276-0ee392c30532"
+ },
+ "threads": [
+  {
+   "name": "@CANI",
+   "definition": "My daily CANI check-in: what I did today, what worked, what to improve tomorrow. Pull it for weekly reviews and to spot streaks and slumps.",
+   "aliases": [
+    "@🟣CANI",
+    "cani technique"
+   ],
+   "uses": 117,
+   "lastUsed": "2026-11-12",
+   "notionColor": "purple"
+  },
+  {
+   "name": "@Emotion Control",
+   "definition": "Moments I caught a strong emotion and how I handled or reframed it. My log for mastering my state.",
+   "aliases": [
+    "@💗Emotion Control",
+    "Emotional Control",
+    "emotional control"
+   ],
+   "uses": 31,
+   "lastUsed": "2026-11-03",
+   "notionColor": "pink"
+  },
+  {
+   "name": "@Weekly Reflection",
+   "definition": "My Sunday look back at the week: wins, lows, lessons, and what to change next week.",
+   "aliases": [
+    "@🕜Weekly Reflection"
+   ],
+   "uses": 19,
+   "lastUsed": "2026-11-08",
+   "notionColor": "pink"
+  },
+  {
+   "name": "@Patterns",
+   "definition": "Recurring patterns I notice in myself or others. Study these together to find root causes.",
+   "aliases": [
+    "#patterns",
+    "patterns",
+    "mindpatterns",
+    "life patterns",
+    "behavior patterns",
+    "#behavior patterns",
+    "reaction patterns",
+    "personality patterns"
+   ],
+   "uses": 17,
+   "lastUsed": "2025-01-16",
+   "notionColor": "green"
+  },
+  {
+   "name": "@Success Bag",
+   "definition": "Proof of my wins: deals closed, breakthroughs, praise. Pull it when I doubt myself or need fuel.",
+   "aliases": [
+    "@💰 Success Bag",
+    "@success_bag"
+   ],
+   "uses": 16,
+   "lastUsed": "2026-10-21",
+   "notionColor": "blue"
+  },
+  {
+   "name": "@Recipes",
+   "definition": "My personal recipes and protocols: step-by-step techniques that reliably get me into a state or a result.",
+   "aliases": [
+    "@📜 Recipes",
+    "recipe",
+    "#formula"
+   ],
+   "uses": 14,
+   "lastUsed": "2025-01-18",
+   "notionColor": "pink"
+  },
+  {
+   "name": "@Sales Mindset",
+   "definition": "Raw sales-mindset thoughts I capture, and how I resolve them. The thread I review to fix my inner game in sales.",
+   "aliases": [
+    "@Mindset Capture",
+    "@Mindset Resolution",
+    "sales mindset",
+    "mindset resolution"
+   ],
+   "uses": 11,
+   "lastUsed": "2026-10-14",
+   "notionColor": "green"
+  },
+  {
+   "name": "@Goal Updates",
+   "definition": "Dated progress reports on a specific goal (money, sales mastery, launches). Pull these to track one result over time.",
+   "aliases": [
+    "@goal updates"
+   ],
+   "uses": 10,
+   "lastUsed": "2026-11-08",
+   "notionColor": "orange"
+  },
+  {
+   "name": "@The Conqueror",
+   "definition": "My Conqueror identity: moments and notes on stepping into the fighter, winner version of me.",
+   "aliases": [
+    "The Conqueror ⚡"
+   ],
+   "uses": 7,
+   "lastUsed": "2024-11-24",
+   "notionColor": "brown"
+  },
+  {
+   "name": "@Monthly Reflection",
+   "definition": "End-of-month review: the theme of the month, what moved, and what I carry into the next one.",
+   "aliases": [
+    "@📅Monthly Reflection"
+   ],
+   "uses": 6,
+   "lastUsed": "2026-11-01",
+   "notionColor": "gray"
+  },
+  {
+   "name": "@Coaching",
+   "definition": "How I coach and help others change: frameworks, conversations, lessons as a coach.",
+   "aliases": [
+    "@🫴 Coaching",
+    "#coaching"
+   ],
+   "uses": 5,
+   "lastUsed": "2026-10-22",
+   "notionColor": "default"
+  },
+  {
+   "name": "@Excuse Letter",
+   "definition": "My excuse letters: writing out the excuses I am making, then answering them.",
+   "aliases": [
+    "@📧Excuse Letter"
+   ],
+   "uses": 5,
+   "lastUsed": "2024-10-15",
+   "notionColor": "green"
+  },
+  {
+   "name": "@Fashtag",
+   "definition": "Notes from my Fashtag / fashion-tech startup: hiring, team, product. (Past project; keep for its history.)",
+   "aliases": [
+    "fashtag",
+    "Fashion Tech",
+    "FashTek",
+    "FashTac"
+   ],
+   "uses": 5,
+   "lastUsed": "2025-01-16",
+   "notionColor": "purple"
+  },
+  {
+   "name": "@Pattern Break",
+   "definition": "Times I broke a negative loop on purpose, and the technique that worked.",
+   "aliases": [
+    "@⛓️‍💥Pattern Break",
+    "Breaking Pattern",
+    "breaking old patterns"
+   ],
+   "uses": 4,
+   "lastUsed": "2025-01-03",
+   "notionColor": "default"
+  },
+  {
+   "name": "@Sales Training",
+   "definition": "Sales skill material I am building: objection handling, scripts, call processes. My playbook to study and drill.",
+   "aliases": [
+    "@Sales Training",
+    "@sales_training_protocol",
+    "@sales_repport",
+    "objection handling"
+   ],
+   "uses": 4,
+   "lastUsed": "2026-10-05",
+   "notionColor": "orange"
+  },
+  {
+   "name": "@Open Questions",
+   "definition": "Open questions I am chewing on and want to answer later.",
+   "aliases": [
+    "#question",
+    "questions"
+   ],
+   "uses": 4,
+   "lastUsed": "2024-12-02",
+   "notionColor": "gray"
+  },
+  {
+   "name": "@Hour of Power",
+   "definition": "My morning priming session: what I primed, visualised and committed to.",
+   "aliases": [
+    "@🐦‍🔥Hour of Power",
+    "hour of power"
+   ],
+   "uses": 3,
+   "lastUsed": "2026-11-02",
+   "notionColor": "brown"
+  },
+  {
+   "name": "@Sales Coaching",
+   "definition": "Coaching sessions and strategy around my sales work (with Lukas and others). Pull to prepare the next session.",
+   "aliases": [
+    "@Sales Coaching"
+   ],
+   "uses": 3,
+   "lastUsed": "2026-10-26",
+   "notionColor": "orange"
+  },
+  {
+   "name": "@Metaphors",
+   "definition": "Metaphors and analogies I collect to explain ideas and persuade.",
+   "aliases": [
+    "@Metaphores",
+    "metaphore",
+    "metaphor usage"
+   ],
+   "uses": 3,
+   "lastUsed": "2025-01-13",
+   "notionColor": "yellow"
+  },
+  {
+   "name": "@Annual Reflection",
+   "definition": "Year-end review: the story of my year and what I set for the next.",
+   "aliases": [
+    "@⛵Annual Reflection"
+   ],
+   "uses": 2,
+   "lastUsed": "2025-01-02",
+   "notionColor": "yellow"
+  },
+  {
+   "name": "@Limiting Beliefs",
+   "definition": "Limiting beliefs I have spotted, plus the new belief I am replacing each one with.",
+   "aliases": [
+    "@Limiting Belief",
+    "limiting beliefs"
+   ],
+   "uses": 2,
+   "lastUsed": "2024-11-14",
+   "notionColor": "purple"
+  },
+  {
+   "name": "@Unsent Messages",
+   "definition": "Messages I wrote to someone but did not send. Processing what I really want to say.",
+   "aliases": [
+    "@💬Unsent Messages"
+   ],
+   "uses": 2,
+   "lastUsed": "2024-09-29",
+   "notionColor": "red"
+  },
+  {
+   "name": "@Quarterly Reflection",
+   "definition": "Quarter review against my bigger goals: direction check and course corrections.",
+   "aliases": [
+    "@🗓️Quarterly Reflection"
+   ],
+   "uses": 0,
+   "lastUsed": null,
+   "notionColor": "brown"
+  },
+  {
+   "name": "@Discovering Me",
+   "definition": "Self-discovery: who I am, my traits, strengths and drives.",
+   "aliases": [
+    "@🦸 Discovering Me"
+   ],
+   "uses": 0,
+   "lastUsed": null,
+   "notionColor": "blue"
+  },
+  {
+   "name": "@Philosophy",
+   "definition": "My philosophy and life principles: worldview pieces I want to refine over time.",
+   "aliases": [
+    "@🏛️ Philosophy"
+   ],
+   "uses": 0,
+   "lastUsed": null,
+   "notionColor": "green"
+  },
+  {
+   "name": "@What Would A Leader Do",
+   "definition": "Situations where I ask what a real leader would do. Leadership decisions to study.",
+   "aliases": [
+    "@what_would_a_leader_do"
+   ],
+   "uses": 0,
+   "lastUsed": null,
+   "notionColor": "purple"
+  },
+  {
+   "name": "@Questions For Successful People",
+   "definition": "Questions I want to ask successful people, and their answers.",
+   "aliases": [
+    "@Questions for Successful"
+   ],
+   "uses": 0,
+   "lastUsed": null,
+   "notionColor": "blue"
+  },
+  {
+   "name": "@Quotes",
+   "definition": "Quotes worth keeping and re-reading.",
+   "aliases": [
+    "@quote",
+    "quote"
+   ],
+   "uses": 0,
+   "lastUsed": null,
+   "notionColor": "green"
+  },
+  {
+   "name": "@Post",
+   "definition": "Drafts and ideas for posts I want to publish.",
+   "aliases": [
+    "@📱Post"
+   ],
+   "uses": 0,
+   "lastUsed": null,
+   "notionColor": "pink"
+  },
+  {
+   "name": "@Business",
+   "definition": "Business ideas and business thinking to come back to.",
+   "aliases": [
+    "@Business"
+   ],
+   "uses": 0,
+   "lastUsed": null,
+   "notionColor": "purple"
+  },
+  {
+   "name": "@Anki",
+   "definition": "Material to turn into flashcards and memorise.",
+   "aliases": [
+    "@Anki"
+   ],
+   "uses": 0,
+   "lastUsed": null,
+   "notionColor": "green"
+  }
+ ],
+ "rejected": {
+  "TOPIC": [
+   {
+    "name": "leadership",
+    "uses": 13
+   },
+   {
+    "name": "success",
+    "uses": 12
+   },
+   {
+    "name": "influence",
+    "uses": 11
+   },
+   {
+    "name": "personal growth",
+    "uses": 10
+   },
+   {
+    "name": "reflection",
+    "uses": 10
+   },
+   {
+    "name": "productivity",
+    "uses": 8
+   },
+   {
+    "name": "communication",
+    "uses": 7
+   },
+   {
+    "name": "hiring",
+    "uses": 7
+   },
+   {
+    "name": "Relationships",
+    "uses": 7
+   },
+   {
+    "name": "growth",
+    "uses": 6
+   },
+   {
+    "name": "mindset",
+    "uses": 6
+   },
+   {
+    "name": "motivation",
+    "uses": 6
+   },
+   {
+    "name": "conflict resolution",
+    "uses": 5
+   },
+   {
+    "name": "focus",
+    "uses": 5
+   },
+   {
+    "name": "fulfillment",
+    "uses": 5
+   },
+   {
+    "name": "learning",
+    "uses": 5
+   },
+   {
+    "name": "decision-making",
+    "uses": 4
+   },
+   {
+    "name": "expectations",
+    "uses": 4
+   },
+   {
+    "name": "sales",
+    "uses": 4
+   },
+   {
+    "name": "self-reflection",
+    "uses": 4
+   },
+   {
+    "name": "success mindset",
+    "uses": 4
+   },
+   {
+    "name": "teamwork",
+    "uses": 4
+   },
+   {
+    "name": "time management",
+    "uses": 4
+   },
+   {
+    "name": "challenges",
+    "uses": 3
+   },
+   {
+    "name": "control",
+    "uses": 3
+   },
+   {
+    "name": "efficiency",
+    "uses": 3
+   },
+   {
+    "name": "energy management",
+    "uses": 3
+   },
+   {
+    "name": "human needs",
+    "uses": 3
+   },
+   {
+    "name": "letting go",
+    "uses": 3
+   },
+   {
+    "name": "momentum",
+    "uses": 3
+   },
+   {
+    "name": "state mastery",
+    "uses": 3
+   },
+   {
+    "name": "visualization",
+    "uses": 3
+   },
+   {
+    "name": "#confidence",
+    "uses": 2
+   },
+   {
+    "name": "#gratitude",
+    "uses": 2
+   },
+   {
+    "name": "#visualization",
+    "uses": 2
+   },
+   {
+    "name": "comfort zone",
+    "uses": 2
+   },
+   {
+    "name": "confidence",
+    "uses": 2
+   },
+   {
+    "name": "effective questions",
+    "uses": 2
+   },
+   {
+    "name": "emotional change",
+    "uses": 2
+   },
+   {
+    "name": "empathy",
+    "uses": 2
+   },
+   {
+    "name": "fail",
+    "uses": 2
+   },
+   {
+    "name": "failure",
+    "uses": 2
+   },
+   {
+    "name": "feedback",
+    "uses": 2
+   },
+   {
+    "name": "helping others",
+    "uses": 2
+   },
+   {
+    "name": "identity",
+    "uses": 2
+   },
+   {
+    "name": "influence technique",
+    "uses": 2
+   },
+   {
+    "name": "inner conflict",
+    "uses": 2
+   },
+   {
+    "name": "lessons",
+    "uses": 2
+   },
+   {
+    "name": "mirroring",
+    "uses": 2
+   },
+   {
+    "name": "mission statement",
+    "uses": 2
+   },
+   {
+    "name": "observation",
+    "uses": 2
+   },
+   {
+    "name": "persistence",
+    "uses": 2
+   },
+   {
+    "name": "personal development",
+    "uses": 2
+   },
+   {
+    "name": "perspective change",
+    "uses": 2
+   },
+   {
+    "name": "power",
+    "uses": 2
+   },
+   {
+    "name": "preparation",
+    "uses": 2
+   },
+   {
+    "name": "pressure",
+    "uses": 2
+   },
+   {
+    "name": "progress",
+    "uses": 2
+   },
+   {
+    "name": "purpose",
+    "uses": 2
+   },
+   {
+    "name": "reframing",
+    "uses": 2
+   },
+   {
+    "name": "rejection",
+    "uses": 2
+   },
+   {
+    "name": "repetition",
+    "uses": 2
+   },
+   {
+    "name": "resilience",
+    "uses": 2
+   },
+   {
+    "name": "resistance",
+    "uses": 2
+   },
+   {
+    "name": "routines",
+    "uses": 2
+   },
+   {
+    "name": "sales psychology",
+    "uses": 2
+   },
+   {
+    "name": "sales strategy",
+    "uses": 2
+   },
+   {
+    "name": "self-awareness",
+    "uses": 2
+   },
+   {
+    "name": "self-growth",
+    "uses": 2
+   },
+   {
+    "name": "selling",
+    "uses": 2
+   },
+   {
+    "name": "significance",
+    "uses": 2
+   },
+   {
+    "name": "starting from scratch",
+    "uses": 2
+   },
+   {
+    "name": "teaching",
+    "uses": 2
+   },
+   {
+    "name": "teaching approach",
+    "uses": 2
+   },
+   {
+    "name": "team-building",
+    "uses": 2
+   },
+   {
+    "name": "validation",
+    "uses": 2
+   },
+   {
+    "name": "values",
+    "uses": 2
+   },
+   {
+    "name": "#automation",
+    "uses": 1
+   },
+   {
+    "name": "#competence",
+    "uses": 1
+   },
+   {
+    "name": "#democratization",
+    "uses": 1
+   },
+   {
+    "name": "#emotional-energy",
+    "uses": 1
+   },
+   {
+    "name": "#evolution",
+    "uses": 1
+   },
+   {
+    "name": "#goal-setting",
+    "uses": 1
+   },
+   {
+    "name": "#goals",
+    "uses": 1
+   },
+   {
+    "name": "#history",
+    "uses": 1
+   },
+   {
+    "name": "#motivation",
+    "uses": 1
+   },
+   {
+    "name": "#priming",
+    "uses": 1
+   },
+   {
+    "name": "#privilege",
+    "uses": 1
+   },
+   {
+    "name": "#routine",
+    "uses": 1
+   },
+   {
+    "name": "#self-improvement",
+    "uses": 1
+   },
+   {
+    "name": "#selfimprovement",
+    "uses": 1
+   },
+   {
+    "name": "#technology",
+    "uses": 1
+   },
+   {
+    "name": "a player mindset",
+    "uses": 1
+   },
+   {
+    "name": "abbreviation",
+    "uses": 1
+   },
+   {
+    "name": "achievement",
+    "uses": 1
+   },
+   {
+    "name": "acronyme",
+    "uses": 1
+   },
+   {
+    "name": "action gaps",
+    "uses": 1
+   },
+   {
+    "name": "actionable steps",
+    "uses": 1
+   },
+   {
+    "name": "addiction",
+    "uses": 1
+   },
+   {
+    "name": "adjusting behavior",
+    "uses": 1
+   },
+   {
+    "name": "advice pitfalls",
+    "uses": 1
+   },
+   {
+    "name": "AI writing",
+    "uses": 1
+   },
+   {
+    "name": "algorithm design",
+    "uses": 1
+   },
+   {
+    "name": "alignment",
+    "uses": 1
+   },
+   {
+    "name": "assumptions",
+    "uses": 1
+   },
+   {
+    "name": "automatization",
+    "uses": 1
+   },
+   {
+    "name": "balance",
+    "uses": 1
+   },
+   {
+    "name": "belief",
+    "uses": 1
+   },
+   {
+    "name": "belief systems",
+    "uses": 1
+   },
+   {
+    "name": "beliefs",
+    "uses": 1
+   },
+   {
+    "name": "Blind Spots",
+    "uses": 1
+   },
+   {
+    "name": "building confidence",
+    "uses": 1
+   },
+   {
+    "name": "business",
+    "uses": 1
+   },
+   {
+    "name": "calendar planning",
+    "uses": 1
+   },
+   {
+    "name": "certainty",
+    "uses": 1
+   },
+   {
+    "name": "change process",
+    "uses": 1
+   },
+   {
+    "name": "clarity",
+    "uses": 1
+   },
+   {
+    "name": "clothing",
+    "uses": 1
+   },
+   {
+    "name": "coding solutions",
+    "uses": 1
+   },
+   {
+    "name": "collision of approaches",
+    "uses": 1
+   },
+   {
+    "name": "communication style",
+    "uses": 1
+   },
+   {
+    "name": "communication techniques",
+    "uses": 1
+   },
+   {
+    "name": "comparison",
+    "uses": 1
+   },
+   {
+    "name": "completion identity",
+    "uses": 1
+   },
+   {
+    "name": "compromise",
+    "uses": 1
+   },
+   {
+    "name": "confidence triggers",
+    "uses": 1
+   },
+   {
+    "name": "connections",
+    "uses": 1
+   },
+   {
+    "name": "consistency",
+    "uses": 1
+   },
+   {
+    "name": "content creation",
+    "uses": 1
+   },
+   {
+    "name": "continuous growth",
+    "uses": 1
+   },
+   {
+    "name": "contribution",
+    "uses": 1
+   },
+   {
+    "name": "conversation",
+    "uses": 1
+   },
+   {
+    "name": "conversations",
+    "uses": 1
+   },
+   {
+    "name": "conviction",
+    "uses": 1
+   },
+   {
+    "name": "credibility",
+    "uses": 1
+   },
+   {
+    "name": "daily habits",
+    "uses": 1
+   },
+   {
+    "name": "daily improvement",
+    "uses": 1
+   },
+   {
+    "name": "deadlines",
+    "uses": 1
+   },
+   {
+    "name": "decision making",
+    "uses": 1
+   },
+   {
+    "name": "deeper problems",
+    "uses": 1
+   },
+   {
+    "name": "defend the other side",
+    "uses": 1
+   },
+   {
+    "name": "desires",
+    "uses": 1
+   },
+   {
+    "name": "destiny",
+    "uses": 1
+   },
+   {
+    "name": "differences",
+    "uses": 1
+   },
+   {
+    "name": "digital communication",
+    "uses": 1
+   },
+   {
+    "name": "digital writing",
+    "uses": 1
+   },
+   {
+    "name": "discipline",
+    "uses": 1
+   },
+   {
+    "name": "discussion",
+    "uses": 1
+   },
+   {
+    "name": "dreams",
+    "uses": 1
+   },
+   {
+    "name": "emotional alignment",
+    "uses": 1
+   },
+   {
+    "name": "emotional balance",
+    "uses": 1
+   },
+   {
+    "name": "emotional connection",
+    "uses": 1
+   },
+   {
+    "name": "emotional health",
+    "uses": 1
+   },
+   {
+    "name": "emotional intensity",
+    "uses": 1
+   },
+   {
+    "name": "emotional signals",
+    "uses": 1
+   },
+   {
+    "name": "emotional triggers",
+    "uses": 1
+   },
+   {
+    "name": "employment",
+    "uses": 1
+   },
+   {
+    "name": "empowerment",
+    "uses": 1
+   },
+   {
+    "name": "encouragement",
+    "uses": 1
+   },
+   {
+    "name": "energy reset",
+    "uses": 1
+   },
+   {
+    "name": "entrepreneurship",
+    "uses": 1
+   },
+   {
+    "name": "event planning",
+    "uses": 1
+   },
+   {
+    "name": "experience",
+    "uses": 1
+   },
+   {
+    "name": "exploits",
+    "uses": 1
+   },
+   {
+    "name": "external influence",
+    "uses": 1
+   },
+   {
+    "name": "failure analysis",
+    "uses": 1
+   },
+   {
+    "name": "fake news",
+    "uses": 1
+   },
+   {
+    "name": "family",
+    "uses": 1
+   },
+   {
+    "name": "family legacy",
+    "uses": 1
+   },
+   {
+    "name": "fear management",
+    "uses": 1
+   },
+   {
+    "name": "fear of rejection",
+    "uses": 1
+   },
+   {
+    "name": "feedback loops",
+    "uses": 1
+   },
+   {
+    "name": "focus improvement",
+    "uses": 1
+   },
+   {
+    "name": "foreginers",
+    "uses": 1
+   },
+   {
+    "name": "frameworks",
+    "uses": 1
+   },
+   {
+    "name": "friction reduction",
+    "uses": 1
+   },
+   {
+    "name": "friendship",
+    "uses": 1
+   },
+   {
+    "name": "future",
+    "uses": 1
+   },
+   {
+    "name": "future goals",
+    "uses": 1
+   },
+   {
+    "name": "future value",
+    "uses": 1
+   },
+   {
+    "name": "goal setting",
+    "uses": 1
+   },
+   {
+    "name": "goal-achievement",
+    "uses": 1
+   },
+   {
+    "name": "goal-setting",
+    "uses": 1
+   },
+   {
+    "name": "goals",
+    "uses": 1
+   },
+   {
+    "name": "god powers",
+    "uses": 1
+   },
+   {
+    "name": "gratitude",
+    "uses": 1
+   },
+   {
+    "name": "habit building",
+    "uses": 1
+   },
+   {
+    "name": "habit tracking",
+    "uses": 1
+   },
+   {
+    "name": "habits",
+    "uses": 1
+   },
+   {
+    "name": "hackathon",
+    "uses": 1
+   },
+   {
+    "name": "hacking",
+    "uses": 1
+   },
+   {
+    "name": "health",
+    "uses": 1
+   },
+   {
+    "name": "healthy body",
+    "uses": 1
+   },
+   {
+    "name": "helping",
+    "uses": 1
+   },
+   {
+    "name": "hesitation",
+    "uses": 1
+   },
+   {
+    "name": "human filters",
+    "uses": 1
+   },
+   {
+    "name": "idea generation",
+    "uses": 1
+   },
+   {
+    "name": "impact",
+    "uses": 1
+   },
+   {
+    "name": "infinite intelligence",
+    "uses": 1
+   },
+   {
+    "name": "inner voice",
+    "uses": 1
+   },
+   {
+    "name": "inspiration",
+    "uses": 1
+   },
+   {
+    "name": "instinct",
+    "uses": 1
+   },
+   {
+    "name": "intent",
+    "uses": 1
+   },
+   {
+    "name": "internal-transformation",
+    "uses": 1
+   },
+   {
+    "name": "interviews",
+    "uses": 1
+   },
+   {
+    "name": "investment",
+    "uses": 1
+   },
+   {
+    "name": "job search",
+    "uses": 1
+   },
+   {
+    "name": "juicy goal",
+    "uses": 1
+   },
+   {
+    "name": "Knowledge",
+    "uses": 1
+   },
+   {
+    "name": "lag-after-change",
+    "uses": 1
+   },
+   {
+    "name": "language",
+    "uses": 1
+   },
+   {
+    "name": "lesson extraction",
+    "uses": 1
+   },
+   {
+    "name": "life categories",
+    "uses": 1
+   },
+   {
+    "name": "life systems",
+    "uses": 1
+   },
+   {
+    "name": "long-term engagement",
+    "uses": 1
+   },
+   {
+    "name": "long-term goals",
+    "uses": 1
+   },
+   {
+    "name": "loss of discipline",
+    "uses": 1
+   },
+   {
+    "name": "manipulation",
+    "uses": 1
+   },
+   {
+    "name": "marketing",
+    "uses": 1
+   },
+   {
+    "name": "Mastery",
+    "uses": 1
+   },
+   {
+    "name": "meaning",
+    "uses": 1
+   },
+   {
+    "name": "memories",
+    "uses": 1
+   },
+   {
+    "name": "mental shift",
+    "uses": 1
+   },
+   {
+    "name": "mindset shift",
+    "uses": 1
+   },
+   {
+    "name": "mirroring duration",
+    "uses": 1
+   },
+   {
+    "name": "my characters",
+    "uses": 1
+   },
+   {
+    "name": "negative focus",
+    "uses": 1
+   },
+   {
+    "name": "neglected details",
+    "uses": 1
+   },
+   {
+    "name": "non-aggressive approach",
+    "uses": 1
+   },
+   {
+    "name": "online interactions",
+    "uses": 1
+   },
+   {
+    "name": "opportunity",
+    "uses": 1
+   },
+   {
+    "name": "opportunity cost",
+    "uses": 1
+   },
+   {
+    "name": "opportunity mindset",
+    "uses": 1
+   },
+   {
+    "name": "optimism",
+    "uses": 1
+   },
+   {
+    "name": "outreach",
+    "uses": 1
+   },
+   {
+    "name": "overcoming distractions",
+    "uses": 1
+   },
+   {
+    "name": "partnership",
+    "uses": 1
+   },
+   {
+    "name": "patience",
+    "uses": 1
+   },
+   {
+    "name": "people pleasing",
+    "uses": 1
+   },
+   {
+    "name": "perception",
+    "uses": 1
+   },
+   {
+    "name": "personal impact",
+    "uses": 1
+   },
+   {
+    "name": "personal organization",
+    "uses": 1
+   },
+   {
+    "name": "personal preferences",
+    "uses": 1
+   },
+   {
+    "name": "personal systems",
+    "uses": 1
+   },
+   {
+    "name": "personal-growth",
+    "uses": 1
+   },
+   {
+    "name": "personality",
+    "uses": 1
+   },
+   {
+    "name": "personalization",
+    "uses": 1
+   },
+   {
+    "name": "perspective",
+    "uses": 1
+   },
+   {
+    "name": "persuasion",
+    "uses": 1
+   },
+   {
+    "name": "physiology",
+    "uses": 1
+   },
+   {
+    "name": "planning",
+    "uses": 1
+   },
+   {
+    "name": "planning gap",
+    "uses": 1
+   },
+   {
+    "name": "pleasing others",
+    "uses": 1
+   },
+   {
+    "name": "presence",
+    "uses": 1
+   },
+   {
+    "name": "priorities",
+    "uses": 1
+   },
+   {
+    "name": "prioritization",
+    "uses": 1
+   },
+   {
+    "name": "problem-solving",
+    "uses": 1
+   },
+   {
+    "name": "process",
+    "uses": 1
+   },
+   {
+    "name": "process vs goal",
+    "uses": 1
+   },
+   {
+    "name": "productivity mindset",
+    "uses": 1
+   },
+   {
+    "name": "psychology",
+    "uses": 1
+   },
+   {
+    "name": "pull",
+    "uses": 1
+   },
+   {
+    "name": "pushing limits",
+    "uses": 1
+   },
+   {
+    "name": "quick launch",
+    "uses": 1
+   },
+   {
+    "name": "rapport",
+    "uses": 1
+   },
+   {
+    "name": "realization",
+    "uses": 1
+   },
+   {
+    "name": "recruiting",
+    "uses": 1
+   },
+   {
+    "name": "renewal",
+    "uses": 1
+   },
+   {
+    "name": "respect",
+    "uses": 1
+   },
+   {
+    "name": "responsibility",
+    "uses": 1
+   },
+   {
+    "name": "routine design",
+    "uses": 1
+   },
+   {
+    "name": "routine disruption",
+    "uses": 1
+   },
+   {
+    "name": "rpm system",
+    "uses": 1
+   },
+   {
+    "name": "sales questions",
+    "uses": 1
+   },
+   {
+    "name": "sales techniques",
+    "uses": 1
+   },
+   {
+    "name": "scaling",
+    "uses": 1
+   },
+   {
+    "name": "self-checks",
+    "uses": 1
+   },
+   {
+    "name": "self-confidence",
+    "uses": 1
+   },
+   {
+    "name": "self-discipline",
+    "uses": 1
+   },
+   {
+    "name": "self-improvement",
+    "uses": 1
+   },
+   {
+    "name": "self-reliance",
+    "uses": 1
+   },
+   {
+    "name": "setbacks",
+    "uses": 1
+   },
+   {
+    "name": "shared values",
+    "uses": 1
+   },
+   {
+    "name": "shortcuts",
+    "uses": 1
+   },
+   {
+    "name": "skills",
+    "uses": 1
+   },
+   {
+    "name": "small steps",
+    "uses": 1
+   },
+   {
+    "name": "standards",
+    "uses": 1
+   },
+   {
+    "name": "standards maintenance",
+    "uses": 1
+   },
+   {
+    "name": "standing up",
+    "uses": 1
+   },
+   {
+    "name": "startups",
+    "uses": 1
+   },
+   {
+    "name": "story",
+    "uses": 1
+   },
+   {
+    "name": "strategies",
+    "uses": 1
+   },
+   {
+    "name": "strategy",
+    "uses": 1
+   },
+   {
+    "name": "Strengths",
+    "uses": 1
+   },
+   {
+    "name": "stress management",
+    "uses": 1
+   },
+   {
+    "name": "stress response",
+    "uses": 1
+   },
+   {
+    "name": "style",
+    "uses": 1
+   },
+   {
+    "name": "support",
+    "uses": 1
+   },
+   {
+    "name": "switching",
+    "uses": 1
+   },
+   {
+    "name": "systems",
+    "uses": 1
+   },
+   {
+    "name": "taking view of others",
+    "uses": 1
+   },
+   {
+    "name": "talk-it-out",
+    "uses": 1
+   },
+   {
+    "name": "task capturing",
+    "uses": 1
+   },
+   {
+    "name": "team dynamics",
+    "uses": 1
+   },
+   {
+    "name": "thinking styles",
+    "uses": 1
+   },
+   {
+    "name": "thought flow",
+    "uses": 1
+   },
+   {
+    "name": "time investment",
+    "uses": 1
+   },
+   {
+    "name": "towards-moving",
+    "uses": 1
+   },
+   {
+    "name": "trans",
+    "uses": 1
+   },
+   {
+    "name": "ultimate life platform",
+    "uses": 1
+   },
+   {
+    "name": "underprepared",
+    "uses": 1
+   },
+   {
+    "name": "understanding others",
+    "uses": 1
+   },
+   {
+    "name": "unfair advantages",
+    "uses": 1
+   },
+   {
+    "name": "unique voice",
+    "uses": 1
+   },
+   {
+    "name": "variety",
+    "uses": 1
+   },
+   {
+    "name": "vulnerability",
+    "uses": 1
+   },
+   {
+    "name": "why",
+    "uses": 1
+   },
+   {
+    "name": "work styles",
+    "uses": 1
+   },
+   {
+    "name": "workflow improvement",
+    "uses": 1
+   },
+   {
+    "name": "youtube",
+    "uses": 1
+   },
+   {
+    "name": "#a-player",
+    "uses": 0
+   },
+   {
+    "name": "#activation",
+    "uses": 0
+   },
+   {
+    "name": "#bicycleriding",
+    "uses": 0
+   },
+   {
+    "name": "#brutal honesty",
+    "uses": 0
+   },
+   {
+    "name": "#clarity",
+    "uses": 0
+   },
+   {
+    "name": "#communication",
+    "uses": 0
+   },
+   {
+    "name": "#comparison",
+    "uses": 0
+   },
+   {
+    "name": "#confidencebuilding",
+    "uses": 0
+   },
+   {
+    "name": "#conflictingthoughts",
+    "uses": 0
+   },
+   {
+    "name": "#cookingexperiments",
+    "uses": 0
+   },
+   {
+    "name": "#courage",
+    "uses": 0
+   },
+   {
+    "name": "#creativity",
+    "uses": 0
+   },
+   {
+    "name": "#curiosity stream",
+    "uses": 0
+   },
+   {
+    "name": "#dailypractice",
+    "uses": 0
+   },
+   {
+    "name": "#debate",
+    "uses": 0
+   },
+   {
+    "name": "#decision",
+    "uses": 0
+   },
+   {
+    "name": "#decisionmaking",
+    "uses": 0
+   },
+   {
+    "name": "#designfocus",
+    "uses": 0
+   },
+   {
+    "name": "#emotionalwellbeing",
+    "uses": 0
+   },
+   {
+    "name": "#energyshift",
+    "uses": 0
+   },
+   {
+    "name": "#energyvsresults",
+    "uses": 0
+   },
+   {
+    "name": "#fear",
+    "uses": 0
+   },
+   {
+    "name": "#focus",
+    "uses": 0
+   },
+   {
+    "name": "#gamification",
+    "uses": 0
+   },
+   {
+    "name": "#growth",
+    "uses": 0
+   },
+   {
+    "name": "#guidance",
+    "uses": 0
+   },
+   {
+    "name": "#habits",
+    "uses": 0
+   },
+   {
+    "name": "#hiddenroles",
+    "uses": 0
+   },
+   {
+    "name": "#identity",
+    "uses": 0
+   },
+   {
+    "name": "#imposter",
+    "uses": 0
+   },
+   {
+    "name": "#inner-standards",
+    "uses": 0
+   },
+   {
+    "name": "#innerchange",
+    "uses": 0
+   },
+   {
+    "name": "#innerdialogue",
+    "uses": 0
+   },
+   {
+    "name": "#judgment",
+    "uses": 0
+   },
+   {
+    "name": "#leader's biochemistry",
+    "uses": 0
+   },
+   {
+    "name": "#learning",
+    "uses": 0
+   },
+   {
+    "name": "#learningmethod",
+    "uses": 0
+   },
+   {
+    "name": "#life management",
+    "uses": 0
+   },
+   {
+    "name": "#lifevalue",
+    "uses": 0
+   },
+   {
+    "name": "#massive action",
+    "uses": 0
+   },
+   {
+    "name": "#mentalclarity",
+    "uses": 0
+   },
+   {
+    "name": "#mindest_business",
+    "uses": 0
+   },
+   {
+    "name": "#mindfulchoice",
+    "uses": 0
+   },
+   {
+    "name": "#mindset",
+    "uses": 0
+   },
+   {
+    "name": "#money",
+    "uses": 0
+   },
+   {
+    "name": "#morningroutine",
+    "uses": 0
+   },
+   {
+    "name": "#music",
+    "uses": 0
+   },
+   {
+    "name": "#naturewalk",
+    "uses": 0
+   },
+   {
+    "name": "#networking",
+    "uses": 0
+   },
+   {
+    "name": "#perfectionism",
+    "uses": 0
+   },
+   {
+    "name": "#personal growth",
+    "uses": 0
+   },
+   {
+    "name": "#persuasion",
+    "uses": 0
+   },
+   {
+    "name": "#planning",
+    "uses": 0
+   },
+   {
+    "name": "#procrastination",
+    "uses": 0
+   },
+   {
+    "name": "#productivity",
+    "uses": 0
+   },
+   {
+    "name": "#psychology",
+    "uses": 0
+   },
+   {
+    "name": "#questioning",
+    "uses": 0
+   },
+   {
+    "name": "#reflection",
+    "uses": 0
+   },
+   {
+    "name": "#risk",
+    "uses": 0
+   },
+   {
+    "name": "#sales",
+    "uses": 0
+   },
+   {
+    "name": "#self-discovery",
+    "uses": 0
+   },
+   {
+    "name": "#self-regulation",
+    "uses": 0
+   },
+   {
+    "name": "#selfinquiry",
+    "uses": 0
+   },
+   {
+    "name": "#selfsupport",
+    "uses": 0
+   },
+   {
+    "name": "#selfsystem",
+    "uses": 0
+   },
+   {
+    "name": "#selfwork",
+    "uses": 0
+   },
+   {
+    "name": "#servingothers",
+    "uses": 0
+   },
+   {
+    "name": "#socialdynamics",
+    "uses": 0
+   },
+   {
+    "name": "#songassociation",
+    "uses": 0
+   },
+   {
+    "name": "#storybuilding",
+    "uses": 0
+   },
+   {
+    "name": "#success",
+    "uses": 0
+   },
+   {
+    "name": "#sugarresistance",
+    "uses": 0
+   },
+   {
+    "name": "#system design",
+    "uses": 0
+   },
+   {
+    "name": "#timeblocking",
+    "uses": 0
+   },
+   {
+    "name": "#timeinvestment",
+    "uses": 0
+   },
+   {
+    "name": "#trackingmood",
+    "uses": 0
+   },
+   {
+    "name": "#truthfulness",
+    "uses": 0
+   },
+   {
+    "name": "20/80",
+    "uses": 0
+   },
+   {
+    "name": "accountability",
+    "uses": 0
+   },
+   {
+    "name": "adjustment",
+    "uses": 0
+   },
+   {
+    "name": "advice vs questions",
+    "uses": 0
+   },
+   {
+    "name": "altered states",
+    "uses": 0
+   },
+   {
+    "name": "ambition",
+    "uses": 0
+   },
+   {
+    "name": "anticipation",
+    "uses": 0
+   },
+   {
+    "name": "app building",
+    "uses": 0
+   },
+   {
+    "name": "approval",
+    "uses": 0
+   },
+   {
+    "name": "attitude",
+    "uses": 0
+   },
+   {
+    "name": "attraction",
+    "uses": 0
+   },
+   {
+    "name": "authenticity",
+    "uses": 0
+   },
+   {
+    "name": "automation",
+    "uses": 0
+   },
+   {
+    "name": "beating competitors",
+    "uses": 0
+   },
+   {
+    "name": "behavior",
+    "uses": 0
+   },
+   {
+    "name": "behavior change",
+    "uses": 0
+   },
+   {
+    "name": "believe",
+    "uses": 0
+   },
+   {
+    "name": "biology",
+    "uses": 0
+   },
+   {
+    "name": "body",
+    "uses": 0
+   },
+   {
+    "name": "body behavior",
+    "uses": 0
+   },
+   {
+    "name": "body response",
+    "uses": 0
+   },
+   {
+    "name": "body-awareness",
+    "uses": 0
+   },
+   {
+    "name": "bold ideas",
+    "uses": 0
+   },
+   {
+    "name": "brain",
+    "uses": 0
+   },
+   {
+    "name": "brain states",
+    "uses": 0
+   },
+   {
+    "name": "branding",
+    "uses": 0
+   },
+   {
+    "name": "breakthrough",
+    "uses": 0
+   },
+   {
+    "name": "building contacts",
+    "uses": 0
+   },
+   {
+    "name": "burn the boats",
+    "uses": 0
+   },
+   {
+    "name": "business as war",
+    "uses": 0
+   },
+   {
+    "name": "business strategy",
+    "uses": 0
+   },
+   {
+    "name": "business success",
+    "uses": 0
+   },
+   {
+    "name": "call strategy",
+    "uses": 0
+   },
+   {
+    "name": "calling",
+    "uses": 0
+   },
+   {
+    "name": "calling mindset",
+    "uses": 0
+   },
+   {
+    "name": "calling resistance",
+    "uses": 0
+   },
+   {
+    "name": "car-analogy",
+    "uses": 0
+   },
+   {
+    "name": "care",
+    "uses": 0
+   },
+   {
+    "name": "celebration",
+    "uses": 0
+   },
+   {
+    "name": "certainty and resourcefulness",
+    "uses": 0
+   },
+   {
+    "name": "change",
+    "uses": 0
+   },
+   {
+    "name": "change and adaptation",
+    "uses": 0
+   },
+   {
+    "name": "chaos",
+    "uses": 0
+   },
+   {
+    "name": "chess",
+    "uses": 0
+   },
+   {
+    "name": "client discomfort",
+    "uses": 0
+   },
+   {
+    "name": "client-meeting",
+    "uses": 0
+   },
+   {
+    "name": "closing",
+    "uses": 0
+   },
+   {
+    "name": "cognitive bias",
+    "uses": 0
+   },
+   {
+    "name": "coincidence",
+    "uses": 0
+   },
+   {
+    "name": "cold call",
+    "uses": 0
+   },
+   {
+    "name": "cold-calling",
+    "uses": 0
+   },
+   {
+    "name": "commitment",
+    "uses": 0
+   },
+   {
+    "name": "communication skills",
+    "uses": 0
+   },
+   {
+    "name": "compelling future",
+    "uses": 0
+   },
+   {
+    "name": "competitor analysis",
+    "uses": 0
+   },
+   {
+    "name": "competitors",
+    "uses": 0
+   },
+   {
+    "name": "complexity",
+    "uses": 0
+   },
+   {
+    "name": "compounding",
+    "uses": 0
+   },
+   {
+    "name": "conditioning",
+    "uses": 0
+   },
+   {
+    "name": "Confidence",
+    "uses": 0
+   },
+   {
+    "name": "conflict",
+    "uses": 0
+   },
+   {
+    "name": "connection",
+    "uses": 0
+   },
+   {
+    "name": "connection stories",
+    "uses": 0
+   },
+   {
+    "name": "consciousness shift",
+    "uses": 0
+   },
+   {
+    "name": "consequences",
+    "uses": 0
+   },
+   {
+    "name": "consultancy approach",
+    "uses": 0
+   },
+   {
+    "name": "conversation dynamics",
+    "uses": 0
+   },
+   {
+    "name": "conversation traps",
+    "uses": 0
+   },
+   {
+    "name": "coping mechanism",
+    "uses": 0
+   },
+   {
+    "name": "corporate transition",
+    "uses": 0
+   },
+   {
+    "name": "corporates",
+    "uses": 0
+   },
+   {
+    "name": "courses",
+    "uses": 0
+   },
+   {
+    "name": "creating beliefs",
+    "uses": 0
+   },
+   {
+    "name": "creativity",
+    "uses": 0
+   },
+   {
+    "name": "creativity vs fulfillment",
+    "uses": 0
+   },
+   {
+    "name": "criticism",
+    "uses": 0
+   },
+   {
+    "name": "crosswalk decision",
+    "uses": 0
+   },
+   {
+    "name": "Culture",
+    "uses": 0
+   },
+   {
+    "name": "curiosity",
+    "uses": 0
+   },
+   {
+    "name": "curiosity and drive",
+    "uses": 0
+   },
+   {
+    "name": "customer perspective",
+    "uses": 0
+   },
+   {
+    "name": "customer-conversations",
+    "uses": 0
+   },
+   {
+    "name": "cycles",
+    "uses": 0
+   },
+   {
+    "name": "darkness",
+    "uses": 0
+   },
+   {
+    "name": "data-decision",
+    "uses": 0
+   },
+   {
+    "name": "debating beliefs",
+    "uses": 0
+   },
+   {
+    "name": "decision",
+    "uses": 0
+   },
+   {
+    "name": "deep connections",
+    "uses": 0
+   },
+   {
+    "name": "deep conversation",
+    "uses": 0
+   },
+   {
+    "name": "defending",
+    "uses": 0
+   },
+   {
+    "name": "design",
+    "uses": 0
+   },
+   {
+    "name": "destroying fear",
+    "uses": 0
+   },
+   {
+    "name": "disassociation",
+    "uses": 0
+   },
+   {
+    "name": "discipline transformation",
+    "uses": 0
+   },
+   {
+    "name": "discovery",
+    "uses": 0
+   },
+   {
+    "name": "discrepancy",
+    "uses": 0
+   },
+   {
+    "name": "discrepency between inside and outside",
+    "uses": 0
+   },
+   {
+    "name": "distinctions",
+    "uses": 0
+   },
+   {
+    "name": "dominance",
+    "uses": 0
+   },
+   {
+    "name": "dominating",
+    "uses": 0
+   },
+   {
+    "name": "Drive",
+    "uses": 0
+   },
+   {
+    "name": "driving force",
+    "uses": 0
+   },
+   {
+    "name": "early struggles",
+    "uses": 0
+   },
+   {
+    "name": "economics",
+    "uses": 0
+   },
+   {
+    "name": "effort",
+    "uses": 0
+   },
+   {
+    "name": "emotional communication",
+    "uses": 0
+   },
+   {
+    "name": "emotional depth",
+    "uses": 0
+   },
+   {
+    "name": "emotional journey",
+    "uses": 0
+   },
+   {
+    "name": "emotional lock",
+    "uses": 0
+   },
+   {
+    "name": "emotional reactions",
+    "uses": 0
+   },
+   {
+    "name": "emotional transformation",
+    "uses": 0
+   },
+   {
+    "name": "emotional vulnerability",
+    "uses": 0
+   },
+   {
+    "name": "emotional-patterns",
+    "uses": 0
+   },
+   {
+    "name": "empathy in communication",
+    "uses": 0
+   },
+   {
+    "name": "energy",
+    "uses": 0
+   },
+   {
+    "name": "energy release",
+    "uses": 0
+   },
+   {
+    "name": "energy-management",
+    "uses": 0
+   },
+   {
+    "name": "entertainment",
+    "uses": 0
+   },
+   {
+    "name": "entrepreneurial journey",
+    "uses": 0
+   },
+   {
+    "name": "entrepreneurial mindset",
+    "uses": 0
+   },
+   {
+    "name": "explanation",
+    "uses": 0
+   },
+   {
+    "name": "exponential growth",
+    "uses": 0
+   },
+   {
+    "name": "extraction",
+    "uses": 0
+   },
+   {
+    "name": "facing truth",
+    "uses": 0
+   },
+   {
+    "name": "family roles",
+    "uses": 0
+   },
+   {
+    "name": "fanatic",
+    "uses": 0
+   },
+   {
+    "name": "fast vs slow thinking",
+    "uses": 0
+   },
+   {
+    "name": "fasting",
+    "uses": 0
+   },
+   {
+    "name": "fear of springs",
+    "uses": 0
+   },
+   {
+    "name": "fear response",
+    "uses": 0
+   },
+   {
+    "name": "feedback sensitivity",
+    "uses": 0
+   },
+   {
+    "name": "feminine",
+    "uses": 0
+   },
+   {
+    "name": "fight",
+    "uses": 0
+   },
+   {
+    "name": "financial freedom",
+    "uses": 0
+   },
+   {
+    "name": "financial stress",
+    "uses": 0
+   },
+   {
+    "name": "focus-meaning-action",
+    "uses": 0
+   },
+   {
+    "name": "forging identity",
+    "uses": 0
+   },
+   {
+    "name": "framing",
+    "uses": 0
+   },
+   {
+    "name": "Freedom",
+    "uses": 0
+   },
+   {
+    "name": "gaming",
+    "uses": 0
+   },
+   {
+    "name": "giving",
+    "uses": 0
+   },
+   {
+    "name": "giving up",
+    "uses": 0
+   },
+   {
+    "name": "goal",
+    "uses": 0
+   },
+   {
+    "name": "goal fixation",
+    "uses": 0
+   },
+   {
+    "name": "goal pursuit",
+    "uses": 0
+   },
+   {
+    "name": "god",
+    "uses": 0
+   },
+   {
+    "name": "graduate exposure",
+    "uses": 0
+   },
+   {
+    "name": "guiding with questions",
+    "uses": 0
+   },
+   {
+    "name": "gym",
+    "uses": 0
+   },
+   {
+    "name": "gym mindset",
+    "uses": 0
+   },
+   {
+    "name": "gymnastics",
+    "uses": 0
+   },
+   {
+    "name": "habit breaking",
+    "uses": 0
+   },
+   {
+    "name": "habit formation",
+    "uses": 0
+   },
+   {
+    "name": "head hunting",
+    "uses": 0
+   },
+   {
+    "name": "healthy eating",
+    "uses": 0
+   },
+   {
+    "name": "high achievers",
+    "uses": 0
+   },
+   {
+    "name": "high standards",
+    "uses": 0
+   },
+   {
+    "name": "higher self",
+    "uses": 0
+   },
+   {
+    "name": "honesty",
+    "uses": 0
+   },
+   {
+    "name": "human interaction",
+    "uses": 0
+   },
+   {
+    "name": "human nature",
+    "uses": 0
+   },
+   {
+    "name": "human resources",
+    "uses": 0
+   },
+   {
+    "name": "humanity",
+    "uses": 0
+   },
+   {
+    "name": "humor",
+    "uses": 0
+   },
+   {
+    "name": "hunger",
+    "uses": 0
+   },
+   {
+    "name": "ideal client",
+    "uses": 0
+   },
+   {
+    "name": "identity and self-perception",
+    "uses": 0
+   },
+   {
+    "name": "identity integration",
+    "uses": 0
+   },
+   {
+    "name": "identity vs action",
+    "uses": 0
+   },
+   {
+    "name": "incantations",
+    "uses": 0
+   },
+   {
+    "name": "Inner circle",
+    "uses": 0
+   },
+   {
+    "name": "inner core",
+    "uses": 0
+   },
+   {
+    "name": "inner work",
+    "uses": 0
+   },
+   {
+    "name": "inner-resources",
+    "uses": 0
+   },
+   {
+    "name": "inovation",
+    "uses": 0
+   },
+   {
+    "name": "internal conflict",
+    "uses": 0
+   },
+   {
+    "name": "internal reflections",
+    "uses": 0
+   },
+   {
+    "name": "internal tension",
+    "uses": 0
+   },
+   {
+    "name": "interventions",
+    "uses": 0
+   },
+   {
+    "name": "intuition",
+    "uses": 0
+   },
+   {
+    "name": "investment conversation",
+    "uses": 0
+   },
+   {
+    "name": "job",
+    "uses": 0
+   },
+   {
+    "name": "job interview",
+    "uses": 0
+   },
+   {
+    "name": "journaling",
+    "uses": 0
+   },
+   {
+    "name": "lean",
+    "uses": 0
+   },
+   {
+    "name": "Learning",
+    "uses": 0
+   },
+   {
+    "name": "leverage",
+    "uses": 0
+   },
+   {
+    "name": "life",
+    "uses": 0
+   },
+   {
+    "name": "life rules",
+    "uses": 0
+   },
+   {
+    "name": "linear growth",
+    "uses": 0
+   },
+   {
+    "name": "logical",
+    "uses": 0
+   },
+   {
+    "name": "looping",
+    "uses": 0
+   },
+   {
+    "name": "loving and strict",
+    "uses": 0
+   },
+   {
+    "name": "masculinity",
+    "uses": 0
+   },
+   {
+    "name": "massive action plan",
+    "uses": 0
+   },
+   {
+    "name": "memory palace",
+    "uses": 0
+   },
+   {
+    "name": "memory retrieval",
+    "uses": 0
+   },
+   {
+    "name": "mental clarity",
+    "uses": 0
+   },
+   {
+    "name": "mentorship",
+    "uses": 0
+   },
+   {
+    "name": "micro-action analysis",
+    "uses": 0
+   },
+   {
+    "name": "mind map",
+    "uses": 0
+   },
+   {
+    "name": "mind-body",
+    "uses": 0
+   },
+   {
+    "name": "misalignment",
+    "uses": 0
+   },
+   {
+    "name": "miscommunication",
+    "uses": 0
+   },
+   {
+    "name": "missed opportunity",
+    "uses": 0
+   },
+   {
+    "name": "mission",
+    "uses": 0
+   },
+   {
+    "name": "mission doubt",
+    "uses": 0
+   },
+   {
+    "name": "mnemonics",
+    "uses": 0
+   },
+   {
+    "name": "modeling",
+    "uses": 0
+   },
+   {
+    "name": "money",
+    "uses": 0
+   },
+   {
+    "name": "money insecurity",
+    "uses": 0
+   },
+   {
+    "name": "moral",
+    "uses": 0
+   },
+   {
+    "name": "morning routine",
+    "uses": 0
+   },
+   {
+    "name": "mother leadership",
+    "uses": 0
+   },
+   {
+    "name": "movie creation",
+    "uses": 0
+   },
+   {
+    "name": "music",
+    "uses": 0
+   },
+   {
+    "name": "my life",
+    "uses": 0
+   },
+   {
+    "name": "my mission",
+    "uses": 0
+   },
+   {
+    "name": "my path to god",
+    "uses": 0
+   },
+   {
+    "name": "my service",
+    "uses": 0
+   },
+   {
+    "name": "natural",
+    "uses": 0
+   },
+   {
+    "name": "naysayers",
+    "uses": 0
+   },
+   {
+    "name": "neuro programming",
+    "uses": 0
+   },
+   {
+    "name": "neuro-associations",
+    "uses": 0
+   },
+   {
+    "name": "neuro-linguistic programming",
+    "uses": 0
+   },
+   {
+    "name": "nice guy",
+    "uses": 0
+   },
+   {
+    "name": "NLP",
+    "uses": 0
+   },
+   {
+    "name": "Observation",
+    "uses": 0
+   },
+   {
+    "name": "observation of self",
+    "uses": 0
+   },
+   {
+    "name": "obsession",
+    "uses": 0
+   },
+   {
+    "name": "open-ended questions",
+    "uses": 0
+   },
+   {
+    "name": "out-of-body experience",
+    "uses": 0
+   },
+   {
+    "name": "outcome setting",
+    "uses": 0
+   },
+   {
+    "name": "ownership",
+    "uses": 0
+   },
+   {
+    "name": "owning",
+    "uses": 0
+   },
+   {
+    "name": "pain and pleasure",
+    "uses": 0
+   },
+   {
+    "name": "partnerships",
+    "uses": 0
+   },
+   {
+    "name": "passion",
+    "uses": 0
+   },
+   {
+    "name": "past identity",
+    "uses": 0
+   },
+   {
+    "name": "patronizing",
+    "uses": 0
+   },
+   {
+    "name": "people industry",
+    "uses": 0
+   },
+   {
+    "name": "people-pleasing",
+    "uses": 0
+   },
+   {
+    "name": "perfectionism",
+    "uses": 0
+   },
+   {
+    "name": "performance",
+    "uses": 0
+   },
+   {
+    "name": "performance mindset",
+    "uses": 0
+   },
+   {
+    "name": "performance psychology",
+    "uses": 0
+   },
+   {
+    "name": "performance-tracking",
+    "uses": 0
+   },
+   {
+    "name": "Personal Growth",
+    "uses": 0
+   },
+   {
+    "name": "personalities",
+    "uses": 0
+   },
+   {
+    "name": "perspective shift",
+    "uses": 0
+   },
+   {
+    "name": "pipeline",
+    "uses": 0
+   },
+   {
+    "name": "pleasure",
+    "uses": 0
+   },
+   {
+    "name": "podcast",
+    "uses": 0
+   },
+   {
+    "name": "posture",
+    "uses": 0
+   },
+   {
+    "name": "preparations",
+    "uses": 0
+   },
+   {
+    "name": "presentation",
+    "uses": 0
+   },
+   {
+    "name": "presenting ideas",
+    "uses": 0
+   },
+   {
+    "name": "problem awareness",
+    "uses": 0
+   },
+   {
+    "name": "procrastination",
+    "uses": 0
+   },
+   {
+    "name": "product I'd buy",
+    "uses": 0
+   },
+   {
+    "name": "proof building technique",
+    "uses": 0
+   },
+   {
+    "name": "prospecting",
+    "uses": 0
+   },
+   {
+    "name": "psychological limits",
+    "uses": 0
+   },
+   {
+    "name": "psychological systems",
+    "uses": 0
+   },
+   {
+    "name": "psychological triggers",
+    "uses": 0
+   },
+   {
+    "name": "Psychology",
+    "uses": 0
+   },
+   {
+    "name": "push",
+    "uses": 0
+   },
+   {
+    "name": "qualification",
+    "uses": 0
+   },
+   {
+    "name": "radical decisionmaking",
+    "uses": 0
+   },
+   {
+    "name": "rational",
+    "uses": 0
+   },
+   {
+    "name": "real estate analysis",
+    "uses": 0
+   },
+   {
+    "name": "real-estate",
+    "uses": 0
+   },
+   {
+    "name": "rebuilding mindset",
+    "uses": 0
+   },
+   {
+    "name": "recovery",
+    "uses": 0
+   },
+   {
+    "name": "redifining self",
+    "uses": 0
+   },
+   {
+    "name": "reframe",
+    "uses": 0
+   },
+   {
+    "name": "Rejection",
+    "uses": 0
+   },
+   {
+    "name": "relationships",
+    "uses": 0
+   },
+   {
+    "name": "relentness",
+    "uses": 0
+   },
+   {
+    "name": "resourcefulness",
+    "uses": 0
+   },
+   {
+    "name": "reward system",
+    "uses": 0
+   },
+   {
+    "name": "rewiring",
+    "uses": 0
+   },
+   {
+    "name": "rigid mental structures",
+    "uses": 0
+   },
+   {
+    "name": "routine",
+    "uses": 0
+   },
+   {
+    "name": "rules of love",
+    "uses": 0
+   },
+   {
+    "name": "rules of winning",
+    "uses": 0
+   },
+   {
+    "name": "rules we create",
+    "uses": 0
+   },
+   {
+    "name": "sales hesitation",
+    "uses": 0
+   },
+   {
+    "name": "sales process",
+    "uses": 0
+   },
+   {
+    "name": "sales script",
+    "uses": 0
+   },
+   {
+    "name": "sales team",
+    "uses": 0
+   },
+   {
+    "name": "script building",
+    "uses": 0
+   },
+   {
+    "name": "self appreciation",
+    "uses": 0
+   },
+   {
+    "name": "self expression",
+    "uses": 0
+   },
+   {
+    "name": "self transformation",
+    "uses": 0
+   },
+   {
+    "name": "Self worth",
+    "uses": 0
+   },
+   {
+    "name": "self-blocking",
+    "uses": 0
+   },
+   {
+    "name": "self-discovery",
+    "uses": 0
+   },
+   {
+    "name": "Self-Reflection",
+    "uses": 0
+   },
+   {
+    "name": "selfdiscipline",
+    "uses": 0
+   },
+   {
+    "name": "Selling",
+    "uses": 0
+   },
+   {
+    "name": "senses",
+    "uses": 0
+   },
+   {
+    "name": "service I need",
+    "uses": 0
+   },
+   {
+    "name": "sex",
+    "uses": 0
+   },
+   {
+    "name": "sharing",
+    "uses": 0
+   },
+   {
+    "name": "shit food",
+    "uses": 0
+   },
+   {
+    "name": "simplification",
+    "uses": 0
+   },
+   {
+    "name": "sms communication",
+    "uses": 0
+   },
+   {
+    "name": "social dynamics",
+    "uses": 0
+   },
+   {
+    "name": "social hesitation",
+    "uses": 0
+   },
+   {
+    "name": "social media",
+    "uses": 0
+   },
+   {
+    "name": "somatic response",
+    "uses": 0
+   },
+   {
+    "name": "song association",
+    "uses": 0
+   },
+   {
+    "name": "specificity",
+    "uses": 0
+   },
+   {
+    "name": "stacking benefits",
+    "uses": 0
+   },
+   {
+    "name": "stacking proof",
+    "uses": 0
+   },
+   {
+    "name": "startup",
+    "uses": 0
+   },
+   {
+    "name": "state management",
+    "uses": 0
+   },
+   {
+    "name": "state-control",
+    "uses": 0
+   },
+   {
+    "name": "stories",
+    "uses": 0
+   },
+   {
+    "name": "storytelling",
+    "uses": 0
+   },
+   {
+    "name": "subconscious",
+    "uses": 0
+   },
+   {
+    "name": "subconscious blocks",
+    "uses": 0
+   },
+   {
+    "name": "system check",
+    "uses": 0
+   },
+   {
+    "name": "task setting",
+    "uses": 0
+   },
+   {
+    "name": "team creation",
+    "uses": 0
+   },
+   {
+    "name": "technique",
+    "uses": 0
+   },
+   {
+    "name": "testing",
+    "uses": 0
+   },
+   {
+    "name": "testing technique",
+    "uses": 0
+   },
+   {
+    "name": "thinking",
+    "uses": 0
+   },
+   {
+    "name": "thinking vs. speaking",
+    "uses": 0
+   },
+   {
+    "name": "thirst for blood",
+    "uses": 0
+   },
+   {
+    "name": "thought riddle",
+    "uses": 0
+   },
+   {
+    "name": "thoughts",
+    "uses": 0
+   },
+   {
+    "name": "tracking",
+    "uses": 0
+   },
+   {
+    "name": "training",
+    "uses": 0
+   },
+   {
+    "name": "transformation",
+    "uses": 0
+   },
+   {
+    "name": "trauma",
+    "uses": 0
+   },
+   {
+    "name": "trial and error",
+    "uses": 0
+   },
+   {
+    "name": "triggers",
+    "uses": 0
+   },
+   {
+    "name": "truth focus",
+    "uses": 0
+   },
+   {
+    "name": "try-hard",
+    "uses": 0
+   },
+   {
+    "name": "uncomfortable actions",
+    "uses": 0
+   },
+   {
+    "name": "undecisivness",
+    "uses": 0
+   },
+   {
+    "name": "understanding barriers",
+    "uses": 0
+   },
+   {
+    "name": "Unique value proposition",
+    "uses": 0
+   },
+   {
+    "name": "value",
+    "uses": 0
+   },
+   {
+    "name": "vision",
+    "uses": 0
+   },
+   {
+    "name": "visionary",
+    "uses": 0
+   },
+   {
+    "name": "willpower",
+    "uses": 0
+   },
+   {
+    "name": "winner’s mindset",
+    "uses": 0
+   },
+   {
+    "name": "wording strategies",
+    "uses": 0
+   },
+   {
+    "name": "work environment",
+    "uses": 0
+   },
+   {
+    "name": "work-life balance",
+    "uses": 0
+   },
+   {
+    "name": "world model",
+    "uses": 0
+   }
+  ],
+  "PERSON": [
+   {
+    "name": "tony robbins",
+    "uses": 9
+   },
+   {
+    "name": "Co-Founder",
+    "uses": 2
+   },
+   {
+    "name": "Tony Robbins Techniques",
+    "uses": 2
+   },
+   {
+    "name": "Patrick discussion",
+    "uses": 1
+   },
+   {
+    "name": "Steve Jobs",
+    "uses": 1
+   },
+   {
+    "name": "tony-robbins-insights",
+    "uses": 1
+   },
+   {
+    "name": "#i",
+    "uses": 0
+   },
+   {
+    "name": "#me",
+    "uses": 0
+   },
+   {
+    "name": "ali abdal",
+    "uses": 0
+   },
+   {
+    "name": "anna maria experience",
+    "uses": 0
+   },
+   {
+    "name": "cofounders",
+    "uses": 0
+   },
+   {
+    "name": "dad",
+    "uses": 0
+   },
+   {
+    "name": "Dean graciosi",
+    "uses": 0
+   },
+   {
+    "name": "eli wilde",
+    "uses": 0
+   },
+   {
+    "name": "Grant Cardone",
+    "uses": 0
+   },
+   {
+    "name": "Imagine Dragons",
+    "uses": 0
+   },
+   {
+    "name": "lessons from my elite gymnast",
+    "uses": 0
+   },
+   {
+    "name": "men",
+    "uses": 0
+   },
+   {
+    "name": "Tony Robbins",
+    "uses": 0
+   },
+   {
+    "name": "women and men",
+    "uses": 0
+   }
+  ],
+  "MOOD": [
+   {
+    "name": "frustration",
+    "uses": 5
+   },
+   {
+    "name": "excitement",
+    "uses": 3
+   },
+   {
+    "name": "My Emotions",
+    "uses": 3
+   },
+   {
+    "name": "tired",
+    "uses": 3
+   },
+   {
+    "name": "anger",
+    "uses": 2
+   },
+   {
+    "name": "dopamine",
+    "uses": 2
+   },
+   {
+    "name": "love",
+    "uses": 2
+   },
+   {
+    "name": "low energy",
+    "uses": 2
+   },
+   {
+    "name": "overwhelm",
+    "uses": 2
+   },
+   {
+    "name": "sugar cravings",
+    "uses": 2
+   },
+   {
+    "name": "#hope",
+    "uses": 1
+   },
+   {
+    "name": "anxiousness",
+    "uses": 1
+   },
+   {
+    "name": "blob",
+    "uses": 1
+   },
+   {
+    "name": "demotivated",
+    "uses": 1
+   },
+   {
+    "name": "dishonesty",
+    "uses": 1
+   },
+   {
+    "name": "emotional ease",
+    "uses": 1
+   },
+   {
+    "name": "enjoyment",
+    "uses": 1
+   },
+   {
+    "name": "escaping",
+    "uses": 1
+   },
+   {
+    "name": "Extreme Intensity",
+    "uses": 1
+   },
+   {
+    "name": "failing",
+    "uses": 1
+   },
+   {
+    "name": "fear",
+    "uses": 1
+   },
+   {
+    "name": "fighter mode",
+    "uses": 1
+   },
+   {
+    "name": "fraud",
+    "uses": 1
+   },
+   {
+    "name": "frustrated",
+    "uses": 1
+   },
+   {
+    "name": "fun",
+    "uses": 1
+   },
+   {
+    "name": "Giving Control",
+    "uses": 1
+   },
+   {
+    "name": "happiness",
+    "uses": 1
+   },
+   {
+    "name": "helplessness",
+    "uses": 1
+   },
+   {
+    "name": "joy",
+    "uses": 1
+   },
+   {
+    "name": "laugh",
+    "uses": 1
+   },
+   {
+    "name": "lazy",
+    "uses": 1
+   },
+   {
+    "name": "looser mindset",
+    "uses": 1
+   },
+   {
+    "name": "lost",
+    "uses": 1
+   },
+   {
+    "name": "Medium Intensity",
+    "uses": 1
+   },
+   {
+    "name": "Mixed Emotions",
+    "uses": 1
+   },
+   {
+    "name": "no fear",
+    "uses": 1
+   },
+   {
+    "name": "pissed",
+    "uses": 1
+   },
+   {
+    "name": "sadness",
+    "uses": 1
+   },
+   {
+    "name": "Triggering Fight Mode",
+    "uses": 1
+   },
+   {
+    "name": "uncertainty",
+    "uses": 1
+   },
+   {
+    "name": "unfairness",
+    "uses": 1
+   },
+   {
+    "name": "unsettled",
+    "uses": 1
+   },
+   {
+    "name": "unstoppable",
+    "uses": 1
+   },
+   {
+    "name": "worry",
+    "uses": 1
+   },
+   {
+    "name": "#craving",
+    "uses": 0
+   },
+   {
+    "name": "#emotionalstate",
+    "uses": 0
+   },
+   {
+    "name": "#emotions",
+    "uses": 0
+   },
+   {
+    "name": "#happiness",
+    "uses": 0
+   },
+   {
+    "name": "#mentalspiral",
+    "uses": 0
+   },
+   {
+    "name": "#selfdoubt",
+    "uses": 0
+   },
+   {
+    "name": "after success drop",
+    "uses": 0
+   },
+   {
+    "name": "annoyence",
+    "uses": 0
+   },
+   {
+    "name": "anxiety",
+    "uses": 0
+   },
+   {
+    "name": "brain drain",
+    "uses": 0
+   },
+   {
+    "name": "burnout",
+    "uses": 0
+   },
+   {
+    "name": "cheap dopamine",
+    "uses": 0
+   },
+   {
+    "name": "cognitive overload",
+    "uses": 0
+   },
+   {
+    "name": "comfort",
+    "uses": 0
+   },
+   {
+    "name": "cry",
+    "uses": 0
+   },
+   {
+    "name": "defensive",
+    "uses": 0
+   },
+   {
+    "name": "dementor state",
+    "uses": 0
+   },
+   {
+    "name": "discomfort",
+    "uses": 0
+   },
+   {
+    "name": "doubt",
+    "uses": 0
+   },
+   {
+    "name": "emotional clutter",
+    "uses": 0
+   },
+   {
+    "name": "emotional discomfort",
+    "uses": 0
+   },
+   {
+    "name": "emotional state",
+    "uses": 0
+   },
+   {
+    "name": "emotional states",
+    "uses": 0
+   },
+   {
+    "name": "emotional tension",
+    "uses": 0
+   },
+   {
+    "name": "emotions",
+    "uses": 0
+   },
+   {
+    "name": "enthusiasm",
+    "uses": 0
+   },
+   {
+    "name": "fatigue",
+    "uses": 0
+   },
+   {
+    "name": "foginess",
+    "uses": 0
+   },
+   {
+    "name": "humiliation",
+    "uses": 0
+   },
+   {
+    "name": "hurry",
+    "uses": 0
+   },
+   {
+    "name": "inner peace",
+    "uses": 0
+   },
+   {
+    "name": "insecurity",
+    "uses": 0
+   },
+   {
+    "name": "Low Intensity",
+    "uses": 0
+   },
+   {
+    "name": "mental fatigue",
+    "uses": 0
+   },
+   {
+    "name": "mood",
+    "uses": 0
+   },
+   {
+    "name": "Other's Emotions",
+    "uses": 0
+   },
+   {
+    "name": "overwhelmed",
+    "uses": 0
+   },
+   {
+    "name": "peak state",
+    "uses": 0
+   },
+   {
+    "name": "rush",
+    "uses": 0
+   },
+   {
+    "name": "self-doubt",
+    "uses": 0
+   },
+   {
+    "name": "silence",
+    "uses": 0
+   },
+   {
+    "name": "state",
+    "uses": 0
+   },
+   {
+    "name": "stress",
+    "uses": 0
+   },
+   {
+    "name": "Strong Intensity",
+    "uses": 0
+   },
+   {
+    "name": "stuck",
+    "uses": 0
+   },
+   {
+    "name": "suffering",
+    "uses": 0
+   },
+   {
+    "name": "tears",
+    "uses": 0
+   },
+   {
+    "name": "tiredness",
+    "uses": 0
+   },
+   {
+    "name": "Triggering Shields",
+    "uses": 0
+   },
+   {
+    "name": "victory",
+    "uses": 0
+   }
+  ],
+  "TIME": [
+   {
+    "name": "best day",
+    "uses": 1
+   },
+   {
+    "name": "evening reflections",
+    "uses": 1
+   },
+   {
+    "name": "#childhood",
+    "uses": 0
+   },
+   {
+    "name": "#dailyinsight",
+    "uses": 0
+   },
+   {
+    "name": "age",
+    "uses": 0
+   },
+   {
+    "name": "deep sleep",
+    "uses": 0
+   },
+   {
+    "name": "high school memory",
+    "uses": 0
+   },
+   {
+    "name": "new phase",
+    "uses": 0
+   },
+   {
+    "name": "rest",
+    "uses": 0
+   },
+   {
+    "name": "seasons",
+    "uses": 0
+   },
+   {
+    "name": "sleep",
+    "uses": 0
+   },
+   {
+    "name": "time to leave",
+    "uses": 0
+   },
+   {
+    "name": "Vacation",
+    "uses": 0
+   }
+  ],
+  "OTHER": [
+   {
+    "name": "🪙",
+    "uses": 4
+   },
+   {
+    "name": "@remove",
+    "uses": 3
+   },
+   {
+    "name": "Observed",
+    "uses": 3
+   },
+   {
+    "name": "The Hero Land",
+    "uses": 2
+   },
+   {
+    "name": "@temporary",
+    "uses": 1
+   },
+   {
+    "name": "ai",
+    "uses": 1
+   },
+   {
+    "name": "book concept",
+    "uses": 1
+   },
+   {
+    "name": "chatGPT",
+    "uses": 1
+   },
+   {
+    "name": "prompt",
+    "uses": 1
+   },
+   {
+    "name": "Ultimate University",
+    "uses": 1
+   },
+   {
+    "name": "#blahobyty",
+    "uses": 0
+   },
+   {
+    "name": "#blahobyty book",
+    "uses": 0
+   },
+   {
+    "name": "#gameidea",
+    "uses": 0
+   },
+   {
+    "name": "#iNotes",
+    "uses": 0
+   },
+   {
+    "name": "#memory",
+    "uses": 0
+   },
+   {
+    "name": "#nfc",
+    "uses": 0
+   },
+   {
+    "name": "#notion",
+    "uses": 0
+   },
+   {
+    "name": "#practicing",
+    "uses": 0
+   },
+   {
+    "name": "#seedthoughts",
+    "uses": 0
+   },
+   {
+    "name": "#social_memory_capture",
+    "uses": 0
+   },
+   {
+    "name": "#technique_snippet",
+    "uses": 0
+   },
+   {
+    "name": "agi",
+    "uses": 0
+   },
+   {
+    "name": "akce",
+    "uses": 0
+   },
+   {
+    "name": "balanc",
+    "uses": 0
+   },
+   {
+    "name": "bez možnosti úniku",
+    "uses": 0
+   },
+   {
+    "name": "cntrol",
+    "uses": 0
+   },
+   {
+    "name": "comparios",
+    "uses": 0
+   },
+   {
+    "name": "DealMakers",
+    "uses": 0
+   },
+   {
+    "name": "dictionary",
+    "uses": 0
+   },
+   {
+    "name": "disciplína",
+    "uses": 0
+   },
+   {
+    "name": "Dream",
+    "uses": 0
+   },
+   {
+    "name": "Dream Coaching",
+    "uses": 0
+   },
+   {
+    "name": "Engineer",
+    "uses": 0
+   },
+   {
+    "name": "examples",
+    "uses": 0
+   },
+   {
+    "name": "Grace",
+    "uses": 0
+   },
+   {
+    "name": "Harry Potter",
+    "uses": 0
+   },
+   {
+    "name": "History",
+    "uses": 0
+   },
+   {
+    "name": "innovaatio",
+    "uses": 0
+   },
+   {
+    "name": "iPhone",
+    "uses": 0
+   },
+   {
+    "name": "itermittent fasting",
+    "uses": 0
+   },
+   {
+    "name": "Learned",
+    "uses": 0
+   },
+   {
+    "name": "lightning",
+    "uses": 0
+   },
+   {
+    "name": "Luxury",
+    "uses": 0
+   },
+   {
+    "name": "Magic",
+    "uses": 0
+   },
+   {
+    "name": "metric",
+    "uses": 0
+   },
+   {
+    "name": "my all",
+    "uses": 0
+   },
+   {
+    "name": "name",
+    "uses": 0
+   },
+   {
+    "name": "node",
+    "uses": 0
+   },
+   {
+    "name": "notion integration",
+    "uses": 0
+   },
+   {
+    "name": "orakai",
+    "uses": 0
+   },
+   {
+    "name": "pensieve",
+    "uses": 0
+   },
+   {
+    "name": "plánování",
+    "uses": 0
+   },
+   {
+    "name": "produktivita",
+    "uses": 0
+   },
+   {
+    "name": "provoz",
+    "uses": 0
+   },
+   {
+    "name": "Rich",
+    "uses": 0
+   },
+   {
+    "name": "rozhodování",
+    "uses": 0
+   },
+   {
+    "name": "sebedůvěra",
+    "uses": 0
+   },
+   {
+    "name": "setup",
+    "uses": 0
+   },
+   {
+    "name": "Siri recommendations",
+    "uses": 0
+   },
+   {
+    "name": "spotify",
+    "uses": 0
+   },
+   {
+    "name": "strach",
+    "uses": 0
+   },
+   {
+    "name": "tagging",
+    "uses": 0
+   },
+   {
+    "name": "test",
+    "uses": 0
+   },
+   {
+    "name": "thunder",
+    "uses": 0
+   },
+   {
+    "name": "warding",
+    "uses": 0
+   },
+   {
+    "name": "Warrior",
+    "uses": 0
+   },
+   {
+    "name": "words",
+    "uses": 0
+   }
+  ]
+ }
+}
