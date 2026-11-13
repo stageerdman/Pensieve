@@ -72,6 +72,7 @@ export default function App() {
     setCreatedAt,
     restoreVersion,
     startFromForm,
+    reloadFromDisk,
     refresh,
     recordOpen,
   } = useNotes();
@@ -365,7 +366,7 @@ export default function App() {
                     void refresh();
                     // A filled form memory that's open right now: reload it so the editor
                     // shows the answers (and its next save can't write the old body back).
-                    if (currentId && ids.includes(currentId)) void open(currentId);
+                    if (currentId && ids.includes(currentId)) void reloadFromDisk(currentId);
                   }}
                 />
                 {!systemTabs.active &&
