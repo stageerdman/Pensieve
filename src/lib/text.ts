@@ -1,4 +1,5 @@
 // Small pure text helpers — shared so title/slug/word-count logic lives in one place.
+import { plainColorRuns } from "./md/colorRuns";
 
 /** The note title is the first non-empty line of PROSE, with leading markdown heading AND
  *  list marks stripped (a note that starts with a bullet/numbered/checklist line still gets
@@ -9,7 +10,7 @@
  *  marker / media file path. Mirrors excerptFromMarkdown's fence + mark handling. */
 export function titleFromMarkdown(md: string): string {
   let inFence = false;
-  for (const raw of md.split("\n")) {
+  for (const raw of plainColorRuns(md).split("\n")) {
     const line = raw.replace(/​/g, "").trim(); // drop blank-line placeholders (ZWSP)
     if (/^(```|~~~)/.test(line)) {
       inFence = !inFence; // enter/leave a fenced block (incl. our media fences) — never a title
@@ -40,7 +41,8 @@ export function slugify(title: string): string {
 /** A short plain-text preview of a note body for the sidebar: the first non-empty
  *  lines with common Markdown marks stripped, whitespace collapsed, capped. Stored
  *  on save so listing never has to parse bodies at render time. */
-export function excerptFromMarkdown(md: string, max = 140): string {
+export function excerptFromMarkdown(raw: string, max = 140): string {
+  const md = plainColorRuns(raw); // a colour run is never shown as `{fg:…}` code in a preview
   const title = titleFromMarkdown(md);
   const lines = md.split("\n");
   const parts: string[] = [];

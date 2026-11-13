@@ -14,6 +14,7 @@
 // small and stable, same rationale as the existing media/gallery duplication.
 
 import type { ForeignMeta, Note } from "../../types";
+import { stripForeignColorRuns } from "../../../../src/lib/md/colorRuns";
 import { CAT_HUE, type FlaskShape } from "../wand/flaskSvg";
 
 // ---- frontmatter (mirrors src/lib/md/frontmatter.ts) ----
@@ -116,7 +117,10 @@ function isFenceLine(line: string): boolean {
 /** Split a desktop-style body (title as its first prose line) into the Wand's
  *  separate title + body fields. Mirrors titleFromMarkdown's skip rules (fences,
  *  blank lines, lone image lines) so the two apps agree on which line IS the title. */
-export function splitTitleAndBody(md: string): { title: string; body: string } {
+export function splitTitleAndBody(raw: string): { title: string; body: string } {
+  // The single door every desktop body comes through on the phone: drop pasted-in CSS
+  // colour runs (`{fg:rgb(…)}text{/}` → text) so they never show as raw code (colorRuns.ts).
+  const md = stripForeignColorRuns(raw);
   const lines = md.split("\n");
   let inFence = false;
   for (let i = 0; i < lines.length; i++) {

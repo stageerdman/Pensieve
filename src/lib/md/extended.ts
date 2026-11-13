@@ -38,11 +38,15 @@ interface Block {
   [k: string]: unknown;
 }
 
+import { COLOR_RUN_SOURCE, isPaletteColor, parseColorAttrs } from "./colorRuns";
+
 function isText(i: Inline): i is TextInline {
   return i?.type === "text" && typeof (i as TextInline).text === "string";
 }
 
-const colorOf = (v?: string) => (v && v !== "default" ? v : null);
+// Only palette names are written: a pasted page's CSS colours (rgb(…), transparent) are
+// dropped here, never serialized (see colorRuns.ts).
+const colorOf = (v?: string) => (isPaletteColor(v) ? v : null);
 
 /** blocks -> md: note links become {@id|title}; coloured runs become {fg:.. bg:..}…{/}. */
 export function encodeInline(items: Inline[]): Inline[] {
@@ -63,7 +67,9 @@ export function encodeInline(items: Inline[]): Inline[] {
 }
 
 // Either a colour run ({fg/bg}…{/}) or a note link ({@id|title}).
-const TOKEN = /\{((?:fg:[\w-]+)?(?:\s)?(?:bg:[\w-]+)?)\}([\s\S]*?)\{\/\}|\{@([^|{}]*)\|([^{}]*)\}/g;
+// Colour values may be foreign (`rgb(37, 99, 235)`) on notes saved before that was
+// filtered — they still parse, and parseColorAttrs drops them (text kept, plain).
+const TOKEN = new RegExp(`${COLOR_RUN_SOURCE}|\\{@([^|{}]*)\\|([^{}]*)\\}`, "g");
 
 /** md -> blocks: turn colour runs back into styled text and {@id|title} into note links. */
 export function decodeInline(items: Inline[]): Inline[] {
@@ -83,10 +89,9 @@ export function decodeInline(items: Inline[]): Inline[] {
         out.push({ type: "noteLink", props: { noteId: m[3], title: m[4] ?? "" } });
       } else {
         const styles = { ...(it.styles ?? {}) };
-        const fg = m[1].match(/fg:([\w-]+)/);
-        const bg = m[1].match(/bg:([\w-]+)/);
-        if (fg) styles.textColor = fg[1];
-        if (bg) styles.backgroundColor = bg[1];
+        const { fg, bg } = parseColorAttrs(m[1]);
+        if (fg) styles.textColor = fg;
+        if (bg) styles.backgroundColor = bg;
         out.push({ ...it, text: m[2], styles });
       }
       last = m.index + m[0].length;
