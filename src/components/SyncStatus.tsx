@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { processQueue } from "./transcription/processQueueController";
 import { useDismiss } from "../hooks/useDismiss";
-import { SyncRune } from "./icons";
+import { SyncRune, X } from "./icons";
+import { IconButton } from "./IconButton";
 import { SyncFlask } from "./SyncFlask";
 import { SpaceMeter } from "./SpaceMeter";
 import { RestoreFromCloud } from "./RestoreFromCloud";
@@ -150,6 +151,13 @@ export function SyncStatus({
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-text">{headerTitle}</p>
               {subText && <p className="mt-0.5 text-xs leading-snug text-text-muted">{subText}</p>}
+            </div>
+            {/* The same close every right panel has (RightPanel.tsx); -mt/-mr tuck the 32px
+                box into the header corner so it doesn't push the title down. */}
+            <div className="-mr-1 -mt-1 shrink-0">
+              <IconButton onClick={() => setOpen(false)} label="Close sync panel" title="Close  Esc">
+                <X size={16} />
+              </IconButton>
             </div>
           </div>
 
