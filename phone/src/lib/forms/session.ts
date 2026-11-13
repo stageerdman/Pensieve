@@ -11,14 +11,13 @@ import {
   isFormTemplate,
   memoryFromForm,
   parseForm,
-  FORM_STATUS_KEY,
-  FROM_FORM_KEY,
-  withExtra,
   type Answers,
   type FormField,
 } from "../../../../src/lib/forms";
 import { joinTitleAndBody, splitTitleAndBody } from "../sync/noteFormat";
-import { parseNoteContent, serializeBlocks, type NoteBlock } from "../media/noteMedia";
+import { isMediaPath, parseNoteContent, serializeBlocks, type NoteBlock } from "../media/noteMedia";
+import type { RawMemory } from "../media/rawMemoryStore";
+import { findPatronus, withPatronus } from "../../../../src/lib/packages/patronus";
 import type { Note } from "../../types";
 
 export interface SessionAnswer {
@@ -95,24 +94,43 @@ export function applySession(note: Note, s: FormSessionModel, answers: SessionAn
   note.c = media.length ? `${body}\n\n${serializeBlocks(media)}` : body;
 }
 
-/** Done: mark the memory for the desktop (transcribe → fill answers → forged) and remember
- *  which form it came from. */
-export function finishSession(note: Note, s: FormSessionModel): void {
-  const extra = withExtra(withExtra(note.foreign?.extra, FROM_FORM_KEY, s.formId), FORM_STATUS_KEY, "awaiting");
-  note.foreign = {
-    categories: note.foreign?.categories ?? [],
-    tags: note.foreign?.tags ?? [],
-    links: note.foreign?.links ?? [],
-    pinned: note.foreign?.pinned ?? false,
-    iconColor: note.foreign?.iconColor ?? note.cat.replace(/^--cat-/, ""),
-    ...(note.foreign?.iconVibrancy !== undefined ? { iconVibrancy: note.foreign.iconVibrancy } : {}),
-    ...(note.foreign?.iconShine !== undefined ? { iconShine: note.foreign.iconShine } : {}),
-    ...(extra ? { extra } : {}),
-  };
-}
-
 /** Anything worth keeping? (an answer, a tick/rating, or any media) */
 export function sessionHasContent(note: Note, answers: SessionAnswers): boolean {
   const any = Object.values(answers).some((a) => a.text?.trim() || a.scale || a.checks?.length);
   return !!any || mediaBlocksOf(note.c || "").length > 0;
+}
+
+// ---- PACKAGES: a finished walk-through leaves the phone as a sealed package ----
+
+/** Every media ref on a session body (recording, photos, video) — the package carries them. */
+export function sessionMediaRefs(body: string): string[] {
+  const out: string[] = [];
+  for (const b of mediaBlocksOf(body)) {
+    if (b.kind === "audio" || b.kind === "video" || b.kind === "image") out.push(b.ref);
+    else if (b.kind === "gallery") for (const im of b.images) out.push(im.ref);
+  }
+  return out.filter(isMediaPath);
+}
+
+/** The form template's own sync spell (a Patronus block in the form), if it has one. */
+export function templateSpell(form: Note | undefined): string | null {
+  return form ? (findPatronus(form.c || "")?.instruction ?? null) : null;
+}
+
+/** Seal a walk-through: the answered form + its media at the bottom + the Patronus block with
+ *  the sync spell, as a raw package record with the SAME id as the session (its media already
+ *  lives in media/<id>/). Desktop Patronus resolves it into that memory. */
+export function packageFromSession(note: Note, formId: string, instruction: string, now = Date.now()): RawMemory {
+  return {
+    id: note.id,
+    status: "synced",
+    createdAt: note.createdAt,
+    updatedAt: now,
+    pages: [],
+    kind: "form",
+    title: note.t,
+    fromForm: formId,
+    markdown: withPatronus(joinTitleAndBody(note.t, note.c), { spell: "sync", instruction }),
+    media: sessionMediaRefs(note.c || ""),
+  };
 }

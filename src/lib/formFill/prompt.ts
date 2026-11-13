@@ -12,7 +12,7 @@ export interface FillField {
   typed: string;
 }
 
-function describe(f: FillField): string {
+export function describeField(f: FillField): string {
   const { field } = f;
   const lines = [`- id: ${field.id}`, `  question: ${field.question}`, `  kind: ${field.kind}`];
   if (field.kind === "scale" && field.scale) {
@@ -32,7 +32,7 @@ export function buildFillPrompt(formTitle: string, fields: FillField[], transcri
   return `You are filling in the owner's own journal form "${formTitle}" from a voice recording they made while walking through it. The transcript is below. It is ONE continuous recording covering all questions in order; they may skip questions, answer out of order, or come back to one.
 
 The form's fields:
-${fields.map(describe).join("\n")}
+${fields.map(describeField).join("\n")}
 
 Rules:
 - Write every answer in the SAME language the owner spoke, in the first person, as their own words: faithful, concise, no invented facts, no coaching, no commentary.

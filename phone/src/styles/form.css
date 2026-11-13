@@ -268,3 +268,55 @@
   font-size: 13px;
   color: hsl(var(--text-muted));
 }
+
+/* PACKAGES: the Patronus block (a package's sync spell) — a small breathing orb, a quiet
+   label and the spell. Read-only; it runs on the computer. Orb colours match the desktop
+   Patronus trigger (accent). */
+.note-body .ph-patronus,
+.ph-package .ph-patronus {
+  margin: 18px 0 4px;
+}
+.ph-patronus-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: hsl(var(--text-muted));
+}
+.ph-patronus-orb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, hsl(var(--accent) / 0.95) 0%, hsl(var(--accent) / 0.45) 45%, hsl(var(--accent) / 0) 72%);
+  filter: blur(0.4px);
+  animation: ph-patronus-breathe 4.2s ease-in-out infinite;
+}
+.ph-patronus[data-state="waiting"] .ph-patronus-orb { animation: none; opacity: 0.7; }
+.ph-patronus[data-state="failed"] .ph-patronus-orb { background: radial-gradient(circle, hsl(var(--danger) / 0.9) 0%, hsl(var(--danger) / 0) 70%); animation: none; }
+@keyframes ph-patronus-breathe {
+  0%, 100% { transform: scale(0.88); opacity: 0.75; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .ph-patronus-orb { animation: none; } }
+.ph-patronus-spell {
+  margin-top: 6px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: hsl(var(--text));
+}
+
+/* PACKAGES: a sealed form's read-only preview (PackageDetailScreen). Scrolls inside the
+   .ph-collection sheet (already in PhoneApp's touch-guard allowlist); ratings and ticks are
+   shown but not tappable — it opens for real once Patronus has resolved it. */
+.ph-package-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 20px calc(var(--dock-h, 96px) + 24px);
+}
+.ph-package-body .ph-scale,
+.ph-package-body li[data-checked],
+.ph-package-body input[type="checkbox"] {
+  pointer-events: none;
+}

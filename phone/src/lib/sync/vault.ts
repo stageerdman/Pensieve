@@ -48,7 +48,11 @@ const STATE_KEY = "pensieve.phone.syncState";
 export function phoneVault(): LocalVault {
   return {
     async listNotes() {
-      return loadVault().map((n) => ({ id: n.id, updatedAt: n.updatedAt }));
+      // A form walk-through in progress (`draft`) never syncs as a memory — it leaves the
+      // phone as a sealed package on Done (see lib/forms/session packageFromSession).
+      return loadVault()
+        .filter((n) => !n.draft)
+        .map((n) => ({ id: n.id, updatedAt: n.updatedAt }));
     },
 
     async readNote(id) {
@@ -121,6 +125,7 @@ export function phoneVault(): LocalVault {
         parsed = {};
       }
       saveRawBatch({
+        ...parsed, // keep package fields (kind/title/fromForm/markdown/media) — see lib/packages/record
         id,
         status: parsed.status ?? "synced",
         createdAt: parsed.createdAt ?? Date.now(),
@@ -129,6 +134,8 @@ export function phoneVault(): LocalVault {
       });
     },
     async deleteRawMemory(id) {
+      // A remote tombstone: free a Journal batch's own page photos. A form package's media is
+      // deliberately kept — it resolved into the memory with the SAME id, which now owns it.
       const b = loadRawBatch(id);
       for (const ref of b?.pages ?? []) await deleteMedia(ref);
       deleteRawBatchRecord(id);

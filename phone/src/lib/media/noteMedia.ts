@@ -18,6 +18,7 @@
 // FORMS blocks are the exception: the pure, dependency-free forms module (src/lib/forms) is
 // shared by both apps on purpose — see updates/2026-11-12 FORMS wiki.md.
 import { CHARM_LANG, SCALE_LANG, encodeScale, parseScale } from "../../../../src/lib/forms/fences";
+import { PATRONUS_LANG } from "../../../../src/lib/packages/patronus";
 
 /** The fence language carrying an ordered image group (matches src/lib/md/gallery.ts). */
 export const GALLERY_FENCE = "pensieve:gallery";
@@ -80,7 +81,9 @@ export type NoteBlock =
   // desktop-only, shown as a quiet read-only line here). Both round-trip byte-for-byte via the
   // shared forms fence codecs (src/lib/forms/fences), so a phone edit never alters them.
   | { kind: "scale"; anchors: string[]; value?: number }
-  | { kind: "charm"; body: string };
+  | { kind: "charm"; body: string }
+  // PACKAGES: the Patronus block (a package's sync spell) — desktop AI only; shown read-only.
+  | { kind: "patronus"; body: string };
 
 /** The desktop gallery's dragged display HEIGHT rides an optional leading `h=<px>` fence line
  *  (matches src/lib/md/gallery.ts). The phone ignores it for layout but MUST round-trip it so the
@@ -162,6 +165,10 @@ export function encodeScaleNoteBlock(b: Extract<NoteBlock, { kind: "scale" }>): 
 }
 
 /** A form's charm → its `pensieve:charm` fence, body carried verbatim. */
+export function encodePatronusNoteBlock(b: Extract<NoteBlock, { kind: "patronus" }>): string {
+  return "```" + PATRONUS_LANG + "\n" + b.body + "\n```";
+}
+
 export function encodeCharmNoteBlock(b: Extract<NoteBlock, { kind: "charm" }>): string {
   return "```" + CHARM_LANG + "\n" + b.body + "\n```";
 }
@@ -317,6 +324,7 @@ export function parseNoteContent(content: string): NoteBlock[] {
   const journalFenceOpen = "```" + JOURNAL_FENCE;
   const scaleFenceOpen = "```" + SCALE_LANG;
   const charmFenceOpen = "```" + CHARM_LANG;
+  const patronusFenceOpen = "```" + PATRONUS_LANG;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (line.trim() === galleryFenceOpen) {
@@ -387,7 +395,7 @@ export function parseNoteContent(content: string): NoteBlock[] {
       i = j;
       continue;
     }
-    if (line.trim() === scaleFenceOpen || line.trim() === charmFenceOpen) {
+    if (line.trim() === scaleFenceOpen || line.trim() === charmFenceOpen || line.trim() === patronusFenceOpen) {
       const inner: string[] = [];
       let j = i + 1;
       for (; j < lines.length; j++) {
@@ -395,6 +403,7 @@ export function parseNoteContent(content: string): NoteBlock[] {
         inner.push(lines[j]);
       }
       if (line.trim() === scaleFenceOpen) blocks.push({ kind: "scale", ...parseScale(inner.join("\n")) });
+      else if (line.trim() === patronusFenceOpen) blocks.push({ kind: "patronus", body: inner.join("\n") });
       else blocks.push({ kind: "charm", body: inner.join("\n") });
       i = j;
       continue;
@@ -434,6 +443,7 @@ export function serializeBlocks(blocks: NoteBlock[]): string {
       if (b.kind === "video") return encodeVideoNoteBlock(b);
       if (b.kind === "scale") return encodeScaleNoteBlock(b);
       if (b.kind === "charm") return encodeCharmNoteBlock(b);
+      if (b.kind === "patronus") return encodePatronusNoteBlock(b);
       if (b.kind === "journal") return journalMd(b.pages);
       return galleryMd(b.images, b.height);
     })

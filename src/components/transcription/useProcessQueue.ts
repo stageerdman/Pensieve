@@ -14,7 +14,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getStore } from "../../lib/store";
 import { reindex } from "../../lib/search/reindexController";
 import { listUntranscribedAudio } from "../../lib/transcripts/queue";
-import { listUnprocessedRawBatches } from "../../lib/raw/queue";
+import { listPackagesToResolve, listUnprocessedRawBatches } from "../../lib/raw/queue";
+import { findPatronus, spellFor } from "../../lib/packages";
+import { runPackage } from "../../lib/packages/run";
+import { memoryFromPackage, modelForLanguage, packageRestorePoint, transcriptLanguage } from "../../lib/packages/resolve";
+import { transcriptText } from "../../lib/formFill/fillForm";
+import { parseForm } from "../../lib/forms";
 import { processRawBatch } from "../../lib/raw/processRawBatch";
 import { buildTauriRawBatchDeps } from "../../lib/raw/tauriRawBatchDeps";
 import { listFormsToFill } from "../../lib/formFill/queue";
@@ -34,6 +39,8 @@ import {
   isAudioItem,
   isFormItem,
   isJournalItem,
+  isPackageItem,
+  mergeNewPackageItems,
   mergeNewFormItems,
   mergeNewItems,
   mergeNewJournalItems,
@@ -136,6 +143,70 @@ export function useProcessQueue(opts: {
     [onTranscribed, onNotesCreated],
   );
 
+  // ── one PACKAGE: Patronus reads its sync spell and decides; the app executes (see
+  // lib/packages/run). Resolves into the memory with the SAME id (its media is already in
+  // media/<id>/), first Timeline entry = what the phone sent (Redo's restore point), then the
+  // record goes away (media kept) and a sync carries the memory + the tombstone to the phone.
+  const runPackageItem = useCallback(
+    async (ref: string) => {
+      log.info("package", "queue.start", { id: ref });
+      const store = getStore();
+      const setStep = (step: string) => setItems((prev) => prev.map((i) => (i.ref === ref ? { ...i, step } : i)));
+      try {
+        const rm = await store.loadRawMemory(ref);
+        if (!rm?.markdown) throw new Error("this package no longer exists");
+        await store.saveRawMemory({ ...rm, status: "processing" });
+        const template = rm.fromForm ? await store.load(rm.fromForm) : null;
+        const res = await runPackage(
+          {
+            id: ref,
+            kind: "form",
+            title: rm.title || "Form",
+            markdown: rm.markdown,
+            fallbackInstruction: spellFor("form", template ? findPatronus(template.markdown)?.instruction : null),
+            templateFields: template ? parseForm(template.markdown).fields : undefined,
+          },
+          {
+            ask: askClaudeTauri,
+            transcribe: async (audioRef, language) => {
+              const label = language === "czech" ? "Czech" : "English";
+              const t = await engine.transcribe(audioRef, { model: modelForLanguage(language) }, (p) =>
+                setStep(`Transcribing · ${label} · ${Math.round((p.pct ?? 0) * 100)}%`),
+              );
+              await store.saveTranscript(audioRef, t);
+              return transcriptText(t);
+            },
+            loadTranscript: async (audioRef) => {
+              const t = await store.loadTranscript(audioRef);
+              return t ? { text: transcriptText(t), language: transcriptLanguage(t) } : null;
+            },
+            status: setStep,
+          },
+        );
+        const now = Date.now();
+        await store.save(memoryFromPackage(rm, res.markdown, now));
+        await store.saveTimeline(ref, [packageRestorePoint(rm, now)]);
+        await store.removeRawMemory(ref); // the memory now owns media/<id>/ — kept
+        reindex.request(ref);
+        onNotesCreated?.([ref]);
+        onTranscribed?.(); // sync: the memory + the record's tombstone reach the phone
+        runningRef.current = null;
+        log.info("package", "queue.done", { id: ref, done: res.done });
+        setItems((prev) => prev.filter((i) => i.ref !== ref));
+        if (modeRef.current === "one") setPlaying(false);
+      } catch (e) {
+        runningRef.current = null;
+        const msg = cleanEngineError(e);
+        log.error("package", "queue.error", { id: ref, error: msg });
+        const rm = await store.loadRawMemory(ref).catch(() => null);
+        if (rm) await store.saveRawMemory({ ...rm, status: "synced" }); // never stuck in "processing"
+        setItems((prev) => prev.map((i) => (i.ref === ref ? { ...i, error: true, errorMsg: msg, phase: null, step: undefined } : i)));
+        setPlaying(false);
+      }
+    },
+    [engine, onTranscribed, onNotesCreated],
+  );
+
   // ── one phone form session: transcript(s) → one Claude call → answers written in as plain
   // text, recording kept at the bottom, "awaiting" mark removed (forged). See lib/formFill.
   const runFormItem = useCallback(
@@ -190,6 +261,10 @@ export function useProcessQueue(opts: {
       void runFormItem(next.ref, next.noteId);
       return;
     }
+    if (isPackageItem(next)) {
+      void runPackageItem(next.ref);
+      return;
+    }
 
     const { ref, noteId, model } = next;
     log.info("transcribe", "queue.start", { ref, model });
@@ -228,7 +303,7 @@ export function useProcessQueue(opts: {
         setItems((prev) => prev.map((i) => (i.ref === ref ? { ...i, error: true, errorMsg: msg, phase: null } : i)));
         setPlaying(false);
       });
-  }, [items, playing, enabled, engine, onTranscribed, runJournalItem, runFormItem]);
+  }, [items, playing, enabled, engine, onTranscribed, runJournalItem, runFormItem, runPackageItem]);
 
   const togglePlay = useCallback(() => {
     setPlaying((p) => {
@@ -258,11 +333,13 @@ export function useProcessQueue(opts: {
     const found = await listUntranscribedAudio(titleFor, store);
     const foundBatches = await listUnprocessedRawBatches(store);
     const foundForms = await listFormsToFill(store);
+    const foundPackages = await listPackagesToResolve(store);
     const persisted = loadQueueState();
     setItems((prev) => {
       const withAudio = mergeNewItems(prev, found, DEFAULT_MODEL, persisted?.rows);
       const withJournal = mergeNewJournalItems(withAudio, foundBatches, persisted?.rows);
-      return mergeNewFormItems(withJournal, foundForms, persisted?.rows);
+      const withForms = mergeNewFormItems(withJournal, foundForms, persisted?.rows);
+      return mergeNewPackageItems(withForms, foundPackages, persisted?.rows);
     });
   }, [enabled, titleFor]);
   const refreshRef = useRef(refresh);
