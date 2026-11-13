@@ -56,3 +56,20 @@ of the note/page you're on (its Timeline etc.). Belongs with `updates/2026-11-10
 - 2026-11-13: `side-view player ⋯ removed` (its Regenerate was wired to nothing — the
   owner's "no language prompt"). Plan revised: Patronus reads the sync spell and decides +
   executes via tools; no hard-coded per-type stages.
+- 2026-11-13: **Phases 1–4 BUILT, merged to main, .app installed (10:50), phone deployed. NOT yet
+  owner device-tested.**
+  - P1 `c215e77`: `src/lib/packages` — pensieve:patronus fence, default spells, step protocol
+    (actions transcribe / fill_form / finish, validated), `runPackage` loop. Live spike with the
+    real claude (`spike-runner/`): picked English, filled 6 fields, finished in 2 steps.
+  - P2 `deca2ce`: package = raw record + kind/title/fromForm/markdown/media; one Process row
+    with a live step line; resolves into the memory with the SAME id (media never copied, never
+    wiped — both desktop raw-delete paths now spare a folder a memory owns); restore point =
+    what the phone sent ("Redo with AI…" keeps working); auto-transcriber skips package audio.
+  - P3 `b39853c`: phone Done seals the walk-through (a local `draft` until then, never synced;
+    crash-left drafts sealed at startup); dashed card "Waiting for the desktop" / "Patronus is
+    working…"; read-only preview ending in the Patronus block; Delete only (frees the audio).
+  - P4: `/patronus` block in a form (its own sync spell), shared PatronusOrb + SpellCard.
+  - Decided: the word "package" never shows; orb keeps the shipped accent colour (matches the
+    desktop trigger) rather than gold.
+  - NEXT: owner device pass (Form spell → Done → card → preview → desktop row → memory back on
+    the phone). Then P5 Journal → package, P6 close-out.
