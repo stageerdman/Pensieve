@@ -88,7 +88,7 @@ interface Fence {
   body: string;
 }
 
-function scanFences(lines: string[]): Fence[] {
+export function scanFences(lines: string[]): Fence[] {
   const out: Fence[] = [];
   for (let i = 0; i < lines.length; i++) {
     const m = FENCE_OPEN.exec(lines[i]);

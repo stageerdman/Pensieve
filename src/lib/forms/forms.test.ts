@@ -15,6 +15,7 @@ import {
   memoryFromForm,
 } from "./index";
 import { DAILY_REVIEW } from "./dailyReview.fixture";
+import { PHONE_SESSION } from "./phoneSession.fixture";
 
 describe("forms meta", () => {
   it("reads and writes the three keys, collapsing to undefined when empty", () => {
@@ -178,5 +179,30 @@ describe("memoryFromForm", () => {
   });
   it("keeps a heading mark on the title", () => {
     expect(memoryFromForm("# Weekly\n\n**Wins?**", new Date(2026, 10, 16)).split("\n")[0]).toBe("# Weekly — Mon 16 Nov");
+  });
+});
+
+describe("applyAnswers on a real desktop-saved phone session", () => {
+  const ids = parseForm(PHONE_SESSION).fields.map((f) => f.id);
+  const idOf = (q: string) => parseForm(PHONE_SESSION).fields.find((f) => f.question.startsWith(q))!.id;
+  const out = applyAnswers(PHONE_SESSION, {
+    [idOf("Was I a king")]: { text: "* Held the frame." },
+    [idOf("What effort")]: { text: "1. Built two apps." },
+    [idOf("Name of the Day")]: { text: "Light in the distance" },
+  });
+
+  it("puts each answer right under its question (no spacer / dangling starter between)", () => {
+    expect(out).toContain("**Was I a king? What can I do next time to be more of a king?**\n\n* Held the frame.\n\n​\n\n**Freeform**");
+    expect(out).toContain("**What effort can I reward today? 🏆**\n\n1. Built two apps.\n\n​\n\n**What I feel");
+  });
+
+  it("puts the last question's answer ABOVE the recording, not under it", () => {
+    expect(out).toContain("**Name of the Day**\n\nLight in the distance\n\n​\n\n```pensieve:audio\nmedia/s1/take.wav\n```");
+    expect(out.trimEnd().endsWith("```")).toBe(true);
+  });
+
+  it("keeps every field and the recording intact", () => {
+    expect(parseForm(out).fields.map((f) => f.id)).toEqual(ids);
+    expect(out.match(/pensieve:audio/g)).toHaveLength(1);
   });
 });
