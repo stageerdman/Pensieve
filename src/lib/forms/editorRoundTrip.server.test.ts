@@ -44,3 +44,16 @@ describe("forms through the desktop editor", () => {
     expect(blocks.some((b) => b.type === "codeBlock")).toBe(false);
   });
 });
+
+describe("the Patronus block through the desktop editor", () => {
+  const FORM = DAILY_REVIEW + "\n\n```pensieve:patronus\nspell: sync\nI speak English. Fill only what I said.\n```";
+  it("loads as a real patronus block and round-trips byte-for-byte", async () => {
+    const blocks = (await extendedMdToBlocks(editor, FORM)) as { type: string; props: Record<string, unknown> }[];
+    expect(blocks.find((b) => b.type === "patronus")?.props.instruction).toBe("I speak English. Fill only what I said.");
+    expect((await roundTrip(FORM)).trimEnd()).toBe(FORM);
+  });
+  it("a memory made from the form leaves it out (it lives in the form + each phone package)", () => {
+    expect(instantiate(FORM)).not.toContain("pensieve:patronus");
+    expect(parseForm(instantiate(FORM)).fields.map((f) => f.id)).toEqual(parseForm(DAILY_REVIEW).fields.map((f) => f.id));
+  });
+});

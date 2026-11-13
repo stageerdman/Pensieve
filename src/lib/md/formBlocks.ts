@@ -4,6 +4,7 @@
 // read one format. Mirrors lib/md/audio's encode/reconstruct shape.
 
 import { CHARM_LANG, SCALE_LANG, encodeCharm, encodeScale, parseCharm, parseScale } from "../forms/fences";
+import { PATRONUS_LANG, encodePatronus, parsePatronus } from "../packages/patronus";
 
 interface Block {
   type?: string;
@@ -43,6 +44,7 @@ export function scaleProps(s: { anchors: string[]; value?: number }): { anchors:
 
 export const isScaleBlock = (b: Block) => b?.type === "scale";
 export const isCharmBlock = (b: Block) => b?.type === "charm";
+export const isPatronusBlock = (b: Block) => b?.type === "patronus";
 
 export function encodeScaleBlock(b: Block): Block {
   return codeBlock(SCALE_LANG, encodeScale(scaleFromProps(b.props)));
@@ -52,6 +54,10 @@ export function encodeCharmBlock(b: Block): Block {
   return codeBlock(CHARM_LANG, encodeCharm({ name: String(b.props?.name ?? ""), prompt: String(b.props?.prompt ?? "") }));
 }
 
+export function encodePatronusBlock(b: Block): Block {
+  return codeBlock(PATRONUS_LANG, encodePatronus({ spell: "sync", instruction: String(b.props?.instruction ?? "") }));
+}
+
 export function reconstructFormFence(b: Block): Block | null {
   const lang = langOf(b);
   if (lang === SCALE_LANG) return { type: "scale", props: scaleProps(parseScale(fenceText(b))) };
@@ -59,5 +65,6 @@ export function reconstructFormFence(b: Block): Block | null {
     const c = parseCharm(fenceText(b));
     return { type: "charm", props: { name: c.name, prompt: c.prompt } };
   }
+  if (lang === PATRONUS_LANG) return { type: "patronus", props: { instruction: parsePatronus(fenceText(b)).instruction } };
   return null;
 }
