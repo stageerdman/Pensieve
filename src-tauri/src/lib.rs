@@ -283,6 +283,7 @@ pub fn run() {
             transcribe::cancel_transcription,
             ai_vision::describe_journal_page,
             ai_text::ask_claude_text,
+            ai_text::ask_claude_with_vault,
             assistant::ask_agent,
             knowledge::commands::ingest_knowledge_file,
             knowledge::commands::ingest_knowledge_bytes,

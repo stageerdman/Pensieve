@@ -57,6 +57,20 @@ pub struct ListRecentInput {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+pub struct ListNotesInput {
+    /// First day to include, `YYYY-MM-DD` (inclusive). Omit for no lower bound.
+    pub from: Option<String>,
+    /// Last day to include, `YYYY-MM-DD` (inclusive). Omit for no upper bound.
+    pub to: Option<String>,
+    /// Only memories made from this form (the form's note id). Omit for every memory.
+    pub from_form: Option<String>,
+    /// Maximum number of notes, newest first. Default 50, at most 200.
+    pub limit: Option<usize>,
+    /// Include each note's whole Markdown body (handy for reading a short period in one call).
+    pub full: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct CreateNoteInput {
     /// The note's Markdown body. The title is derived from its first line.
     pub body: String,
@@ -121,6 +135,20 @@ impl PensieveServer {
     )]
     async fn list_recent(&self, Parameters(input): Parameters<ListRecentInput>) -> Result<CallToolResult, McpError> {
         ok_json(&tools::list_recent(&paths::vault_root(), input.limit, input.untagged_only.unwrap_or(false)))
+    }
+
+    #[tool(
+        description = "List the memories written on a range of days (by each memory's own date, the owner's local calendar), newest first — e.g. everything from the past week. Optionally only the memories made from one form (from_form = that form's id). Each result has id, title, date (YYYY-MM-DD), fromForm, tags and an excerpt; set full to also get each whole body. Form templates are never listed. Always safe to call."
+    )]
+    async fn list_notes(&self, Parameters(input): Parameters<ListNotesInput>) -> Result<CallToolResult, McpError> {
+        ok_json(&tools::list_notes(
+            &paths::vault_root(),
+            input.from.as_deref(),
+            input.to.as_deref(),
+            input.from_form.as_deref(),
+            input.limit,
+            input.full.unwrap_or(false),
+        ))
     }
 
     #[tool(

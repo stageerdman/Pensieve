@@ -39,6 +39,9 @@ base64 = "0.22"
 rmcp = { version = "3.8.0", features = ["server", "macros", "transport-io"] }
 tokio = { version = "1", features = ["rt", "macros", "process", "time"] }
 schemars = "1.0"
+# FORMS Phase 6: the MCP list_notes tool dates memories by the LOCAL calendar day (already
+# in the dependency tree; clock only).
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 # AGENT-RAG: per-agent local knowledge files (ported from masters-wheel's
 # src-tauri/src/knowledge/). fastembed embeds text on-device (no API key, no network);
 # rusqlite+sqlite-vec store the vectors in the same "plain file on disk" style as the

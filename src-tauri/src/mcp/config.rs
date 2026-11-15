@@ -25,8 +25,20 @@ pub const ALLOWED_TOOLS: &[&str] = &[
     "mcp__pensieve__search_notes",
     "mcp__pensieve__get_note",
     "mcp__pensieve__list_recent",
+    "mcp__pensieve__list_notes",
     "mcp__pensieve__list_tags",
     "mcp__pensieve__add_tag",
+];
+
+/// The strictly read-only subset: what a form spell (Compress, ai_text.rs
+/// ask_claude_with_vault) may call. No add_tag: a spell reads the vault, it never edits it;
+/// the app itself writes the answer into the one memory it was cast on.
+pub const READ_TOOLS: &[&str] = &[
+    "mcp__pensieve__search_notes",
+    "mcp__pensieve__get_note",
+    "mcp__pensieve__list_recent",
+    "mcp__pensieve__list_notes",
+    "mcp__pensieve__list_tags",
 ];
 
 /// Built on the server (mcp/server.rs) and ready to flip on — not in ALLOWED_TOOLS, so

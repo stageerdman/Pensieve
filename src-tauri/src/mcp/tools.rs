@@ -12,6 +12,23 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const SNIPPET_RADIUS: usize = 160;
 const DEFAULT_MAX_RESULTS: usize = 20;
 const DEFAULT_RECENT_LIMIT: usize = 20;
+const DEFAULT_LIST_LIMIT: usize = 50;
+const MAX_LIST_LIMIT: usize = 200;
+
+/// A note's day (`YYYY-MM-DD`, the owner's LOCAL calendar) from its createdAt millis. This is
+/// the date a form spell cites, so it must match the day the app shows for that memory.
+pub fn local_day(ms: i64) -> String {
+    use chrono::TimeZone;
+    chrono::Local
+        .timestamp_millis_opt(ms)
+        .single()
+        .map(|d| d.format("%Y-%m-%d").to_string())
+        .unwrap_or_default()
+}
+
+fn extra_value<'a>(fm: &'a Frontmatter, key: &str) -> Option<&'a str> {
+    fm.extra.iter().find(|(k, _)| k == key).map(|(_, v)| v.trim()).filter(|v| !v.is_empty())
+}
 
 fn notes_dir(vault_root: &Path) -> PathBuf {
     vault_root.join("notes")
@@ -197,11 +214,22 @@ fn list_ids(vault_root: &Path) -> Vec<String> {
 pub struct NoteSummary {
     pub id: String,
     pub title: String,
+    /// The memory's day, `YYYY-MM-DD` (local) — what to cite it by.
+    pub date: String,
     pub created_at: i64,
     pub updated_at: i64,
     pub categories: Vec<String>,
     pub tags: Vec<String>,
     pub excerpt: String,
+    /// The form this memory was made from (frontmatter `fromForm`), if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from_form: Option<String>,
+    /// True for a form TEMPLATE (frontmatter `form: true`) — not a memory of a day.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub is_form: bool,
+    /// The whole Markdown body — only when list_notes was asked for it (`full`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
 }
 
 fn summarize(vault_root: &Path, id: &str) -> Option<NoteSummary> {
@@ -209,15 +237,56 @@ fn summarize(vault_root: &Path, id: &str) -> Option<NoteSummary> {
     let (fm, body) = parse_frontmatter(&raw);
     let meta = read_meta(vault_root, id);
     let title = meta.title.filter(|t| !t.is_empty()).unwrap_or_else(|| derive_title(&body));
+    let created_at = meta.created_at.unwrap_or(0);
+    let from_form = extra_value(&fm, "fromForm").map(str::to_string);
+    let is_form = extra_value(&fm, "form") == Some("true");
     Some(NoteSummary {
         id: id.to_string(),
         title,
-        created_at: meta.created_at.unwrap_or(0),
+        date: local_day(created_at),
+        created_at,
         updated_at: meta.updated_at.unwrap_or(0),
         categories: meta.categories.unwrap_or(fm.categories),
         tags: meta.tags.unwrap_or(fm.tags),
         excerpt: excerpt(&body),
+        from_form,
+        is_form,
+        body: None,
     })
+}
+
+/// list_notes: memories whose DAY (local, from createdAt) is within [from, to] (inclusive,
+/// `YYYY-MM-DD`, either end optional), optionally only those made from one form
+/// (`from_form` = the form's id), never form templates themselves. Newest first, capped.
+/// `full` includes each whole body so a short period can be read in one call.
+pub fn list_notes(
+    vault_root: &Path,
+    from: Option<&str>,
+    to: Option<&str>,
+    from_form: Option<&str>,
+    limit: Option<usize>,
+    full: bool,
+) -> Vec<NoteSummary> {
+    let from = from.map(str::trim).filter(|s| !s.is_empty());
+    let to = to.map(str::trim).filter(|s| !s.is_empty());
+    let form = from_form.map(str::trim).filter(|s| !s.is_empty());
+    let mut out: Vec<NoteSummary> = list_ids(vault_root)
+        .iter()
+        .filter_map(|id| summarize(vault_root, id))
+        .filter(|n| !n.is_form)
+        // Same-length ISO days compare correctly as strings.
+        .filter(|n| from.map_or(true, |f| n.date.as_str() >= f))
+        .filter(|n| to.map_or(true, |t| n.date.as_str() <= t))
+        .filter(|n| form.map_or(true, |f| n.from_form.as_deref() == Some(f)))
+        .collect();
+    out.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    out.truncate(limit.unwrap_or(DEFAULT_LIST_LIMIT).clamp(1, MAX_LIST_LIMIT));
+    if full {
+        for n in &mut out {
+            n.body = std::fs::read_to_string(note_path(vault_root, &n.id)).ok().map(|raw| parse_frontmatter(&raw).1);
+        }
+    }
+    out
 }
 
 pub fn list_recent(vault_root: &Path, limit: Option<usize>, untagged_only: bool) -> Vec<NoteSummary> {
@@ -314,6 +383,8 @@ pub fn list_tags(vault_root: &Path) -> Vec<TagInfo> {
 pub struct SearchMatch {
     pub id: String,
     pub title: String,
+    /// The memory's day, `YYYY-MM-DD` (local).
+    pub date: String,
     pub updated_at: i64,
     pub categories: Vec<String>,
     pub tags: Vec<String>,
@@ -365,6 +436,7 @@ pub fn search_notes(vault_root: &Path, query: &str, max_results: Option<usize>) 
         out.push(SearchMatch {
             id,
             title,
+            date: local_day(meta.created_at.unwrap_or(0)),
             updated_at: meta.updated_at.unwrap_or(0),
             categories: meta.categories.unwrap_or(fm.categories),
             tags: meta.tags.unwrap_or(fm.tags),
@@ -381,6 +453,8 @@ pub fn search_notes(vault_root: &Path, query: &str, max_results: Option<usize>) 
 pub struct NoteContent {
     pub id: String,
     pub title: String,
+    /// The memory's day, `YYYY-MM-DD` (local).
+    pub date: String,
     pub created_at: i64,
     pub updated_at: i64,
     pub categories: Vec<String>,
@@ -397,6 +471,7 @@ pub fn get_note(vault_root: &Path, id: &str) -> Result<NoteContent, String> {
     Ok(NoteContent {
         id: id.to_string(),
         title,
+        date: local_day(meta.created_at.unwrap_or(0)),
         created_at: meta.created_at.unwrap_or(0),
         updated_at: meta.updated_at.unwrap_or(0),
         categories: meta.categories.unwrap_or(fm.categories),
@@ -546,6 +621,48 @@ mod tag_tests {
         assert_eq!(tags[0].uses, 1);
         assert_eq!(list_recent(&v, None, true).len(), 0);
         assert_eq!(list_recent(&v, None, false).len(), 1);
+        let _ = std::fs::remove_dir_all(&v);
+    }
+}
+
+#[cfg(test)]
+mod list_notes_tests {
+    use super::*;
+
+    fn note(v: &Path, id: &str, day: &str, extra: &str) {
+        let ms = chrono::NaiveDate::parse_from_str(day, "%Y-%m-%d")
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_local_timezone(chrono::Local)
+            .single()
+            .unwrap()
+            .timestamp_millis();
+        let fm = if extra.is_empty() { String::new() } else { format!("---\ntags: []\nlinks: []\n{extra}\n---\n\n") };
+        std::fs::write(note_path(v, id), format!("{fm}# {id}\nbody of {id}")).unwrap();
+        write_meta(v, id, &Meta { title: Some(id.into()), created_at: Some(ms), updated_at: Some(ms), ..Default::default() }).unwrap();
+    }
+
+    #[test]
+    fn filters_by_local_day_range_and_form_and_skips_templates() {
+        let v = std::env::temp_dir().join(format!("pensieve-list-test-{}", new_id()));
+        std::fs::create_dir_all(v.join("notes")).unwrap();
+        note(&v, "daily-9", "2026-11-09", "fromForm: daily");
+        note(&v, "daily-10", "2026-11-10", "fromForm: daily");
+        note(&v, "daily-14", "2026-11-14", "fromForm: daily");
+        note(&v, "loose-11", "2026-11-11", "");
+        note(&v, "weekly-15", "2026-11-15", "fromForm: weekly");
+        note(&v, "daily", "2026-11-12", "form: true");
+
+        let ids = |ns: Vec<NoteSummary>| ns.into_iter().map(|n| n.id).collect::<Vec<_>>();
+        assert_eq!(ids(list_notes(&v, Some("2026-11-10"), Some("2026-11-14"), None, None, false)), vec!["daily-14", "loose-11", "daily-10"]);
+        assert_eq!(ids(list_notes(&v, Some("2026-11-01"), None, Some("daily"), None, false)), vec!["daily-14", "daily-10", "daily-9"]);
+        assert_eq!(ids(list_notes(&v, None, None, Some("daily"), Some(1), false)), vec!["daily-14"]);
+        let full = list_notes(&v, Some("2026-11-10"), Some("2026-11-10"), None, None, true);
+        assert_eq!(full[0].date, "2026-11-10");
+        assert_eq!(full[0].from_form.as_deref(), Some("daily"));
+        assert_eq!(full[0].body.as_deref(), Some("# daily-10\nbody of daily-10"));
+        assert!(list_notes(&v, None, None, None, None, false)[0].body.is_none());
         let _ = std::fs::remove_dir_all(&v);
     }
 }
