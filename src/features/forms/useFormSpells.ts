@@ -44,7 +44,7 @@ export function useFormSpells({ note, notes, flush, reloadFromDisk }: Deps): For
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formId, formUpdatedAt, id]);
+  }, [formId, formUpdatedAt, id, extra?.formStatus]);
 
   const run = useSyncExternalStore(subscribeSpellRuns, () => spellRunOf(id));
 

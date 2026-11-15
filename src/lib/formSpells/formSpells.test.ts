@@ -50,6 +50,7 @@ describe("spellsOf — which buttons a memory gets", () => {
     expect(spellsOf({ form: "true", fromForm: "x" }, WEEKLY)).toEqual([]);
     expect(spellsOf(undefined, WEEKLY)).toEqual([]);
     expect(spellsOf({ fromForm: FORM_ID }, null)).toEqual([]);
+    expect(spellsOf({ fromForm: FORM_ID, formStatus: "awaiting" }, WEEKLY)).toEqual([]);
     expect(spellsOf({ fromForm: FORM_ID }, "Plain\n\n**Q?**")).toEqual([]);
   });
 });

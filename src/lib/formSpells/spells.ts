@@ -9,7 +9,7 @@
 //
 // Pure: no I/O, no DOM.
 
-import { answerText, fromFormId, isFormTemplate, parseForm, type Extra, type FormField } from "../forms";
+import { answerText, fromFormId, isAwaitingProcessing, isFormTemplate, parseForm, type Extra, type FormField } from "../forms";
 
 export interface FormSpell {
   /** The button label, e.g. "Compress". */
@@ -19,9 +19,10 @@ export interface FormSpell {
 }
 
 /** The spells a memory's buttons show: the button spells of the form it was made from.
- *  None for a form itself, a memory not made from a form, or when the form is gone. */
+ *  None for a form itself, a memory not made from a form, when the form is gone, or while a
+ *  phone session still awaits its own fill (the Process queue writes it first). */
 export function spellsOf(extra: Extra, templateMarkdown: string | null | undefined): FormSpell[] {
-  if (isFormTemplate(extra) || !fromFormId(extra) || !templateMarkdown) return [];
+  if (isFormTemplate(extra) || !fromFormId(extra) || isAwaitingProcessing(extra) || !templateMarkdown) return [];
   const seen = new Set<string>();
   const out: FormSpell[] = [];
   for (const c of parseForm(templateMarkdown).charms) {
