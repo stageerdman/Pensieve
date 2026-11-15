@@ -8,13 +8,22 @@
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { appDataDir } from "@tauri-apps/api/path";
 import type { Category, Note, NoteBody, NoteMeta, RawMemory, Store, TimelineEntry } from "../types";
-import { titleFromMarkdown, excerptFromMarkdown, contentCharCount } from "../text";
+import { titleFromMarkdown } from "../text";
 import { parseFrontmatter, composeFrontmatter } from "../md/frontmatter";
 import { pruneToRecentDays } from "../timeline";
 import { log } from "../logger";
 import { newMediaId, mediaRef, bytesToBase64 } from "../media";
 import { buildSearchBody } from "../search/searchBody";
 import { transcriptRefFor, parseTranscript } from "../transcripts/transcript";
+import { extractMediaRefs } from "../media/ref";
+import {
+  LIST_CACHE_PATH,
+  knownStamps,
+  mergeListing,
+  parseListCache,
+  type ListCache,
+  type NoteRecord,
+} from "./listCache";
 import type { Transcript } from "../transcripts/types";
 
 const readText = (rel: string) => invoke<string | null>("read_text", { rel });
@@ -54,7 +63,7 @@ interface Meta {
   categories?: Category[];
   tags?: string[];
   // Pin state lives in the fast-list sidecar so setPinned can toggle it without
-  // rewriting the .md. (The preview excerpt is computed live in list(), not stored.)
+  // rewriting the .md. (The preview excerpt is derived from the body — cached in lib/store/listCache.)
   pinned?: boolean;
   // Same sidecar-only contract as pinned — see NoteMeta.starred.
   starred?: boolean;
@@ -69,61 +78,53 @@ function newId(): string {
 }
 
 export class TauriStore implements Store {
+  // FAST-LOAD: the derived-field cache (lib/store/listCache), held in memory after the first
+  // listing so later relists (sync pull, AI tag adopt) skip re-reading the cache file.
+  private listCache: ListCache | null = null;
+
   async list(): Promise<NoteMeta[]> {
-    const files = await listDir("notes");
-    const ids = files
-      .filter((f) => f.endsWith(".md"))
-      .map((f) => f.slice(0, -3));
-    const metas: NoteMeta[] = [];
-    for (const id of ids) {
-      const raw = await readText(metaPath(id));
-      if (!raw) continue;
-      const m = JSON.parse(raw) as Meta;
-      // Compute the preview excerpt fresh from the body so it always reflects the
-      // current stripping rules (stored excerpts could be stale). One extra small
-      // file read per note — fine at personal-vault scale. The frontmatter is the
-      // truth for the flask icon, so read it from here (parse once).
-      const file = await readText(notePath(id));
-      const parsed = file ? parseFrontmatter(file) : null;
-      const excerpt = parsed ? excerptFromMarkdown(parsed.body) : "";
-      const chars = parsed ? contentCharCount(parsed.body) : 0;
-      metas.push({
-        id,
-        title: m.title,
-        createdAt: m.createdAt,
-        addedAt: m.addedAt ?? m.createdAt,
-        updatedAt: m.updatedAt,
-        categories: m.categories ?? [],
-        tags: m.tags ?? [],
-        icon: parsed?.fields.icon,
-        extra: parsed?.fields.extra,
-        pinned: m.pinned ?? false,
-        starred: m.starred ?? false,
-        openCount: m.openCount ?? 0,
-        lastOpenedAt: m.lastOpenedAt,
-        links: parsed?.fields.links ?? [],
-        excerpt,
-        chars,
-      });
+    const t0 = performance.now();
+    // One invoke for the whole vault (parallel reads in Rust). Bodies only come back for
+    // notes whose .md stamp no longer matches the cache — a warm start ships none.
+    const cache = this.listCache ?? parseListCache(await readText(LIST_CACHE_PATH).catch(() => null));
+    const records = await invoke<NoteRecord[]>("list_notes_bulk", { known: knownStamps(cache), withBodies: true });
+    const merged = mergeListing(records, cache);
+    this.listCache = merged.cache;
+    if (merged.dirty) {
+      // Off the hot path: the listing is already usable; a failed write only costs the
+      // next launch a recompute.
+      void writeText(LIST_CACHE_PATH, JSON.stringify(merged.cache)).catch((e) =>
+        log.warn("store", "listCache.write.failed", { error: String(e) }),
+      );
     }
+    log.info("store", "list", {
+      count: merged.metas.length,
+      misses: merged.misses,
+      ms: Math.round(performance.now() - t0),
+    });
     // Order is a view concern now (see lib/sidebar/arrange) — return unsorted.
-    return metas;
+    return merged.metas;
   }
 
   async bodies(): Promise<NoteBody[]> {
-    const files = await listDir("notes");
-    const ids = files.filter((f) => f.endsWith(".md")).map((f) => f.slice(0, -3));
+    // Two invokes total: every .md at once, then every referenced transcript sidecar at once
+    // (was one serial read per note + one per media ref).
+    const files = await invoke<{ id: string; md: string }[]>("read_note_bodies");
+    const parsed = files.map((f) => ({ id: f.id, body: parseFrontmatter(f.md).body }));
+    const refs = [...new Set(parsed.flatMap((p) => extractMediaRefs(p.body)))];
+    const texts = refs.length
+      ? await invoke<(string | null)[]>("read_texts_bulk", { rels: refs.map(transcriptRefFor) })
+      : [];
+    const transcripts = new Map<string, Transcript | null>();
+    refs.forEach((ref, i) => transcripts.set(ref, texts[i] ? parseTranscript(texts[i] as string) : null));
     const out: NoteBody[] = [];
-    for (const id of ids) {
-      const file = await readText(notePath(id));
-      if (!file) continue;
-      const { body } = parseFrontmatter(file);
+    for (const p of parsed) {
       // Markdown + folded transcript sidecars (shared with the single-note reindex path) so
       // spoken words are findable in Accio (transcripts are sidecars, not in the .md).
-      const text = await buildSearchBody(body, (ref) => this.loadTranscript(ref));
-      out.push({ id, text });
+      const text = await buildSearchBody(p.body, async (ref) => transcripts.get(ref) ?? null);
+      out.push({ id: p.id, text });
     }
-    log.debug("search", "bodies.read", { count: out.length });
+    log.debug("search", "bodies.read", { count: out.length, transcripts: refs.length });
     return out;
   }
 
@@ -276,14 +277,8 @@ export class TauriStore implements Store {
   }
 
   async listMedia(): Promise<string[]> {
-    // media/<noteId>/<file>: the top level is per-note folders, each holding the files.
-    const noteDirs = await listDir("media");
-    const refs: string[] = [];
-    for (const noteId of noteDirs) {
-      const files = await listDir(`media/${noteId}`);
-      for (const f of files) refs.push(`media/${noteId}/${f}`);
-    }
-    return refs;
+    // media/<noteId>/<file> — one invoke walks every per-note folder (was one per folder).
+    return invoke<string[]>("list_media_bulk");
   }
 
   async loadMediaUrl(ref: string): Promise<string | null> {
@@ -303,11 +298,13 @@ export class TauriStore implements Store {
   // raw/<id>.json — a tiny record, never a notes/ file (excluded from list()/search by
   // construction: nothing here ever reads raw/ into the note listing).
   async listRawMemories(): Promise<RawMemory[]> {
-    const files = await listDir("raw").catch(() => [] as string[]);
+    const files = (await listDir("raw").catch(() => [] as string[])).filter((f) => f.endsWith(".json"));
+    const texts = files.length
+      ? await invoke<(string | null)[]>("read_texts_bulk", { rels: files.map((f) => `raw/${f}`) })
+      : [];
     const out: RawMemory[] = [];
-    for (const f of files) {
-      if (!f.endsWith(".json")) continue;
-      const raw = await readText(`raw/${f}`);
+    for (const [i, f] of files.entries()) {
+      const raw = texts[i];
       if (!raw) continue;
       try {
         out.push(JSON.parse(raw) as RawMemory);

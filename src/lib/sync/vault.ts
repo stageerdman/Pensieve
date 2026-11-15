@@ -91,15 +91,9 @@ interface Meta {
 export function tauriVault(): LocalVault {
   return {
     async listNotes() {
-      const files = await listDir("notes");
-      const ids = files.filter((f) => f.endsWith(".md")).map((f) => f.slice(0, -3));
-      const out: LocalNoteInfo[] = [];
-      for (const id of ids) {
-        const raw = await readText(metaPath(id));
-        const m = raw ? (JSON.parse(raw) as Meta) : null;
-        out.push({ id, updatedAt: m?.updatedAt ?? 0 });
-      }
-      return out;
+      // One invoke (parallel reads in Rust, no bodies) — was one serial read per note.
+      const recs = await invoke<{ id: string; meta: Meta | null }[]>("list_notes_bulk", { withBodies: false });
+      return recs.map((r) => ({ id: r.id, updatedAt: r.meta?.updatedAt ?? 0 }));
     },
 
     readNote: (id) => readText(notePath(id)),
@@ -139,13 +133,11 @@ export function tauriVault(): LocalVault {
     async listRawMemories() {
       const files = await listDir("raw");
       const ids = files.filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5));
-      const out: LocalNoteInfo[] = [];
-      for (const id of ids) {
-        const raw = await readText(rawPath(id));
-        const r = raw ? (JSON.parse(raw) as { updatedAt?: number }) : null;
-        out.push({ id, updatedAt: r?.updatedAt ?? 0 });
-      }
-      return out;
+      const texts = ids.length ? await invoke<(string | null)[]>("read_texts_bulk", { rels: ids.map(rawPath) }) : [];
+      return ids.map((id, i) => {
+        const r = texts[i] ? (JSON.parse(texts[i] as string) as { updatedAt?: number }) : null;
+        return { id, updatedAt: r?.updatedAt ?? 0 };
+      });
     },
 
     readRawMemory: (id) => readText(rawPath(id)),
@@ -187,16 +179,8 @@ export function tauriVault(): LocalVault {
 
     writeState: (state) => writeText(STATE_PATH, JSON.stringify(state)),
 
-    async listMedia() {
-      // media/<noteId>/<file>: the top level is per-note folders, each holding the files.
-      const noteDirs = await listDir(MEDIA_DIR);
-      const refs: string[] = [];
-      for (const noteId of noteDirs) {
-        const files = await listDir(`${MEDIA_DIR}/${noteId}`);
-        for (const f of files) refs.push(`${MEDIA_DIR}/${noteId}/${f}`);
-      }
-      return refs;
-    },
+    // media/<noteId>/<file> — one invoke walks every per-note folder (vault_bulk.rs).
+    listMedia: () => invoke<string[]>("list_media_bulk"),
 
     async readMediaBytes(ref) {
       const b64 = await readBytes(ref);
