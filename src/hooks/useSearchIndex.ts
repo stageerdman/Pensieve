@@ -5,8 +5,9 @@ import { MemoryIndex } from "../lib/search/indexer";
 import { buildSearchBody } from "../lib/search/searchBody";
 import { reindex } from "../lib/search/reindexController";
 import { log } from "../lib/logger";
+import { whenIdle } from "../lib/idle";
 
-// Builds and maintains the full-text index for Summon — but LAZILY. Structured filters
+// Builds and maintains the full-text index for Summon — OFF the launch path (pre-warmed at idle, or on the first typed text). Structured filters
 // (tags / dates / categories / flags) never touch note bodies, so we only read all bodies
 // once the user actually types free text (`ensureBuilt`). After the first build it stays
 // warm and updates incrementally (a note whose updatedAt changed is re-read; a removed
@@ -41,6 +42,15 @@ export function useSearchIndex(notes: NoteMeta[]) {
       }
     })();
   }, [store]);
+
+  // FAST-LOAD: pre-warm the index in the background once the gallery has painted, so the
+  // first Accio keystroke doesn't wait on reading every body (two bulk invokes — see
+  // TauriStore.bodies). Never on the launch path: whenIdle runs it after the first paint.
+  const hasNotes = notes.length > 0;
+  useEffect(() => {
+    if (!hasNotes || builtRef.current) return;
+    return whenIdle(ensureBuilt, 1500);
+  }, [hasNotes, ensureBuilt]);
 
   // Once built, keep it in sync as notes change.
   useEffect(() => {

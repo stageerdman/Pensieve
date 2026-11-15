@@ -26,7 +26,7 @@ describe("noteMeta (in-place list patching)", () => {
   });
 
   it("carries sidecar-only engagement signals from the previous entry", () => {
-    const note = { id: "a", markdown: "x", createdAt: 1, addedAt: 1, updatedAt: 1, categories: [], tags: [], links: [], pinned: false, starred: false } as Note;
+    const note = { id: "a", title: "x", markdown: "x", createdAt: 1, addedAt: 1, updatedAt: 1, categories: [], tags: [], links: [], pinned: false, starred: false } as Note;
     const prev = { id: "a", title: "x", createdAt: 1, updatedAt: 1, openCount: 7, lastOpenedAt: 99 } as NoteMeta;
     expect(metaFromNote(note, prev, 5)).toMatchObject({ openCount: 7, lastOpenedAt: 99, updatedAt: 5 });
   });
