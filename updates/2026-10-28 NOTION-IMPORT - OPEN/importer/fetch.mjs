@@ -56,6 +56,7 @@ async function notion(method, endpoint, body) {
           "Content-Type": "application/json",
         },
         body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(30000), // a stalled socket must not hang the run
       });
     } catch (e) {
       if (attempt >= 6) throw e;
@@ -100,7 +101,7 @@ async function download(block) {
   const ext = extFrom(v.file.url, block.type === "image" ? "png" : "bin");
   const dest = path.join(STAGING, "files", `${block.id}.${ext}`);
   if (!fs.existsSync(dest)) {
-    const res = await fetch(v.file.url);
+    const res = await fetch(v.file.url, { signal: AbortSignal.timeout(120000) });
     if (!res.ok) throw new Error(`download ${block.id} → ${res.status}`);
     fs.writeFileSync(dest, Buffer.from(await res.arrayBuffer()));
   }
