@@ -32,6 +32,10 @@ scroll back, let's say after a few minutes. And make sure the same thing is on t
 - [ ] P4 Measure on the real 2,090-note vault (before/after), tests, build + deploy, owner check.
 
 ## Status
+2026-11-15 20:44: all merged to main, `.app` installed, phone deployed (`39093509`). Real vault, native
+app: cold first launch (no cache) had the full list read + cache written 1.5 s after launch incl. app
+start. Sync wipe guards on both sides (refuse when phone vault not loaded; refuse >10 & >20% deletes).
+Owed: owner feel-check on desktop + iPhone, then close out.
 2026-11-15: opened; P1+P2 (desktop agent) and P3 (phone agent) running in parallel.
 2026-11-15: P1+P2 built on `update/fast-load-desktop` (not merged, no `tauri:build`): bulk Rust
 reads (4,181 serial invokes → 1), stamp-keyed `vault/.cache/list-index.json`, in-memory list
