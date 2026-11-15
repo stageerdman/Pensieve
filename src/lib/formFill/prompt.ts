@@ -50,22 +50,28 @@ ${transcript.trim()}
 """`;
 }
 
-/** Defensive parse: tolerate a code fence / prose around the JSON; keep only answers for real
- *  field ids with the right shape for that field's kind. Never throws (bad reply → {}). */
-export function parseFillResponse(raw: string, fields: FormField[]): Answers {
+/** The `answers` object of a `{"answers": {…}}` reply, tolerating a code fence / prose
+ *  around the JSON. Null when there's no such object. Shared with the form spells
+ *  (lib/formSpells), which use the same reply envelope. */
+export function answersObjectOf(raw: string): Record<string, unknown> | null {
   let text = raw.trim();
   if (text.startsWith("```")) text = text.replace(/^```[a-zA-Z]*\n?/, "").replace(/```\s*$/, "").trim();
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
-  if (start === -1 || end <= start) return {};
-  let parsed: unknown;
+  if (start === -1 || end <= start) return null;
   try {
-    parsed = JSON.parse(text.slice(start, end + 1));
+    const answers = (JSON.parse(text.slice(start, end + 1)) as { answers?: unknown })?.answers;
+    return answers && typeof answers === "object" && !Array.isArray(answers) ? (answers as Record<string, unknown>) : null;
   } catch {
-    return {};
+    return null;
   }
-  const answers = (parsed as { answers?: Record<string, unknown> })?.answers;
-  if (!answers || typeof answers !== "object") return {};
+}
+
+/** Defensive parse: tolerate a code fence / prose around the JSON; keep only answers for real
+ *  field ids with the right shape for that field's kind. Never throws (bad reply → {}). */
+export function parseFillResponse(raw: string, fields: FormField[]): Answers {
+  const answers = answersObjectOf(raw);
+  if (!answers) return {};
   const out: Answers = {};
   for (const f of fields) {
     const a = answers[f.id] as { text?: unknown; scale?: unknown; check?: unknown } | undefined;
