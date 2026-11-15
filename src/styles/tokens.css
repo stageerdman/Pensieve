@@ -54,6 +54,10 @@
   /* Free-hue flask colour: a chosen hue rides these theme-paired saturation/lightness
      tokens, so a spectrum-picked flask stays theme-correct and legible with no hex. */
   --flask-s: 68%; --flask-l: 44%;
+
+  /* Starred halo — the "very important bright memory" glow behind a starred flask: the
+     magical gold at this strength. Light needs more: gold washes out on white. */
+  --star-halo-alpha: 0.5;
 }
 
 .dark {
@@ -85,4 +89,6 @@
   --cat-red-bg: 0 35% 30%;      --cat-red-fg: 0 70% 70%;
 
   --flask-s: 68%; --flask-l: 68%;
+
+  --star-halo-alpha: 0.35; /* gold glows on its own on the stone — softer */
 }

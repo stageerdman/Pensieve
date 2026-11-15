@@ -20,6 +20,7 @@ import { TabBar, HOME, type ExtraTab } from "./components/TabBar";
 import { IconButton } from "./components/IconButton";
 import {
   Clock,
+  Star,
   PanelRight,
   PanelRightClose,
   Wand,
@@ -75,6 +76,7 @@ export default function App() {
     change,
     updateMeta,
     togglePin,
+    toggleStar,
     setCreatedAt,
     restoreVersion,
     startFromForm,
@@ -418,6 +420,12 @@ export default function App() {
                               active: timelineOpen,
                             },
                             {
+                              icon: <Star size={16} filled={current.starred} />,
+                              label: current.starred ? "Unstar memory" : "Star memory",
+                              checked: current.starred,
+                              onSelect: () => void toggleStar(current.id),
+                            },
+                            {
                               icon: <FormIcon size={16} />,
                               label: isFormTemplate(current.extra) ? "Stop using as form" : "Use as form",
                               onSelect: () =>
@@ -490,6 +498,7 @@ export default function App() {
                 theme={theme}
                 onOpen={openNote}
                 onToggleWorkingSet={gallery.toggleWorkingSet}
+                onToggleStar={(id) => void toggleStar(id)}
                 onRemoveFromWorkingSet={gallery.removeFromWorkingSet}
                 onMoveInWorkingSet={gallery.moveInWorkingSet}
                 onReorderWorkingSet={gallery.reorderWorkingSet}
@@ -510,6 +519,7 @@ export default function App() {
                             icon={current.icon}
                             chars={contentCharCount(current.markdown)}
                             seed={current.id}
+                            starred={current.starred}
                             onChange={(icon) => updateMeta({ icon })}
                           />
                           <NoteCategoryControl

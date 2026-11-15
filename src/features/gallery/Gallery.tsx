@@ -4,6 +4,8 @@ import type { SearchResult } from "../../lib/search/search";
 import type { CategoryDef } from "../../lib/categories/defs";
 import type { GalleryState } from "../../lib/gallery/view";
 import { bucketize } from "../../lib/gallery/buckets";
+import { searchSections, STARRED_SECTION_KEY } from "../../lib/gallery/searchSections";
+import { log } from "../../lib/logger";
 import { FlaskFor } from "../../components/Flask";
 import { FlaskCard, type MenuAnchor, type PeekTarget } from "./FlaskCard";
 import { WorkingSetStrip } from "./WorkingSetStrip";
@@ -35,6 +37,7 @@ interface GalleryProps {
   theme: "light" | "dark";
   onOpen: (id: string, background: boolean) => void;
   onToggleWorkingSet: (id: string) => void;
+  onToggleStar: (id: string) => void;
   onRemoveFromWorkingSet: (id: string) => void;
   onMoveInWorkingSet: (id: string, delta: number) => void;
   onReorderWorkingSet: (fromIndex: number, toIndex: number) => void;
@@ -51,6 +54,7 @@ export function Gallery({
   theme,
   onOpen,
   onToggleWorkingSet,
+  onToggleStar,
   onRemoveFromWorkingSet,
   onMoveInWorkingSet,
   onReorderWorkingSet,
@@ -70,16 +74,20 @@ export function Gallery({
   // bottles share one normal grid — ordered by "when I last worked with them" (updatedAt),
   // most recent on top. At rest (no query) the strip rides above and its memories are
   // hidden from the grid below (it's their only home while pinned), grouped by creation.
+  // Starred memories that answer the free text lead the search in their own "Starred"
+  // section (lib/gallery/searchSections.ts); the rest keep their date buckets.
   const hideWorkingSet = !!searchActive;
   const sections = useMemo(
     () =>
-      bucketize(
-        hideWorkingSet ? notes : notes.filter((n) => !wsSet.has(n.id)),
-        now,
-        hideWorkingSet ? "updated" : "created",
-      ),
-    [notes, wsSet, now, hideWorkingSet],
+      hideWorkingSet
+        ? searchSections(notes, match, now)
+        : bucketize(notes.filter((n) => !wsSet.has(n.id)), now, "created"),
+    [notes, match, wsSet, now, hideWorkingSet],
   );
+  const lifted = sections[0]?.key === STARRED_SECTION_KEY ? sections[0].notes.length : 0;
+  useEffect(() => {
+    if (hideWorkingSet) log.debug("gallery", "search.starredLift", { lifted, results: notes.length });
+  }, [hideWorkingSet, lifted, notes.length]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const [altHeld, setAltHeld] = useState(false);
@@ -133,7 +141,7 @@ export function Gallery({
   const openContextMenu = (e: MenuAnchor, id: string) => {
     e.preventDefault();
     setKeyPeek(null);
-    setMenu({ id, x: e.clientX, y: e.clientY, inWorkingSet: wsSet.has(id) });
+    setMenu({ id, x: e.clientX, y: e.clientY, inWorkingSet: wsSet.has(id), starred: !!byId.get(id)?.starred });
   };
 
   // The portal is centered (not anchored), so scrolling only ends a transient
@@ -192,6 +200,7 @@ export function Gallery({
             onHoverChange={setHovered}
             onPeekToggle={onPeekToggle}
             onToggleWorkingSet={onToggleWorkingSet}
+            onToggleStar={onToggleStar}
             onRemove={onRemoveFromWorkingSet}
             onMove={onMoveInWorkingSet}
             onReorder={onReorderWorkingSet}
@@ -236,6 +245,7 @@ export function Gallery({
                             onHoverChange={setHovered}
                             onPeekToggle={onPeekToggle}
                             onToggleWorkingSet={onToggleWorkingSet}
+                            onToggleStar={onToggleStar}
                           />
                           {jumps && jumps.length > 0 && (
                             <TranscriptJumpLines jumps={jumps} onJump={(j) => void openJump(n.id, j)} />
@@ -269,6 +279,7 @@ export function Gallery({
             if (el) onPeekToggle({ id, el });
           }}
           onToggleWorkingSet={onToggleWorkingSet}
+          onToggleStar={onToggleStar}
           onClose={() => setMenu(null)}
         />
       )}

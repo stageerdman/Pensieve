@@ -1,5 +1,5 @@
 import { useLayoutEffect, useState } from "react";
-import { Bookmark } from "../../components/icons";
+import { Bookmark, Star } from "../../components/icons";
 import { useDismiss } from "../../hooks/useDismiss";
 
 // The lightweight right-click menu for a flask (in the grid or the working-set strip).
@@ -12,6 +12,7 @@ export interface CardMenuTarget {
   x: number;
   y: number;
   inWorkingSet: boolean;
+  starred: boolean;
 }
 
 interface CardContextMenuProps {
@@ -19,6 +20,7 @@ interface CardContextMenuProps {
   onOpen: (id: string, background: boolean) => void;
   onPeek: (id: string) => void;
   onToggleWorkingSet: (id: string) => void;
+  onToggleStar: (id: string) => void;
   onClose: () => void;
 }
 
@@ -27,6 +29,7 @@ export function CardContextMenu({
   onOpen,
   onPeek,
   onToggleWorkingSet,
+  onToggleStar,
   onClose,
 }: CardContextMenuProps) {
   const ref = useDismiss<HTMLDivElement>(onClose);
@@ -44,7 +47,7 @@ export function CardContextMenu({
     if (top + el.offsetHeight > window.innerHeight - margin)
       top = window.innerHeight - el.offsetHeight - margin;
     setPos({ left: Math.max(margin, left), top: Math.max(margin, top) });
-    el.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus();
+    el.querySelector<HTMLButtonElement>("[role^=menuitem]")?.focus();
   }, [target]);
 
   const act = (fn: () => void) => () => {
@@ -71,7 +74,15 @@ export function CardContextMenu({
         icon={<Bookmark size={15} filled={target.inWorkingSet} />}
         label={target.inWorkingSet ? "Remove from Working set" : "Add to Working set"}
         shortcut="W"
+        checked={target.inWorkingSet}
         onSelect={act(() => onToggleWorkingSet(target.id))}
+      />
+      <Item
+        icon={<Star size={15} filled={target.starred} />}
+        label={target.starred ? "Unstar" : "Star"}
+        shortcut="S"
+        checked={target.starred}
+        onSelect={act(() => onToggleStar(target.id))}
       />
     </div>
   );
@@ -81,16 +92,20 @@ function Item({
   icon,
   label,
   shortcut,
+  checked,
   onSelect,
 }: {
   icon?: React.ReactNode;
   label: string;
   shortcut?: string;
+  /** A toggle item (working set / star): announced as a checkbox with its state. */
+  checked?: boolean;
   onSelect: () => void;
 }) {
   return (
     <button
-      role="menuitem"
+      role={checked === undefined ? "menuitem" : "menuitemcheckbox"}
+      aria-checked={checked}
       onClick={onSelect}
       className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm text-text hover:bg-surface focus:bg-surface focus:outline-none"
     >
