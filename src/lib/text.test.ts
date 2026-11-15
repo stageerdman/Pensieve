@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { titleFromMarkdown, slugify, wordCount, excerptFromMarkdown, contentCharCount } from "./text";
+import { titleFromMarkdown, slugify, wordCount, excerptFromMarkdown, contentCharCount, plainTextFromMarkdown } from "./text";
+import { unwrapProseFences } from "./md/proseFences";
 
 describe("contentCharCount", () => {
   it("is zero for a title-only note (one line)", () => {
@@ -87,5 +88,32 @@ describe("wordCount", () => {
     expect(wordCount("# Title\n\n- one two three")).toBe(4);
     expect(wordCount("**bold** and _italic_")).toBe(3);
     expect(wordCount("")).toBe(0);
+  });
+});
+
+describe("callout / columns are prose in previews + search", () => {
+  const MD =
+    "# Daily\n\n**What fulfils me?**\n\n```pensieve:callout\nicon=🚨\nTo **learn** with {@n1|Anna}\n\n* one\n```\n\n" +
+    "```pensieve:columns\nLeft words\n:::column:::\nRight words\n```\n\n```ts\nconst code = 1;\n```\n";
+
+  it("the excerpt shows the callout's text, not the fence", () => {
+    const ex = excerptFromMarkdown(MD);
+    expect(ex).toBe("What fulfils me? To learn with Anna one Left words Right words");
+  });
+
+  it("search text has the callout + column words, no fence markers", () => {
+    const t = plainTextFromMarkdown(MD);
+    for (const w of ["To learn with Anna", "one", "Left words", "Right words", "const code = 1;"]) expect(t).toContain(w);
+    for (const junk of ["icon=", ":::column:::", "pensieve:"]) expect(t).not.toContain(junk);
+  });
+
+  it("titles still skip a callout (the heading is the title)", () => {
+    expect(titleFromMarkdown("```pensieve:callout\nBoxed\n```\n\nReal title")).toBe("Real title");
+  });
+
+  it("unwrapProseFences leaves other fences alone", () => {
+    const md = "```pensieve:audio\nmedia/n/a.m4a\n```";
+    expect(unwrapProseFences(md)).toBe(md);
+    expect(unwrapProseFences("```pensieve:callout\n```")).toBe("");
   });
 });
