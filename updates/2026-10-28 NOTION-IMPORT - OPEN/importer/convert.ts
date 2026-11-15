@@ -217,9 +217,15 @@ async function convertBlocks(nbs: NBlock[], ctx: Ctx, inColumn = false): Promise
     const v = b[b.type] ?? {};
     const kids = () => convertBlocks(b._children ?? [], ctx, inColumn);
     switch (b.type) {
-      case "paragraph":
-        out.push({ type: "paragraph", content: inlines(v.rich_text, ctx), children: await kids() });
+      case "paragraph": {
+        const content = inlines(v.rich_text, ctx);
+        const children = await kids();
+        // An EMPTY line with indented content under it never settles through the editor's
+        // load→save (blank-line placeholder vs. children fence) — lift the content up.
+        if (!plain(v.rich_text).trim() && children.length) out.push(...children);
+        else out.push({ type: "paragraph", content, children });
         break;
+      }
       case "heading_1":
       case "heading_2":
       case "heading_3": {
