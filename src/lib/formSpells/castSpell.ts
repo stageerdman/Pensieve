@@ -36,6 +36,14 @@ export type SpellResult =
   | { status: "nothing-found" }
   | { status: "skipped"; reason: string };
 
+/** What the strip says after a run, or null when the answers on the page say it all. */
+export function outcomeText(r: SpellResult): string | null {
+  if (r.status === "filled") return null;
+  if (r.status === "all-answered") return "Every question already has an answer";
+  if (r.status === "nothing-found") return "Nothing to add";
+  return r.reason.charAt(0).toUpperCase() + r.reason.slice(1);
+}
+
 export async function castSpell(noteId: string, spellName: string, deps: SpellDeps): Promise<SpellResult> {
   const note = await deps.load(noteId);
   if (!note) return { status: "skipped", reason: "memory no longer exists" };

@@ -9,6 +9,7 @@ import { DetailsPanel } from "./components/DetailsPanel";
 import { OverflowMenu } from "./components/OverflowMenu";
 import { FormStrip } from "./features/forms/FormStrip";
 import { useFormRedo } from "./features/forms/useFormRedo";
+import { useFormSpells } from "./features/forms/useFormSpells";
 import { FORM_KEY, isFormTemplate, withExtra } from "./lib/forms";
 import { FlaskButton } from "./components/FlaskButton";
 import { NoteCategoryControl } from "./components/NoteCategoryControl";
@@ -85,6 +86,7 @@ export default function App() {
     recordOpen,
   } = useNotes();
   const formRedo = useFormRedo({ note: current, loadEpoch, flush, reloadFromDisk });
+  const formSpells = useFormSpells({ note: current, notes, flush, reloadFromDisk });
   // A sync that pulled remote changes refreshes the list; if the open note was one
   // of them, reload it into the editor so on-screen content matches disk.
   const currentId = current?.id;
@@ -528,7 +530,7 @@ export default function App() {
                         </div>
                       )}
                       {!focusMode && (
-                        <FormStrip note={current} notes={notes} onStartFrom={(id) => void startFromForm(id)} />
+                        <FormStrip note={current} notes={notes} onStartFrom={(id) => void startFromForm(id)} spells={formSpells} />
                       )}
                       {previewEntry ? (
                         <div className="mx-auto max-w-[72ch]">
