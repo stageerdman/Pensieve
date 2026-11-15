@@ -245,6 +245,17 @@ export const FormIcon = (p: IconProps) =>
   );
 
 /** A row of rating points — the form Scale block. */
+/** A tinted box with a mark at left — the callout block. */
+export const CalloutIcon = (p: IconProps) =>
+  svg(
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="3" />
+      <circle cx="7.5" cy="10" r="1" fill="currentColor" />
+      <path d="M11 10h6M11 14h4" />
+    </>,
+    p,
+  );
+
 export const ScaleIcon = (p: IconProps) =>
   svg(
     <>

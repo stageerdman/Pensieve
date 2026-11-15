@@ -1,5 +1,6 @@
 // Small pure text helpers — shared so title/slug/word-count logic lives in one place.
 import { plainColorRuns } from "./md/colorRuns";
+import { unwrapProseFences } from "./md/proseFences";
 
 /** The note title is the first non-empty line of PROSE, with leading markdown heading AND
  *  list marks stripped (a note that starts with a bullet/numbered/checklist line still gets
@@ -44,7 +45,8 @@ export function slugify(title: string): string {
 export function excerptFromMarkdown(raw: string, max = 140): string {
   const md = plainColorRuns(raw); // a colour run is never shown as `{fg:…}` code in a preview
   const title = titleFromMarkdown(md);
-  const lines = md.split("\n");
+  // A callout / columns is prose in a fence — previewed as its text, not skipped as code.
+  const lines = unwrapProseFences(md).split("\n");
   const parts: string[] = [];
   let skippedTitle = false;
   let inFence = false; // inside a ``` code block — skipped entirely (previews = prose)
@@ -86,7 +88,8 @@ export function excerptFromMarkdown(raw: string, max = 140): string {
  *  collapse whitespace themselves). Used to build the full-text haystack. */
 export function plainTextFromMarkdown(md: string): string {
   const out: string[] = [];
-  for (const raw of md.split("\n")) {
+  // Callout/columns → their text (no `icon=` / `:::column:::` noise in the haystack).
+  for (const raw of unwrapProseFences(md).split("\n")) {
     let line = raw.replace(/​/g, ""); // ZWSP blank-line placeholders
     if (/^\s*(```|~~~)/.test(line)) continue; // fence delimiters (keep the code lines)
     line = line

@@ -163,3 +163,56 @@ Markdown & CSV, Everything, subpages + folders on.
   an empty `pensieve:callout` fence.
 - Result-page titles come from the owner's CSV export (`staging/csv/`), since the Results DB
   isn't shared with the integration.
+
+## Callouts & columns (P6c, 2026-11-15, branch `update/callouts`)
+**Formats unchanged** (`lib/md/callout.ts`, `lib/md/columns.ts` own the fence text; desktop,
+phone and search all import them).
+- **Desktop callout = a real editable block** (`components/editor/layout/CalloutBlock.tsx`):
+  `content: "inline"` = the body's first paragraph, the rest of the body = the block's
+  **children** (same idea as `pensieve:toggle`). Encode serializes `[lead paragraph,
+  ...children]` as ONE list with `blocksToExtendedMd`, so the body is exactly what the
+  importer wrote (it built `[paragraph(callout text), ...kids]`). All 593 imported bodies
+  start with a paragraph (423) or an empty one (170, ZWSP) — an empty lead becomes an empty
+  line and re-encodes as the ZWSP. A body whose first block isn't a paragraph (not produced
+  by the importer) gains a leading blank line on first save, then is stable.
+- **One box around line + children** is pure CSS: the tint sits on BlockNote's `.bn-block`
+  via `:has(> .bn-block-content[data-content-type="callout"])`, the nested group's 24px
+  indent is reset (to the emoji column when there's an icon), and a numbered list directly
+  inside keeps 1/2/3 (our nested-list a/b/c rule would otherwise hit it). Token `--callout-bg`.
+- **Enter** in the callout's own line: BlockNote's default split would put the new line AND
+  all children after the callout (outside the box). `calloutEnter.ts` moves the text after
+  the caret into a new FIRST child instead; leaving the box = Enter on an empty child line
+  (BlockNote un-nests it). Backspace at the start of the line = BlockNote's "turn into
+  paragraph" (children stay, indented) — the natural "un-callout". Wired as a block-spec
+  extension `keyboardShortcuts.Enter`, which runs before BlockNote's own Enter (tested with a
+  real keydown).
+- `/callout` (Basic blocks) inserts an empty, icon-less callout. No icon picker / colours.
+- **Columns = read-only** (`ColumnsBlock.tsx`): the fence text rides the `md` prop verbatim
+  (byte-identical by construction) and each column renders via `extendedMdToBlocks` →
+  `blocksToHTMLLossy` (images resolve, lists/bold/links look native), side by side with
+  `flex-wrap` so it stacks when narrow. Why not editable: BlockNote 0.55's multi-column is
+  the separately-licensed `@blocknote/xl-multi-column`, and faking it with nested container
+  blocks lets two Backspaces delete a whole column. 13 fences in 10 notes, 9 of them images.
+- **Phone**: `callout` / `columns` NoteBlock kinds carry the fence's inner lines verbatim
+  (byte-identical save); rendered read-only (`ph-media`, contentEditable=false) with the body
+  through the phone's own text/list renderer; columns stack with a hairline. Found + fixed: a
+  photo picked/dragged next to ANY media block called `mergeInto`, which overwrote a
+  non-image block (callout, audio, rating…) with a gallery — merge is now image/gallery only.
+- **Search/previews**: `lib/md/proseFences.ts` unwraps callout/columns to their text for the
+  desktop excerpt + search haystack and the phone reel snippet (no `icon=`/`:::column:::`).
+  Titles still skip them (every imported note starts with `# Title`).
+- **Lesson — callout bodies were not at their fixed point.** The importer's load→save loop
+  ran while callouts were opaque fences, so their bodies never went through it: with this
+  branch, 53 of 162 callout/columns notes in the dry-run vault change on first open
+  (trailing spaces, space after a hard break, one "text⏎3." split) — all stable after ONE
+  more pass. Re-running `convert.ts` on this branch (it loops until stable) absorbs it;
+  `verify.ts` must then show 2,002/2,002 again.
+- **UX review applied:** one box on both surfaces (padding 0.5em 0.75em, radius-lg), the tint
+  nudged toward the accent hue so it reads neither as sidebar nor as code (`--callout-bg`
+  216 32% 95.5% / dark 220 24% 15%), emoji on the first line's baseline, an EMPTY own line
+  folds away (desktop: until the caret enters it, keyed off BlockNote's
+  `data-is-empty-and-focused`; phone: not drawn), phone callout/column text selectable, no
+  hairline between stacked phone columns (spacing only). Kept: no desktop column divider.
+- DECISIONS FOR OWNER: (1) columns read-only everywhere; (2) callouts read-only on the
+  phone; (3) no icon picker — imported emoji kept, `/callout` makes a plain box; (4) a
+  callout never becomes a note title.
