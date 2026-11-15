@@ -131,9 +131,8 @@ into a step-by-step build plan grounded in the real code (three research passes,
 1. Phase 5: real `claude -p` fill VERIFIED (spike-p5: Czech, 7/9 fields, 14 s, no invention), merged to
    main `142813e`, `.app` installed. OWED: one real phone → sync → desktop pass by the owner.
 2. Owner device pass for Phase 4 (Form spell, one take across a lock, review playback, Done).
-3. Phase 6: Charms — button per charm on memories made from a form; Claude + Pensieve MCP read tools
-   (add a date-range listing tool + fromForm filter); date chips citing source memories; skip fields
-   being typed in. First: the owner's Weekly Summary with a Compress charm.
+3. Phase 6: **CODE DONE on `update/forms` (2026-11-15), NOT merged / NOT built** — see the Phase 6
+   entry below. OWED: merge → `tauri:build` → the owner presses Compress on his real Weekly Reflection.
 4. Phase 7: close-out.
 Known gaps: a session killed mid-recording is recovered by the voice engine but never marked awaiting
 (desktop won't auto-fill it); queue persistence drops non-audio row order (pre-existing).
@@ -149,3 +148,39 @@ Compress button — the old charm). Stored as `pensieve:patronus` with `spell: s
 legacy `pensieve:charm` fence still loads (as a Compress spell) and saves in the new form.
 `/patronus` (deer icon) is offered only in a form; `/charm` is gone. `parseForm().charms` now
 lists the button spells (Compress) — Phase 6 builds the button from that list.
+
+### 2026-11-15 — Phase 6 DONE (code + real CLI run), on `update/forms`, not merged
+Owner's bug: "Weekly Reflection form with Patronus → Compress, but no Compress suggestion on top" —
+nothing rendered it yet. Now:
+- **Button**: a memory made from a form (`fromForm`) shows one bare button per button spell of that
+  form, in FormStrip (`SpellButtons.tsx`, state via `useFormSpells.ts` + `spellRuns.ts`). Hidden while a
+  phone session still awaits its own fill. Running = the pressed button turns accent + breathes
+  (motion-safe) with "Compress…", others dim, focus kept (aria-disabled). No success state: the
+  answers appearing are the confirmation. One quiet line only for "Found nothing to add" (fades),
+  "All questions answered" (fades) or a failure ("Compress stopped: Claude took too long", stays).
+- **AI**: Rust `ask_claude_with_vault` = ai_text's timed + logged `claude -p` plus the Pensieve MCP
+  server with **READ_TOOLS only** (no add_tag/write tools). New MCP tool **`list_notes`**(from, to,
+  from_form, limit, full): memories by LOCAL calendar day, optionally only one form's, templates never
+  listed; every note result now carries `date`. Prompt = spell instruction + open fields + today + this
+  memory's id/date + form id (`lib/formSpells/prompt.ts`). Reply = form-fill JSON envelope where a
+  question's answer is `points: [{text, sources: [memory ids]}]`.
+- **Write**: `castSpell` (lib/formSpells) resolves each cited id to a real memory (not itself, not a
+  form) → `* point {@id|Mon 9 Nov}` date chips (the existing note-link inline; label from the memory's
+  own createdAt, never from the model) → `applyAnswers` (same path as the form fill) into fields still
+  open AFTER the AI answered (editor flushed first: whatever the owner typed meanwhile wins) →
+  Timeline restore point `before-spell` first → editor reloads. Uncited points are dropped.
+- **Verified**: 1300+ tests incl. 19 formSpells + 3 SpellButtons + an editor round-trip of chips; Rust
+  `list_notes` test; `npx tsc` + `npm run build` clean. **Real run** (`spike-p6/live-compress.ts`, throwaway
+  vault, real debug binary as MCP server, real `claude -p`): 14 s, 3/3 fields, 9 points each citing the
+  right day, old week + unrelated note correctly ignored, vault untouched.
+- **DECISION FOR OWNER** (picked the minimal option):
+  1. "Fields you're typing in are skipped" = a spell only fills **unanswered** fields (nothing typed /
+     rated / ticked) — it never adds to an answer you started. Say if you'd rather it append there too.
+  2. A point the AI can't cite to a real memory is **dropped** (chips are the point of Compress).
+  3. Language: answers follow the language of the source memories (spike with mixed Czech/English
+     sources answered in English). Say if Compress should always answer in the form's language.
+  4. The button stays after a run (re-runnable; a second press fills only what's still empty).
+- **Next**: merge + `tauri:build`; owner tries it on the real Weekly Reflection. Gaps logged in
+  issues.txt: the phone shows note links / date chips as raw `{@id|…}` text (phone renderer has no
+  note-link token — a phone change + deploy); desktop chips aren't keyboard-reachable (pre-existing).
+

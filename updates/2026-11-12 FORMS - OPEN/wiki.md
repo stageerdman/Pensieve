@@ -56,3 +56,22 @@ All concepts dropped except the Steve Jobs team's (`concepts/jobs.html`, git his
 - BlockNote today loads `pensieve:scale`/`pensieve:charm` as plain code blocks (lossless); Phase 2 gives
   them real blocks. The phone shows them as raw text lines until Phase 4 renders them.
 - Field ids are slugs of the question text, so they are stable between a template and memories made from it.
+
+## Phase 6 lessons (2026-11-15, Compress)
+- **The model never writes a date.** It cites memory IDS (`sources`); the app resolves each id and labels
+  the chip from that memory's own createdAt. A hallucinated id resolves to nothing → the point is dropped.
+  Cheap, and it makes "date chips that can't lie" a property of the code, not of the prompt.
+- **A date chip is just the existing note link** `{@id|Mon 9 Nov}` (lib/md/extended.ts) — it round-trips
+  through BlockNote inside a bullet, opens the memory on click, shows its flask. No new inline type.
+  CSS `white-space: nowrap` keeps "Mon 9 Nov" + flask on one line at a bullet's end.
+- **Read tools for a spell ≠ the assistant's tools.** `READ_TOOLS` (mcp/config.rs) excludes add_tag; the
+  spell writes only through the app, into the one memory it was cast on.
+- **Day ranges compare as `YYYY-MM-DD` strings in the LOCAL zone** (chrono::Local in Rust, `isoDay` in TS)
+  — the same day key on both sides, no UTC off-by-one at 23:00.
+- **`list_notes(full: true)`** lets the model read a week in ONE tool call instead of 7 get_note calls —
+  the real run took 14 s end to end.
+- **Re-check open fields after the AI answers**, not only before: a run takes 15–60 s and the owner
+  keeps typing. Flush → re-read → apply only to still-empty fields.
+- Disabling a button the user just pressed drops keyboard focus to <body>; use aria-disabled + ignore
+  the press (UX review).
+
