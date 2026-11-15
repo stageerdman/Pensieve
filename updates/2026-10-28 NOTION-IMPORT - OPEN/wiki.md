@@ -116,3 +116,17 @@ notes listed for the owner · columns / callouts → content kept, wrapped in a
 
 **Export:** first zip (2026-11-15) was CSV-only (3 files, no bodies/images) — re-export as
 Markdown & CSV, Everything, subpages + folders on.
+
+## Importer lessons (2026-11-15)
+- **Write the editor's canonical form.** Notes are built as BlockNote blocks and serialized
+  with the app's own `blocksToExtendedMd` (server-side editor), then load→save looped until
+  stable. Without that loop 10/35 notes differed on whitespace (trailing spaces, space after a
+  hard break) — harmless, but the editor would rewrite every note on first open.
+  `importer/verify.ts` re-checks every note.
+- **Uploaded videos exist** in Notion bodies (not just YouTube embeds) → kept as real
+  `pensieve:video` blocks. They are big: the first fetch "hung" on a page with two uploaded
+  videos. Downloads get a 20-min timeout; API calls 30 s with retry.
+- **Empty callouts** are Notion "write here" boxes (Hour of Power template) → blank line, not
+  an empty `pensieve:callout` fence.
+- Result-page titles come from the owner's CSV export (`staging/csv/`), since the Results DB
+  isn't shared with the integration.

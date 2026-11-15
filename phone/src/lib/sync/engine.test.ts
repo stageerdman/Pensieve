@@ -308,13 +308,26 @@ describe("phone sync engine", () => {
     expect(r.pulledMedia).toEqual(["media/x/a.png"]);
   });
 
-  it("an audio ref AND its transcript sidecar are both pulled when both exist remotely", async () => {
+  it("an audio ref's transcript sidecar is pulled, but the audio itself waits until it's played", async () => {
     const fence = "```pensieve:audio\nmedia/x/a.m4a\n```";
     drive.put("x.md", fence);
     drive.files.set("media/x/a.m4a", { id: "m1", content: "", cTag: "m1", time: new Date().toISOString(), ver: 0 });
     drive.files.set("media/x/a.m4a.transcript.json", { id: "m2", content: "{}", cTag: "m2", time: new Date().toISOString(), ver: 0 });
     const r = await sync(graph, vault);
-    expect(r.pulledMedia.sort()).toEqual(["media/x/a.m4a", "media/x/a.m4a.transcript.json"]);
+    expect(r.pulledMedia).toEqual(["media/x/a.m4a.transcript.json"]);
+    expect(vault.media.has("media/x/a.m4a")).toBe(false);
+  });
+
+  it("a pulled note's video is NOT downloaded during sync and is never re-uploaded once fetched on demand", async () => {
+    drive.put("x.md", "```pensieve:video\nmedia/x/big.mov\n```");
+    drive.files.set("media/x/big.mov", { id: "v1", content: "huge", cTag: "v1", time: new Date().toISOString(), ver: 0 });
+    const first = await sync(graph, vault);
+    expect(first.pulledMedia).toEqual([]);
+    expect(vault.media.has("media/x/big.mov")).toBe(false);
+    // the player later fetches it on demand → it lands in the local media store
+    vault.media.set("media/x/big.mov", new TextEncoder().encode("huge"));
+    const second = await sync(graph, vault);
+    expect(second.pushedMedia).toEqual([]);
   });
 
   it("a processed journal Memory's pages AND their transcript sidecars all pull — a real bug: journal was never added to extractMediaRefs, so no page bytes ever reached the phone", async () => {
@@ -333,12 +346,13 @@ describe("phone sync engine", () => {
     ]);
   });
 
-  it("a recording with no transcript yet pulls just the audio, no error", async () => {
+  it("a recording with no transcript yet pulls nothing up front, no error", async () => {
     const fence = "```pensieve:audio\nmedia/x/a.m4a\n```";
     drive.put("x.md", fence);
     drive.files.set("media/x/a.m4a", { id: "m1", content: "", cTag: "m1", time: new Date().toISOString(), ver: 0 });
     const r = await sync(graph, vault);
-    expect(r.pulledMedia).toEqual(["media/x/a.m4a"]);
+    expect(r.pulled).toEqual(["x"]);
+    expect(r.pulledMedia).toEqual([]);
   });
 
   it("a note already local & unchanged (no new delta) still backfills missing media", async () => {

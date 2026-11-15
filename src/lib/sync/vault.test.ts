@@ -87,6 +87,29 @@ describe("readNote", () => {
 });
 
 describe("writeNote", () => {
+  it("keeps every local-only sidecar field (starred, openCount) across a remote rewrite", async () => {
+    files.set("notes/s.md", "# Old\n");
+    files.set(
+      "notes/s.meta.json",
+      JSON.stringify({ title: "Old", createdAt: 1, addedAt: 1, updatedAt: 5, pinned: false, starred: true, openCount: 7, lastOpenedAt: 9 }),
+    );
+    await tauriVault().writeNote("s", "# New\n", { createdAt: 2, updatedAt: 10 });
+    const meta = JSON.parse(files.get("notes/s.meta.json")!);
+    expect(meta.starred).toBe(true);
+    expect(meta.openCount).toBe(7);
+    expect(meta.lastOpenedAt).toBe(9);
+    expect(meta.title).toBe("New");
+    expect(meta.updatedAt).toBe(10);
+  });
+
+  it("dates a brand-new note from its frontmatter `created:` over the upload time", async () => {
+    const md = "---\ntags: []\nlinks: []\ncreated: 2024-03-05T10:00:00.000Z\n---\n\n# Old memory\n";
+    await tauriVault().writeNote("c", md, { createdAt: 99_999_999_999, updatedAt: 99_999_999_999 });
+    const meta = JSON.parse(files.get("notes/c.meta.json")!);
+    expect(meta.createdAt).toBe(Date.parse("2024-03-05T10:00:00.000Z"));
+    expect(meta.addedAt).toBe(Date.parse("2024-03-05T10:00:00.000Z"));
+  });
+
   it("writes the raw .md and creates a fresh meta sidecar for a brand-new note", async () => {
     const times = { createdAt: 1000, updatedAt: 2000 };
     await tauriVault().writeNote("new1", "# Hello World\nbody text", times);
