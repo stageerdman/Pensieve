@@ -61,7 +61,7 @@
 
   /* Callout box — a quiet tint between surface and surface-raised: reads as "set apart",
      never as code (code uses surface-raised). Desktop editor + phone share it. */
-  --callout-bg: 214 22% 95.5%;
+  --callout-bg: 216 32% 95.5%; /* a breath of the accent hue: not sidebar, not code */
 }
 
 .dark {
@@ -96,5 +96,5 @@
 
   --star-halo-alpha: 0.35; /* gold glows on its own on the stone — softer */
 
-  --callout-bg: 222 20% 14.5%;
+  --callout-bg: 220 24% 15%;
 }

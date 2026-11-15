@@ -98,6 +98,11 @@ describe("callout + columns in the real editor", () => {
       await new Promise((r) => setTimeout(r, 50)); // the columns' async render (harness drives act)
       expect(document.querySelectorAll(".pensieve-callout")).toHaveLength(2);
       expect(document.querySelector(".pensieve-callout-icon")?.textContent).toBe("🚨");
+      // The skin folds an empty own line by matching this exact DOM (blocknote-skin.css).
+      const lines = document.querySelectorAll(".pensieve-callout-text");
+      const EMPTY = ":scope > [data-node-view-content-react] > .ProseMirror-trailingBreak:only-child";
+      expect(lines[1].querySelector(EMPTY)).not.toBeNull();
+      expect(lines[0].querySelector(EMPTY)).toBeNull();
       const cols = document.querySelectorAll(".pensieve-columns-col");
       expect(cols).toHaveLength(2);
       expect(cols[0].innerHTML).toContain("<strong>side</strong>");

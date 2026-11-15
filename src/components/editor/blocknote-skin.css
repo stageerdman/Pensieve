@@ -1196,20 +1196,22 @@ body.pensieve-resizing .pensieve-gallery-height-handle::after {
    child block — paragraphs, lists, note links — reads as inside the box. Tokens only; no
    border, no shadow (design.md). */
 .pensieve-editor .bn-block:has(> .bn-block-content[data-content-type="callout"]) {
+  --callout-icon-w: 1.25em;
+  --callout-gap: 0.5em;
   background: hsl(var(--callout-bg));
   border-radius: calc(var(--radius) + 4px);
-  padding: 0.5em 0.875em;
+  padding: 0.5em 0.75em; /* same box as the phone (.ph-callout) */
   margin-block: 0.25em;
 }
 .pensieve-callout {
   display: flex;
-  align-items: flex-start;
-  gap: 0.5em;
+  align-items: baseline; /* the emoji sits on the first line's baseline, not above it */
+  gap: var(--callout-gap);
   width: 100%;
 }
 .pensieve-callout-icon {
   flex: none;
-  width: 1.25em;
+  width: var(--callout-icon-w);
   text-align: center;
   user-select: none;
 }
@@ -1223,7 +1225,23 @@ body.pensieve-resizing .pensieve-gallery-height-handle::after {
   margin-left: 0;
 }
 .pensieve-editor .bn-block:has(> .bn-block-content .pensieve-callout-icon) > .bn-block-group {
-  margin-left: 1.75em;
+  margin-left: calc(var(--callout-icon-w) + var(--callout-gap));
+}
+/* 170 imported callouts have an EMPTY own line with all their text in the children (Notion
+   callout = empty title + blocks). Without an emoji that line is just a blank strip at the top
+   of the box — fold it away until the caret is in it (BlockNote marks the focused empty block
+   `data-is-empty-and-focused`; arrow keys still reach it). Display only; the .md is unchanged. */
+.pensieve-editor
+  .bn-block:has(> .bn-block-group):has(
+    > .bn-block-content[data-content-type="callout"]:not([data-is-empty-and-focused])
+      .pensieve-callout-text
+      > [data-node-view-content-react]
+      > .ProseMirror-trailingBreak:only-child
+  ):not(:has(> .bn-block-content .pensieve-callout-icon))
+  > .bn-block-content {
+  height: 0;
+  padding-block: 0;
+  overflow: hidden;
 }
 /* A numbered list directly inside a callout is a top-level list in its own right — keep
    1, 2, 3 (the nested-list a, b, c rule above is for real sub-lists). */
@@ -1251,6 +1269,7 @@ body.pensieve-resizing .pensieve-gallery-height-handle::after {
 .pensieve-columns-col :is(p, h1, h2, h3) {
   margin: 0.2em 0;
 }
+/* (mirrors the editor heading scale above — the column HTML has no data-content-type) */
 .pensieve-columns-col h1 { font-size: 1.5em; font-weight: 700; line-height: 1.3; }
 .pensieve-columns-col h2 { font-size: 1.25em; font-weight: 600; line-height: 1.3; }
 .pensieve-columns-col h3 { font-size: 1.125em; font-weight: 600; line-height: 1.3; }

@@ -880,7 +880,10 @@ function buildCalloutEl(block: Extract<NoteBlock, { kind: "callout" }>): HTMLEle
   }
   const text = document.createElement("div");
   text.className = "ph-callout-body";
-  appendProse(text, body);
+  // An empty own line (a lone ZWSP — Notion callouts whose text is all in their child blocks)
+  // would open the box with a blank strip; read-only here, so just don't show it. Display
+  // only: `data-media` keeps the lines verbatim.
+  appendProse(text, body.replace(/^​(\n\n|$)/, ""));
   el.appendChild(text);
   return el;
 }

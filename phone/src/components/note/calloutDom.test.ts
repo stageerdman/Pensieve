@@ -54,6 +54,8 @@ describe("phone memory page: callout + columns", () => {
     expect(boxes[0].querySelector("strong")?.textContent).toBe("build");
     expect(boxes[0].querySelectorAll("li")).toHaveLength(2);
     expect(boxes[1].querySelector(".ph-callout-icon")).toBeNull();
+    // the empty own line (ZWSP) isn't shown — the box opens with its text
+    expect(boxes[1].querySelector(".ph-callout-body")!.firstElementChild!.textContent).toBe("Only children here");
     expect(el.textContent).not.toContain("pensieve:callout");
   });
 

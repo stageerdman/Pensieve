@@ -1357,11 +1357,19 @@ body {
    Read-only here (edited on the computer). */
 .note-body .ph-callout {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline; /* emoji on the first line's baseline */
   gap: 0.5em;
-  padding: 0.55em 0.85em;
+  padding: 0.5em 0.75em; /* same box as the desktop */
   border-radius: calc(var(--radius) + 4px);
   background: hsl(var(--callout-bg));
+}
+/* Quotes and email drafts are what you'd copy — let the read-only text be selected (media
+   drag is grip-only, so no long-press gesture competes). */
+.ph-callout-body,
+.ph-column {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
 }
 .ph-callout-icon {
   flex: none;
@@ -1382,12 +1390,9 @@ body {
 .note-body .ph-column > :last-child {
   margin-bottom: 0;
 }
-/* Columns (buildColumnsEl) stack on the phone — a hairline between them keeps the
-   sections distinct without a box. */
+/* Columns (buildColumnsEl) stack on the phone — spacing alone separates them. */
 .note-body .ph-column + .ph-column {
-  margin-top: 0.6em;
-  padding-top: 0.6em;
-  border-top: 1px solid hsl(var(--border));
+  margin-top: 1em;
 }
 .ph-prose-img {
   display: block;
