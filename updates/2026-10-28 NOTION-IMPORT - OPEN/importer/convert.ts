@@ -47,6 +47,9 @@ const CAGS: Record<string, string> = {
   "💡Ideas": "Idea",
 };
 const NOTION_LINKS = "Notion Links";
+// Set per page when its first conversion isn't stable through the editor's load→save
+// (bold nested in italic trips BlockNote's serializer) — then that note drops italics.
+let simplifyStyles = false;
 
 // ── Types (just what we read) ──────────────────────────────────────────────────
 type RT = { type: string; plain_text: string; href: string | null; annotations: Record<string, boolean | string>; mention?: any; text?: any };
@@ -63,6 +66,8 @@ const idmapFile = path.join(STAGING, "idmap.json");
 const idmap: Record<string, string> = fs.existsSync(idmapFile) ? JSON.parse(fs.readFileSync(idmapFile, "utf8")) : {};
 const titles: Record<string, string> = {}; // notion hex id → title
 const resultTitles = loadResultTitles();
+const overridesFile = path.join(STAGING, "synced-overrides.json");
+const syncedOverrides: Record<string, string> = fs.existsSync(overridesFile) ? JSON.parse(fs.readFileSync(overridesFile, "utf8")) : {};
 const threads = loadThreads();
 const report: Record<string, { id: string; title: string; detail?: string }[]> = {};
 const note = (kind: string, id: string, title: string, detail?: string) => (report[kind] ??= []).push({ id, title, detail });
@@ -116,7 +121,7 @@ function inlines(rts: RT[] = [], ctx: Ctx): Inline[] {
     const a = r.annotations ?? {};
     const styles: Record<string, boolean> = {};
     if (a.bold) styles.bold = true;
-    if (a.italic) styles.italic = true;
+    if (a.italic && !simplifyStyles) styles.italic = true; // fallback drops italics (bold-in-italic is unstable)
     if (a.strikethrough) styles.strike = true;
     if (a.code) styles.code = true;
     // page reference → a real Pensieve link when the page is in the import
@@ -130,13 +135,55 @@ function inlines(rts: RT[] = [], ctx: Ctx): Inline[] {
       continue;
     }
     if (refId && r.type === "mention") ctx.unresolved.add(r.plain_text);
-    const href = r.href && r.href.startsWith("/") ? `https://www.notion.so${r.href}` : r.href;
+    // Parentheses in a URL make the markdown link's escaping grow on every editor save
+    // (seen on text-fragment links like `#:~:text=…(24)…`) — percent-encode them.
+    const rawHref = r.href && r.href.startsWith("/") ? `https://www.notion.so${r.href}` : r.href;
+    const href = rawHref ? rawHref.replace(/\(/g, "%28").replace(/\)/g, "%29") : rawHref;
     // Notion soft line breaks inside a block → separate text runs keep the "\n"; BlockNote
     // serializes a "\n" in text as a hard break, which is what Notion shows.
     const text = { type: "text", text: r.plain_text, styles };
     out.push(href ? { type: "link", href, content: [text] } : text);
   }
-  return out;
+  return tidyRuns(out);
+}
+
+/** Notion splits styled text into many runs. Markdown can't express a style that starts or
+ *  ends on whitespace, and adjacent same-style runs serialize as `**a****b**` — both make
+ *  the editor's markdown non-idempotent. Merge equal-style neighbours and move edge
+ *  whitespace out of styled runs. */
+function tidyRuns(items: Inline[]): Inline[] {
+  const key = (s: unknown) => JSON.stringify(s ?? {});
+  const merged: Inline[] = [];
+  for (const it of items) {
+    const prev = merged[merged.length - 1] as any;
+    if (prev && prev.type === "text" && it.type === "text" && key(prev.styles) === key(it.styles)) {
+      prev.text += it.text as string;
+    } else merged.push({ ...it });
+  }
+  const out: Inline[] = [];
+  for (const it of merged as any[]) {
+    if (it.type !== "text" || !Object.keys(it.styles ?? {}).length || it.styles.code) {
+      out.push(it);
+      continue;
+    }
+    // a style can't span a line break in markdown → style each line on its own
+    for (const piece of (it.text as string).split(/(\n)/)) {
+      if (!piece) continue;
+      if (piece === "\n") { out.push({ type: "text", text: "\n", styles: {} }); continue; }
+      const m = /^(\s*)([\s\S]*?)(\s*)$/.exec(piece)!;
+      if (m[1]) out.push({ type: "text", text: m[1], styles: {} });
+      if (m[2]) out.push({ ...it, text: m[2] });
+      if (m[3]) out.push({ type: "text", text: m[3], styles: {} });
+    }
+  }
+  // re-merge unstyled neighbours created above
+  const final: Inline[] = [];
+  for (const it of out as any[]) {
+    const prev = final[final.length - 1] as any;
+    if (prev && prev.type === "text" && it.type === "text" && key(prev.styles) === key(it.styles)) prev.text += it.text;
+    else final.push(it);
+  }
+  return final;
 }
 
 // ── Blocks ─────────────────────────────────────────────────────────────────────
@@ -208,7 +255,15 @@ async function convertBlocks(nbs: NBlock[], ctx: Ctx, inColumn = false): Promise
       case "synced_block":
         // owner: keep the text, drop the sync
         out.push(...(await kids()));
-        if (b._syncError) note("syncedBlockUnreadable", ctx.self, ctx.title, b._syncError);
+        if (b._syncError) {
+          // The original lives on a page the integration can't see (e.g. the CANI
+          // template's goal heading). Its text, read via the Notion connector, is kept in
+          // staging/synced-overrides.json keyed by the original block id.
+          const origin = hex(b.synced_block?.synced_from?.block_id ?? "");
+          const md = syncedOverrides[origin];
+          if (md !== undefined) out.push(...((await extendedMdToBlocks(editor, md)) as Block[]));
+          else note("syncedBlockUnreadable", ctx.self, ctx.title, b._syncError);
+        }
         break;
       case "callout": {
         // Not rendered yet — kept in our own fence so a later update can render it.
@@ -301,6 +356,10 @@ async function convertBlocks(nbs: NBlock[], ctx: Ctx, inColumn = false): Promise
       case "table_of_contents":
       case "breadcrumb":
         break;
+      case "unsupported":
+        // The API returns Notion template buttons as `unsupported` — no content to keep.
+        if (b._children?.length) out.push(...(await kids()));
+        break;
       default:
         note("unsupportedBlock", ctx.self, ctx.title, b.type);
         if (b._children?.length) out.push(...(await kids()));
@@ -373,11 +432,23 @@ async function convertPage(page: any, blocks: NBlock[]) {
   // Write the editor's own canonical form: load→save until stable, so opening the note
   // in the app never rewrites it (verify.ts checks this holds for every note).
   let md = await toMd(body);
-  for (let k = 0; k < 3; k++) {
+  let stable = false;
+  for (let k = 0; k < 4; k++) {
     const again = (await blocksToExtendedMd(editor, await extendedMdToBlocks(editor, md))).replace(/\n+$/, "");
-    if (again === md) break;
+    if (again === md) { stable = true; break; }
     md = again;
   }
+  if (!stable && !simplifyStyles) {
+    simplifyStyles = true;
+    try {
+      const r = await convertPage(page, blocks);
+      note("stylesSimplified", self, title);
+      return r;
+    } finally {
+      simplifyStyles = false;
+    }
+  }
+  if (!stable) note("unstableMarkdown", self, title);
   const categories = categoriesOf(page);
   const tags = tagsOf(page);
   const links = [...ctx.links];
