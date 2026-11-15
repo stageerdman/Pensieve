@@ -381,9 +381,12 @@ async function convertPage(page: any, blocks: NBlock[]) {
   const categories = categoriesOf(page);
   const tags = tagsOf(page);
   const links = [...ctx.links];
-  const file = composeFrontmatter({ categories, tags, links }, md);
   const highlight = (prop(page, "Highlight")?.multi_select ?? []).map((o: any) => o.name);
   const createdAt = createdAtOf(page);
+  // `created` travels with the .md so other devices date the note correctly (sync reads
+  // it for a new note); `notionId` is provenance. Both are kept verbatim by the app.
+  const extra = { created: new Date(createdAt).toISOString(), notionId: self };
+  const file = composeFrontmatter({ categories, tags, links, extra }, md);
   const meta = {
     title: titleFromMarkdown(md),
     createdAt,
@@ -393,7 +396,6 @@ async function convertPage(page: any, blocks: NBlock[]) {
     tags,
     pinned: highlight.includes("📌"),
     starred: highlight.includes("⭐"),
-    notionId: self, // provenance — lets a re-run / later update find the source page
   };
   return { noteId, file, meta, media: ctx.media, unresolved: [...ctx.unresolved] };
 }

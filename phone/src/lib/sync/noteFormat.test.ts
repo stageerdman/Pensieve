@@ -192,3 +192,15 @@ describe("Note <-> remote content", () => {
     expect(pulled2.c).toBe("Edited body");
   });
 });
+
+describe("noteFromRemoteContent — frontmatter created date", () => {
+  it("uses `created:` from frontmatter over the remote upload time", () => {
+    const md = "---\ntags: []\nlinks: []\ncreated: 2024-03-05T10:00:00.000Z\n---\n\n# Old memory\nbody";
+    const n = noteFromRemoteContent("imp1", md, { createdAt: 99_999_999_999, updatedAt: 99_999_999_999 });
+    expect(n.createdAt).toBe(Date.parse("2024-03-05T10:00:00.000Z"));
+  });
+  it("falls back to the remote time when there is no created key", () => {
+    const n = noteFromRemoteContent("imp2", "# T\nb", { createdAt: 1234, updatedAt: 5678 });
+    expect(n.createdAt).toBe(1234);
+  });
+});
