@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getStore } from "../../lib/store";
 import { reindex } from "../../lib/search/reindexController";
 import { listUntranscribedAudio } from "../../lib/transcripts/queue";
+import { whenIdle } from "../../lib/idle";
 import { listPackagesToResolve, listUnprocessedRawBatches } from "../../lib/raw/queue";
 import { findPatronus, spellFor } from "../../lib/packages";
 import { runPackage } from "../../lib/packages/run";
@@ -399,8 +400,12 @@ export function useProcessQueue(opts: {
     didInit.current = true;
     const persisted = loadQueueState();
     if (persisted?.mode) setMode(persisted.mode);
-    void refresh().then(() => {
-      if (persisted?.playing) setPlaying(true);
+    // FAST-LOAD: the scan walks the whole vault (media, raw batches, forms) — run it after
+    // the first paint so it never competes with the note list for the launch.
+    whenIdle(() => {
+      void refresh().then(() => {
+        if (persisted?.playing) setPlaying(true);
+      });
     });
   }, [enabled, refresh]);
 

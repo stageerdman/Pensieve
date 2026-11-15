@@ -5,6 +5,7 @@ import { wordCount } from "../lib/text";
 import { makeEntry, truncateAfter, IDLE_MS } from "../lib/timeline";
 import { log } from "../lib/logger";
 import { FROM_FORM_KEY, memoryFromForm, withExtra } from "../lib/forms";
+import { metaFromNote, newestNote, upsertMeta } from "../lib/store/noteMeta";
 
 export type SaveStatus = "idle" | "saving" | "saved";
 const SAVE_DEBOUNCE = 500;
@@ -34,18 +35,30 @@ export function useNotes() {
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
   const idleTimer = useRef<ReturnType<typeof setTimeout>>();
 
+  const notesRef = useRef<NoteMeta[]>(notes);
+  notesRef.current = notes;
+
+  // A full relist — only for changes made OUTSIDE this hook (a sync pull, the AI writing tags,
+  // a form fill). Changes this hook makes itself patch the list in place (patchNote), so a
+  // save / pin / delete never re-reads the whole vault (FAST-LOAD).
   const refresh = useCallback(async () => {
     setNotes(await store.list());
   }, [store]);
+
+  // Fold one just-saved note into the list (the same NoteMeta list() would now return).
+  const patchNote = useCallback((note: Note) => {
+    const updatedAt = Date.now();
+    setNotes((ns) => upsertMeta(ns, metaFromNote(note, ns.find((n) => n.id === note.id), updatedAt)));
+  }, []);
 
   const persist = useCallback(
     async (note: Note) => {
       setStatus("saving");
       await store.save(note);
       setStatus("saved");
-      await refresh();
+      patchNote(note);
     },
-    [store, refresh],
+    [store, patchNote],
   );
 
   const closeSession = useCallback(async () => {
@@ -103,24 +116,26 @@ export function useNotes() {
     await flushSave();
     await closeSession();
     const note = await store.create();
-    await refresh();
+    patchNote(note);
     setCurrent(note);
     setStatus("idle");
     await startSession(note);
     log.info("notes", "create", { id: note.id });
     return note;
-  }, [store, flushSave, closeSession, startSession, refresh]);
+  }, [store, flushSave, closeSession, startSession, patchNote]);
 
   const remove = useCallback(
     async (id: string) => {
       await store.remove(id);
-      if (currentRef.current?.id === id) {
+      const wasOpen = currentRef.current?.id === id;
+      if (wasOpen) {
         session.current = null;
         setCurrent(null);
       }
-      const list = await store.list();
-      setNotes(list);
-      if (currentRef.current?.id === id && list.length) await open(list[0].id);
+      const list = notesRef.current.filter((n) => n.id !== id);
+      setNotes((ns) => ns.filter((n) => n.id !== id));
+      const next = newestNote(list);
+      if (wasOpen && next) await open(next.id);
     },
     [store, open],
   );
@@ -276,19 +291,17 @@ export function useNotes() {
       setLoadEpoch((n) => n + 1);
       await persist(next);
       await startSession(next);
-      await refresh();
       log.info("forms", "start", { id: note.id, form: templateId, title: template.title });
     },
-    [store, persist, startSession, refresh],
+    [store, persist, startSession],
   );
 
   // Flip a sidecar-only flag (pinned / starred) on any note — not only the open one. Goes
   // through the flag's dedicated store path so updatedAt is untouched, keeps the open note's
-  // own copy in sync if it's the target, then refreshes the list so every surface updates.
+  // own copy in sync if it's the target, then patches the in-memory list so every surface updates.
   const toggleFlag = useCallback(
     async (id: string, flag: "pinned" | "starred") => {
-      const list = await store.list();
-      const meta = list.find((n) => n.id === id);
+      const meta = notesRef.current.find((n) => n.id === id);
       const next = !(meta?.[flag] ?? false);
       if (flag === "pinned") await store.setPinned(id, next);
       else await store.setStarred(id, next);
@@ -297,10 +310,10 @@ export function useNotes() {
         setCurrent(updated);
         currentRef.current = updated;
       }
-      await refresh();
+      setNotes((ns) => ns.map((n) => (n.id === id ? { ...n, [flag]: next } : n)));
       return next;
     },
-    [store, refresh],
+    [store],
   );
 
   // Pin/unpin (the workbench flag; ⌘P on the open note).
@@ -349,12 +362,14 @@ export function useNotes() {
     return notes.map((n) => ({ ...n, linkedByCount: back.get(n.id) ?? 0 }));
   }, [notes]);
 
-  // Initial load: list notes and open the most recent (or create the first).
+  // Initial load: list notes (one invoke, cache-served — see lib/store/listCache) and paint
+  // them, then open the most recently updated one in the background.
   useEffect(() => {
     (async () => {
       const list = await store.list();
       setNotes(list);
-      if (list.length) await open(list[0].id);
+      const newest = newestNote(list);
+      if (newest) await open(newest.id);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
