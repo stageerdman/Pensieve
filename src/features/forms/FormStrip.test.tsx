@@ -30,14 +30,14 @@ describe("FormStrip", () => {
     expect(container.textContent).toBe("");
   });
 
-  it("a form says so, with its question and charm counts", () => {
+  it("a form says so, with its question count and its button spells", () => {
     render(
       <FormStrip
-        note={note({ markdown: "T\n\n**A?**\n\n**B?**\n\n```pensieve:charm\nname: Compress\nx\n```", extra: { form: "true" } })}
+        note={note({ markdown: "T\n\n**A?**\n\n**B?**\n\n```pensieve:patronus\nspell: compress\nx\n```", extra: { form: "true" } })}
         notes={forms}
         onStartFrom={vi.fn()}
       />,
     );
-    expect(screen.getByTestId("form-strip").textContent).toContain("2 questions · 1 charm");
+    expect(screen.getByTestId("form-strip").textContent).toContain("2 questions · Compress");
   });
 });

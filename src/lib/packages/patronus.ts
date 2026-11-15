@@ -8,14 +8,37 @@
 //   Transcribe the recording and fill in the form from it.
 //   ```
 //
-// `spell` names WHEN it runs (only `sync` today: "on arrival at the desktop"); the rest of the
-// fence is the instruction, verbatim. A form template may hold one too — it then overrides
-// the default instruction for packages made from that form.
+// `spell` names WHICH spell this Patronus casts; the rest of the fence is the instruction,
+// verbatim. One block, one Patronus (AI) — the spell is what it's for:
+//   - `sync`     "Process on sync": runs by itself when a phone walk-through reaches the
+//                computer. A form's sync block overrides the default instruction for
+//                packages made from that form; every package ends in one.
+//   - `compress` "Compress": lives only in a form; memories made from the form show a
+//                Compress button that summons Patronus with this instruction.
+// (Before 2026-11-15 a Compress-style command was its own `pensieve:charm` block — that
+// legacy fence is still read, as a `compress` spell — see lib/md/formBlocks, lib/forms/parse.)
 // Pure + dependency-free (shared with the phone PWA).
+
+import { DEFAULT_SPELL } from "./kinds";
 
 export const PATRONUS_LANG = "pensieve:patronus";
 
-export type SpellTrigger = "sync";
+export type SpellTrigger = "sync" | "compress";
+
+/** The available spells, in menu order: what each is called and what an empty one does. */
+export const SPELLS: { id: SpellTrigger; label: string; placeholder: string }[] = [
+  { id: "sync", label: "Process on sync", placeholder: DEFAULT_SPELL.form },
+  {
+    id: "compress",
+    label: "Compress",
+    placeholder: "What should Patronus compress when you press it? Plain words — it picks the period and what to read.",
+  },
+];
+
+export const spellLabel = (id: SpellTrigger): string => SPELLS.find((s) => s.id === id)?.label ?? id;
+
+const asSpell = (raw: string | undefined): SpellTrigger =>
+  (SPELLS.find((s) => s.id === raw?.toLowerCase())?.id ?? "sync");
 
 export interface PatronusBlock {
   spell: SpellTrigger;
@@ -26,7 +49,7 @@ export function parsePatronus(body: string): PatronusBlock {
   const lines = body.split("\n");
   const m = /^spell:\s*(\S+)\s*$/i.exec((lines[0] ?? "").trim());
   const instruction = (m ? lines.slice(1) : lines).join("\n").trim();
-  return { spell: "sync", instruction };
+  return { spell: asSpell(m?.[1]), instruction };
 }
 
 export function encodePatronus(p: PatronusBlock): string {
@@ -43,26 +66,32 @@ interface Found extends PatronusBlock {
   end: number;
 }
 
-/** The LAST Patronus block in a markdown body (a package ends with one), or null. */
-export function findPatronus(markdown: string): Found | null {
+/** Every Patronus block in a markdown body, in order. */
+export function findAllPatronus(markdown: string): Found[] {
+  const out: Found[] = [];
   const lines = markdown.split("\n");
-  let found: Found | null = null;
-  for (let i = 0; i < lines.length; i++) {
+    for (let i = 0; i < lines.length; i++) {
     const open = /^\s*(```|~~~)\s*([\w:-]*)\s*$/.exec(lines[i]);
     if (!open) continue;
     let j = i + 1;
     while (j < lines.length && lines[j].trim() !== open[1]) j++;
-    if (open[2] === PATRONUS_LANG) found = { ...parsePatronus(lines.slice(i + 1, j).join("\n")), start: i, end: Math.min(j, lines.length - 1) };
+    if (open[2] === PATRONUS_LANG) out.push({ ...parsePatronus(lines.slice(i + 1, j).join("\n")), start: i, end: Math.min(j, lines.length - 1) });
     i = j;
   }
-  return found;
+  return out;
+}
+
+/** The LAST Patronus block casting `spell` (default: the sync spell — a package ends with
+ *  one), or null. */
+export function findPatronus(markdown: string, spell: SpellTrigger = "sync"): Found | null {
+  return findAllPatronus(markdown).filter((p) => p.spell === spell).pop() ?? null;
 }
 
 /** The body with every Patronus block removed (it's consumed when the package resolves),
  *  collapsing the blank lines it leaves behind. */
 export function withoutPatronus(markdown: string): string {
   let md = markdown;
-  for (let p = findPatronus(md); p; p = findPatronus(md)) {
+  for (let p = findAllPatronus(md).pop(); p; p = findAllPatronus(md).pop()) {
     const lines = md.split("\n");
     lines.splice(p.start, p.end - p.start + 1);
     md = lines.join("\n");
