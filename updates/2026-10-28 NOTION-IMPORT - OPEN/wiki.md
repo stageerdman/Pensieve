@@ -55,6 +55,39 @@ They're independent booleans; a note can be neither, either, or both. Mirror
 `Store.setStarred`, never touches `.md` frontmatter or `updatedAt`) — see
 `src/lib/store/{browser,tauri}.ts` `setPinned` for the pattern.
 
+**Correction found in P3 (2026-11-15):** `WorkingSetStrip` is NOT driven by
+`NoteMeta.pinned`. The Working set is its own ordered id list in gallery state
+(`lib/gallery/persist.ts`, localStorage), toggled by `w` / the bookmark menu item.
+`pinned` is only ⌘P on an open note + the `pinned` search chip, with no visual. So a
+Notion `📌` imported as `pinned` will NOT show in the strip — decide the mapping
+(working set vs. pinned, or unify them) before P6b. DECISION FOR OWNER.
+
+## Starred — how it shows and ranks (P3/P4, 2026-11-15)
+
+- **Brighter = brightness, not a badge.** A static gold radial halo behind the flask
+  (`components/StarHalo.tsx`, `.star-halo` in index.css, `--star-halo-alpha` token:
+  0.5 light / 0.35 dark — gold washes out on white so light needs more). No corner star
+  glyph: with ~119 starred cards a glyph in every corner (plus the working-set bookmark)
+  turns the grid into badges. UX.md's importance axis is "near / bright".
+- **Halo sizing lesson:** first try (80px, fading by 70% radius) was invisible — the
+  64px flask covers it. The glow must reach PAST the glass: ~1.5× the flask (96px for
+  the 64px card flask, 44px for the 28px header flask), fade to 0 at 100%. Centre it by
+  translate (not `inset-0 m-auto`, which won't centre an abs box larger than its parent),
+  and make the flask `relative` or the absolute halo paints over it.
+- **Gold, not accent-glow:** a blue halo at rest reads as a stuck focus/hover ring.
+- **Ranking is a layout, not a score.** `runSearch` already had `rank` but the Gallery
+  ignored it (Accio = updatedAt date buckets). Weighting a score would change nothing
+  on screen, so `lib/gallery/searchSections.ts` lifts starred FREE-TEXT matches into one
+  leading "Starred" section (title > tag > body, then newest) — "way on top" and it shows
+  *why* it surfaced (UX.md). Chip-only lenses stay pure date views; an all-starred result
+  set gets no redundant section. Uncapped: starred ≈6% of notes, so a broad word lifts
+  a manageable handful.
+- **Not yet:** ranking NON-starred results by relevance (the Gallery still date-buckets
+  them, so a fresh title match can sit below a same-week body match). A general
+  relevance issue, separate from starred.
+- **Phone:** desktop only. `phone/` doesn't read `starred` (its sync preserves the
+  sidecar field). Add a phone treatment only if the owner asks.
+
 ## Open — do not guess silently before P5
 
 The Notion survey (see memory `notion-migration-readiness`) found several
