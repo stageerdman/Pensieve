@@ -68,3 +68,20 @@ without asking the owner when P5 starts:
   Specific Sources — Pensieve only models note-to-note `links`, not typed
   relations to a separate entity database. Flatten to tags? Drop? Build real
   typed relations (bigger scope)? Unresolved.
+
+## Readiness re-check — 2026-11-15
+
+Live counts (SQL over the data source, 2,002 entries, 2023-08-10 → today, +23 since the
+Oct survey): Dags on 1,363 · Source(s) 592 · Core Point 181 · Result(s) 145 · ⭐ 119 ·
+Date Overwrite 79 · Categories-DB relation 79 · Life Stage 36 · People 27 · Pensieve(self)
+links 22 · Specific Source(s) 15 · 📌 6 · Skill(s) 4 · Self-Mastery 1 · no Cags 113.
+
+**Correction — bodies are NOT text-only.** A 6-page spread sample found: a PDF attachment
+(`<file>`), 5 uploaded images in one page, a YouTube embed (`<video>`), a synced-block
+reference, an inline child database, plus callouts / toggles / columns / quotes / to-dos and
+a 155K-char page. Notion-hosted files (`notion-file-block://`) must be downloaded at import
+time (signed URLs expire). Pensieve has image/gallery/video/audio/toggle blocks but no generic
+file/PDF block, no callout, no columns.
+
+Relations are rarely used (People 27, Skills 4, Self-Mastery 1) → cheap to flatten or drop;
+only Result(s) (145) and Categories-DB (79) are worth a decision.
