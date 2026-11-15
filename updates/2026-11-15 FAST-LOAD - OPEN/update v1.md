@@ -25,11 +25,16 @@ scroll back, let's say after a few minutes. And make sure the same thing is on t
 - Same on the phone.
 
 ## Phases
-- [ ] P1 Desktop data path — bulk Rust listing (one IPC, parallel reads), cached excerpt/chars
+- [x] P1 Desktop data path — bulk Rust listing (one IPC, parallel reads), cached excerpt/chars
       index, no full relist on flag/remove, search index + media scan deferred off the first paint.
-- [ ] P2 Desktop gallery windowing (load week-by-week, unload after 3 min off-screen).
+- [x] P2 Desktop gallery windowing (load week-by-week, unload after 3 min off-screen).
 - [ ] P3 Phone — vault parse once/in-memory objects, O(1) per-note sync ops, feed windowing.
 - [ ] P4 Measure on the real 2,090-note vault (before/after), tests, build + deploy, owner check.
 
 ## Status
 2026-11-15: opened; P1+P2 (desktop agent) and P3 (phone agent) running in parallel.
+2026-11-15: P1+P2 built on `update/fast-load-desktop` (not merged, no `tauri:build`): bulk Rust
+reads (4,181 serial invokes → 1), stamp-keyed `vault/.cache/list-index.json`, in-memory list
+patching (autosave no longer relists), queue scan + search pre-warm at idle; gallery window
+(last week ≥24 cards, +1 week ≥12 cards per scroll, 3-min unload to placeholder). Numbers +
+decisions in wiki.md. Still owed (P4): run on the real vault in the native app + owner check.

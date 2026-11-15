@@ -30,7 +30,7 @@ async function oldList() {
     const m = JSON.parse(raw) as ListMeta;
     const file = await readFile(join(notes, `${id}.md`), "utf8").catch(() => null);
     const parsed = file ? parseFrontmatter(file) : null;
-    out.push({ id, ...m, excerpt: parsed ? excerptFromMarkdown(parsed.body) : "", chars: parsed ? contentCharCount(parsed.body) : 0 });
+    out.push({ id, ...m, links: parsed?.fields.links ?? [], excerpt: parsed ? excerptFromMarkdown(parsed.body) : "", chars: parsed ? contentCharCount(parsed.body) : 0 });
   }
   return out;
 }
@@ -69,6 +69,11 @@ const [warmMerged, tWarm] = await time(() => mergeListing(warm, parseListCache(c
 const same = JSON.stringify(warmMerged.metas.map((m) => [m.id, m.excerpt, m.chars])) ===
   JSON.stringify(coldMerged.metas.map((m) => [m.id, m.excerpt, m.chars]));
 
+// The new path must list exactly what the old one did (same ids, excerpts, chars, links).
+const key = (xs: { id: string; excerpt?: string; chars?: number; links?: string[] }[]) =>
+  JSON.stringify(xs.map((m) => [m.id, m.excerpt, m.chars, m.links]).sort());
+const oldEqualsNew = key(old) === key(warmMerged.metas);
+
 console.log(
   JSON.stringify({
     notes: old.length,
@@ -78,5 +83,6 @@ console.log(
     new_warm_merge_ms: Math.round(tWarm),
     cache_bytes: cacheJson.length,
     warm_matches_cold: same,
+    old_equals_new: oldEqualsNew,
   }),
 );
