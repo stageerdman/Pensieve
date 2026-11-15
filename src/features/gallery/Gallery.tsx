@@ -15,9 +15,16 @@ import { TranscriptJumpLines } from "./TranscriptJumpLines";
 import type { TranscriptJump } from "../../hooks/useTranscriptHits";
 import { resolveMediaUrl } from "../../lib/media/url";
 import { transcriptPane } from "../../components/audio/transcriptController";
+import { useGalleryWindow } from "../../hooks/useGalleryWindow";
 
-// Home: every memory at once, as large flasks grouped by creation date (Apple-Photos
-// style, oldest on top). A quiet date rail on the left labels each group; the working
+// Stable module-level helpers for the window hook (its memos key off their identity).
+const byCreated = (n: NoteMeta) => n.createdAt;
+const byUpdated = (n: NoteMeta) => n.updatedAt;
+const isStarredLead = (key: string) => key === STARRED_SECTION_KEY;
+
+// Home: the memories as large flasks grouped by creation date (Apple-Photos style, newest
+// on top). Only the recent past is mounted at rest — the last week, at least a screenful —
+// and older weeks load in silently as you scroll (FAST-LOAD, see hooks/useGalleryWindow). A quiet date rail on the left labels each group; the working
 // set rides on top. The whole region owns its own scroll and always opens at the top
 // (the earliest memories). This component also owns the ephemeral peek + context-menu
 // state so a single peek/menu is live at a time.
@@ -89,6 +96,15 @@ export function Gallery({
     if (hideWorkingSet) log.debug("gallery", "search.starredLift", { lifted, results: notes.length });
   }, [hideWorkingSet, lifted, notes.length]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const win = useGalleryWindow({
+    sections,
+    tsOf: hideWorkingSet ? byUpdated : byCreated,
+    keepWhole: isStarredLead,
+    // A new search (or leaving one) starts over from the recent week.
+    resetKey: hideWorkingSet ? match : "home",
+    now,
+    rootRef: scrollRef,
+  });
 
   const [altHeld, setAltHeld] = useState(false);
   const [hovered, setHovered] = useState<PeekTarget | null>(null);
@@ -216,49 +232,63 @@ export function Gallery({
             key={hideWorkingSet ? "accio" : "home"}
             className="accio-answer-in grid grid-cols-[80px_minmax(0,1fr)] gap-y-10"
           >
-            {sections.map((s) => (
-              <Fragment key={s.key}>
-                <div className="relative pt-1">
-                  <span
-                    aria-hidden
-                    className="sticky top-4 block whitespace-nowrap pr-3 text-right text-2xs font-medium tracking-wide text-text-muted"
-                  >
-                    {s.label}
-                  </span>
-                </div>
-                <section aria-label={s.label} className="border-l border-border pl-5">
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(176px,224px))] justify-start gap-x-4 gap-y-6">
-                    {s.notes.map((n) => {
-                      const jumps = transcriptJumps?.get(n.id);
-                      return (
-                        <div key={n.id} className="flex flex-col">
-                          <FlaskCard
-                            note={n}
-                            fields={state.fields}
-                            snippetLines={state.snippetLines}
-                            categoryDefs={categoryDefs}
-                            now={now}
-                            inWorkingSet={wsSet.has(n.id)}
-                            searchMatch={match?.get(n.id)}
-                            onOpen={onOpen}
-                            onContextMenu={openContextMenu}
-                            onHoverChange={setHovered}
-                            onPeekToggle={onPeekToggle}
-                            onToggleWorkingSet={onToggleWorkingSet}
-                            onToggleStar={onToggleStar}
-                          />
-                          {jumps && jumps.length > 0 && (
-                            <TranscriptJumpLines jumps={jumps} onJump={(j) => void openJump(n.id, j)} />
-                          )}
-                        </div>
-                      );
-                    })}
+            {win.sections.map((s) => {
+              // A section unloaded after minutes far off-screen: same height, no cards.
+              const held = win.collapsedHeight(s.key);
+              return (
+                <Fragment key={s.key}>
+                  <div className="relative pt-1">
+                    <span
+                      aria-hidden
+                      className="sticky top-4 block whitespace-nowrap pr-3 text-right text-2xs font-medium tracking-wide text-text-muted"
+                    >
+                      {s.label}
+                    </span>
                   </div>
-                </section>
-              </Fragment>
-            ))}
+                  <section
+                    ref={win.sectionRef(s.key)}
+                    data-window-key={s.key}
+                    aria-label={s.label}
+                    className="border-l border-border pl-5"
+                    style={held !== undefined ? { height: held } : undefined}
+                  >
+                    {held === undefined && (
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(176px,224px))] justify-start gap-x-4 gap-y-6">
+                        {s.notes.map((n) => {
+                          const jumps = transcriptJumps?.get(n.id);
+                          return (
+                            <div key={n.id} className="flex flex-col">
+                              <FlaskCard
+                                note={n}
+                                fields={state.fields}
+                                snippetLines={state.snippetLines}
+                                categoryDefs={categoryDefs}
+                                now={now}
+                                inWorkingSet={wsSet.has(n.id)}
+                                searchMatch={match?.get(n.id)}
+                                onOpen={onOpen}
+                                onContextMenu={openContextMenu}
+                                onHoverChange={setHovered}
+                                onPeekToggle={onPeekToggle}
+                                onToggleWorkingSet={onToggleWorkingSet}
+                                onToggleStar={onToggleStar}
+                              />
+                              {jumps && jumps.length > 0 && (
+                                <TranscriptJumpLines jumps={jumps} onJump={(j) => void openJump(n.id, j)} />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+                </Fragment>
+              );
+            })}
           </div>
         )}
+        {/* Older weeks load when this comes within ~1.5 screens — invisible, no button. */}
+        {win.hasMore && <div ref={win.sentinelRef} aria-hidden className="h-px" />}
       </div>
 
       {peekTarget && peekNote && (
