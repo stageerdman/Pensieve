@@ -22,7 +22,7 @@ describe("form blocks on the phone memory page", () => {
   it("renders untouched → serializes back byte-for-byte", () => {
     const { el } = open();
     expect(el.querySelectorAll(".ph-form-scale button")).toHaveLength(5);
-    expect(el.querySelector(".ph-charm")?.textContent).toContain("Compress");
+    expect(el.querySelector(".ph-patronus")?.textContent).toContain("Patronus · Compress");
     const out = serializeNoteBody(el);
     expect(out.title).toBe(title);
     expect(out.content).toBe(body.trim());

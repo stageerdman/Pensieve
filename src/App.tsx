@@ -563,6 +563,7 @@ export default function App() {
                           onOpenNote={(id) => void open(id)}
                           savedPosition={editorPos.get(current.id)}
                           onSavePosition={saveEditorPos}
+                          isForm={isFormTemplate(current.extra)}
                         />
                       )}
                     </div>

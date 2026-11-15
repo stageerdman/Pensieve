@@ -1,6 +1,6 @@
 // The owner's real Daily Review form (updates/2026-11-12 FORMS - OPEN/daily-form-example.md),
 // as it is stored once authored in Pensieve: BlockNote's markdown (`*` bullets, bold
-// paragraphs), the 1–5 rating as a pensieve:scale block, plus a Compress-style charm.
+// paragraphs), the 1–5 rating as a pensieve:scale block, plus a Patronus Compress spell.
 export const DAILY_REVIEW = `Daily Review
 
 **If this was the last day of your life, how satisfied are you (1-5):**
@@ -48,7 +48,7 @@ export const DAILY_REVIEW = `Daily Review
 
 **Questions**: Where have I shown trait today? Where I wish I’d shown it but I didn’t? Why?
 
-\`\`\`pensieve:charm
-name: Compress
+\`\`\`pensieve:patronus
+spell: compress
 Summarise what mattered across my recent Daily Reviews.
 \`\`\``;

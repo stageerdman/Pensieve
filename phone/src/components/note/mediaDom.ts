@@ -13,7 +13,7 @@
 // reorder, merge) updates the payload + rebuilds visuals + calls ctx.onChange() so autosave
 // serializes the new body.
 
-import { parsePatronus } from "../../../../src/lib/packages/patronus";
+import { parsePatronus, spellLabel } from "../../../../src/lib/packages/patronus";
 import { esc, haptic } from "../../util";
 import { appendInline, inlineFromEl, inlineToHtml } from "./inlineMd";
 import {
@@ -704,8 +704,8 @@ function buildScaleEl(block: Extract<NoteBlock, { kind: "scale" }>, ctx: MediaCt
   return el;
 }
 
-/** The Patronus block (a package's sync spell): a small breathing orb, "Patronus", and the
- *  instruction — read-only; it runs on the computer when the package syncs. */
+/** The Patronus block (a form's/package's AI spell): a small breathing orb, "Patronus · <spell>",
+ *  and the instruction — read-only; Patronus only runs on the computer. */
 function buildPatronusEl(block: Extract<NoteBlock, { kind: "patronus" }>): HTMLElement {
   const el = document.createElement("div");
   el.className = "ph-media ph-patronus";
@@ -716,12 +716,13 @@ function buildPatronusEl(block: Extract<NoteBlock, { kind: "patronus" }>): HTMLE
   const orb = document.createElement("span");
   orb.className = "ph-patronus-orb";
   orb.setAttribute("aria-hidden", "true");
+  const p = parsePatronus(block.body);
   const label = document.createElement("span");
-  label.textContent = "Patronus";
+  label.textContent = `Patronus · ${spellLabel(p.spell)}`;
   head.append(orb, label);
   const spell = document.createElement("div");
   spell.className = "ph-patronus-spell";
-  spell.textContent = parsePatronus(block.body).instruction;
+  spell.textContent = p.instruction;
   el.append(head, spell);
   return el;
 }

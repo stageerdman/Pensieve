@@ -1,8 +1,7 @@
 import { useLayoutEffect, useRef, type ReactNode, type SyntheticEvent } from "react";
 
-// The one shell for a form's AI blocks — a charm (a named command you press) and the
-// Patronus block (the sync spell that runs by itself). Sunken card, a glyph + header line,
-// and a growing plain-words box. Callers own the header; the box is shared.
+// The shell for a form's Patronus block (one AI spell: Process on sync or Compress).
+// Sunken card, a glyph + header line, and a growing plain-words box. Callers own the header; the box is shared.
 
 const stop = (e: SyntheticEvent) => e.stopPropagation();
 

@@ -484,6 +484,7 @@ const VIDEO_FENCE_BLOCK = new RegExp("```" + VIDEO_FENCE + "[\\s\\S]*?```", "g")
 const JOURNAL_FENCE_BLOCK = new RegExp("```" + JOURNAL_FENCE + "[\\s\\S]*?```", "g");
 const SCALE_FENCE_BLOCK = new RegExp("```" + SCALE_LANG + "\\n([\\s\\S]*?)```", "g");
 const CHARM_FENCE_BLOCK = new RegExp("```" + CHARM_LANG + "[\\s\\S]*?```\\n?", "g");
+const PATRONUS_FENCE_BLOCK = new RegExp("```" + PATRONUS_LANG + "[\\s\\S]*?```\\n?", "g");
 
 /** Strip media markdown from a body so the reel snippet shows clean prose, not raw refs.
  *  A single image becomes its caption (or a 📷 marker); a gallery becomes a 📷 marker; a
@@ -498,12 +499,14 @@ export function stripMediaForPreview(content: string): string {
     .replace(AUDIO_FENCE_BLOCK, "🎙️ Recording")
     .replace(VIDEO_FENCE_BLOCK, "🎬 Video")
     .replace(JOURNAL_FENCE_BLOCK, "📓 Journal")
-    // a form's rating reads as its picked point ("4 · Mini high…"); a charm never shows
+    // a form's rating reads as its picked point ("4 · Mini high…"); a Patronus spell (or a
+    // legacy charm) never shows
     .replace(SCALE_FENCE_BLOCK, (_m, body: string) => {
       const sc = parseScale(body);
       return sc.value ? `${sc.value} · ${sc.anchors[sc.value - 1] ?? ""}`.trim() : "";
     })
     .replace(CHARM_FENCE_BLOCK, "")
+    .replace(PATRONUS_FENCE_BLOCK, "")
     .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, cap) => (cap ? `📷 ${cap}` : "📷 Photo"))
     .replace(/\n{2,}/g, "\n")
     .trim();

@@ -52,7 +52,8 @@ export function FormStrip({ note, notes, onStartFrom }: Props) {
   if (!template || !parsed) return null;
 
   const q = parsed.fields.length;
-  const c = parsed.charms.length;
+  // Button spells (Compress) — each becomes a button on memories made from this form.
+  const spells = parsed.charms.map((c) => c.name).filter(Boolean);
   return (
     // Width matches the editor column (72ch at body size) — the small type lives on the
     // children, or `ch` would shrink with it and pull the strip off-centre.
@@ -61,7 +62,7 @@ export function FormStrip({ note, notes, onStartFrom }: Props) {
       <span className="text-xs text-text-muted">
         {q === 0
           ? "Write a bold line to ask a question."
-          : `${q} question${q === 1 ? "" : "s"}${c ? ` · ${c} charm${c === 1 ? "" : "s"}` : ""} · new memories offer it`}
+          : `${q} question${q === 1 ? "" : "s"}${spells.length ? ` · ${spells.join(", ")}` : ""} · new memories offer it`}
       </span>
     </div>
   );

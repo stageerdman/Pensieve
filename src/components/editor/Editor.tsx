@@ -27,7 +27,7 @@ import { makeUploadFile } from "./media/insertImage";
 import { insertImagesSmart, type GroupEditor } from "./media/insertGroup";
 import { insertVideoFromFile, type InsertEditor as VideoInsertEditor } from "./media/insertVideo";
 import { mediaToast } from "./media/mediaToast";
-import { Image as ImageIcon, Images as ImagesIcon, AudioLines as AudioIcon, VideoIcon, ScaleIcon, Sparkles } from "../icons";
+import { Image as ImageIcon, Images as ImagesIcon, AudioLines as AudioIcon, VideoIcon, ScaleIcon, Deer } from "../icons";
 import { GutterHandle } from "./GutterHandle";
 import { makeSlashMenu } from "./SlashMenu";
 import { useBlockMarquee } from "./useBlockMarquee";
@@ -152,6 +152,7 @@ interface EditorProps {
   onOpenNote: (id: string) => void; // clicking a note link opens it
   savedPosition?: EditorPosition | null; // where we were last writing in this note (if remembered)
   onSavePosition?: (noteId: string, pos: EditorPosition) => void; // report the live position
+  isForm?: boolean; // this memory is a form template — offers /patronus (forms only)
 }
 
 export function Editor({
@@ -164,6 +165,7 @@ export function Editor({
   onOpenNote,
   savedPosition,
   onSavePosition,
+  isForm = false,
 }: EditorProps) {
   // `_tiptapOptions.extensions` is BlockNote's escape hatch to add raw TipTap/ProseMirror
   // extensions — here, the multi-row block-selection highlight (blockSelectionDecorations).
@@ -413,7 +415,7 @@ export function Editor({
                 },
                 // Forms (FORMS update): a form is just a memory with questions in it. A
                 // question is a bold line, a checklist is a to-do list — only the rating and
-                // the charm need their own blocks.
+                // the Patronus spell need their own blocks.
                 {
                   title: "Scale",
                   aliases: ["scale", "rating", "rate", "score", "1-5", "form"],
@@ -426,33 +428,30 @@ export function Editor({
                       props: { anchors: JSON.stringify(["", "", "", "", ""]), value: 0 },
                     } as never),
                 },
-                {
-                  title: "Charm",
-                  aliases: ["charm", "ai", "compress", "command", "spell", "form"],
-                  group: "Form",
-                  icon: <Sparkles size={18} />,
-                  subtext: "A named AI command for this form",
-                  onItemClick: () =>
-                    insertOrUpdateBlockForSlashMenu(editor, { type: "charm", props: { name: "", prompt: "" } } as never),
-                },
-                {
-                  title: "Patronus",
-                  aliases: ["patronus", "sync", "spell", "package", "form"],
-                  group: "Form",
-                  icon: <Sparkles size={18} />,
-                  subtext: "What Patronus does when a phone walk-through syncs",
-                  onItemClick: () => {
-                    // One per form: a second /patronus jumps to the one already there.
-                    const existing = editor.document.find((b) => (b.type as string) === "patronus");
-                    if (existing) {
-                      try {
-                        editor.setTextCursorPosition(existing, "end");
-                      } catch {
-                        /* a content-less block may not take a cursor — leaving it is fine */
-                      }
-                    } else insertOrUpdateBlockForSlashMenu(editor, { type: "patronus", props: { instruction: "" } } as never);
-                  },
-                },
+                // Patronus: one AI, one spell (Process on sync / Compress) — picked in the
+                // block. Only in a form: a plain memory has no walk-through to process and
+                // no form to make Compress buttons from.
+                ...(isForm
+                  ? [
+                      {
+                        title: "Patronus",
+                        aliases: ["patronus", "spell", "sync", "process", "compress", "ai", "charm", "form"],
+                        group: "Form",
+                        icon: <Deer size={18} />,
+                        subtext: "An AI spell: Process on sync, or Compress",
+                        onItemClick: () => {
+                          // A form has one sync spell, so a second Patronus starts as Compress.
+                          const hasSync = editor.document.some(
+                            (b) => (b.type as string) === "patronus" && (b.props as { spell?: string }).spell !== "compress",
+                          );
+                          insertOrUpdateBlockForSlashMenu(editor, {
+                            type: "patronus",
+                            props: { spell: hasSync ? "compress" : "sync", instruction: "" },
+                          } as never);
+                        },
+                      },
+                    ]
+                  : []),
               ],
               query,
             );

@@ -1,10 +1,11 @@
-// Forms blocks in the extended-Markdown standard — the editor's `scale` and `charm` blocks
-// ⇄ their `pensieve:scale` / `pensieve:charm` fences. The fence BODIES are owned by the
+// Forms blocks in the extended-Markdown standard — the editor's `scale` and `patronus`
+// blocks ⇄ their `pensieve:scale` / `pensieve:patronus` fences. A legacy `pensieve:charm`
+// fence (pre-2026-11-15) opens as a Patronus block casting Compress, and saves as one. The fence BODIES are owned by the
 // shared forms module (lib/forms/fences), so desktop editor, phone and the form parser all
 // read one format. Mirrors lib/md/audio's encode/reconstruct shape.
 
-import { CHARM_LANG, SCALE_LANG, encodeCharm, encodeScale, parseCharm, parseScale } from "../forms/fences";
-import { PATRONUS_LANG, encodePatronus, parsePatronus } from "../packages/patronus";
+import { CHARM_LANG, SCALE_LANG, encodeScale, parseCharm, parseScale } from "../forms/fences";
+import { PATRONUS_LANG, SPELLS, encodePatronus, parsePatronus, type SpellTrigger } from "../packages/patronus";
 
 interface Block {
   type?: string;
@@ -43,28 +44,25 @@ export function scaleProps(s: { anchors: string[]; value?: number }): { anchors:
 }
 
 export const isScaleBlock = (b: Block) => b?.type === "scale";
-export const isCharmBlock = (b: Block) => b?.type === "charm";
 export const isPatronusBlock = (b: Block) => b?.type === "patronus";
 
 export function encodeScaleBlock(b: Block): Block {
   return codeBlock(SCALE_LANG, encodeScale(scaleFromProps(b.props)));
 }
 
-export function encodeCharmBlock(b: Block): Block {
-  return codeBlock(CHARM_LANG, encodeCharm({ name: String(b.props?.name ?? ""), prompt: String(b.props?.prompt ?? "") }));
-}
-
 export function encodePatronusBlock(b: Block): Block {
-  return codeBlock(PATRONUS_LANG, encodePatronus({ spell: "sync", instruction: String(b.props?.instruction ?? "") }));
+  const raw = String(b.props?.spell ?? "sync");
+  const spell: SpellTrigger = SPELLS.some((s) => s.id === raw) ? (raw as SpellTrigger) : "sync";
+  return codeBlock(PATRONUS_LANG, encodePatronus({ spell, instruction: String(b.props?.instruction ?? "") }));
 }
 
 export function reconstructFormFence(b: Block): Block | null {
   const lang = langOf(b);
   if (lang === SCALE_LANG) return { type: "scale", props: scaleProps(parseScale(fenceText(b))) };
-  if (lang === CHARM_LANG) {
-    const c = parseCharm(fenceText(b));
-    return { type: "charm", props: { name: c.name, prompt: c.prompt } };
+  if (lang === CHARM_LANG) return { type: "patronus", props: { spell: "compress", instruction: parseCharm(fenceText(b)).prompt } };
+  if (lang === PATRONUS_LANG) {
+    const p = parsePatronus(fenceText(b));
+    return { type: "patronus", props: { spell: p.spell, instruction: p.instruction } };
   }
-  if (lang === PATRONUS_LANG) return { type: "patronus", props: { instruction: parsePatronus(fenceText(b)).instruction } };
   return null;
 }

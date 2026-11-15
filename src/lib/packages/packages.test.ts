@@ -22,6 +22,16 @@ describe("Patronus block", () => {
     expect(withoutPatronus(pkg)).toBe(BODY);
     expect(findPatronus(BODY)).toBeNull();
   });
+  it("spells: sync and compress parse; findPatronus picks the sync one; all are consumed", () => {
+    expect(parsePatronus("spell: compress\nShrink my week.")).toEqual({ spell: "compress", instruction: "Shrink my week." });
+    expect(parsePatronus("spell: bogus\nX").spell).toBe("sync");
+    const form = BODY + "\n\n```pensieve:patronus\nspell: sync\nOnly the King.\n```\n\n```pensieve:patronus\nspell: compress\nShrink.\n```";
+    expect(findPatronus(form)?.instruction).toBe("Only the King.");
+    expect(findPatronus(form, "compress")?.instruction).toBe("Shrink.");
+    expect(withoutPatronus(form)).toBe(BODY);
+    const pf = parseForm(form);
+    expect(pf.charms.map((c) => [c.name, c.prompt])).toEqual([["Compress", "Shrink."]]);
+  });
   it("a form's own instruction overrides the default", () => {
     expect(spellFor("form", "  Only the King question.  ")).toBe("Only the King question.");
     expect(spellFor("form", "")).toBe(DEFAULT_SPELL.form);

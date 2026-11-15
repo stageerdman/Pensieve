@@ -24,6 +24,7 @@ describe("phone form session", () => {
     expect(s.base.split("\n")[0]).toBe("Daily Review — Thu 12 Nov");
     expect(s.fields).toHaveLength(9);
     expect(s.base).not.toContain("pensieve:charm");
+    expect(s.base).not.toContain("pensieve:patronus");
   });
 
   it("editing an answer REPLACES it (the body is rebuilt, never appended twice)", () => {
@@ -83,8 +84,9 @@ describe("reel preview of a form memory", () => {
     const { stripMediaForPreview } = await import("../media/noteMedia");
     const s = startSession(form, "s1", new Date(2026, 10, 12));
     const md = sessionMarkdown(s, { [s.fields[0].id]: { scale: 4 } });
-    const out = stripMediaForPreview(md + "\n\n```pensieve:charm\nname: X\ny\n```");
+    const out = stripMediaForPreview(md + "\n\n```pensieve:charm\nname: X\ny\n```\n\n```pensieve:patronus\nspell: compress\nzz\n```");
     expect(out).toContain("4 · Mini high");
     expect(out).not.toContain("```");
+    expect(out).not.toContain("zz");
   });
 });
