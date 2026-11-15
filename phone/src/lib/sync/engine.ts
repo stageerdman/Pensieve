@@ -156,7 +156,25 @@ async function pushLocalMedia(graph: GraphClient, vault: LocalVault, state: Sync
 /** Run a full two-way sync. Pull first (so remote wins where only remote changed),
  *  then push (conditional, so a stale local write is refused). A note changed on
  *  BOTH sides is reported as a conflict and left untouched for the owner to resolve. */
+/** Thrown instead of syncing when the local vault did not load fully (FAST-LOAD guard). */
+export class VaultNotReadyError extends Error {
+  constructor() {
+    super("Your notes did not finish loading on this phone — sync paused to keep OneDrive safe. Close and reopen the app.");
+    this.name = "VaultNotReadyError";
+  }
+}
+
+/** A deletion pass that would remove more than this many notes AND this share of every note
+ *  ever synced is refused: no real session deletes hundreds of notes on a phone, but an empty
+ *  or half-loaded local vault looks exactly like that. */
+export const MASS_DELETE_MIN = 10;
+export const MASS_DELETE_SHARE = 0.2;
+
 export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (p: SyncProgress) => void): Promise<SyncResult> {
+  if (vault.isReady && !vault.isReady()) {
+    log.warn("sync", "refused.vault-not-ready", {});
+    throw new VaultNotReadyError();
+  }
   if (!(await remoteRootExists(graph))) throw new RemoteRootMissingError();
   const state: SyncState = await vault.readState();
   if (!state.notes) state.notes = {};
@@ -393,8 +411,11 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
 
   // ---------- LOCAL DELETIONS → remote ----------
   const liveIds = new Set((await vault.listNotes()).map((n) => n.id));
-  for (const id of Object.keys(state.notes)) {
-    if (liveIds.has(id)) continue;
+  const known = Object.keys(state.notes);
+  const toDelete = known.filter((id) => !liveIds.has(id));
+  const massDelete = toDelete.length > MASS_DELETE_MIN && toDelete.length > known.length * MASS_DELETE_SHARE;
+  if (massDelete) log.warn("sync", "refused.mass-delete", { wouldDelete: toDelete.length, known: known.length, live: liveIds.size });
+  for (const id of massDelete ? [] : toDelete) {
     const rec = state.notes[id];
     try {
       await deleteNote(graph, id, rec.cTag);
