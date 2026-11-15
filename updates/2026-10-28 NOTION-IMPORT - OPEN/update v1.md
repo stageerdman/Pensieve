@@ -82,27 +82,24 @@ point the importer at it.
       Sources) which have no Pensieve equivalent today. These are open
       decisions — surface to the owner before building the importer, don't
       guess silently.
-- [ ] **P6a — Fetch (2026-11-15).** Notion's Export gave only the table CSV (no bodies,
-      no images), so pull via the official API instead: `importer/fetch.mjs` — newest
-      first, ~3 req/s, resumable, downloads uploaded files immediately (signed URLs
-      expire), stages raw JSON in `<appdata>/notion-staging/` (outside git). Needs an
-      owner-made internal integration token + the DB shared with it.
-- [x] **P6-phone — Phone can hold the import (2026-11-15, main `516008c`, deployed).**
-      Phone notes moved localStorage (~5 MB, silently failing) → IndexedDB; video/audio
-      download on play instead of during sync (+ phone now knows video refs at all).
-      Desktop sync keeps starred/open stats on a pulled note and dates new notes from
-      frontmatter `created:`. Owner device check owed: notes still there after update.
-- [ ] **P6b — Convert.** `importer/convert.ts` + `verify.ts` built; 35-page dry run:
-      0 failures, 35/35 identical through the editor's load→save, 0 missing media. staging JSON → Pensieve `.md` + sidecar per the P5 spec in
-      `wiki.md`; two-pass so page→page refs become `{@id|title}` + `links`.
-- [ ] **P6 — Importer (original plan).** `features/journal-import`: pull all 1,980 rows via
-      the Notion connector, map per the P5 spec, write `.md` + frontmatter into
-      the vault. Batch it (1,980 pages is a lot of individual fetches) and make
-      it resumable/idempotent — a failed run halfway through must not duplicate
-      notes on retry.
-- [ ] **P7 — Dry run + verify.** Import into a scratch vault copy first, spot-
-      check a sample across eras/categories against the Notion source, confirm
-      the 94 pre-existing notes are untouched, *then* run for real.
+- [x] **P6a — Fetch.** Notion's Export gave only the table CSV, so pull via the official API:
+      `importer/fetch.mjs` (newest first, ~3 req/s, resumable, streams files to disk, 60 s
+      stall abort). 2,002/2,002 staged, 0 failed, 3.5 GB media in `<appdata>/notion-staging/`.
+- [x] **P6-phone — Phone can hold the import (main `516008c`, deployed).** Phone notes
+      localStorage (~5 MB, silently failing) → IndexedDB; video/audio download on play (+ phone
+      now knows video refs). Desktop sync keeps starred/open stats on a pulled note and dates
+      new notes from frontmatter `created:`. Owner device check owed.
+- [x] **P6b/P7a — Convert + dry run.** `importer/convert.ts` (app's own serializer, two-pass
+      refs) + `verify.ts` + `preview.ts`. 2,002/2,002 into a scratch vault copy, 0 failed,
+      **2,002/2,002 byte-identical through the editor's load→save**, existing notes
+      byte-identical, 0 id clashes, 72 links + 34 inline refs resolve, 119 starred, 3.2 GB.
+      Owner reviewed the preview → **build callout rendering first** (593 callouts / 156 notes).
+- [ ] **P6c — Callouts + columns rendering** (desktop block + phone parser) — agent on
+      `update/callouts`.
+- [ ] **P7b — Real import.** Owner quits the app → fresh vault backup → owner confirms the
+      phone still shows its notes after the IndexedDB move → `convert.ts --vault <real>` →
+      `verify.ts --vault <real>` → owner opens the app; first sync uploads ~2,000 notes +
+      3.2 GB. Then owner deletes the "Pensieve import" Notion integration.
 - [ ] **P8 — Close out.** Test pass, `tauri:build`, merge to main, rename
       folder `- OPEN` → `- CLOSED`.
 
