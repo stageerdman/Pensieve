@@ -101,6 +101,11 @@ point the importer at it.
       folder `- OPEN` → `- CLOSED`.
 
 ## Status
+2026-11-15: **P6c Callouts + columns** built on `update/callouts` (not merged): editable desktop
+callout (line + children in one box, Enter stays inside, `/callout`), read-only columns, phone
+read-only box/stacked columns, callout text in excerpts/search; byte-identical round-trip. After
+merging, re-run `convert.ts` + `verify.ts` (53/162 callout notes settle one pass later). See wiki
+"Callouts & columns".
 2026-11-15: P3+P4 built on `update/starred` (see wiki "Starred — how it shows and ranks").
 Needs: merge, `tauri:build`, owner look at the halo strength + the Starred section.
 DECISIONS FOR OWNER: (1) halo only, no star glyph on cards; (2) every starred text match
