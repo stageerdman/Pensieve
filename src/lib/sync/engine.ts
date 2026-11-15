@@ -46,6 +46,11 @@ import type { SyncAccount, SyncQuota } from "./types";
 import { getAccessToken, clearTokenCache } from "./tokens";
 import { log } from "../logger";
 
+/** A local-deletions pass removing more than this many notes AND this share of all synced
+ *  notes is refused (mirrors phone/src/lib/sync/engine.ts). */
+export const MASS_DELETE_MIN = 10;
+export const MASS_DELETE_SHARE = 0.2;
+
 export type ConflictReason = "both-changed" | "push-rejected" | "delete-rejected";
 
 export interface SyncConflict {
@@ -540,8 +545,13 @@ export async function sync(
   // some) — not the pre-download `localIds`, or a freshly-pulled note would look
   // deleted and get wrongly removed from the remote.
   const liveIds = new Set((await vault.listNotes()).map((n) => n.id));
-  for (const id of Object.keys(state.notes)) {
-    if (liveIds.has(id)) continue;
+  // FAST-LOAD guard: a missing/unreadable vault folder lists as empty and would read as
+  // "every note deleted locally". No real session deletes that much — refuse and log.
+  const known = Object.keys(state.notes);
+  const toDelete = known.filter((id) => !liveIds.has(id));
+  const massDelete = toDelete.length > MASS_DELETE_MIN && toDelete.length > known.length * MASS_DELETE_SHARE;
+  if (massDelete) log.warn("sync", "refused.mass-delete", { wouldDelete: toDelete.length, known: known.length, live: liveIds.size });
+  for (const id of massDelete ? [] : toDelete) {
     const rec = state.notes[id];
     try {
       await deleteNote(graph, id, rec.cTag);

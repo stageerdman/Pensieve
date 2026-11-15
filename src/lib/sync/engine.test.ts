@@ -469,6 +469,15 @@ describe("sync engine", () => {
     expect(drive.files.has("x.md")).toBe(false);
     expect(vault.state.notes.x).toBeUndefined();
   });
+
+  it("an emptied local vault never deletes every note from OneDrive", async () => {
+    for (let i = 0; i < 30; i++) vault.edit(`n${i}`, `# N${i}\n`, 5);
+    await sync(graph, vault);
+    for (let i = 0; i < 30; i++) await vault.deleteNote(`n${i}`);
+    const r = await sync(graph, vault);
+    expect(r.pushedDeletes).toEqual([]);
+    expect(drive.files.has("n0.md")).toBe(true);
+  });
 });
 
 // ── Raw Memory sync (RAW-MEMORY-JOURNAL) ─────────────────────────────────────────
