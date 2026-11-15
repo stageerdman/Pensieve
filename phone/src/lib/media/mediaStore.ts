@@ -61,7 +61,9 @@ function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T
 type StoredBytes = { type: string; bytes: ArrayBuffer };
 
 function isStoredBytes(v: unknown): v is StoredBytes {
-  return !!v && typeof v === "object" && "bytes" in (v as object) && (v as StoredBytes).bytes instanceof ArrayBuffer;
+  // Realm-independent ArrayBuffer check (an `instanceof` fails for a buffer cloned from
+  // another realm, e.g. a test IndexedDB) — such a record would otherwise be misread as a Blob.
+  return !!v && typeof v === "object" && "bytes" in (v as object) && Object.prototype.toString.call((v as StoredBytes).bytes) === "[object ArrayBuffer]";
 }
 
 /** Normalize an IDB record to `{ bytes, type }` regardless of which shape wrote it. Pre-fix
@@ -91,6 +93,46 @@ function readRecord(ref: string): Promise<StoredBytes | null> {
   );
 }
 
+// ── On-demand media (NOTION-IMPORT, 2026-11-15) ───────────────────────────────
+// Sync pre-downloads images only; video/audio bytes (an imported Notion video can be
+// hundreds of MB) are fetched from OneDrive the first time something plays them, then
+// kept. The sync layer injects the fetcher (it owns the Graph client) — this store stays
+// free of any sync/Graph dependency.
+export type RemoteMediaFetcher = (ref: string) => Promise<{ bytes: Uint8Array; type: string } | null>;
+let remoteFetcher: RemoteMediaFetcher | null = null;
+const inflight = new Map<string, Promise<StoredBytes | null>>();
+
+export function setRemoteMediaFetcher(f: RemoteMediaFetcher | null): void {
+  remoteFetcher = f;
+}
+
+/** Local bytes, else (once, de-duplicated) the remote copy — stored for next time. */
+async function readOrFetch(ref: string): Promise<StoredBytes | null> {
+  const local = await readRecord(ref);
+  if (local || !remoteFetcher || !isMediaPath(ref)) return local;
+  let p = inflight.get(ref);
+  if (!p) {
+    const fetcher = remoteFetcher;
+    p = (async () => {
+      const got = await fetcher(ref);
+      if (!got) return null;
+      const bytes = got.bytes.buffer.slice(got.bytes.byteOffset, got.bytes.byteOffset + got.bytes.byteLength) as ArrayBuffer;
+      try {
+        await tx("readwrite", (s) => s.put({ type: got.type, bytes }, ref));
+      } catch {
+        /* quota — still play it this session */
+      }
+      return { type: got.type, bytes };
+    })()
+      .catch(() => null)
+      .finally(() => inflight.delete(ref));
+    inflight.set(ref, p);
+  }
+  return p;
+}
+
+// Storage primitive (sync reads/sizes local media through it) — local only, never the
+// network. Only PLAYBACK (resolveMediaUrl / resolveAudioDataUrl) fetches on demand.
 function getBlobBytes(ref: string): Promise<{ bytes: ArrayBuffer; type: string } | null> {
   return readRecord(ref);
 }
@@ -126,7 +168,7 @@ export async function resolveMediaUrl(ref: string): Promise<string | null> {
   const cached = urlCache.get(ref);
   if (cached) return cached;
   try {
-    const record = await readRecord(ref);
+    const record = await readOrFetch(ref);
     if (!record) return null;
     const url = URL.createObjectURL(new Blob([record.bytes], { type: record.type }));
     urlCache.set(ref, url);
@@ -176,7 +218,7 @@ export async function resolveAudioDataUrl(ref: string): Promise<AudioDataUrlResu
   if (!ref) return { url: null, reason: "empty-ref" };
   if (!isMediaPath(ref)) return { url: ref };
   try {
-    const content = await getBlobBytes(ref);
+    const content = await readOrFetch(ref);
     if (!content) return { url: null, reason: "not-found-in-idb" };
     const base64 = arrayBufferToBase64(content.bytes);
     return { url: `data:${content.type || "audio/wav"};base64,${base64}` };
