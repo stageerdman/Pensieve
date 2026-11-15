@@ -94,9 +94,10 @@ point the importer at it.
       **2,002/2,002 byte-identical through the editor's load→save**, existing notes
       byte-identical, 0 id clashes, 72 links + 34 inline refs resolve, 119 starred, 3.2 GB.
       Owner reviewed the preview → **build callout rendering first** (593 callouts / 156 notes).
-- [ ] **P6c — Callouts + columns rendering** (desktop block + phone parser) — agent on
-      `update/callouts`.
-- [ ] **P7b — Real import.** Owner quits the app → fresh vault backup → owner confirms the
+- [x] **P6c — Callouts + columns rendering** (desktop block + phone parser) — merged `7922e19`.
+- [x] **P7b — Real import.** (2026-11-15: DONE — 2,002 written, 0 failed, 2,002/2,002 round-trip
+      identical on the real vault, 88 existing notes byte-identical, vault 278 MB → 3.5 GB, backup
+      `vault-backup-2026-11-15-pre-import-final`. Owed: owner opens app + first sync, deletes integration.) Owner quits the app → fresh vault backup → owner confirms the
       phone still shows its notes after the IndexedDB move → `convert.ts --vault <real>` →
       `verify.ts --vault <real>` → owner opens the app; first sync uploads ~2,000 notes +
       3.2 GB. Then owner deletes the "Pensieve import" Notion integration.
@@ -104,6 +105,8 @@ point the importer at it.
       folder `- OPEN` → `- CLOSED`.
 
 ## Status
+2026-11-15: **Real import done** (P7b). Next: owner opens the app (first sync uploads ~3.2 GB), deletes the
+Notion integration, then P8 close-out.
 2026-11-15: **P6c Callouts + columns** built on `update/callouts` (not merged): editable desktop
 callout (line + children in one box, Enter stays inside, `/callout`), read-only columns, phone
 read-only box/stacked columns, callout text in excerpts/search; byte-identical round-trip. After
