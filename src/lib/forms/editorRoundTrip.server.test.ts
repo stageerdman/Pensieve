@@ -64,3 +64,13 @@ describe("the Patronus block through the desktop editor", () => {
     expect(parseForm(instantiate(FORM)).fields.map((f) => f.id)).toEqual(parseForm(DAILY_REVIEW).fields.map((f) => f.id));
   });
 });
+
+describe("a compressed memory through the desktop editor (FORMS Phase 6)", () => {
+  it("cited bullets keep their date chips (note links) and the field keeps its answer", async () => {
+    const memory = instantiate(DAILY_REVIEW);
+    const ids = parseForm(memory).fields.map((f) => f.id);
+    const text = "* Closed the Novák deal {@daily-9|Mon 9 Nov}\n* Admitted my mistake {@daily-11|Wed 11 Nov} {@daily-13|Fri 13 Nov}";
+    const out = await roundTrip(applyAnswers(memory, { [ids[2]]: { text } }));
+    expect(parseForm(out).fields[2].text).toEqual(text.split("\n"));
+  });
+});

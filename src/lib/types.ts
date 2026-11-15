@@ -114,8 +114,9 @@ export interface TimelineEntry {
   created?: boolean; // true for the very first session of a note
   markdown?: string; // snapshot of the body at session close — the restorable version
   /** Why an out-of-band snapshot exists: "before-ai" = what arrived before an AI fill (the
-   *  version a Redo goes back to); "before-redo" = the AI result a Redo replaced. */
-  label?: "before-ai" | "before-redo";
+   *  version a Redo goes back to); "before-redo" = the AI result a Redo replaced;
+   *  "before-spell" = the memory before a form spell (Compress) wrote its answers in. */
+  label?: "before-ai" | "before-redo" | "before-spell";
 }
 
 /** Storage backend. Implemented by the browser adapter (dev) and Tauri (native). */

@@ -6,6 +6,10 @@
 //   · Rust-side logging of start/finish/failure (durations + sizes, never the content).
 // cwd is a private temp folder, never the Pensieve repo, so this project's dev-workflow
 // CLAUDE.md is never auto-loaded into a user's form.
+//
+// `ask_claude_with_vault` (FORMS Phase 6, a form's Compress spell) is the same call plus the
+// Pensieve MCP server with its READ tools only (mcp/config.rs READ_TOOLS, never a write
+// tool): the AI picks its own period and reads the memories it needs, then answers JSON.
 use std::io::{Read, Write};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -14,21 +18,51 @@ const TIMEOUT: Duration = Duration::from_secs(300);
 
 #[tauri::command]
 pub async fn ask_claude_text(prompt: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || ask_blocking(&prompt))
+    tauri::async_runtime::spawn_blocking(move || ask_blocking(&prompt, &[]))
         .await
         .map_err(|e| e.to_string())?
 }
 
-fn ask_blocking(prompt: &str) -> Result<String, String> {
+#[tauri::command]
+pub async fn ask_claude_with_vault(app: tauri::AppHandle, prompt: String) -> Result<String, String> {
+    let vault_root = crate::vault_root(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let config = crate::mcp::config::write_config_file(&vault_root).map_err(|e| format!("Couldn't prepare MCP tools: {e}"))?;
+        let out = ask_blocking(&prompt, &vault_tool_args(&config));
+        let _ = std::fs::remove_file(&config);
+        out
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// --strict-mcp-config: only Pensieve's server; --tools "": none of the CLI's built-in tools
+/// (Bash/Edit/…, see assistant.rs); dontAsk: a tool outside the allow-list is refused, never
+/// prompted (nobody can answer a prompt in -p mode).
+pub fn vault_tool_args(config: &std::path::Path) -> Vec<String> {
+    vec![
+        "--mcp-config".into(),
+        config.to_string_lossy().into_owned(),
+        "--strict-mcp-config".into(),
+        "--allowedTools".into(),
+        crate::mcp::config::READ_TOOLS.join(","),
+        "--tools".into(),
+        String::new(),
+        "--permission-mode".into(),
+        "dontAsk".into(),
+    ]
+}
+
+fn ask_blocking(prompt: &str, extra_args: &[String]) -> Result<String, String> {
     let started = Instant::now();
     let dir = std::env::temp_dir().join("pensieve-ai");
     std::fs::create_dir_all(&dir).map_err(|e| format!("temp dir: {e}"))?;
 
     let binary = crate::util::resolve_binary("claude");
     let mut cmd = Command::new(&binary);
-    cmd.arg("-p").current_dir(&dir);
+    cmd.args(extra_args).arg("-p").current_dir(&dir);
     cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
-    log::info!("ai_text: start (prompt {} bytes)", prompt.len());
+    log::info!("ai_text: start (prompt {} bytes, vault tools: {})", prompt.len(), !extra_args.is_empty());
 
     let mut child = cmd.spawn().map_err(|e| format!("spawn failed (is `claude` installed?): {e}"))?;
     child

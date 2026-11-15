@@ -58,11 +58,12 @@ fn emit_delta(app: &AppHandle, job_id: &str, delta: &str) {
     let _ = app.emit("ask-agent-progress", AskAgentProgress { job_id: job_id.to_string(), delta: delta.to_string() });
 }
 
-// The three MCP tools whose results name real notes (list_tags doesn't) — full
+// The MCP tools whose results name real notes (list_tags doesn't) — full
 // `mcp__pensieve__<tool>` names, the shape a tool_use block's own "name" field actually
 // carries (same as mcp/config.rs::ALLOWED_TOOLS, which is what grants the CLI these in
 // the first place).
-const NOTE_TOOLS: &[&str] = &["mcp__pensieve__search_notes", "mcp__pensieve__get_note", "mcp__pensieve__list_recent"];
+const NOTE_TOOLS: &[&str] =
+    &["mcp__pensieve__search_notes", "mcp__pensieve__get_note", "mcp__pensieve__list_recent", "mcp__pensieve__list_notes"];
 
 #[derive(Serialize, Clone)]
 struct NoteRef {
