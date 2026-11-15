@@ -19,6 +19,7 @@ pub mod mcp;
 mod sync;
 mod transcribe;
 mod util;
+mod vault_bulk;
 
 // Flip between a normal app (dock icon + the Appearance menu) and a pure menu-bar
 // "accessory" (no dock icon, no app menu) depending on whether a window is on screen.
@@ -269,6 +270,10 @@ pub fn run() {
             read_bytes,
             list_dir,
             remove_path,
+            vault_bulk::list_notes_bulk,
+            vault_bulk::read_note_bodies,
+            vault_bulk::read_texts_bulk,
+            vault_bulk::list_media_bulk,
             sync::secret_get,
             sync::secret_set,
             sync::secret_delete,
