@@ -66,8 +66,8 @@ export function useFormSpells({ note, notes, flush, reloadFromDisk }: Deps): For
             settle: flush,
           });
           if (result.status === "filled") await reloadFromDisk(id);
-          const text = outcomeText(result);
-          setSpellRun(id, text ? { status: "note", spell: name, text, failed: false } : undefined);
+          const out = outcomeText(result);
+          setSpellRun(id, out ? { status: "note", spell: name, ...out } : undefined);
         } catch (err) {
           log.error("spell", "cast.failed", { id, spell: name, error: err instanceof Error ? err.message : String(err) });
           setSpellRun(id, { status: "note", spell: name, text: spellErrorText(err), failed: true });

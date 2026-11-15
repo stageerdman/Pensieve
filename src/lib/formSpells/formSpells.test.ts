@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { answerText, applyAnswers, memoryFromForm, parseForm } from "../forms";
 import type { Note, TimelineEntry } from "../types";
-import { castSpell, citedIds, cleanPointText, buildSpellPrompt, isoDay, openFields, parseSpellResponse, spellErrorText, spellsOf, toAnswers } from ".";
+import { castSpell, outcomeText, citedIds, cleanPointText, buildSpellPrompt, isoDay, openFields, parseSpellResponse, spellErrorText, spellsOf, toAnswers } from ".";
 
 // The owner's bug report form: "Weekly Reflection" with a Patronus → Compress block.
 const WEEKLY = `Weekly Reflection
@@ -220,6 +220,15 @@ describe("castSpell", () => {
     expect((await castSpell("m1", "Expand", w2.deps)).status).toBe("skipped");
     const w3 = world({}, { ask: vi.fn(async () => Promise.reject(new Error("Claude didn't answer within 300 s"))) });
     await expect(castSpell("m1", "Compress", w3.deps)).rejects.toThrow(/300 s/);
+  });
+});
+
+describe("outcomeText", () => {
+  it("no success line (the answers show it); quiet notes; a skip is a failure", () => {
+    expect(outcomeText({ status: "filled", fields: 2, cited: 3 })).toBeNull();
+    expect(outcomeText({ status: "nothing-found" })).toEqual({ text: "Found nothing to add", failed: false });
+    expect(outcomeText({ status: "all-answered" })).toEqual({ text: "All questions answered", failed: false });
+    expect(outcomeText({ status: "skipped", reason: "its form no longer exists" })).toEqual({ text: "Its form no longer exists", failed: true });
   });
 });
 

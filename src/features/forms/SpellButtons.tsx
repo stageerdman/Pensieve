@@ -1,10 +1,13 @@
 import type { FormSpell } from "../../lib/formSpells";
 import type { SpellRun } from "./spellRuns";
+import { STRIP_BUTTON } from "./stripButton";
 
 // One button per form spell (e.g. "Compress") on a memory made from a form: its name and
-// nothing else (owner-decided). While it runs the pressed button breathes and the others
-// wait; afterwards the answers appear in the memory itself. Only a failure, or a run that
-// wrote nothing, leaves one quiet line beside it.
+// nothing else (owner-decided). While it runs the pressed button turns accent and breathes
+// (motion-safe; the "…" carries it without motion) and the others dim. There is no success
+// state: the answers appearing in the memory are the confirmation. Only a failure, or a run
+// that wrote nothing, leaves one quiet line beside it. Buttons stay focusable while a spell
+// runs (aria-disabled, not disabled) so keyboard focus isn't dropped; a press then is ignored.
 
 interface Props {
   spells: FormSpell[];
@@ -25,23 +28,23 @@ export function SpellButtons({ spells, run, onCast }: Props) {
           <button
             key={s.name}
             type="button"
-            onClick={() => onCast(s.name)}
-            disabled={!!running}
+            onClick={() => !running && onCast(s.name)}
+            aria-disabled={!!running || undefined}
             aria-busy={busy || undefined}
             className={
-              "inline-flex items-center rounded-md border border-border px-2.5 py-1 text-sm text-text hover:bg-surface-raised focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default disabled:hover:bg-transparent " +
-              (busy ? "animate-pulse border-accent/60 text-accent" : running ? "opacity-50" : "")
+              STRIP_BUTTON +
+              " aria-disabled:cursor-default aria-disabled:hover:bg-transparent" +
+              (busy ? " border-accent/60 text-accent motion-safe:animate-pulse" : running ? " opacity-50" : "")
             }
           >
             {busy ? `${s.name}…` : s.name}
           </button>
         );
       })}
-      {note && (
-        <span role="status" className={"text-xs " + (note.failed ? "text-danger" : "text-text-muted")}>
-          {note.failed ? `${note.spell} didn't run: ${note.text}` : note.text}
-        </span>
-      )}
+      {/* Always mounted, so a screen reader announces the text when it changes. */}
+      <span role="status" className={"text-xs " + (note?.failed ? "text-danger" : "text-text-muted")}>
+        {note ? (note.failed ? `${note.spell} stopped: ${note.text}` : note.text) : ""}
+      </span>
     </div>
   );
 }

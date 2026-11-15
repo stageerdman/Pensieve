@@ -58,10 +58,12 @@ describe("FormStrip", () => {
     const [c, e] = screen.getAllByRole("button");
     expect(c.textContent).toBe("Compress…");
     expect(c.getAttribute("aria-busy")).toBe("true");
-    expect((c as HTMLButtonElement).disabled && (e as HTMLButtonElement).disabled).toBe(true);
+    expect([c, e].map((b) => b.getAttribute("aria-disabled"))).toEqual(["true", "true"]);
+    fireEvent.click(e);
+    expect(base.cast).not.toHaveBeenCalled(); // a press while one runs is ignored
     rerender(<FormStrip note={md} notes={forms} onStartFrom={vi.fn()} spells={{ ...base, run: { status: "note", spell: "Compress", text: "Claude took too long", failed: true } }} />);
-    expect(screen.getByRole("status").textContent).toBe("Compress didn't run: Claude took too long");
-    expect((screen.getAllByRole("button")[0] as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByRole("status").textContent).toBe("Compress stopped: Claude took too long");
+    expect(screen.getAllByRole("button")[0].getAttribute("aria-disabled")).toBeNull();
   });
 
   it("no spells → nothing over a memory made from a form", () => {

@@ -3,6 +3,7 @@ import { isFormTemplate, parseForm } from "../../lib/forms";
 import type { Note, NoteMeta } from "../../lib/types";
 import { FormIcon } from "../../components/icons";
 import { SpellButtons } from "./SpellButtons";
+import { STRIP_BUTTON } from "./stripButton";
 import type { FormSpells } from "./useFormSpells";
 
 // The one quiet line above a memory that speaks for Forms, so all forms UI over the editor
@@ -43,7 +44,7 @@ export function FormStrip({ note, notes, onStartFrom, spells }: Props) {
             key={f.id}
             type="button"
             onClick={() => onStartFrom(f.id)}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-sm text-text hover:bg-surface-raised focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className={STRIP_BUTTON}
           >
             <FormIcon size={14} />
             {f.title || "Untitled form"}

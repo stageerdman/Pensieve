@@ -36,12 +36,13 @@ export type SpellResult =
   | { status: "nothing-found" }
   | { status: "skipped"; reason: string };
 
-/** What the strip says after a run, or null when the answers on the page say it all. */
-export function outcomeText(r: SpellResult): string | null {
+/** What the strip says after a run, or null when the answers on the page say it all (no
+ *  success state: the answers appearing IS the confirmation). A skip is a real failure. */
+export function outcomeText(r: SpellResult): { text: string; failed: boolean } | null {
   if (r.status === "filled") return null;
-  if (r.status === "all-answered") return "Every question already has an answer";
-  if (r.status === "nothing-found") return "Nothing to add";
-  return r.reason.charAt(0).toUpperCase() + r.reason.slice(1);
+  if (r.status === "all-answered") return { text: "All questions answered", failed: false };
+  if (r.status === "nothing-found") return { text: "Found nothing to add", failed: false };
+  return { text: r.reason.charAt(0).toUpperCase() + r.reason.slice(1), failed: true };
 }
 
 export async function castSpell(noteId: string, spellName: string, deps: SpellDeps): Promise<SpellResult> {

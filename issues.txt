@@ -209,3 +209,10 @@ PWA-CAPTURE v2 — follow-ups after real OneDrive + Cloudflare Pages hosting lan
 - [ ] Custom subdomain (pensieve.erdman.xyz) not wired — shipped on the default
       pensieve-phone.pages.dev URL since the shared Cloudflare token has no Zone
       DNS:Edit scope. One manual dashboard CNAME + token-scope step if ever wanted.
+
+FORMS Phase 6 (Compress) — follow-ups (2026-11-15):
+- [ ] Phone shows a note link / Compress date chip as raw text `{@id|Mon 9 Nov}` — the
+      phone markdown renderer (noteMedia.ts) has no note-link token at all (pre-existing gap,
+      now visible in every compressed memory). Render it as a tappable chip that opens the memory.
+- [ ] Desktop note-link chips (noteLink.tsx) are not keyboard-reachable (no tabIndex/role=link/
+      Enter handler) — pre-existing, flagged by the Phase 6 UX review.

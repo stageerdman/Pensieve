@@ -1174,6 +1174,8 @@ body.pensieve-resizing .pensieve-gallery-height-handle::after {
 .pensieve-editor .note-link {
   color: hsl(var(--accent));
   cursor: pointer;
+  /* A date chip ("Mon 9 Nov", a Compress citation) never splits or orphans its flask. */
+  white-space: nowrap;
   border-radius: 3px;
   padding: 0 1px;
 }
