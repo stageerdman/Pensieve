@@ -58,6 +58,10 @@
   /* Starred halo — the "very important bright memory" glow behind a starred flask: the
      magical gold at this strength. Light needs more: gold washes out on white. */
   --star-halo-alpha: 0.5;
+
+  /* Callout box — a quiet tint between surface and surface-raised: reads as "set apart",
+     never as code (code uses surface-raised). Desktop editor + phone share it. */
+  --callout-bg: 214 22% 95.5%;
 }
 
 .dark {
@@ -91,4 +95,6 @@
   --flask-s: 68%; --flask-l: 68%;
 
   --star-halo-alpha: 0.35; /* gold glows on its own on the stone — softer */
+
+  --callout-bg: 222 20% 14.5%;
 }

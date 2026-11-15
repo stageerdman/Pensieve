@@ -27,7 +27,7 @@ import { makeUploadFile } from "./media/insertImage";
 import { insertImagesSmart, type GroupEditor } from "./media/insertGroup";
 import { insertVideoFromFile, type InsertEditor as VideoInsertEditor } from "./media/insertVideo";
 import { mediaToast } from "./media/mediaToast";
-import { Image as ImageIcon, Images as ImagesIcon, AudioLines as AudioIcon, VideoIcon, ScaleIcon, Deer } from "../icons";
+import { Image as ImageIcon, Images as ImagesIcon, AudioLines as AudioIcon, VideoIcon, ScaleIcon, Deer, CalloutIcon } from "../icons";
 import { GutterHandle } from "./GutterHandle";
 import { makeSlashMenu } from "./SlashMenu";
 import { useBlockMarquee } from "./useBlockMarquee";
@@ -36,6 +36,13 @@ import { FlaskFor } from "../Flask";
 import { findScrollParent } from "./dragScroll";
 import type { EditorPosition } from "./editorPosition";
 import type { NoteMeta } from "../../lib/types";
+
+/** Slot an item in at the end of the slash menu's first "Basic blocks" run, so it shows
+ *  under that header rather than opening a second one at the bottom. */
+function insertAfterGroup<T extends { group?: string }>(items: T[], item: T): T[] {
+  const i = items.findIndex((it, k) => it.group === item.group && items[k + 1]?.group !== item.group);
+  return i === -1 ? [...items, item] : [...items.slice(0, i + 1), item, ...items.slice(i + 1)];
+}
 
 // Two-level ⌘A: the first press selects the current block's text; the next selects
 // the whole document. We handle both levels explicitly (rather than defer to the
@@ -370,7 +377,15 @@ export function Editor({
             });
             return filterSuggestionItems(
               [
-                ...defaults,
+                ...insertAfterGroup(defaults, {
+                  title: "Callout",
+                  aliases: ["callout", "box", "aside"],
+                  group: "Basic blocks",
+                  icon: <CalloutIcon size={18} />,
+                  subtext: "Set a few lines apart in a quiet box",
+                  onItemClick: () =>
+                    insertOrUpdateBlockForSlashMenu(editor, { type: "callout", props: {} } as never),
+                }),
                 {
                   title: "Image",
                   aliases: ["img", "photo", "picture"],

@@ -129,6 +129,13 @@ export function mapBlocks(blocks: Block[], fn: (items: Inline[]) => Inline[]): B
 //   ```pensieve:children        the indented children of the block just above
 //   child markdown…
 //   ```
+//   ```pensieve:callout         a callout box (lib/md/callout): optional `icon=` line, then
+//   icon=🚨                      its body — the block's own line + its children, like a toggle
+//   body markdown…
+//   ```
+//   ```pensieve:columns         side-by-side columns (lib/md/columns), kept verbatim
+//   col 1…\n:::column:::\ncol 2…
+//   ```
 // Known limitation: a fenced code block nested *inside* a toggle/indent body would
 // collide with the outer fence; rare, and noted in issues.
 
@@ -138,6 +145,8 @@ import { encodeAudioBlock, isAudioBlock, reconstructAudioFence } from "./audio";
 import { encodeVideoBlock, isVideoBlock, reconstructVideoFence } from "./video";
 import { encodeJournalBlock, isJournalBlock, reconstructJournalFence } from "./journal";
 import { encodePatronusBlock, encodeScaleBlock, isPatronusBlock, isScaleBlock, reconstructFormFence } from "./formBlocks";
+import { CALLOUT_FENCE, encodeCalloutText, parseCalloutText } from "./callout";
+import { encodeColumnsBlock, isColumnsBlock, reconstructColumnsFence } from "./columns";
 
 const LIST_TYPES = new Set(["bulletListItem", "numberedListItem", "checkListItem"]);
 
@@ -211,6 +220,17 @@ async function encodeStructure(editor: MdEditor, blocks: Block[]): Promise<Block
       // Same shape as audio — url → ref on a pensieve:video fence; its transcript sidecar
       // is keyed off the same ref, so it's reused unchanged (see lib/md/video).
       out.push(encodeVideoBlock(b));
+    } else if (isColumnsBlock(b)) {
+      // Columns carry their fence text verbatim (read-only in the editor; lib/md/columns).
+      out.push(encodeColumnsBlock(b));
+    } else if (b.type === "callout") {
+      // A callout's first line is the block's own inline content and the rest of its body
+      // is its children — serialized TOGETHER as one block list (lead paragraph first), so
+      // the body is exactly the markdown it was loaded from (see reconstructStructure).
+      const lead: Block = { type: "paragraph", content: b.content };
+      const body = (await blocksToExtendedMd(editor, [lead, ...children])).replace(/\n+$/, "");
+      const icon = String((b.props as { icon?: string } | undefined)?.icon ?? "");
+      out.push(fence(CALLOUT_FENCE, encodeCalloutText({ icon, body })));
     } else if (b.type === "toggleListItem") {
       const summary = await inlineToMd(editor, b.content);
       const body = children.length ? (await blocksToExtendedMd(editor, children)).replace(/\n+$/, "") : "";
@@ -264,8 +284,30 @@ async function reconstructStructure(editor: MdEditor, blocks: Block[]): Promise<
       out.push(formBlock);
       continue;
     }
+    const columns = reconstructColumnsFence(b);
+    if (columns) {
+      out.push(columns);
+      continue;
+    }
     const lang = langOf(b);
-    if (lang === "pensieve:toggle") {
+    if (lang === CALLOUT_FENCE) {
+      // Body → blocks; its leading paragraph becomes the callout's own line (a blank one —
+      // a ZWSP placeholder — becomes an empty line), the rest its children. Every callout
+      // the importer wrote starts with a paragraph (Notion's callout text), so encode's
+      // "lead paragraph + children" reproduces the body exactly.
+      const { icon, body } = parseCalloutText(textOf(b));
+      const parsed = body
+        ? await reconstructStructure(editor, (await editor.tryParseMarkdownToBlocks(body)) as Block[])
+        : [];
+      const first = parsed[0];
+      const hasLead = first?.type === "paragraph" && !(Array.isArray(first.children) && first.children.length);
+      out.push({
+        type: "callout",
+        props: { icon },
+        content: hasLead ? ((first.content as Inline[]) ?? []) : [],
+        children: hasLead ? parsed.slice(1) : parsed,
+      });
+    } else if (lang === "pensieve:toggle") {
       const text = textOf(b);
       const nl = text.indexOf("\n");
       const summary = nl === -1 ? text : text.slice(0, nl);
