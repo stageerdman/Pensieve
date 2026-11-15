@@ -101,11 +101,47 @@ async function download(block) {
   const ext = extFrom(v.file.url, block.type === "image" ? "png" : "bin");
   const dest = path.join(STAGING, "files", `${block.id}.${ext}`);
   if (!fs.existsSync(dest)) {
-    const res = await fetch(v.file.url, { signal: AbortSignal.timeout(20 * 60000) });
-    if (!res.ok) throw new Error(`download ${block.id} → ${res.status}`);
-    fs.writeFileSync(dest, Buffer.from(await res.arrayBuffer()));
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await streamToFile(v.file.url, dest);
+        break;
+      } catch (e) {
+        if (attempt >= 3) throw e;
+        await sleep(3000 * 2 ** attempt);
+      }
+    }
   }
   block._localFile = path.basename(dest);
+}
+
+// Stream straight to disk (files can be hundreds of MB) and abort only on a STALL —
+// no bytes for 60 s — never on total time. Written to .part, renamed when complete.
+async function streamToFile(url, dest) {
+  const ctrl = new AbortController();
+  let timer;
+  const arm = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => ctrl.abort(new Error("download stalled (60 s without data)")), 60000);
+  };
+  arm();
+  const part = dest + ".part";
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) throw new Error(`download → ${res.status}`);
+    const out = fs.createWriteStream(part);
+    try {
+      for await (const chunk of res.body) {
+        arm();
+        if (!out.write(chunk)) await new Promise((r) => out.once("drain", r));
+      }
+    } finally {
+      await new Promise((r) => out.end(r));
+    }
+    fs.renameSync(part, dest);
+  } finally {
+    clearTimeout(timer);
+    if (fs.existsSync(part)) fs.rmSync(part);
+  }
 }
 
 // Full block tree. Children are inlined as block._children. A synced-block copy pulls
