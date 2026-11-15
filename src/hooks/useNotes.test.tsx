@@ -160,4 +160,30 @@ describe("useNotes (integration)", () => {
     });
     expect(result.current.notes.find((n) => n.id === a.id)!.openCount).toBe(1);
   });
+
+  it("toggleStar flips starred on the list + open note without touching updatedAt or pinned", async () => {
+    const store = getStore();
+    const a = await store.create();
+    await store.save({ ...a, markdown: "# A" });
+    const before = (await store.load(a.id))!;
+
+    const { result } = renderHook(() => useNotes());
+    await waitFor(() => expect(result.current.current?.id).toBe(a.id));
+
+    await act(async () => {
+      await result.current.toggleStar(a.id);
+    });
+    const meta = result.current.notes.find((n) => n.id === a.id)!;
+    expect(meta.starred).toBe(true);
+    expect(meta.pinned).toBe(false);
+    expect(meta.updatedAt).toBe(before.updatedAt);
+    expect(result.current.current!.starred).toBe(true);
+    expect((await store.load(a.id))!.starred).toBe(true);
+
+    await act(async () => {
+      await result.current.toggleStar(a.id);
+    });
+    expect(result.current.notes.find((n) => n.id === a.id)!.starred).toBe(false);
+    expect(result.current.current!.starred).toBe(false);
+  });
 });

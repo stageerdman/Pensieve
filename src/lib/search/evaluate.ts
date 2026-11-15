@@ -15,6 +15,7 @@ export interface SearchableNote {
   createdAt: number;
   updatedAt: number;
   pinned: boolean;
+  starred: boolean;
   body?: string;
 }
 
@@ -46,7 +47,7 @@ export function matchFilter(filter: Filter, note: SearchableNote): boolean {
       return ts >= filter.range.start && ts <= filter.range.end;
     }
     case "flag":
-      return filter.flag === "pinned" ? note.pinned : false;
+      return filter.flag === "pinned" ? note.pinned : note.starred;
     case "title":
       return note.title.toLowerCase().includes(filter.text.toLowerCase());
     case "text": {

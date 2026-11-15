@@ -13,6 +13,7 @@ const note = (over: Partial<SearchableNote> = {}): SearchableNote => ({
   createdAt: new Date(2026, 0, 20, 9).getTime(), // Jan 20
   updatedAt: NOW,
   pinned: false,
+  starred: false,
   body: "Shipped the summon bar. Felt calm after the morning walk.",
   ...over,
 });
@@ -52,6 +53,11 @@ describe("matchFilter", () => {
   it("flag pinned", () => {
     expect(matchFilter({ kind: "flag", flag: "pinned" }, note({ pinned: true }))).toBe(true);
     expect(matchFilter({ kind: "flag", flag: "pinned" }, note({ pinned: false }))).toBe(false);
+  });
+
+  it("flag starred is independent of pinned", () => {
+    expect(matchFilter({ kind: "flag", flag: "starred" }, note({ starred: true }))).toBe(true);
+    expect(matchFilter({ kind: "flag", flag: "starred" }, note({ pinned: true }))).toBe(false);
   });
 
   it("title substring", () => {

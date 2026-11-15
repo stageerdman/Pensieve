@@ -303,6 +303,16 @@ export const SyncRune = ({ slash, size = 18, className }: IconProps & { slash?: 
   </svg>
 );
 
+// Star — a starred "very important bright memory" (filled when starred).
+export const Star = ({ filled, ...p }: IconProps & { filled?: boolean }) =>
+  svg(
+    <path
+      d="M12 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L12 16.78l-5.2 2.74.99-5.8-4.21-4.1 5.82-.85L12 3.5Z"
+      fill={filled ? "currentColor" : "none"}
+    />,
+    p,
+  );
+
 export const Bookmark = ({ filled, ...p }: IconProps & { filled?: boolean }) =>
   svg(
     <path

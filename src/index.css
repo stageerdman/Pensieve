@@ -521,3 +521,14 @@ body {
   .summon-sigil-spin { animation: none; }
   .accio-answer-in { animation: none; }
 }
+
+/* ---- Starred — "a very important bright memory" ---- */
+/* A static gold halo behind a starred flask (StarHalo.tsx): brightness, not a badge, so a
+   grid with many starred memories stays calm. Strength is the --star-halo-alpha token. */
+.star-halo {
+  background: radial-gradient(
+    circle closest-side,
+    hsl(var(--gold) / var(--star-halo-alpha)),
+    hsl(var(--gold) / 0) 100%
+  );
+}

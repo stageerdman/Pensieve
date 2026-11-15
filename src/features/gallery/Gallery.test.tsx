@@ -32,6 +32,7 @@ function renderGallery(
     theme: "light" as const,
     onOpen: vi.fn(),
     onToggleWorkingSet: vi.fn(),
+    onToggleStar: vi.fn(),
     onRemoveFromWorkingSet: vi.fn(),
     onMoveInWorkingSet: vi.fn(),
     onReorderWorkingSet: vi.fn(),
@@ -69,6 +70,7 @@ describe("Gallery — layout", () => {
         theme="light"
         onOpen={() => {}}
         onToggleWorkingSet={() => {}}
+        onToggleStar={() => {}}
         onRemoveFromWorkingSet={() => {}}
         onMoveInWorkingSet={() => {}}
         onReorderWorkingSet={() => {}}
@@ -149,6 +151,7 @@ describe("Gallery — working set", () => {
         theme="light"
         onOpen={() => {}}
         onToggleWorkingSet={() => {}}
+        onToggleStar={() => {}}
         onRemoveFromWorkingSet={() => {}}
         onMoveInWorkingSet={() => {}}
         onReorderWorkingSet={() => {}}
@@ -214,5 +217,67 @@ describe("Gallery — working set", () => {
     fireEvent.click(card);
     expect(props.onOpen).toHaveBeenCalledWith("a", false);
     expect(props.onReorderWorkingSet).not.toHaveBeenCalled();
+  });
+});
+
+describe("Gallery — starred", () => {
+  it("a starred memory glows (gold halo) and says so to screen readers; others don't", () => {
+    renderGallery([
+      note({ id: "s", title: "Bright", createdAt: NOW, starred: true }),
+      note({ id: "p", title: "Plain", createdAt: NOW }),
+    ]);
+    const bright = screen.getByRole("button", { name: /Bright, starred/ });
+    expect(within(bright).getByTestId("star-halo")).toBeInTheDocument();
+    const plain = screen.getByRole("button", { name: /Plain/ });
+    expect(plain.getAttribute("aria-label")).not.toMatch(/starred/);
+    expect(within(plain).queryByTestId("star-halo")).toBeNull();
+  });
+
+  it("'s' on a focused card toggles the star", () => {
+    const { props } = renderGallery([note({ id: "a", title: "Alpha", createdAt: NOW })]);
+    fireEvent.keyDown(screen.getByRole("button", { name: /Alpha/ }), { key: "s" });
+    expect(props.onToggleStar).toHaveBeenCalledWith("a");
+  });
+
+  it("the context menu offers Star / Unstar as a checkbox item", () => {
+    const { props } = renderGallery([
+      note({ id: "a", title: "Alpha", createdAt: NOW }),
+      note({ id: "b", title: "Beta", createdAt: NOW, starred: true }),
+    ]);
+    fireEvent.contextMenu(screen.getByRole("button", { name: /Alpha/ }));
+    const star = within(screen.getByRole("menu")).getByRole("menuitemcheckbox", { name: /^Star/ });
+    expect(star).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(star);
+    expect(props.onToggleStar).toHaveBeenCalledWith("a");
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: /Beta/ }));
+    const unstar = within(screen.getByRole("menu")).getByRole("menuitemcheckbox", { name: /Unstar/ });
+    expect(unstar).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("during a text search, starred matches lead in a 'Starred' section above the date buckets", () => {
+    const notes = [
+      note({ id: "fresh", title: "Focus today", createdAt: NOW, updatedAt: NOW }),
+      note({ id: "old", title: "Focus long ago", createdAt: NOW - 400 * DAY, updatedAt: NOW - 400 * DAY, starred: true }),
+    ];
+    const match = new Map([
+      ["fresh", { id: "fresh", where: "title" as const, snippet: null, rank: 0 }],
+      ["old", { id: "old", where: "title" as const, snippet: null, rank: 0 }],
+    ]);
+    renderGallery(notes, { searchActive: true, match });
+    const sections = screen.getAllByRole("region").slice(1);
+    expect(sections[0].getAttribute("aria-label")).toBe("Starred");
+    expect(within(sections[0]).getByText("Focus long ago")).toBeInTheDocument();
+    expect(sections[1].getAttribute("aria-label")).toBe("Today");
+  });
+
+  it("at rest (no search) a starred memory stays in its date group — no Starred section", () => {
+    renderGallery([
+      note({ id: "old", title: "Old star", createdAt: NOW - 400 * DAY, starred: true }),
+      note({ id: "fresh", title: "Fresh", createdAt: NOW }),
+    ]);
+    const names = screen.getAllByRole("region").slice(1).map((s) => s.getAttribute("aria-label"));
+    expect(names).not.toContain("Starred");
+    expect(names[0]).toBe("Today");
   });
 });

@@ -4,6 +4,7 @@ import { useDismiss } from "../hooks/useDismiss";
 import { colorLabel } from "../lib/categories/palette";
 import { FlaskFor } from "./Flask";
 import { FlaskPicker } from "./FlaskPicker";
+import { StarHalo } from "./StarHalo";
 
 // The note's flask, large and left-aligned above the editor (Notion page-icon
 // style) — the single affordance for choosing a flask. Click opens the picker
@@ -15,10 +16,11 @@ interface FlaskButtonProps {
   icon?: NoteIcon;
   chars?: number; // the open note's content length — drives the flask's fill level
   seed?: string; // the note's id — seeds the memory thread
+  starred?: boolean; // a "bright memory" — the flask sits in the gold StarHalo
   onChange: (icon: NoteIcon) => void;
 }
 
-export function FlaskButton({ icon, chars, seed, onChange }: FlaskButtonProps) {
+export function FlaskButton({ icon, chars, seed, starred, onChange }: FlaskButtonProps) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const ref = useDismiss<HTMLDivElement>(() => setOpen(false), {
@@ -38,11 +40,12 @@ export function FlaskButton({ icon, chars, seed, onChange }: FlaskButtonProps) {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`Flask — ${SHAPE_LABELS[shown.shape]}, ${colorLabel(shown.color)}. Click to change`}
+        aria-label={`Flask — ${SHAPE_LABELS[shown.shape]}, ${colorLabel(shown.color)}${starred ? ", starred" : ""}. Click to change`}
         title="Change flask"
-        className="-ml-1 flex h-10 w-10 items-center justify-center rounded-lg text-text transition-colors hover:bg-surface-raised"
+        className="relative -ml-1 flex h-10 w-10 items-center justify-center rounded-lg text-text transition-colors hover:bg-surface-raised"
       >
-        <FlaskFor icon={icon} chars={chars} seed={seed} size={28} />
+        {starred && <StarHalo className="h-11 w-11" />}
+        <FlaskFor icon={icon} chars={chars} seed={seed} size={28} className="relative" />
       </button>
 
       {open && (

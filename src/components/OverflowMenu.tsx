@@ -13,6 +13,8 @@ export interface MenuItem {
   shortcut?: string;
   onSelect: () => void;
   active?: boolean;
+  /** A toggle item (e.g. Star): announced as a checkbox with its state. */
+  checked?: boolean;
 }
 
 export function OverflowMenu({ items }: { items: MenuItem[] }) {
@@ -38,7 +40,8 @@ export function OverflowMenu({ items }: { items: MenuItem[] }) {
           {items.map((it) => (
             <button
               key={it.label}
-              role="menuitem"
+              role={it.checked === undefined ? "menuitem" : "menuitemcheckbox"}
+              aria-checked={it.checked}
               onClick={() => {
                 setOpen(false);
                 it.onSelect();

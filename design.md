@@ -23,7 +23,8 @@ isn't a token, add it to the token layer.** Changing a token changes the whole a
 - **Accent (one):** `accent` — the magical blue, lightness held so links/focus stay AA.
   `accent-glow` — ambient halos only (focus/hover), **never text**.
 - **State:** `success`, `warn`, `danger`.
-- **Magical:** `gold` (sync rune, calendar today-ring/heatmap). The **Basin** deep
+- **Magical:** `gold` (sync rune, calendar today-ring/heatmap, the starred-memory halo —
+  `StarHalo` at `--star-halo-alpha`, brightness not a badge). The **Basin** deep
   blue-black is the dark-theme `surface` family. Flask colour = a chosen hue riding the
   theme-paired `--flask-s`/`--flask-l`; category chips = the 9-key `--cat-*-bg/fg` palette.
   All of these are tokens — consume them, don't re-derive the hex.

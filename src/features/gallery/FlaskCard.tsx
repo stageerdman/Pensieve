@@ -9,6 +9,7 @@ import { relativeTime, absoluteDate } from "../../lib/format";
 import type { GalleryFields, SnippetLines } from "../../lib/gallery/view";
 import { FlaskFor } from "../../components/Flask";
 import { Bookmark } from "../../components/icons";
+import { StarHalo } from "../../components/StarHalo";
 
 // One memory in the gallery: a large flask (its visual identity) with the title and a
 // little of the actual content below it — a specimen on a shelf. The title is always
@@ -17,7 +18,8 @@ import { Bookmark } from "../../components/icons";
 //
 // Interactions: click opens a tab and switches (⌘/Ctrl-click → background tab); Enter /
 // ⌘Enter mirror that on the keyboard; Space toggles the content peek; `w` toggles the
-// working set; right-click (or the menu/Shift+F10 key) opens the context menu.
+// working set; `s` stars/unstars; right-click (or the menu/Shift+F10 key) opens the
+// context menu. A starred memory's flask sits in a soft gold halo (StarHalo).
 
 export interface PeekTarget {
   id: string;
@@ -48,6 +50,8 @@ interface FlaskCardProps {
   onHoverChange: (target: PeekTarget | null) => void;
   onPeekToggle: (target: PeekTarget) => void;
   onToggleWorkingSet: (id: string) => void;
+  /** Star/unstar (the `s` key). Optional so read-only surfaces can omit it. */
+  onToggleStar?: (id: string) => void;
 }
 
 const CLAMP: Record<SnippetLines, string> = {
@@ -70,6 +74,7 @@ export function FlaskCard({
   onHoverChange,
   onPeekToggle,
   onToggleWorkingSet,
+  onToggleStar,
 }: FlaskCardProps) {
   const ref = useRef<HTMLButtonElement>(null);
   const cats = note.categories ?? [];
@@ -103,6 +108,9 @@ export function FlaskCard({
     } else if (e.key.toLowerCase() === "w") {
       e.preventDefault();
       onToggleWorkingSet(note.id);
+    } else if (e.key.toLowerCase() === "s" && onToggleStar && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault();
+      onToggleStar(note.id);
     } else if (e.shiftKey && e.key === "F10") {
       e.preventDefault();
       const r = ref.current?.getBoundingClientRect();
@@ -119,7 +127,7 @@ export function FlaskCard({
       onKeyDown={onKeyDown}
       onPointerEnter={() => ref.current && onHoverChange({ id: note.id, el: ref.current })}
       onPointerLeave={() => onHoverChange(null)}
-      aria-label={`${note.title || "Untitled"}, created ${absoluteDate(note.createdAt, now)}`}
+      aria-label={`${note.title || "Untitled"}${note.starred ? ", starred" : ""}, created ${absoluteDate(note.createdAt, now)}`}
       className="group relative flex w-full select-none flex-col overflow-hidden rounded-lg p-3 text-left transition-colors hover:bg-surface-raised"
     >
       {inWorkingSet && (
@@ -131,13 +139,15 @@ export function FlaskCard({
       )}
 
       {/* Flask — fixed-height box so every flask in a row bottom-aligns. */}
-      <span className="flex h-[84px] items-center justify-center">
+      <span className="relative flex h-[84px] items-center justify-center">
+        {note.starred && <StarHalo className="h-24 w-24" />}
         <FlaskFor
           icon={note.icon}
           chars={note.chars}
           seed={note.id}
           size={64}
           label={note.title || "Untitled"}
+          className="relative"
         />
       </span>
 

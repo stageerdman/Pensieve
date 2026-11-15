@@ -11,6 +11,7 @@ const HELP: HelpItem[] = [
   { example: "#", what: "filter by tag — whispers your existing tags as you type #" },
   { example: "Notes", what: "filter by category — Tab to add it, Enter to search the word" },
   { example: "pinned", what: "only pinned thoughts" },
+  { example: "starred", what: "only starred thoughts" },
   { example: "#Weekly Review created last month", what: "combine — stacks a tag chip and a date chip" },
   { example: "tag contains one of #A, #B", what: "any-of — one chip matching several tags" },
   { example: "just type anything", what: "full-text search inside your notes (shown with a highlighted snippet)" },

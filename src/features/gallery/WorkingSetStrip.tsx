@@ -32,6 +32,7 @@ interface WorkingSetStripProps {
   onHoverChange: (target: PeekTarget | null) => void;
   onPeekToggle: (target: PeekTarget) => void;
   onToggleWorkingSet: (id: string) => void;
+  onToggleStar?: (id: string) => void;
   onRemove: (id: string) => void;
   onMove: (id: string, delta: number) => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
@@ -63,6 +64,7 @@ export function WorkingSetStrip({
   onHoverChange,
   onPeekToggle,
   onToggleWorkingSet,
+  onToggleStar,
   onRemove,
   onMove,
   onReorder,
@@ -199,6 +201,7 @@ export function WorkingSetStrip({
               onHoverChange={onHoverChange}
               onPeekToggle={onPeekToggle}
               onToggleWorkingSet={onToggleWorkingSet}
+              onToggleStar={onToggleStar}
             />
             <span
               role="button"

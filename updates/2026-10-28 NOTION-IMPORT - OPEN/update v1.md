@@ -55,14 +55,24 @@ point the importer at it.
       / `Note.starred`, `Store.setStarred`, wired through both the browser and
       Tauri adapters, sidecar-only (never touches `updatedAt`, never in `.md`
       frontmatter — same reasoning as pinned).
-- [ ] **P3 — `starred` surfaces.** `useNotes.toggleStar` (mirrors `togglePin`);
-      a star toggle affordance next to the existing pin affordance in the
-      Gallery row; a visually brighter treatment for starred notes (glow /
-      warm border / filled star — exact look TBD when this phase starts).
-- [ ] **P4 — Search boost.** Starred notes should dominate free-text search
-      ranking ("way on top"). Needs reading how `runSearch`'s output order
-      actually reaches the Gallery today (rank vs. the Gallery's own date
-      grouping) before picking the mechanism — deliberately not designed yet.
+- [x] **P3 — `starred` surfaces.** (2026-11-15, branch `update/starred`, NOT merged /
+      built / owner-confirmed.) `useNotes.toggleStar` shares one `toggleFlag` path with
+      `togglePin` (sidecar-only, updatedAt untouched, logged `notes:star`). Toggle lives
+      where the working-set toggle lives: `s` on a focused gallery card, "Star"/"Unstar"
+      in the card's right-click menu (right under Working set, both now
+      `menuitemcheckbox`), and "Star memory" in the open note's ⋯ menu. No always-visible
+      button. **Brighter** = a static gold radial halo behind the flask (`StarHalo`,
+      token `--star-halo-alpha` 0.5 light / 0.35 dark) on the gallery card AND the open
+      note's flask button; `, starred` appended to aria-labels. No corner glyph.
+      Also: a `starred` search chip mirroring `pinned` ("sta…" whispers it).
+- [x] **P4 — Search boost.** Finding: `runSearch` computes `rank` but the Gallery threw
+      it away — during Accio it date-buckets every result by updatedAt. So the boost is a
+      layout, not a score: `lib/gallery/searchSections.ts` lifts every starred note that
+      matched the FREE TEXT into one leading **"Starred"** section (rail label like the
+      dates), ordered title > tag > body, then newest; everything else keeps its date
+      bucket. Chip-only queries (`#CANI`, `last week`, `pinned`) don't lift; when every
+      result is starred (e.g. `starred` chip + text) there's no redundant section. Home
+      at rest is untouched. Logged `gallery:search.starredLift`.
 - [ ] **P5 — Notion field-mapping spec.** Write the exact Notion→Pensieve
       mapping in `wiki.md` for every field this update's survey found: `Cags`
       (11 options → Journal/Execution/Idea/Trash, needs a concrete per-option
@@ -91,6 +101,13 @@ point the importer at it.
       folder `- OPEN` → `- CLOSED`.
 
 ## Status
+2026-11-15: P3+P4 built on `update/starred` (see wiki "Starred — how it shows and ranks").
+Needs: merge, `tauri:build`, owner look at the halo strength + the Starred section.
+DECISIONS FOR OWNER: (1) halo only, no star glyph on cards; (2) every starred text match
+lifts, uncapped, incl. body-only matches; (3) chip-only searches don't lift; (4) desktop
+only — the phone doesn't read `starred` yet; (5) found: the Gallery "Working set" is a
+separate localStorage list, NOT `NoteMeta.pinned` (⌘P) — so Notion 📌 → `pinned` will not
+appear in the Working-set strip. Decide before P6b whether 📌 → working set or pinned.
 2026-11-15: P5 spec DECIDED by owner (wiki.md). Vault backed up to
 `vault-backup-2026-11-15-pre-notion-import`. Export zip = CSV only → API fetcher written,
 waiting on the owner's integration token.

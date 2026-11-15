@@ -7,7 +7,7 @@
 // It also exposes the active tag-whisper: when the caret sits in a "#…" token, we offer
 // matching known tags. A space right after "#" escapes it to a literal "#" text search.
 
-import type { Filter } from "./types";
+import { FLAG_KINDS, type Filter } from "./types";
 import { resolveDatePhrase, DATE_PHRASES } from "./dates";
 import { normTag } from "./evaluate";
 
@@ -185,21 +185,23 @@ function longestKnownTagPrefix(rest: string, ctx: ParseContext): string | null {
 }
 
 function detectFlags(input: string, claims: Claim[]): void {
-  const re = /\bpinned\b/gi;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(input))) {
-    claims.push({
-      start: m.index,
-      end: m.index + m[0].length,
-      suggestion: {
-        key: "flag:pinned",
-        filter: { kind: "flag", flag: "pinned" },
-        label: "Pinned",
-        query: "pinned",
-        hint: "flag",
-        source: [m.index, m.index + m[0].length],
-      },
-    });
+  for (const flag of FLAG_KINDS) {
+    const re = new RegExp(`\\b${flag}\\b`, "gi");
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(input))) {
+      claims.push({
+        start: m.index,
+        end: m.index + m[0].length,
+        suggestion: {
+          key: `flag:${flag}`,
+          filter: { kind: "flag", flag },
+          label: flag[0].toUpperCase() + flag.slice(1),
+          query: flag,
+          hint: "flag",
+          source: [m.index, m.index + m[0].length],
+        },
+      });
+    }
   }
 }
 
@@ -312,8 +314,9 @@ function fieldLead(sub: string): { field: "created" | "updated"; rest: string; l
 /** Completions for a single normalized fragment. */
 function completionsFor(sub: string, now: number): Suggestion[] {
   const out: Suggestion[] = [];
-  if ("pinned".startsWith(sub) && "pinned" !== sub)
-    out.push({ key: "comp:pinned", filter: { kind: "flag", flag: "pinned" }, label: "pinned", hint: "flag" });
+  for (const flag of FLAG_KINDS)
+    if (flag.startsWith(sub) && flag !== sub)
+      out.push({ key: `comp:${flag}`, filter: { kind: "flag", flag }, label: flag, hint: "flag" });
 
   const lead = fieldLead(sub);
   if (lead) out.push(...datePhraseCompletions(lead.rest, lead.field, lead.labelPrefix, now));
