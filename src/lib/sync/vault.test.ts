@@ -42,6 +42,20 @@ const invoke = vi.fn(async (cmd: string, args?: Record<string, unknown>) => {
       files.delete(args!.rel as string);
       return undefined;
     }
+    // FAST-LOAD bulk commands (src-tauri/src/vault_bulk.rs), emulated over the same map.
+    case "list_notes_bulk": {
+      const ids = [...files.keys()]
+        .filter((k) => /^notes\/[^/]+\.md$/.test(k))
+        .map((k) => k.slice("notes/".length, -3));
+      return ids.map((id) => {
+        const m = files.get(`notes/${id}.meta.json`);
+        return { id, meta: m ? JSON.parse(m) : null, stamp: [0, files.get(`notes/${id}.md`)!.length], md: null };
+      });
+    }
+    case "read_texts_bulk":
+      return (args!.rels as string[]).map((r) => files.get(r) ?? null);
+    case "list_media_bulk":
+      return [...files.keys()].filter((k) => /^media\/[^/]+\/[^/]+$/.test(k));
     default:
       throw new Error(`unhandled invoke: ${cmd}`);
   }
