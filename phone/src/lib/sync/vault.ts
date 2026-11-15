@@ -7,7 +7,7 @@
 // engine.ts (ported in Phase 3) is injected with this vault + a GraphClient and
 // knows nothing about where the bytes actually live.
 
-import { getNote, listNoteMeta, putNote, removeNote } from "../../vaultStore";
+import { getNote, listNoteMeta, putNote, removeNote, vaultReady } from "../../vaultStore";
 import { deleteMedia, getMediaBytes, listMediaKeys, putMedia } from "../media/mediaStore";
 import { loadRawBatch, loadRawBatches, saveRawBatch, deleteRawBatchRecord, type RawMemory } from "../media/rawMemoryStore";
 import { mediaContentType } from "./adapter";
@@ -41,12 +41,17 @@ export interface LocalVault {
   readRawMemory(id: string): Promise<string | null>;
   writeRawMemory(id: string, content: string, times?: WriteTimes): Promise<void>;
   deleteRawMemory(id: string): Promise<void>;
+  /** False when the local vault did not load fully (see vaultStore.vaultReady) — sync refuses
+   *  to run rather than read "missing" notes as local deletes. Optional: absent = ready. */
+  isReady?(): boolean;
 }
 
 const STATE_KEY = "pensieve.phone.syncState";
 
 export function phoneVault(): LocalVault {
   return {
+    isReady: vaultReady,
+
     async listNotes() {
       // A form walk-through in progress (`draft`) never syncs as a memory — it leaves the
       // phone as a sealed package on Done (see lib/forms/session packageFromSession).

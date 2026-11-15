@@ -12,6 +12,7 @@ class MemVault implements LocalVault {
   media = new Map<string, Uint8Array>();
   raw = new Map<string, { content: string; updatedAt: number }>();
   state: SyncState = { ...EMPTY_SYNC_STATE, notes: {} };
+  isReady?: () => boolean;
 
   async listNotes(): Promise<LocalNoteInfo[]> {
     return [...this.notes].map(([id, n]) => ({ id, updatedAt: n.updatedAt }));
@@ -294,6 +295,31 @@ describe("phone sync engine", () => {
     const r = await sync(graph, vault);
     expect(r.pushedDeletes).toEqual(["x"]);
     expect(drive.files.has("x.md")).toBe(false);
+  });
+
+  it("a wiped local vault (every note missing) never deletes them from OneDrive", async () => {
+    for (let i = 0; i < 30; i++) vault.edit(`n${i}`, `Body ${i}`, 5);
+    await sync(graph, vault);
+    vault.notes.clear(); // a half-loaded / empty local vault looks exactly like this
+    const r = await sync(graph, vault);
+    expect(r.pushedDeletes).toEqual([]);
+    expect(drive.files.has("n0.md")).toBe(true);
+  });
+
+  it("a handful of real local deletions in a big vault still go through", async () => {
+    for (let i = 0; i < 30; i++) vault.edit(`n${i}`, `Body ${i}`, 5);
+    await sync(graph, vault);
+    for (let i = 0; i < 3; i++) vault.notes.delete(`n${i}`);
+    const r = await sync(graph, vault);
+    expect(r.pushedDeletes.sort()).toEqual(["n0", "n1", "n2"]);
+  });
+
+  it("refuses to sync at all when the local vault did not finish loading", async () => {
+    vault.edit("x", "Body", 5);
+    await sync(graph, vault);
+    vault.isReady = () => false;
+    await expect(sync(graph, vault)).rejects.toThrow(/did not finish loading/);
+    expect(drive.files.has("x.md")).toBe(true);
   });
 
   it("media referenced by a pulled note is downloaded", async () => {

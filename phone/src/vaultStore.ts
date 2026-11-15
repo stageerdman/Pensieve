@@ -156,7 +156,7 @@ function tx<T>(mode: IDBTransactionMode, stores: string[], fn: (t: IDBTransactio
 /** Read the vault from IndexedDB into memory (migrating an older layout once).
  *  Await before the first render. Never throws — on failure the module keeps using
  *  localStorage, i.e. the pre-IndexedDB behaviour. */
-export async function hydrateVault(timeoutMs = 4000): Promise<void> {
+export async function hydrateVault(timeoutMs = 15000): Promise<void> {
   // A wedged IndexedDB must never leave the app on a blank screen: past the timeout we
   // boot on localStorage and IGNORE a late answer (switching stores mid-session would
   // fork the vault).
@@ -424,6 +424,14 @@ export function putNote(note: Note): void {
 export function removeNote(id: string): void {
   if (!recs) return lsPersist(lsLoad().filter((n) => n.id !== id));
   if (recs.delete(id)) markDirty(id);
+}
+
+/** True when the in-memory vault is the real, fully loaded one. False when IndexedDB
+ *  exists but hydration failed or timed out — the app is then running on a fallback
+ *  (possibly EMPTY) copy, and a sync must not run: its "missing locally = deleted locally"
+ *  pass would delete every note from OneDrive. */
+export function vaultReady(): boolean {
+  return recs !== null || typeof indexedDB === "undefined";
 }
 
 /** Test-only: forget the hydrated state so a test starts on the localStorage path. */
