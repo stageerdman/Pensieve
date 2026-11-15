@@ -19,6 +19,11 @@
 // shared by both apps on purpose — see updates/2026-11-12 FORMS wiki.md.
 import { CHARM_LANG, SCALE_LANG, encodeScale, parseScale } from "../../../../src/lib/forms/fences";
 import { PATRONUS_LANG } from "../../../../src/lib/packages/patronus";
+// Callout + columns: the pure fence-text codecs (no deps) are shared too — one format.
+import { CALLOUT_FENCE } from "../../../../src/lib/md/callout";
+import { COLUMNS_FENCE } from "../../../../src/lib/md/columns";
+import { unwrapProseFences } from "../../../../src/lib/md/proseFences";
+export { CALLOUT_FENCE, COLUMNS_FENCE };
 
 /** The fence language carrying an ordered image group (matches src/lib/md/gallery.ts). */
 export const GALLERY_FENCE = "pensieve:gallery";
@@ -83,7 +88,11 @@ export type NoteBlock =
   | { kind: "scale"; anchors: string[]; value?: number }
   | { kind: "charm"; body: string }
   // PACKAGES: the Patronus block (a package's sync spell) — desktop AI only; shown read-only.
-  | { kind: "patronus"; body: string };
+  | { kind: "patronus"; body: string }
+  // A callout box / side-by-side columns (Notion import, desktop `/callout`). Read-only on the
+  // phone; `lines` are the fence's inner lines VERBATIM so a phone save never alters them.
+  | { kind: "callout"; lines: string[] }
+  | { kind: "columns"; lines: string[] };
 
 /** The desktop gallery's dragged display HEIGHT rides an optional leading `h=<px>` fence line
  *  (matches src/lib/md/gallery.ts). The phone ignores it for layout but MUST round-trip it so the
@@ -171,6 +180,11 @@ export function encodePatronusNoteBlock(b: Extract<NoteBlock, { kind: "patronus"
 
 export function encodeCharmNoteBlock(b: Extract<NoteBlock, { kind: "charm" }>): string {
   return "```" + CHARM_LANG + "\n" + b.body + "\n```";
+}
+
+/** A callout / columns block → its fence, inner lines verbatim (byte-identical to desktop). */
+export function encodeProseFenceNoteBlock(b: Extract<NoteBlock, { kind: "callout" | "columns" }>): string {
+  return ["```" + (b.kind === "callout" ? CALLOUT_FENCE : COLUMNS_FENCE), ...b.lines, "```"].join("\n");
 }
 
 /** Serialize a voice recording block → a `pensieve:audio` fence (mirrors desktop's
@@ -325,8 +339,21 @@ export function parseNoteContent(content: string): NoteBlock[] {
   const scaleFenceOpen = "```" + SCALE_LANG;
   const charmFenceOpen = "```" + CHARM_LANG;
   const patronusFenceOpen = "```" + PATRONUS_LANG;
+  const calloutFenceOpen = "```" + CALLOUT_FENCE;
+  const columnsFenceOpen = "```" + COLUMNS_FENCE;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    if (line.trim() === calloutFenceOpen || line.trim() === columnsFenceOpen) {
+      const inner: string[] = [];
+      let j = i + 1;
+      for (; j < lines.length; j++) {
+        if (lines[j].trim() === "```") break;
+        inner.push(lines[j]);
+      }
+      blocks.push({ kind: line.trim() === calloutFenceOpen ? "callout" : "columns", lines: inner });
+      i = j;
+      continue;
+    }
     if (line.trim() === galleryFenceOpen) {
       // collect until the closing ``` (or EOF)
       const inner: string[] = [];
@@ -445,6 +472,7 @@ export function serializeBlocks(blocks: NoteBlock[]): string {
       if (b.kind === "charm") return encodeCharmNoteBlock(b);
       if (b.kind === "patronus") return encodePatronusNoteBlock(b);
       if (b.kind === "journal") return journalMd(b.pages);
+      if (b.kind === "callout" || b.kind === "columns") return encodeProseFenceNoteBlock(b);
       return galleryMd(b.images, b.height);
     })
     .join("\n");
@@ -493,7 +521,8 @@ const PATRONUS_FENCE_BLOCK = new RegExp("```" + PATRONUS_LANG + "[\\s\\S]*?```\\
  *  shows verbatim. The REAL transcript text already leads the body as this Memory's
  *  title (see processRawBatch's deriveTitle) — this only has to not show code underneath it. */
 export function stripMediaForPreview(content: string): string {
-  return (content ?? "")
+  // A callout / columns is prose: preview its text (same helper as the desktop excerpt).
+  return unwrapProseFences(content ?? "")
     .replace(GALLERY_FENCE_BLOCK, "📷 Photos")
     .replace(IMAGE_FENCE_BLOCK, "📷 Photo")
     .replace(AUDIO_FENCE_BLOCK, "🎙️ Recording")

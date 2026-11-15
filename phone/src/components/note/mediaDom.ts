@@ -14,6 +14,8 @@
 // serializes the new body.
 
 import { parsePatronus, spellLabel } from "../../../../src/lib/packages/patronus";
+import { parseCalloutText } from "../../../../src/lib/md/callout";
+import { splitColumns } from "../../../../src/lib/md/columns";
 import { esc, haptic } from "../../util";
 import { appendInline, inlineFromEl, inlineToHtml } from "./inlineMd";
 import {
@@ -24,6 +26,7 @@ import {
   encodeScaleNoteBlock,
   encodeCharmNoteBlock,
   encodePatronusNoteBlock,
+  encodeProseFenceNoteBlock,
   galleryMd,
   journalMd,
   mediaAlt,
@@ -67,6 +70,14 @@ function writeBlock(el: HTMLElement, block: NoteBlock) {
  *  negating it doesn't narrow the operand to `never`.) */
 export function isMediaEl(node: Node | null): boolean {
   return !!node && node instanceof HTMLElement && node.classList.contains("ph-media");
+}
+
+/** A media block that newly picked photos may MERGE into (a single image or a gallery) —
+ *  never a callout/recording/form block, which mergeInto would overwrite with a gallery. */
+function isImageMediaEl(node: HTMLElement | null): boolean {
+  if (!isMediaEl(node)) return false;
+  const k = readBlock(node!)?.kind;
+  return k === "image" || k === "gallery";
 }
 
 /** Drop focus off the contentEditable body so iOS dismisses the keyboard (used when opening the
@@ -815,14 +826,77 @@ function buildBlockEl(block: NoteBlock, ctx: MediaCtx, noteBody: HTMLElement): H
   if (block.kind === "audio") return buildAudioEl(block, ctx);
   if (block.kind === "video") return buildVideoEl(block, ctx);
   if (block.kind === "journal") return buildJournalEl(block, ctx);
-  // text
+  if (block.kind === "callout") return buildCalloutEl(block);
+  if (block.kind === "columns") return buildColumnsEl(block);
+  return buildTextEl(block.text);
+}
+
+function buildTextEl(text: string): HTMLElement {
   const div = document.createElement("div");
-  div.innerHTML = block.text.trim() ? inlineToHtml(block.text) : "<br>";
+  div.innerHTML = text.trim() ? inlineToHtml(text) : "<br>";
   // A blank markdown line is a paragraph SEPARATOR on the desktop, not an empty row — shown
   // as a short gap (ph-sep) so a desktop memory's spacing matches; the desktop's own empty
   // paragraph (a lone zero-width space) stays a full empty row.
-  if (!block.text.trim()) div.className = "ph-sep";
+  if (!text.trim()) div.className = "ph-sep";
   return div;
+}
+
+// ---- callout + columns (read-only; edited on the computer) ----
+//
+// The fence's inner lines ride `data-media` verbatim, so a phone save writes them back
+// byte-for-byte. The body is shown through the SAME text/list rendering as the note itself
+// (parseNoteContent), just inside a box — no editing, no drag grip, ticks don't toggle.
+
+/** Render a run of body markdown (text, lists, images) read-only into `host`. */
+function appendProse(host: HTMLElement, md: string) {
+  for (const b of parseNoteContent(md)) {
+    if (b.kind === "list") host.appendChild(buildListGroup(b.items));
+    else if (b.kind === "text") host.appendChild(buildTextEl(b.text));
+    else if (b.kind === "image") {
+      const img = document.createElement("img");
+      img.className = "ph-prose-img";
+      img.alt = mediaAlt(b.caption);
+      img.draggable = false;
+      attachImg(img, b.ref);
+      wireMediaTap(img, () => void resolveAll([{ ref: b.ref, caption: b.caption }]).then((items) => phoneLightbox.open(items, 0)));
+      host.appendChild(img);
+    }
+    // (a callout/columns body never holds a fence — the importer guarantees it)
+  }
+}
+
+function buildCalloutEl(block: Extract<NoteBlock, { kind: "callout" }>): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "ph-media ph-callout";
+  el.contentEditable = "false";
+  writeBlock(el, block);
+  const { icon, body } = parseCalloutText(block.lines.join("\n"));
+  if (icon) {
+    const i = document.createElement("span");
+    i.className = "ph-callout-icon";
+    i.setAttribute("aria-hidden", "true");
+    i.textContent = icon;
+    el.appendChild(i);
+  }
+  const text = document.createElement("div");
+  text.className = "ph-callout-body";
+  appendProse(text, body);
+  el.appendChild(text);
+  return el;
+}
+
+function buildColumnsEl(block: Extract<NoteBlock, { kind: "columns" }>): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "ph-media ph-columns";
+  el.contentEditable = "false";
+  writeBlock(el, block);
+  for (const col of splitColumns(block.lines.join("\n"))) {
+    const c = document.createElement("div");
+    c.className = "ph-column";
+    appendProse(c, col);
+    el.appendChild(c);
+  }
+  return el;
 }
 
 /** Build the whole note body DOM from a Note's title + content (replaces the inline
@@ -887,6 +961,7 @@ export function serializeNoteBody(noteBody: HTMLElement): { title: string; conte
       else if (b?.kind === "scale") parts.push(encodeScaleNoteBlock(b));
       else if (b?.kind === "charm") parts.push(encodeCharmNoteBlock(b));
       else if (b?.kind === "patronus") parts.push(encodePatronusNoteBlock(b));
+      else if (b?.kind === "callout" || b?.kind === "columns") parts.push(encodeProseFenceNoteBlock(b));
     } else if (el.tagName === "UL" || el.tagName === "OL") {
       parts.push(serializeListEl(el).join("\n"));
     } else {
@@ -919,7 +994,7 @@ export function insertImages(noteBody: HTMLElement, images: MediaImage[], ctx: M
 
   if (!opts?.newBlock) {
     // 1) anchor IS a media block → merge into it.
-    if (anchor && isMediaEl(anchor)) {
+    if (anchor && isImageMediaEl(anchor)) {
       mergeInto(anchor, images, ctx, noteBody);
       return;
     }
@@ -927,11 +1002,11 @@ export function insertImages(noteBody: HTMLElement, images: MediaImage[], ctx: M
     if (isBlank(anchor)) {
       const prev = anchor!.previousElementSibling as HTMLElement | null;
       const next = anchor!.nextElementSibling as HTMLElement | null;
-      if (isMediaEl(prev)) {
+      if (isImageMediaEl(prev)) {
         mergeInto(prev!, images, ctx, noteBody);
         return;
       }
-      if (isMediaEl(next)) {
+      if (isImageMediaEl(next)) {
         mergeInto(next!, images, ctx, noteBody);
         return;
       }
@@ -1072,7 +1147,7 @@ export function installBlockDrag(noteBody: HTMLElement, ctx: MediaCtx) {
     const rel = r.height ? (y - r.top) / r.height : 0.5;
     const draggingImage = readBlock(st.el)?.kind === "image";
     // Middle of a media block while dragging an image → MERGE into it.
-    if (draggingImage && isMediaEl(block) && rel > 0.3 && rel < 0.7) {
+    if (draggingImage && isImageMediaEl(block) && rel > 0.3 && rel < 0.7) {
       block.classList.add("drop-merge");
       st.target = block;
       st.mode = "merge";
