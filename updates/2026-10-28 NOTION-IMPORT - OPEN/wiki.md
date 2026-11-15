@@ -85,3 +85,34 @@ file/PDF block, no callout, no columns.
 
 Relations are rarely used (People 27, Skills 4, Self-Mastery 1) → cheap to flatten or drop;
 only Result(s) (145) and Categories-DB (79) are worth a decision.
+
+## P5 mapping spec — DECIDED by owner 2026-11-15
+
+**Categories (Cags → Pensieve, multi-Cags keeps every distinct mapped value):**
+| Notion Cags | Pensieve |
+|---|---|
+| 📄Execution · 🏆 Goal / Desire · 📇Database · 📙 Notes & Lessons | Execution |
+| 🧠 In my mind · 🎞️ Memory Capture · 💬 About others · 💤Dream · ⚖️ Decision · 📚 Book · *(blank)* | Journal |
+| 💡Ideas | Idea |
+
+**Tags:** Dags → only the vocabulary threads (`tags.json` + merges in TAGS `notion-threads.json`,
+e.g. `@🟣CANI` → `@CANI`). All descriptive Dags dropped.
+**CANI Reports (433):** ordinary memories, Execution + `@CANI`.
+**Result(s) (145 notes → 58 pages in a separate Results DB):** NOT imported as notes. Keep the
+Notion URLs as plain links in the note, and give those notes an extra category
+**"Notion Links"** so they can be found and dealt with later.
+**Page→page references** (Pensieve (self) + in-body links to pages inside the export) → real
+Pensieve refs: `{@noteId|title}` inline + the note's `links` list. Two-pass import (assign ids
+to all pages first, then rewrite links).
+**Dropped:** People, Skills, Self Mastery Skills, Source(s), Specific Source(s), Categories-DB
+relation, Status, Core Point, Life Stage.
+**Highlight:** ⭐ → `starred`, 📌 → `pinned`. **Date Overwrite** → `createdAt`
+(Notion `Created time` → `addedAt`).
+**Body content:** YouTube/video embeds → plain URL · multiple uploaded images → downloaded
+into the vault; consecutive images → gallery block, images placed between text stay inline
+images · synced block → its text only · PDF / file attachments → skipped, and the affected
+notes listed for the owner · columns / callouts → content kept, wrapped in a
+`pensieve:`-style marker so they can be rendered properly later.
+
+**Export:** first zip (2026-11-15) was CSV-only (3 files, no bodies/images) — re-export as
+Markdown & CSV, Everything, subpages + folders on.
