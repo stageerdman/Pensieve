@@ -52,6 +52,8 @@ pub struct GetNoteInput {
 pub struct ListRecentInput {
     /// How many notes to return, most recently updated first. Omit for the default of 20.
     pub limit: Option<usize>,
+    /// Only notes that have no tags yet (e.g. to tag recent untagged entries when asked).
+    pub untagged_only: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -78,7 +80,10 @@ pub struct EditNoteInput {
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct AddTagInput {
     pub id: String,
+    /// An existing tag from list_tags (any case is fine — the existing spelling is kept).
     pub tag: String,
+    /// Start a NEW thread. Only set this after the owner explicitly agreed to this new tag.
+    pub create: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -115,10 +120,12 @@ impl PensieveServer {
         description = "List the most recently updated notes (id, title, categories, tags, and a short excerpt only — not the full body). Use this to see what's been written lately, or as a starting point before get_note. Always safe to call."
     )]
     async fn list_recent(&self, Parameters(input): Parameters<ListRecentInput>) -> Result<CallToolResult, McpError> {
-        ok_json(&tools::list_recent(&paths::vault_root(), input.limit))
+        ok_json(&tools::list_recent(&paths::vault_root(), input.limit, input.untagged_only.unwrap_or(false)))
     }
 
-    #[tool(description = "List every tag used anywhere in the vault. Always safe to call.")]
+    #[tool(
+        description = "List the tag vocabulary: every tag (thread) with its one-line definition (what belongs in it) and how many notes use it, most-used first. In Pensieve a tag is a THREAD — something the owner will deliberately pull up later (a project like @CANI, a practice, a focus area to study one day) — never a description of the note. Always safe to call."
+    )]
     async fn list_tags(&self) -> Result<CallToolResult, McpError> {
         ok_json(&tools::list_tags(&paths::vault_root()))
     }
@@ -144,10 +151,12 @@ impl PensieveServer {
         }
     }
 
-    #[tool(description = "Add a single tag to an existing note by id, leaving its other tags and body unchanged.")]
+    #[tool(
+        description = "Add one tag (thread) to a note by id, leaving its other tags and body unchanged. ONLY use this when the owner has asked you to tag notes. Rules: a tag is a thread the owner will pull up later, not a description. (1) Reuse tags from list_tags — read their definitions and pick only threads the note genuinely belongs to; most notes need 0–2. (2) Never add a tag whose words already appear in the note's text or that just names its topic — plain search already finds those. (3) Never invent near-duplicates. (4) An unknown tag is refused: to start a new thread, first propose it to the owner with your reason and the notes it would gather, and only after they agree call again with create: true. Tell the owner afterwards exactly which notes you tagged with what."
+    )]
     async fn add_tag(&self, Parameters(input): Parameters<AddTagInput>) -> Result<CallToolResult, McpError> {
-        match tools::add_tag(&paths::vault_root(), &input.id, &input.tag) {
-            Ok(()) => ok_json(&serde_json::json!({ "ok": true })),
+        match tools::add_tag(&paths::vault_root(), &input.id, &input.tag, input.create.unwrap_or(false)) {
+            Ok(tag) => ok_json(&serde_json::json!({ "ok": true, "tag": tag })),
             Err(message) => Ok(CallToolResult::success(vec![ContentBlock::text(message)])),
         }
     }

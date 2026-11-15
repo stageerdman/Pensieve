@@ -425,6 +425,9 @@ body {
 .sync-rune[data-state="offline"] {
   color: hsl(var(--danger));
 }
+.sync-rune[data-state="flash"] {
+  color: hsl(var(--success)); /* brief "just synced" — same as the desktop rune */
+}
 .wheel-label {
   position: absolute;
   left: 0;
@@ -1170,6 +1173,15 @@ body {
   color: hsl(var(--text));
 }
 /* checklist item: a hollow/filled box glyph in place of the bullet marker. */
+/* A blank markdown line between paragraphs (see buildBlockEl): a short gap, not a full
+   empty row — matches the desktop's paragraph spacing. Once typed in, it's a normal row. */
+.note-body > .ph-sep:has(> br:only-child) {
+  height: 0.5em;
+  overflow: hidden;
+}
+.note-body strong {
+  font-weight: 650;
+}
 .note-body li.ph-check-item {
   list-style: none;
   display: flex;
@@ -2474,5 +2486,11 @@ body {
   }
   .lemniscate {
     animation: none !important;
+  }
+  /* The ONE exception: the sync rune keeps flowing while a sync runs — a small, slow
+     stroke, and the owner explicitly wants to SEE that a sync is happening (with
+     iPhone "Reduce Motion" on it only glowed, a still "S"). */
+  .sync-rune[data-state="syncing"] .lemniscate {
+    animation: sync-flow 1.1s linear infinite !important;
   }
 }

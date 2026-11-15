@@ -16,6 +16,7 @@ import { haptic } from "../../util";
 import { SpellGlyph } from "./SpellGlyph";
 import type { CenterKind, MenuHue } from "../../hooks/useSpellMenu";
 import type { SyncStatus } from "../../lib/wand/syncMachine";
+import type { SyncRuneState } from "../../hooks/useSyncFlash";
 
 const HOLD_MS = 500; // long-press (Write = speak) — matches iOS default
 const DRAG_THRESHOLD = 11; // px before a press becomes a spin (thumb-drift taps still register)
@@ -80,6 +81,8 @@ export interface SpellRingProps extends SpellRingHandlers {
   reduce: boolean;
   /** drives the Sync node's rune colour/animation (see SpellGlyph). */
   syncState: SyncStatus;
+  /** What the Sync node's rune SHOWS (status + the brief green flash); defaults to syncState. */
+  runeState?: SyncRuneState;
 }
 
 function glyphTransform(pos: GlyphPos): string {
@@ -87,7 +90,7 @@ function glyphTransform(pos: GlyphPos): string {
 }
 
 export function SpellRing(props: SpellRingProps) {
-  const { spells, hue, center, scrollPos, conditional, reduce, syncState } = props;
+  const { spells, hue, center, scrollPos, conditional, reduce, syncState, runeState } = props;
   const n = spells.length;
   const spinnable = n > 1;
   const spacing = ringSpacing(n);
@@ -449,7 +452,7 @@ export function SpellRing(props: SpellRingProps) {
                 aria-disabled={spell.disabled || undefined}
                 onClick={() => activate(i)}
               >
-                <SpellGlyph icon={spell.icon} size={30} syncState={syncState} />
+                <SpellGlyph icon={spell.icon} size={30} syncState={runeState ?? syncState} />
                 {spell.children?.length ? <span className="spell-has-more" aria-hidden="true" /> : null}
                 {spell.longPress ? <span className="spell-hold-hint" aria-hidden="true" /> : null}
               </button>

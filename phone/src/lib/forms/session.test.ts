@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { DAILY_REVIEW } from "../../../../src/lib/forms/dailyReview.fixture";
-import { parseForm, answerText, isAwaitingProcessing, fromFormId } from "../../../../src/lib/forms";
-import { splitTitleAndBody, noteToRemoteContent, parseFrontmatter } from "../sync/noteFormat";
-import { applySession, finishSession, formsIn, mediaBlocksOf, sessionHasContent, sessionMarkdown, startSession, answerShape } from "./session";
+import { parseForm, answerText } from "../../../../src/lib/forms";
+import { splitTitleAndBody } from "../sync/noteFormat";
+import { applySession, formsIn, mediaBlocksOf, packageFromSession, sessionHasContent, sessionMarkdown, startSession, answerShape, templateSpell } from "./session";
 import type { Note } from "../../types";
 
 const { title, body } = splitTitleAndBody(DAILY_REVIEW);
@@ -24,6 +24,7 @@ describe("phone form session", () => {
     expect(s.base.split("\n")[0]).toBe("Daily Review — Thu 12 Nov");
     expect(s.fields).toHaveLength(9);
     expect(s.base).not.toContain("pensieve:charm");
+    expect(s.base).not.toContain("pensieve:patronus");
   });
 
   it("editing an answer REPLACES it (the body is rebuilt, never appended twice)", () => {
@@ -63,14 +64,18 @@ describe("phone form session", () => {
     expect(sessionHasContent(blankNote(), {})).toBe(false);
   });
 
-  it("Done marks it awaiting the desktop, from this form — and it syncs that way", () => {
+  it("Done seals it into a package: same id, its media, the sync spell last; never a synced memory", async () => {
     const note = blankNote();
     applySession(note, s, { [ids[0]]: { scale: 3 } });
-    finishSession(note, s);
-    expect(isAwaitingProcessing(note.foreign?.extra)).toBe(true);
-    expect(fromFormId(note.foreign?.extra)).toBe("form-1");
-    const fm = parseFrontmatter(noteToRemoteContent(note)).fields;
-    expect(fm.extra).toEqual({ fromForm: "form-1", formStatus: "awaiting" });
+    note.c += "\n\n```pensieve:audio\nmedia/s1/take.wav\n```\n\n![](media/s1/photo.jpg)";
+    const pkg = packageFromSession(note, "form-1", "Transcribe in English and fill it in.", 7);
+    expect(pkg).toMatchObject({ id: note.id, status: "synced", kind: "form", fromForm: "form-1", pages: [], updatedAt: 7 });
+    expect(pkg.media).toEqual(["media/s1/take.wav", "media/s1/photo.jpg"]);
+    expect(pkg.markdown!.startsWith("Daily Review — Thu 12 Nov")).toBe(true);
+    expect(pkg.markdown!.endsWith("```pensieve:patronus\nspell: sync\nTranscribe in English and fill it in.\n```")).toBe(true);
+    // a form's own Patronus block is its spell, and is never copied into the walk-through
+    expect(templateSpell({ ...form, c: form.c + "\n\n```pensieve:patronus\nspell: sync\nOnly the King question.\n```" })).toBe("Only the King question.");
+    expect(templateSpell(form)).toBeNull();
   });
 });
 
@@ -79,8 +84,9 @@ describe("reel preview of a form memory", () => {
     const { stripMediaForPreview } = await import("../media/noteMedia");
     const s = startSession(form, "s1", new Date(2026, 10, 12));
     const md = sessionMarkdown(s, { [s.fields[0].id]: { scale: 4 } });
-    const out = stripMediaForPreview(md + "\n\n```pensieve:charm\nname: X\ny\n```");
+    const out = stripMediaForPreview(md + "\n\n```pensieve:charm\nname: X\ny\n```\n\n```pensieve:patronus\nspell: compress\nzz\n```");
     expect(out).toContain("4 · Mini high");
     expect(out).not.toContain("```");
+    expect(out).not.toContain("zz");
   });
 });

@@ -20,6 +20,7 @@ import {
   getQuota,
   listNotes,
   listRawRecords,
+  mediaContentType,
   noteIdFromName,
   rawIdFromItem,
   remoteRootExists,
@@ -34,6 +35,7 @@ import { parseNoteContent } from "../media/noteMedia";
 import { isMediaPath } from "../media/noteMedia";
 import { transcriptRefFor } from "../media/transcript";
 import { log } from "../logger";
+import { setRemoteMediaFetcher } from "../media/mediaStore";
 
 function extractMediaRefs(content: string): string[] {
   const refs: string[] = [];
@@ -46,6 +48,12 @@ function extractMediaRefs(content: string): string[] {
       refs.push(block.ref);
       // Always ASK for the sidecar too — downloadMedia/404 already no-ops cleanly when a
       // recording has no transcript yet, so this is free (no new sync machinery needed).
+      refs.push(transcriptRefFor(block.ref));
+    } else if (block.kind === "video" && isMediaPath(block.ref)) {
+      // Videos were never listed here, so the phone didn't know a note's video existed
+      // (and would re-upload one fetched on demand). The bytes themselves are on-demand
+      // (isOnDemandMedia) — listing the ref marks it as the remote's, not to download now.
+      refs.push(block.ref);
       refs.push(transcriptRefFor(block.ref));
     } else if (block.kind === "journal") {
       // Every processed journal page has its own photo AND its own transcript sidecar
@@ -83,6 +91,15 @@ const emptyResult = (): SyncResult => ({
   lastSyncedAt: 0,
 });
 
+const ON_DEMAND_EXT = new Set(["mp4", "mov", "m4v", "webm", "m4a", "mp3", "wav", "aac", "ogg", "oga", "opus", "caf"]);
+
+/** Video/audio binaries — downloaded when played, not during sync (they can be huge).
+ *  Transcript sidecars (`….json`) and images are still pulled eagerly. */
+export function isOnDemandMedia(ref: string): boolean {
+  const ext = ref.split(".").pop()?.toLowerCase() ?? "";
+  return ON_DEMAND_EXT.has(ext);
+}
+
 /** Download every referenced media binary a pulled note needs but the vault lacks.
  *  Never throws — a flaky download must not abort the whole sync; retried later. */
 async function pullReferencedMedia(
@@ -95,6 +112,13 @@ async function pullReferencedMedia(
 ): Promise<void> {
   for (const ref of referencedRefs) {
     if (have.has(ref)) {
+      media[ref] ??= { ref, backedUp: true };
+      continue;
+    }
+    if (isOnDemandMedia(ref)) {
+      // Video/audio is fetched when played (mediaStore.setRemoteMediaFetcher), not here.
+      // It came from the remote, so record it as backed up — fetching it later must never
+      // trigger a re-upload from the phone.
       media[ref] ??= { ref, backedUp: true };
       continue;
     }
@@ -318,9 +342,10 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
     const remoteTime = item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : nowMs();
     await vault.writeRawMemory(id, dl.content, { updatedAt: remoteTime });
     try {
-      const parsed = JSON.parse(dl.content) as { pages?: unknown };
-      if (Array.isArray(parsed.pages)) {
-        for (const ref of parsed.pages) if (typeof ref === "string") pulledMediaRefs.add(ref);
+      // pages (a Journal batch's photos) AND media (a package's recordings/photos).
+      const parsed = JSON.parse(dl.content) as { pages?: unknown; media?: unknown };
+      for (const list of [parsed.pages, parsed.media]) {
+        if (Array.isArray(list)) for (const ref of list) if (typeof ref === "string") pulledMediaRefs.add(ref);
       }
     } catch {
       log.error("sync", "raw.pull.parse-error", { id });
@@ -498,9 +523,10 @@ export async function restoreFromCloud(graph: GraphClient, vault: LocalVault, on
     const remoteTime = item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : nowMs();
     await vault.writeRawMemory(id, dl.content, { updatedAt: remoteTime });
     try {
-      const parsed = JSON.parse(dl.content) as { pages?: unknown };
-      if (Array.isArray(parsed.pages)) {
-        for (const ref of parsed.pages) if (typeof ref === "string") restoredMediaRefs.add(ref);
+      // pages (a Journal batch's photos) AND media (a package's recordings/photos).
+      const parsed = JSON.parse(dl.content) as { pages?: unknown; media?: unknown };
+      for (const list of [parsed.pages, parsed.media]) {
+        if (Array.isArray(list)) for (const ref of list) if (typeof ref === "string") restoredMediaRefs.add(ref);
       }
     } catch {
       log.error("sync", "raw.restore.parse-error", { id });
@@ -547,6 +573,11 @@ export function createEngine(vault: LocalVault): {
   info(): Promise<{ account: SyncAccount; quota: SyncQuota }>;
 } {
   const graph = makeGraphClient({ getToken: getAccessToken, invalidate: clearTokenCache });
+  // Let the media store fetch video/audio from OneDrive the first time it's played.
+  setRemoteMediaFetcher(async (ref) => {
+    const bytes = await downloadMedia(graph, ref);
+    return bytes ? { bytes, type: mediaContentType(ref) } : null;
+  });
   return {
     run: (onProgress) => sync(graph, vault, onProgress),
     restore: (onProgress) => restoreFromCloud(graph, vault, onProgress),

@@ -12,6 +12,8 @@
 // same as notes). `updatedAt` is stamped on every mutation so sync can tell a local
 // edit from a stale copy, the same way a note's `updatedAt` already drives that.
 
+import type { PackageKind } from "../../../../src/lib/packages/kinds";
+import { recordMediaRefs } from "../../../../src/lib/packages/record";
 import { newId } from "../../vaultStore";
 import { mintMediaRef, registerLocalMedia, deleteMedia } from "./mediaStore";
 
@@ -26,6 +28,12 @@ export interface RawMemory {
   // "older than anything", never as a reason to throw.
   updatedAt?: number;
   pages: string[]; // ordered media refs — media/<id>/<mediaId>.<ext>
+  /** PACKAGES (2026-11-13): a raw record can be a package — see src/lib/packages/record.ts. */
+  kind?: PackageKind;
+  title?: string;
+  fromForm?: string;
+  markdown?: string;
+  media?: string[];
 }
 
 const RAW_PREFIX = "pensieve.phone.raw.";
@@ -152,5 +160,6 @@ export function reorderBatchPages(batch: RawMemory, from: number, to: number): R
  *  removing it from whatever list is driving the UI (mirrors deleteMedia's "just the
  *  bytes" contract; this is the batch-level equivalent). */
 export async function deleteRawBatch(batch: RawMemory): Promise<void> {
-  for (const ref of batch.pages) await deleteMedia(ref);
+  // pages AND a package's recording/photos — the owner deleted it before it was resolved.
+  for (const ref of recordMediaRefs(batch)) await deleteMedia(ref);
 }

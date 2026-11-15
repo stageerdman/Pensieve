@@ -21,13 +21,13 @@ import { blocksToExtendedMd, extendedMdToBlocks } from "../../lib/md/extended";
 import { setNoteLinkOpen, setNoteLinkResolve } from "./noteLink";
 import { editorSchema } from "./editorSchema";
 import { BlockSelectionDecorations } from "./blockSelectionDecorations";
-import { ImagePasteDrop, setImageDropHandlers } from "./media/imagePasteDrop";
+import { ImagePasteDrop, handleImagePaste, setImageDropHandlers } from "./media/imagePasteDrop";
 import { setMediaNoteId } from "./media/mediaContext";
 import { makeUploadFile } from "./media/insertImage";
 import { insertImagesSmart, type GroupEditor } from "./media/insertGroup";
 import { insertVideoFromFile, type InsertEditor as VideoInsertEditor } from "./media/insertVideo";
 import { mediaToast } from "./media/mediaToast";
-import { Image as ImageIcon, Images as ImagesIcon, AudioLines as AudioIcon, VideoIcon, ScaleIcon, Sparkles } from "../icons";
+import { Image as ImageIcon, Images as ImagesIcon, AudioLines as AudioIcon, VideoIcon, ScaleIcon, Deer } from "../icons";
 import { GutterHandle } from "./GutterHandle";
 import { makeSlashMenu } from "./SlashMenu";
 import { useBlockMarquee } from "./useBlockMarquee";
@@ -85,6 +85,10 @@ export function loadBlocksWithoutHistory(editor: LoadableEditor, blocks: unknown
     editor.replaceBlocks(editor.document, blocks);
   });
 }
+
+// A brand-new (empty) note opens on an H1 line, so the first thing typed is the title.
+// Not saved until something is typed (the load is muted by `loading`).
+export const titleStarter = () => [{ type: "heading", props: { level: 1 }, content: [] }];
 
 // The minimal slice of the editor restorePosition needs: the raw ProseMirror view
 // (to set the caret) and focus(). Kept loose so we don't fight BlockNote's generics.
@@ -148,6 +152,7 @@ interface EditorProps {
   onOpenNote: (id: string) => void; // clicking a note link opens it
   savedPosition?: EditorPosition | null; // where we were last writing in this note (if remembered)
   onSavePosition?: (noteId: string, pos: EditorPosition) => void; // report the live position
+  isForm?: boolean; // this memory is a form template — offers /patronus (forms only)
 }
 
 export function Editor({
@@ -160,6 +165,7 @@ export function Editor({
   onOpenNote,
   savedPosition,
   onSavePosition,
+  isForm = false,
 }: EditorProps) {
   // `_tiptapOptions.extensions` is BlockNote's escape hatch to add raw TipTap/ProseMirror
   // extensions — here, the multi-row block-selection highlight (blockSelectionDecorations).
@@ -169,6 +175,8 @@ export function Editor({
     // Phase-0 save flow; uploadFile is BlockNote's own funnel for file selection.
     uploadFile: makeUploadFile(() => selfId),
     _tiptapOptions: { extensions: [BlockSelectionDecorations, ImagePasteDrop] },
+    // An image on the clipboard → our save+insert flow; anything else → BlockNote's default.
+    pasteHandler: ({ event, defaultPasteHandler }) => handleImagePaste(event) || defaultPasteHandler(),
   });
   const loading = useRef(true);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -257,7 +265,7 @@ export function Editor({
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const blocks = await extendedMdToBlocks(editor, markdown);
+      const blocks = markdown.trim() ? await extendedMdToBlocks(editor, markdown) : titleStarter();
       if (cancelled) return;
       loadBlocksWithoutHistory(editor as unknown as LoadableEditor, blocks);
       loading.current = false;
@@ -407,7 +415,7 @@ export function Editor({
                 },
                 // Forms (FORMS update): a form is just a memory with questions in it. A
                 // question is a bold line, a checklist is a to-do list — only the rating and
-                // the charm need their own blocks.
+                // the Patronus spell need their own blocks.
                 {
                   title: "Scale",
                   aliases: ["scale", "rating", "rate", "score", "1-5", "form"],
@@ -420,15 +428,30 @@ export function Editor({
                       props: { anchors: JSON.stringify(["", "", "", "", ""]), value: 0 },
                     } as never),
                 },
-                {
-                  title: "Charm",
-                  aliases: ["charm", "ai", "compress", "command", "spell", "form"],
-                  group: "Form",
-                  icon: <Sparkles size={18} />,
-                  subtext: "A named AI command for this form",
-                  onItemClick: () =>
-                    insertOrUpdateBlockForSlashMenu(editor, { type: "charm", props: { name: "", prompt: "" } } as never),
-                },
+                // Patronus: one AI, one spell (Process on sync / Compress) — picked in the
+                // block. Only in a form: a plain memory has no walk-through to process and
+                // no form to make Compress buttons from.
+                ...(isForm
+                  ? [
+                      {
+                        title: "Patronus",
+                        aliases: ["patronus", "spell", "sync", "process", "compress", "ai", "charm", "form"],
+                        group: "Form",
+                        icon: <Deer size={18} />,
+                        subtext: "An AI spell: Process on sync, or Compress",
+                        onItemClick: () => {
+                          // A form has one sync spell, so a second Patronus starts as Compress.
+                          const hasSync = editor.document.some(
+                            (b) => (b.type as string) === "patronus" && (b.props as { spell?: string }).spell !== "compress",
+                          );
+                          insertOrUpdateBlockForSlashMenu(editor, {
+                            type: "patronus",
+                            props: { spell: hasSync ? "compress" : "sync", instruction: "" },
+                          } as never);
+                        },
+                      },
+                    ]
+                  : []),
               ],
               query,
             );

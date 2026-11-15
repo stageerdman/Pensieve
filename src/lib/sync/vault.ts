@@ -112,10 +112,16 @@ export function tauriVault(): LocalVault {
       const existing = existingRaw ? (JSON.parse(existingRaw) as Meta) : null;
       const { fields, body } = parseFrontmatter(content);
       const now = Date.now();
+      // A note's original date can travel in its frontmatter (`created:` ISO — written by
+      // the Notion importer); prefer it over the remote file's upload time for a new note.
+      const fmCreated = createdFromFrontmatter(fields.extra?.created);
       const meta: Meta = {
+        // Keep every local-only sidecar field (starred, openCount, lastOpenedAt, …) —
+        // only the fields below are derived from the incoming file.
+        ...existing,
         title: titleFromMarkdown(body),
-        createdAt: existing?.createdAt ?? times?.createdAt ?? now,
-        addedAt: existing?.addedAt ?? times?.createdAt ?? now,
+        createdAt: existing?.createdAt ?? fmCreated ?? times?.createdAt ?? now,
+        addedAt: existing?.addedAt ?? fmCreated ?? times?.createdAt ?? now,
         updatedAt: times?.updatedAt ?? now,
         categories: fields.categories,
         tags: fields.tags,
@@ -161,7 +167,10 @@ export function tauriVault(): LocalVault {
     },
 
     async deleteRawMemory(id) {
-      const files = await listDir(`${MEDIA_DIR}/${id}`).catch(() => [] as string[]);
+      // A resolved form PACKAGE became the memory with the SAME id, which owns media/<id>/ now
+      // — only a Journal batch's folder is its own to wipe (see lib/packages/record).
+      const ownedByMemory = (await readText(notePath(id)).catch(() => null)) !== null;
+      const files = ownedByMemory ? [] : await listDir(`${MEDIA_DIR}/${id}`).catch(() => [] as string[]);
       for (const f of files) await removePath(`${MEDIA_DIR}/${id}/${f}`).catch(() => undefined);
       await removePath(rawPath(id));
     },
@@ -207,4 +216,11 @@ export function tauriVault(): LocalVault {
       await downloadMediaChunked(ref, contentUrl, bearerToken, expectedSize);
     },
   };
+}
+
+/** `created:` frontmatter value (ISO date/time) → epoch ms, or undefined if absent/invalid. */
+export function createdFromFrontmatter(raw: string | undefined): number | undefined {
+  if (!raw) return undefined;
+  const ms = Date.parse(raw.replace(/^["']|["']$/g, ""));
+  return Number.isFinite(ms) ? ms : undefined;
 }

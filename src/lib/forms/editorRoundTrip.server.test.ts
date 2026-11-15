@@ -34,13 +34,33 @@ describe("forms through the desktop editor", () => {
     expect(f[4].text).toEqual(["* Helped Tom", "* Called mum"]);
   });
 
-  it("loads the fences as real scale/charm blocks (not code blocks)", async () => {
+  it("loads the fences as real scale/patronus blocks (not code blocks)", async () => {
     const blocks = (await extendedMdToBlocks(editor, DAILY_REVIEW)) as { type: string; props: Record<string, unknown> }[];
     const scale = blocks.find((b) => b.type === "scale");
-    const charm = blocks.find((b) => b.type === "charm");
+    const spell = blocks.find((b) => b.type === "patronus");
     expect(JSON.parse(String(scale?.props.anchors))).toHaveLength(5);
     expect(scale?.props.value).toBe(0);
-    expect(charm?.props).toEqual({ name: "Compress", prompt: "Summarise what mattered across my recent Daily Reviews." });
+    expect(spell?.props).toEqual({ spell: "compress", instruction: "Summarise what mattered across my recent Daily Reviews." });
     expect(blocks.some((b) => b.type === "codeBlock")).toBe(false);
+  });
+
+  it("a legacy charm fence opens as a Patronus Compress spell and saves as one", async () => {
+    const legacy = "Weekly\n\n**How was it?**\n\n```pensieve:charm\nname: Compress\nShrink my week.\n```";
+    const blocks = (await extendedMdToBlocks(editor, legacy)) as { type: string; props: Record<string, unknown> }[];
+    expect(blocks.find((b) => b.type === "patronus")?.props).toEqual({ spell: "compress", instruction: "Shrink my week." });
+    expect((await roundTrip(legacy)).trimEnd()).toBe(legacy.replace("pensieve:charm\nname: Compress", "pensieve:patronus\nspell: compress"));
+  });
+});
+
+describe("the Patronus block through the desktop editor", () => {
+  const FORM = DAILY_REVIEW + "\n\n```pensieve:patronus\nspell: sync\nI speak English. Fill only what I said.\n```";
+  it("loads as a real patronus block and round-trips byte-for-byte", async () => {
+    const blocks = (await extendedMdToBlocks(editor, FORM)) as { type: string; props: Record<string, unknown> }[];
+    expect(blocks.find((b) => b.type === "patronus" && b.props.spell === "sync")?.props.instruction).toBe("I speak English. Fill only what I said.");
+    expect((await roundTrip(FORM)).trimEnd()).toBe(FORM);
+  });
+  it("a memory made from the form leaves it out (it lives in the form + each phone package)", () => {
+    expect(instantiate(FORM)).not.toContain("pensieve:patronus");
+    expect(parseForm(instantiate(FORM)).fields.map((f) => f.id)).toEqual(parseForm(DAILY_REVIEW).fields.map((f) => f.id));
   });
 });

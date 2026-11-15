@@ -255,6 +255,19 @@ export const ScaleIcon = (p: IconProps) =>
     p,
   );
 
+/** A stag's head — Patronus (the AI that casts a form's spells). */
+export const Deer = (p: IconProps) =>
+  svg(
+    <>
+      <path d="M9.5 11c0-1.4 1.1-2 2.5-2s2.5.6 2.5 2l-1.2 7.2c-.2 1-.7 1.8-1.3 1.8s-1.1-.8-1.3-1.8L9.5 11Z" />
+      <path d="M9.6 11.2C7.8 11.6 6.2 11 5.5 9.8c1.5-.4 3.1 0 4.1 1.4" />
+      <path d="M14.4 11.2c1.8.4 3.4-.2 4.1-1.4-1.5-.4-3.1 0-4.1 1.4" />
+      <path d="M10.8 9.1C10.4 6.8 9 5.2 6.5 4.2M8.6 6.2 8.8 3.4M7.3 5 4.6 5.6" />
+      <path d="M13.2 9.1c.4-2.3 1.8-3.9 4.3-4.9M15.4 6.2l-.2-2.8M16.7 5l2.7.6" />
+    </>,
+    p,
+  );
+
 export const Sparkles = (p: IconProps) =>
   svg(
     <>

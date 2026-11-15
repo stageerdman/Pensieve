@@ -68,3 +68,65 @@ without asking the owner when P5 starts:
   Specific Sources — Pensieve only models note-to-note `links`, not typed
   relations to a separate entity database. Flatten to tags? Drop? Build real
   typed relations (bigger scope)? Unresolved.
+
+## Readiness re-check — 2026-11-15
+
+Live counts (SQL over the data source, 2,002 entries, 2023-08-10 → today, +23 since the
+Oct survey): Dags on 1,363 · Source(s) 592 · Core Point 181 · Result(s) 145 · ⭐ 119 ·
+Date Overwrite 79 · Categories-DB relation 79 · Life Stage 36 · People 27 · Pensieve(self)
+links 22 · Specific Source(s) 15 · 📌 6 · Skill(s) 4 · Self-Mastery 1 · no Cags 113.
+
+**Correction — bodies are NOT text-only.** A 6-page spread sample found: a PDF attachment
+(`<file>`), 5 uploaded images in one page, a YouTube embed (`<video>`), a synced-block
+reference, an inline child database, plus callouts / toggles / columns / quotes / to-dos and
+a 155K-char page. Notion-hosted files (`notion-file-block://`) must be downloaded at import
+time (signed URLs expire). Pensieve has image/gallery/video/audio/toggle blocks but no generic
+file/PDF block, no callout, no columns.
+
+Relations are rarely used (People 27, Skills 4, Self-Mastery 1) → cheap to flatten or drop;
+only Result(s) (145) and Categories-DB (79) are worth a decision.
+
+## P5 mapping spec — DECIDED by owner 2026-11-15
+
+**Categories (Cags → Pensieve, multi-Cags keeps every distinct mapped value):**
+| Notion Cags | Pensieve |
+|---|---|
+| 📄Execution · 🏆 Goal / Desire · 📇Database · 📙 Notes & Lessons | Execution |
+| 🧠 In my mind · 🎞️ Memory Capture · 💬 About others · 💤Dream · ⚖️ Decision · 📚 Book · *(blank)* | Journal |
+| 💡Ideas | Idea |
+
+**Tags:** Dags → only the vocabulary threads (`tags.json` + merges in TAGS `notion-threads.json`,
+e.g. `@🟣CANI` → `@CANI`). All descriptive Dags dropped.
+**CANI Reports (433):** ordinary memories, Execution + `@CANI`.
+**Result(s) (145 notes → 58 pages in a separate Results DB):** NOT imported as notes. Keep the
+Notion URLs as plain links in the note, and give those notes an extra category
+**"Notion Links"** so they can be found and dealt with later.
+**Page→page references** (Pensieve (self) + in-body links to pages inside the export) → real
+Pensieve refs: `{@noteId|title}` inline + the note's `links` list. Two-pass import (assign ids
+to all pages first, then rewrite links).
+**Dropped:** People, Skills, Self Mastery Skills, Source(s), Specific Source(s), Categories-DB
+relation, Status, Core Point, Life Stage.
+**Highlight:** ⭐ → `starred`, 📌 → `pinned`. **Date Overwrite** → `createdAt`
+(Notion `Created time` → `addedAt`).
+**Body content:** YouTube/video embeds → plain URL · multiple uploaded images → downloaded
+into the vault; consecutive images → gallery block, images placed between text stay inline
+images · synced block → its text only · PDF / file attachments → skipped, and the affected
+notes listed for the owner · columns / callouts → content kept, wrapped in a
+`pensieve:`-style marker so they can be rendered properly later.
+
+**Export:** first zip (2026-11-15) was CSV-only (3 files, no bodies/images) — re-export as
+Markdown & CSV, Everything, subpages + folders on.
+
+## Importer lessons (2026-11-15)
+- **Write the editor's canonical form.** Notes are built as BlockNote blocks and serialized
+  with the app's own `blocksToExtendedMd` (server-side editor), then load→save looped until
+  stable. Without that loop 10/35 notes differed on whitespace (trailing spaces, space after a
+  hard break) — harmless, but the editor would rewrite every note on first open.
+  `importer/verify.ts` re-checks every note.
+- **Uploaded videos exist** in Notion bodies (not just YouTube embeds) → kept as real
+  `pensieve:video` blocks. They are big: the first fetch "hung" on a page with two uploaded
+  videos. Downloads get a 20-min timeout; API calls 30 s with retry.
+- **Empty callouts** are Notion "write here" boxes (Hour of Power template) → blank line, not
+  an empty `pensieve:callout` fence.
+- Result-page titles come from the owner's CSV export (`staging/csv/`), since the Results DB
+  isn't shared with the integration.

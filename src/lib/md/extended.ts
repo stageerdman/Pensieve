@@ -137,7 +137,7 @@ import { encodeImageGroupBlock, isImageGroupBlock, reconstructGalleryFence } fro
 import { encodeAudioBlock, isAudioBlock, reconstructAudioFence } from "./audio";
 import { encodeVideoBlock, isVideoBlock, reconstructVideoFence } from "./video";
 import { encodeJournalBlock, isJournalBlock, reconstructJournalFence } from "./journal";
-import { encodeCharmBlock, encodeScaleBlock, isCharmBlock, isScaleBlock, reconstructFormFence } from "./formBlocks";
+import { encodePatronusBlock, encodeScaleBlock, isPatronusBlock, isScaleBlock, reconstructFormFence } from "./formBlocks";
 
 const LIST_TYPES = new Set(["bulletListItem", "numberedListItem", "checkListItem"]);
 
@@ -204,9 +204,9 @@ async function encodeStructure(editor: MdEditor, blocks: Block[]): Promise<Block
     } else if (isScaleBlock(b)) {
       // A form's rating → pensieve:scale fence (see lib/md/formBlocks, lib/forms/fences).
       out.push(encodeScaleBlock(b));
-    } else if (isCharmBlock(b)) {
-      // A form's named AI command → pensieve:charm fence.
-      out.push(encodeCharmBlock(b));
+    } else if (isPatronusBlock(b)) {
+      // A form's Patronus spell (Process on sync / Compress) → pensieve:patronus fence.
+      out.push(encodePatronusBlock(b));
     } else if (isVideoBlock(b)) {
       // Same shape as audio — url → ref on a pensieve:video fence; its transcript sidecar
       // is keyed off the same ref, so it's reused unchanged (see lib/md/video).

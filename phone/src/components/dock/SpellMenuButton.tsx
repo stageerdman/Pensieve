@@ -1,17 +1,15 @@
 // SpellMenuButton.tsx — the golden "Orbit" button that opens the Spell Menu.
 //
-// The one gold element in a cool dock, so it reads as THE opener. It carries the
-// aggregate sync status as an attention-only dot (home has no free cell for a sync spell):
-// warn while syncing, danger when failed/offline; benign "pending" shows nothing.
+// The one gold element in a cool dock, so it reads as THE opener.
+// DESIGN RULE (owner, non-negotiable): this button carries NOTHING extra — no status
+// dot, no badge, no sync rune, no indicator of any kind next to or on it. Sync status
+// lives in the Sync spell inside the menu, never on the button.
 
-import type { SyncBadge } from "../../lib/spells/types";
 import { SpellGlyph } from "../spellmenu/SpellGlyph";
 
-export function SpellMenuButton({ onOpen, badge }: { onOpen: () => void; badge?: SyncBadge }) {
-  const alert =
-    badge === "syncing" ? "warn" : badge === "failed" || badge === "offline" ? "danger" : undefined;
+export function SpellMenuButton({ onOpen }: { onOpen: () => void }) {
   return (
-    <button type="button" className="spell-fab" aria-label="Open spell menu" onClick={onOpen} data-alert={alert}>
+    <button type="button" className="spell-fab" aria-label="Open spell menu" onClick={onOpen}>
       <SpellGlyph icon="menu" size={44} />
     </button>
   );

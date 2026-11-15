@@ -3,8 +3,9 @@ import { createRoot } from "react-dom/client";
 import { PhoneApp, RECENTS_KEY } from "./PhoneApp";
 import { AuthCallback } from "./AuthCallback";
 import { isAuthCallback } from "./lib/sync/connect";
-import { clearVault } from "./vaultStore";
+import { clearVault, hydrateVault } from "./vaultStore";
 import { clearAllMedia } from "./lib/media/mediaStore";
+import { registerServiceWorker } from "./lib/pwa/registerServiceWorker";
 import "./styles/index.css";
 import "./styles/wand.css";
 import "./styles/dock.css";
@@ -32,10 +33,15 @@ function ensureFreshStart(): void {
   }
 }
 
-ensureFreshStart();
+registerServiceWorker();
 
-// The OneDrive OAuth redirect lands back on this same origin at /auth/callback — a
-// full page load, not a client-side route. Handle it BEFORE the Wand ever mounts.
-createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>{isAuthCallback() ? <AuthCallback /> : <PhoneApp />}</React.StrictMode>,
-);
+// Notes live in IndexedDB (see vaultStore): read them into memory before the first
+// render so every synchronous loadVault() sees the real vault.
+void hydrateVault().then(() => {
+  ensureFreshStart();
+  // The OneDrive OAuth redirect lands back on this same origin at /auth/callback — a
+  // full page load, not a client-side route. Handle it BEFORE the Wand ever mounts.
+  createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>{isAuthCallback() ? <AuthCallback /> : <PhoneApp />}</React.StrictMode>,
+  );
+});

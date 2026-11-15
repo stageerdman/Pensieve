@@ -140,3 +140,12 @@ Known gaps: a session killed mid-recording is recovered by the voice engine but 
 
 - 2026-11-13: **Phase 5 verified against the real CLI** (`spike-p5/`), merged to main `142813e`,
   `tauri:build` installed. Owner phone→desktop pass owed. NB the claude CLI sign-in expires by 2026-11-16.
+
+### 2026-11-15 — Charm folded into Patronus (owner decision)
+Charm and Patronus were the same thing: an AI instruction in a form. Now ONE block — **Patronus +
+a spell** picked from the available spells: **Process on sync** (runs by itself when a phone
+walk-through arrives — the old Patronus block) or **Compress** (memories made from the form get a
+Compress button — the old charm). Stored as `pensieve:patronus` with `spell: sync|compress`; a
+legacy `pensieve:charm` fence still loads (as a Compress spell) and saves in the new form.
+`/patronus` (deer icon) is offered only in a form; `/charm` is gone. `parseForm().charms` now
+lists the button spells (Compress) — Phase 6 builds the button from that list.

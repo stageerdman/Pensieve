@@ -76,6 +76,10 @@ export function conditionalSpells(context: PageContext): Spell[] {
   // A Raw Memory's detail sheet: batch-level actions, same ring-not-button convention
   // as every other context (wiki.md "C" — the first prototype got this wrong with a
   // flat "Delete whole batch" button, corrected here).
+  // A sealed form package's preview: it isn't a memory yet — Delete is the only thing to do.
+  if (context === "package") {
+    return [{ id: "raw-delete", name: "Delete", icon: "trash", hue: "danger" }];
+  }
   if (context === "raw-detail") {
     return [
       { id: "raw-add", name: "Add pages", icon: "camera" },

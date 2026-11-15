@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote } from "@blocknote/react";
 import { undoDepth } from "@tiptap/pm/history";
-import { loadBlocksWithoutHistory } from "./Editor";
+import { loadBlocksWithoutHistory, titleStarter } from "./Editor";
 
 if (!window.matchMedia) {
   // jsdom lacks matchMedia; Mantine (BlockNote's UI) needs it to mount.
@@ -55,5 +55,31 @@ describe("loadBlocksWithoutHistory — ⌘Z can never wipe a loaded note", () =>
     });
     cleanup();
     expect(depth).toBe(1); // one ⌘Z here would revert the load → blank note
+  });
+});
+
+describe("titleStarter — a new note opens on an H1 title line", () => {
+  it("loads as a single empty level-1 heading, with no undo step", () => {
+    let first: { type: string; props: { level?: number } } | undefined;
+    let depth = -1;
+    function Starter() {
+      const editor = useCreateBlockNote();
+      const once = useRef(false);
+      useEffect(() => {
+        if (once.current) return;
+        once.current = true;
+        loadBlocksWithoutHistory(editor as never, titleStarter() as never[]);
+        first = editor.document[0] as never;
+        depth = undoDepth(editor.prosemirrorView!.state);
+      });
+      return <BlockNoteView editor={editor} />;
+    }
+    act(() => {
+      render(<Starter />);
+    });
+    cleanup();
+    expect(first?.type).toBe("heading");
+    expect(first?.props.level).toBe(1);
+    expect(depth).toBe(0);
   });
 });

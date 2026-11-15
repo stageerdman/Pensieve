@@ -13,7 +13,9 @@
 // reorder, merge) updates the payload + rebuilds visuals + calls ctx.onChange() so autosave
 // serializes the new body.
 
+import { parsePatronus, spellLabel } from "../../../../src/lib/packages/patronus";
 import { esc, haptic } from "../../util";
+import { appendInline, inlineFromEl, inlineToHtml } from "./inlineMd";
 import {
   collapseImages,
   encodeAudioNoteBlock,
@@ -21,6 +23,7 @@ import {
   encodeVideoNoteBlock,
   encodeScaleNoteBlock,
   encodeCharmNoteBlock,
+  encodePatronusNoteBlock,
   galleryMd,
   journalMd,
   mediaAlt,
@@ -701,6 +704,29 @@ function buildScaleEl(block: Extract<NoteBlock, { kind: "scale" }>, ctx: MediaCt
   return el;
 }
 
+/** The Patronus block (a form's/package's AI spell): a small breathing orb, "Patronus · <spell>",
+ *  and the instruction — read-only; Patronus only runs on the computer. */
+function buildPatronusEl(block: Extract<NoteBlock, { kind: "patronus" }>): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "ph-media ph-patronus";
+  el.contentEditable = "false";
+  writeBlock(el, block);
+  const head = document.createElement("div");
+  head.className = "ph-patronus-head";
+  const orb = document.createElement("span");
+  orb.className = "ph-patronus-orb";
+  orb.setAttribute("aria-hidden", "true");
+  const p = parsePatronus(block.body);
+  const label = document.createElement("span");
+  label.textContent = `Patronus · ${spellLabel(p.spell)}`;
+  head.append(orb, label);
+  const spell = document.createElement("div");
+  spell.className = "ph-patronus-spell";
+  spell.textContent = p.instruction;
+  el.append(head, spell);
+  return el;
+}
+
 /** A charm (a named AI command in a form) only runs on the computer — show its name quietly. */
 function buildCharmEl(block: Extract<NoteBlock, { kind: "charm" }>): HTMLElement {
   const el = document.createElement("div");
@@ -745,7 +771,7 @@ function buildListGroup(items: ListItemNode[], ctx?: MediaCtx): HTMLElement {
         });
       }
     }
-    li.appendChild(document.createTextNode(n.text || ""));
+    appendInline(li, n.text || "");
     if (n.children.length) li.appendChild(buildListGroup(n.children, ctx));
     listEl.appendChild(li);
   }
@@ -754,12 +780,7 @@ function buildListGroup(items: ListItemNode[], ctx?: MediaCtx): HTMLElement {
 
 /** A `<li>`'s own text, excluding its nested sub-list and checklist glyph. */
 function liOwnText(li: HTMLElement): string {
-  const clone = li.cloneNode(true) as HTMLElement;
-  Array.from(clone.children).forEach((c) => {
-    const child = c as HTMLElement;
-    if (child.tagName === "UL" || child.tagName === "OL" || child.classList.contains("ph-check-mark")) child.remove();
-  });
-  return (clone.textContent || "").trim();
+  return inlineFromEl(li, (el) => el.tagName === "UL" || el.tagName === "OL" || el.classList.contains("ph-check-mark")).trim();
 }
 
 /** Serialize a `<ul>`/`<ol>` (and its nested sub-lists) → markdown list lines. Generic over
@@ -790,12 +811,17 @@ function buildBlockEl(block: NoteBlock, ctx: MediaCtx, noteBody: HTMLElement): H
   if (block.kind === "list") return buildListGroup(block.items, ctx);
   if (block.kind === "scale") return buildScaleEl(block, ctx);
   if (block.kind === "charm") return buildCharmEl(block);
+  if (block.kind === "patronus") return buildPatronusEl(block);
   if (block.kind === "audio") return buildAudioEl(block, ctx);
   if (block.kind === "video") return buildVideoEl(block, ctx);
   if (block.kind === "journal") return buildJournalEl(block, ctx);
   // text
   const div = document.createElement("div");
-  div.innerHTML = block.text.trim() ? esc(block.text) : "<br>";
+  div.innerHTML = block.text.trim() ? inlineToHtml(block.text) : "<br>";
+  // A blank markdown line is a paragraph SEPARATOR on the desktop, not an empty row — shown
+  // as a short gap (ph-sep) so a desktop memory's spacing matches; the desktop's own empty
+  // paragraph (a lone zero-width space) stays a full empty row.
+  if (!block.text.trim()) div.className = "ph-sep";
   return div;
 }
 
@@ -860,10 +886,11 @@ export function serializeNoteBody(noteBody: HTMLElement): { title: string; conte
       else if (b?.kind === "journal") parts.push(journalMd(b.pages));
       else if (b?.kind === "scale") parts.push(encodeScaleNoteBlock(b));
       else if (b?.kind === "charm") parts.push(encodeCharmNoteBlock(b));
+      else if (b?.kind === "patronus") parts.push(encodePatronusNoteBlock(b));
     } else if (el.tagName === "UL" || el.tagName === "OL") {
       parts.push(serializeListEl(el).join("\n"));
     } else {
-      parts.push(el.textContent || "");
+      parts.push(inlineFromEl(el));
     }
   }
   return { title, content: parts.join("\n").trim() };

@@ -34,7 +34,7 @@ const Warn = () => (
  *  would otherwise clip it) and `fixed` with a high z-index (the drawer is z-40). Shows on
  *  hover AND on click (click pins it open — hover alone is unreliable), anchored to the icon's
  *  right edge so it opens leftward/upward and never runs off the drawer edge. */
-function ErrorTip({ message }: { message?: string }) {
+function ErrorTip({ message, title = "Transcription failed" }: { message?: string; title?: string }) {
   const btnRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -74,7 +74,7 @@ function ErrorTip({ message }: { message?: string }) {
             style={{ right: pos.right, bottom: pos.bottom }}
             className="fixed z-[70] max-h-[40vh] w-[260px] overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-danger/40 bg-surface-raised px-3 py-2 text-xs leading-relaxed text-text shadow-lg"
           >
-            <div className="mb-1 font-semibold text-danger">Transcription failed</div>
+            <div className="mb-1 font-semibold text-danger">{title}</div>
             {text}
           </div>,
           document.body,
@@ -94,6 +94,12 @@ export interface ProcessRowProps {
   pct: number; // 0..100
   error?: boolean;
   errorMsg?: string; // the failure reason — shown on hover over the error icon
+  /** Heading of the error popover (default "Transcription failed"). */
+  errorTitle?: string;
+  /** A step line under the label instead of a % (a package: Patronus decides its steps, so
+   *  progress isn't measurable — the line says what it's doing; the bottom line is
+   *  indeterminate while it runs). */
+  step?: string;
   // audio-type extras (omit → a plain processing row)
   model?: TranscriptionModel;
   previewing?: boolean;
@@ -112,6 +118,8 @@ export function ProcessRow({
   pct,
   error,
   errorMsg,
+  errorTitle,
+  step,
   model,
   previewing,
   onReorder,
@@ -136,7 +144,8 @@ export function ProcessRow({
     if (apply && !Number.isNaN(v)) onReorder(v);
   };
 
-  const showPct = !error && (pct > 0 || !!running);
+  const stepMode = step !== undefined;
+  const showPct = !stepMode && !error && (pct > 0 || !!running);
 
   return (
     <div
@@ -172,11 +181,14 @@ export function ProcessRow({
       )}
 
       {/* label (ellipsis; hover shows full title) */}
-      <span
-        className={`min-w-0 flex-1 truncate ${filename ? "font-mono text-xs text-text-muted" : "text-sm text-text"}`}
-        title={tooltip ?? label}
-      >
-        {label}
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span
+          className={`truncate ${filename ? "font-mono text-xs text-text-muted" : "text-sm text-text"}`}
+          title={tooltip ?? label}
+        >
+          {label}
+        </span>
+        {stepMode && step && <span className="truncate text-xs text-text-muted">{step}</span>}
       </span>
 
       {/* audio preview — hear the recording */}
@@ -234,7 +246,14 @@ export function ProcessRow({
           {Math.round(pct)}%
         </span>
       )}
-      {error && <ErrorTip message={errorMsg} />}
+      {error && <ErrorTip message={errorMsg} title={errorTitle} />}
+
+      {/* step mode: an indeterminate line while it runs */}
+      {stepMode && running && !error && (
+        <div className="absolute inset-x-2 bottom-0.5 h-0.5 overflow-hidden rounded-full bg-border/70">
+          <div className="h-full w-1/3 animate-pulse rounded-full bg-accent" />
+        </div>
+      )}
 
       {/* thin running line along the bottom */}
       {showPct && (

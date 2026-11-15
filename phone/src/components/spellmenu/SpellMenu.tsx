@@ -6,6 +6,7 @@
 // and blurs it behind; closing the window returns INTO the menu, not the page.
 
 import type { SyncFailReason, SyncStatus } from "../../lib/wand/syncMachine";
+import type { SyncRuneState } from "../../hooks/useSyncFlash";
 import type { Spell } from "../../lib/spells/types";
 import type { SpellMenuApi } from "../../hooks/useSpellMenu";
 import { SpellRing } from "./SpellRing";
@@ -18,6 +19,8 @@ export interface SpellMenuProps {
   /** a brief twinkle when the ring is dismissed / switched / descended. */
   onSparkle: () => void;
   syncState: SyncStatus;
+  /** What the Sync spell's rune shows (status + the green "just synced" flash). */
+  runeState?: SyncRuneState;
   /** Only meaningful while syncState === "failed" — see syncMachine.ts. */
   syncFailReason?: SyncFailReason;
   syncFailMessage?: string;
@@ -36,6 +39,7 @@ export function SpellMenu({
   onLongCast,
   onSparkle,
   syncState,
+  runeState,
   syncFailReason,
   syncFailMessage,
   account,
@@ -66,6 +70,7 @@ export function SpellMenu({
         conditional={conditional}
         reduce={reduce}
         syncState={syncState}
+        runeState={runeState}
         onCast={onCast}
         onLongCast={onLongCast}
         // these change the ring (switch/descend/dismiss) → a quick twinkle

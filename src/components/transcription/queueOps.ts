@@ -3,7 +3,7 @@
 import type { TranscriptionModel } from "../../lib/transcripts/models";
 import type { TranscribePhase } from "../../lib/transcripts/engine";
 import type { AudioQueueItem } from "../../lib/transcripts/queue";
-import type { RawBatchQueueItem } from "../../lib/raw/queue";
+import type { PackageQueueItem, RawBatchQueueItem } from "../../lib/raw/queue";
 import type { FormQueueItem } from "../../lib/formFill/queue";
 
 export type QueueMode = "all" | "one";
@@ -40,7 +40,16 @@ export interface FormProcessItem extends BaseProcessItem {
   title: string;
 }
 
-export type ProcessItem = AudioProcessItem | JournalProcessItem | FormProcessItem;
+/** A form PACKAGE from the phone (PACKAGES update): Patronus reads its sync spell and
+ *  executes it. ref = the raw record id. `step` = what Patronus is doing right now (it
+ *  decides the steps, so there's no % — the row's status line says the step). */
+export interface PackageProcessItem extends BaseProcessItem {
+  type: "package";
+  title: string;
+  step?: string;
+}
+
+export type ProcessItem = AudioProcessItem | JournalProcessItem | FormProcessItem | PackageProcessItem;
 
 export function isAudioItem(i: ProcessItem): i is AudioProcessItem {
   return i.type === "audio";
@@ -50,6 +59,9 @@ export function isJournalItem(i: ProcessItem): i is JournalProcessItem {
 }
 export function isFormItem(i: ProcessItem): i is FormProcessItem {
   return i.type === "form";
+}
+export function isPackageItem(i: ProcessItem): i is PackageProcessItem {
+  return i.type === "package";
 }
 export const formRef = (noteId: string) => `form:${noteId}`;
 
@@ -168,4 +180,21 @@ export function mergeNewFormItems(
 /** Clear errors (and reset their %) so a Run retries previously-failed rows. */
 export function clearErrorsForRetry(items: ProcessItem[]): ProcessItem[] {
   return items.map((i) => (i.error ? { ...i, error: false, errorMsg: undefined, pct: 0 } : i));
+}
+
+/** Append any synced packages not already queued. Mirrors mergeNewJournalItems. */
+export function mergeNewPackageItems(
+  prev: ProcessItem[],
+  found: PackageQueueItem[],
+  persisted?: Record<string, { order: number }>,
+): ProcessItem[] {
+  const have = new Set(prev.map((i) => i.ref));
+  let order = prev.length;
+  const added: ProcessItem[] = [];
+  for (const p of found) {
+    if (have.has(p.id)) continue;
+    order += 1;
+    added.push({ ref: p.id, type: "package", title: p.title, order: persisted?.[p.id]?.order ?? order, pct: 0, phase: null, error: false });
+  }
+  return added.length ? [...prev, ...added] : prev;
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { GraphClient, GraphFetchOptions } from "./graph";
 import {
+  getAccount,
   createRoot,
   deleteNote,
   deleteRawRecord,
@@ -16,7 +17,7 @@ import {
   uploadNote,
   uploadRawRecord,
 } from "./adapter";
-import { ConflictError, type RemoteItem } from "./types";
+import { ConflictError, TransientSyncError, type RemoteItem } from "./types";
 
 // A scripted GraphClient: each call is matched to a handler by (method, path-substring).
 type Handler = (path: string, opts: GraphFetchOptions) => { status: number; body?: unknown };
@@ -128,6 +129,23 @@ describe("uploadNote", () => {
   });
 });
 
+describe("getAccount", () => {
+  it("reads the drive owner (works even when /me is down)", async () => {
+    const { graph, calls } = fakeGraph([() => ({ status: 200, body: { owner: { user: { email: "a@b.c", displayName: "A" } } } })]);
+    expect(await getAccount(graph)).toEqual({ email: "a@b.c", displayName: "A" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].path).toContain("/me/drive");
+  });
+
+  it("falls back to the profile when the owner has no email", async () => {
+    const { graph } = fakeGraph([
+      () => ({ status: 200, body: { owner: { user: {} } } }),
+      () => ({ status: 200, body: { userPrincipalName: "p@q.r", displayName: "P" } }),
+    ]);
+    expect(await getAccount(graph)).toEqual({ email: "p@q.r", displayName: "P" });
+  });
+});
+
 describe("downloadNote", () => {
   it("returns null on 404", async () => {
     const { graph } = fakeGraph([() => ({ status: 404 })]);
@@ -142,6 +160,28 @@ describe("downloadNote", () => {
     const res = await downloadNote(graph, "n.md");
     expect(res?.content).toBe("# body");
     expect(res?.item.cTag).toBe("c1");
+  });
+
+  // Live 2026-11-13: OneDrive's content host answered 401 HTML for every file while
+  // metadata worked — an outage, so it must surface as transient, not raw HTML.
+  it("a 401 on the content download is transient (OneDrive's content host, not our login)", async () => {
+    const { graph } = fakeGraph([
+      () => ({ status: 200, body: { id: "1", name: "n.md", cTag: "c1" } }),
+      () => ({ status: 401, body: "<html><body>An unexpected error has occurred.</body>" }),
+    ]);
+    const err = await downloadNote(graph, "n.md").catch((e) => e);
+    expect(err).toBeInstanceOf(TransientSyncError);
+    expect(String(err.message)).not.toContain("<html>");
+  });
+
+  it("a 403 on the content download stays a real error", async () => {
+    const { graph } = fakeGraph([
+      () => ({ status: 200, body: { id: "1", name: "n.md", cTag: "c1" } }),
+      () => ({ status: 403, body: "nope" }),
+    ]);
+    const err = await downloadNote(graph, "n.md").catch((e) => e);
+    expect(err).not.toBeInstanceOf(TransientSyncError);
+    expect(String(err.message)).toContain("downloadNote content failed (403)");
   });
 });
 

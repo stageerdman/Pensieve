@@ -12,6 +12,7 @@
 // the reel in place; Sync casts the gold backup spell. (The Wand thumb-wheel it replaced
 // is archived in updates/2026-10-11 SPELL-MENU - OPEN/_archive.)
 
+import { useSyncFlash } from "./hooks/useSyncFlash";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { Note } from "./types";
@@ -55,6 +56,7 @@ import { PhoneTranscriptReader } from "./components/note/PhoneTranscriptReader";
 import { VoiceRecorderPanel } from "./components/note/VoiceRecorderPanel";
 import { ConfirmDeleteNote } from "./components/note/ConfirmDeleteNote";
 import { ConfirmDeleteRawBatch } from "./components/note/ConfirmDeleteRawBatch";
+import { PackageDetailScreen } from "./components/note/PackageDetailScreen";
 import { JournalCaptureScreen } from "./components/note/JournalCaptureScreen";
 import { JournalDetailScreen } from "./components/note/JournalDetailScreen";
 import { createRawBatch, deleteRawBatch, loadRawBatches, markRawBatchesSynced, persistRawBatches, type RawMemory } from "./lib/media/rawMemoryStore";
@@ -65,7 +67,8 @@ import { pauseAllAudio } from "./lib/media/audioController";
 import { isRecording, pauseRecording, recoverOrphanedRecordings, resumeRecording, startRecording, stopRecording, activeSnapshot, type VoiceCaptureDeps } from "./lib/media/voiceCapture";
 import { FormSession } from "./components/form/FormSession";
 import { FormPicker } from "./components/form/FormPicker";
-import { applySession, finishSession, formsIn, mediaBlocksOf, sessionHasContent, startSession, type FormSessionModel, type SessionAnswer, type SessionAnswers } from "./lib/forms/session";
+import { applySession, formsIn, mediaBlocksOf, packageFromSession, sessionHasContent, startSession, templateSpell, type FormSessionModel, type SessionAnswer, type SessionAnswers } from "./lib/forms/session";
+import { spellFor } from "../../src/lib/packages/kinds";
 import { serializeBlocks, type NoteBlock } from "./lib/media/noteMedia";
 
 const DICTATION_SAMPLE =
@@ -225,12 +228,13 @@ export function PhoneApp() {
   // ---- hooks: the imperative subsystems ----
   const sync = useSyncState();
   const syncStatus: SyncStatus = sync.state.status;
+  const runeState = useSyncFlash(syncStatus); // + a green "just synced" moment
 
   const fisheye = useReelFisheye(reelRef, trackRef, glassRef);
   // The Spell Menu is context-aware: an open photo collection offers only "Photo" (add to that
   // gallery); a memory offers "Photo" + "Gallery"; home opens General. The collection sits on top
   // of the memory, so its context must win.
-  const menu = useSpellMenu(formRun ? "form" : detailBatch ? "raw-detail" : collectionOpen ? "collection" : noteMounted ? "note" : "home");
+  const menu = useSpellMenu(formRun ? "form" : detailBatch ? (detailBatch.kind === "form" ? "package" : "raw-detail") : collectionOpen ? "collection" : noteMounted ? "note" : "home");
 
   const kb = useKeyboardInset(rootRef, {
     onUp: () => fns.current.onKbUp(),
@@ -837,6 +841,7 @@ export function PhoneApp() {
       createdAt: now,
       updatedAt: now,
       when: fmtNow(),
+      draft: form.id, // local only until Done seals it into a package
     };
     applySession(note, model, {});
     formNoteRef.current = note;
@@ -918,8 +923,19 @@ export function PhoneApp() {
     }
   }
 
-  /** Done (review) or Back (any question): stop + save the take, then mark the memory for the
-   *  desktop (transcribe → fill the answers). Nothing real in it → it never existed. */
+  /** Seal a walk-through into a package for the desktop's Patronus (its sync spell: the
+   *  form's own, or the default) and take the local draft out of the vault. */
+  function sealFormDraft(note: Note, formId: string) {
+    const form = dataRef.current!.find((n) => n.id === formId);
+    const pkg = packageFromSession(note, formId, spellFor("form", templateSpell(form)));
+    updateRawBatch(pkg);
+    const idx = dataRef.current!.findIndex((n) => n.id === note.id);
+    if (idx !== -1) dataRef.current!.splice(idx, 1);
+  }
+
+  /** Done (review) or Back (any question): stop + save the take, then seal it as a package —
+   *  sealed until the desktop's Patronus carries out its sync spell (transcribe + fill).
+   *  Nothing real in it → it never existed. */
   async function finishForm() {
     const run = formRunRef.current;
     const note = formNoteRef.current;
@@ -929,11 +945,10 @@ export function PhoneApp() {
     const idx = dataRef.current!.findIndex((n) => n.id === note.id);
     if (idx !== -1 && sessionHasContent(note, run.answers)) {
       applySession(note, run.model, run.answers);
-      finishSession(note, run.model);
       note.updatedAt = Date.now();
-      note.d = "Just now";
+      sealFormDraft(note, run.model.formId);
       sync.edit();
-      showToast("Saved — the desktop fills in your answers after it syncs");
+      showToast("Sealed — Patronus fills it in on the computer");
     } else if (idx !== -1) {
       dataRef.current!.splice(idx, 1);
     }
@@ -1058,8 +1073,20 @@ export function PhoneApp() {
   // Startup recovery sweep: finalize any voice-recording session left behind by a harder kill
   // than the background-hide handler could catch (OS killed the page outright) — "saved just
   // in case." Cheap no-op when there's nothing to recover.
+  // Then seal any form walk-through the kill interrupted (a `draft` left in the vault, with
+  // its recording recovered onto it just above) — it leaves as a package, like a Done.
   useEffect(() => {
-    void recoverOrphanedRecordings(voiceDeps);
+    void recoverOrphanedRecordings(voiceDeps).then(() => {
+      const drafts = dataRef.current!.filter((n) => n.draft && n.id !== formNoteRef.current?.id);
+      if (!drafts.length) return;
+      for (const d of drafts) {
+        if ((d.c || "").trim()) sealFormDraft(d, d.draft!);
+        else dataRef.current!.splice(dataRef.current!.indexOf(d), 1);
+      }
+      persistVault(dataRef.current!);
+      renderAll(filterQueryRef.current);
+      sync.edit();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1111,10 +1138,10 @@ export function PhoneApp() {
       <div className="app">
         <div className="header">
           <h1>Pensieve</h1>
-          {syncStatus === "synced" ? (
+          {runeState === "synced" ? (
             <span className="count">{count}</span>
           ) : (
-            <SyncRune status={syncStatus} size={20} className="header-sync" />
+            <SyncRune status={runeState} size={20} className="header-sync" />
           )}
         </div>
         <Reel
@@ -1136,7 +1163,6 @@ export function PhoneApp() {
           haptic(10);
           menu.openMenu();
         }}
-        menuBadge={syncStatus}
         accio={{
           query: accio.filterQuery,
           count: scount,
@@ -1192,6 +1218,7 @@ export function PhoneApp() {
         onLongCast={longCastSpell}
         onSparkle={flashSparkle}
         syncState={syncStatus}
+        runeState={runeState}
         syncFailReason={sync.state.failReason}
         syncFailMessage={sync.state.failMessage}
         account={onedrive.account}
@@ -1274,7 +1301,16 @@ export function PhoneApp() {
           }}
         />
       ) : null}
-      {detailBatch ? (
+      {detailBatch?.kind === "form" ? (
+        <PackageDetailScreen
+          batch={detailBatch}
+          onBack={() => setDetailBatchId(null)}
+          onOpenMenu={() => {
+            haptic(10);
+            menu.openMenu();
+          }}
+        />
+      ) : detailBatch ? (
         <JournalDetailScreen
           batch={detailBatch}
           onChangeBatch={updateRawBatch}
@@ -1288,6 +1324,7 @@ export function PhoneApp() {
       {confirmDeleteRaw && detailBatch ? (
         <ConfirmDeleteRawBatch
           pageCount={detailBatch.pages.length}
+          packageTitle={detailBatch.kind === "form" ? detailBatch.title ?? "" : undefined}
           onCancel={() => setConfirmDeleteRaw(false)}
           onConfirm={() => {
             void deleteRawBatch(detailBatch).then(() => {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useDismiss } from "../hooks/useDismiss";
 import type { CategoryDef } from "../lib/categories/defs";
 import { colorOf } from "../lib/categories/defs";
@@ -18,6 +18,9 @@ interface CategoryDropdownProps {
   onAdd: (name: string) => void;
   onSetColor: (name: string, color: CategoryColor) => void;
   onRemove: (name: string) => void;
+  // "field" = the bordered full-width control in Details; "inline" = bare chips that
+  // sit beside the note's flask above the editor (one click to change category).
+  variant?: "field" | "inline";
 }
 
 export function CategoryDropdown({
@@ -27,10 +30,13 @@ export function CategoryDropdown({
   onAdd,
   onSetColor,
   onRemove,
+  variant = "field",
 }: CategoryDropdownProps) {
+  const inline = variant === "inline";
   const [open, setOpen] = useState(false);
   const [managing, setManaging] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
+  const btnRef = useRef<HTMLButtonElement>(null);
   const ref = useDismiss<HTMLDivElement>(
     () => {
       setOpen(false);
@@ -39,7 +45,12 @@ export function CategoryDropdown({
     {
       enabled: open,
       // Esc backs out one layer at a time: the manage-popover first, then the dropdown.
-      onEscape: () => (managing ? setManaging(null) : setOpen(false)),
+      // Closing returns focus to the trigger so keyboard users keep their place.
+      onEscape: () => {
+        if (managing) return setManaging(null);
+        setOpen(false);
+        btnRef.current?.focus();
+      },
     },
   );
 
@@ -59,8 +70,18 @@ export function CategoryDropdown({
   return (
     <div ref={ref} className="relative">
       <button
+        ref={btnRef}
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 rounded-md border border-border px-2.5 py-1.5 text-left text-sm hover:bg-surface-raised"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={
+          value.length ? `Category: ${value.join(", ")}. Click to change` : "Add category"
+        }
+        className={
+          inline
+            ? "flex items-center gap-1 rounded-md px-1 py-1 text-left text-sm transition-colors hover:bg-surface-raised"
+            : "flex w-full items-center justify-between gap-2 rounded-md border border-border px-2.5 py-1.5 text-left text-sm hover:bg-surface-raised"
+        }
       >
         {value.length ? (
           <span className="flex flex-wrap gap-1">
@@ -75,13 +96,29 @@ export function CategoryDropdown({
             ))}
           </span>
         ) : (
-          <span className="text-text-muted">Add category</span>
+          // Inline + empty: invisible until you reach for the flask row (the host sets
+          // `group/noterow`), so a fresh note stays clean; still shown when focused/open.
+          <span
+            className={
+              inline
+                ? "px-1 text-xs text-text-muted " +
+                  (open ? "" : "opacity-0 group-hover/noterow:opacity-100 group-focus-within/noterow:opacity-100")
+                : "text-text-muted"
+            }
+          >
+            Add category
+          </span>
         )}
-        <span className="text-text-muted">▾</span>
+        {!inline && <span className="text-text-muted">▾</span>}
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 top-9 z-20 rounded-lg border border-border bg-surface-raised p-1 shadow-lg">
+        <div
+          className={
+            (inline ? "left-0 top-full mt-1 w-56 " : "left-0 right-0 top-9 ") +
+            "absolute z-20 rounded-lg border border-border bg-surface-raised p-1 shadow-lg"
+          }
+        >
           {rows.map((name) => {
             const color = colorOf(name, defs);
             const selected = value.includes(name);
@@ -90,6 +127,7 @@ export function CategoryDropdown({
               <div key={name} className="group relative flex items-center">
                 <button
                   onClick={() => onToggle(name)}
+                  aria-pressed={selected}
                   className={
                     "flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm " +
                     (selected ? "text-text" : "text-text-muted hover:text-text")
@@ -106,7 +144,7 @@ export function CategoryDropdown({
                 <button
                   onClick={() => setManaging((m) => (m === name ? null : name))}
                   aria-label="Edit category"
-                  className="mr-1 shrink-0 rounded p-1 text-text-muted opacity-0 hover:bg-surface hover:text-text group-hover:opacity-100"
+                  className="mr-1 shrink-0 rounded p-1 text-text-muted opacity-0 hover:bg-surface hover:text-text focus-visible:opacity-100 group-hover:opacity-100"
                 >
                   <MoreHorizontal size={14} />
                 </button>

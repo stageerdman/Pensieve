@@ -44,6 +44,9 @@ function newJobId(): string {
     : `job-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** Fired after every agent reply: its tools may have written to the vault (tags). */
+export const VAULT_TOUCHED_EVENT = "pensieve:vault-touched";
+
 export function useAssistant() {
   const [open, setOpen] = useState(false);
   const [agents, setAgents] = useState<Agent[]>(SEED_AGENTS);
@@ -186,6 +189,8 @@ export function useAssistant() {
         unlisten();
         unlistenByAgent.current.delete(forAgentId);
         patchSession(forAgentId, { sending: false });
+        // The agent may have written to the vault (add_tag) — let the app re-read it.
+        window.dispatchEvent(new Event(VAULT_TOUCHED_EVENT));
       }
     },
     [agentId, sessions, getAgent, patchMessage, patchSession],

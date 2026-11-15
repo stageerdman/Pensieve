@@ -8,14 +8,14 @@
 // component so the header, the Spell Menu glyph, and the window rune all draw
 // (and animate) identically.
 
-import type { SyncStatus } from "../../lib/wand/syncMachine";
+import type { SyncRuneState } from "../../hooks/useSyncFlash";
 
 export function SyncRune({
   status,
   size = 18,
   className,
 }: {
-  status: SyncStatus;
+  status: SyncRuneState;
   size?: number;
   className?: string;
 }) {

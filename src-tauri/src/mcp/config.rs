@@ -17,13 +17,16 @@ static CONFIG_COUNTER: AtomicU64 = AtomicU64::new(0);
 pub const MCP_SERVER_ENV: &str = "PENSIEVE_MCP_SERVER";
 
 /// Tool names actually granted to the model via `--allowedTools`, in the
-/// `mcp__pensieve__<tool>` shape the CLI expects. Read-only for now — see this update's
-/// wiki.md for why the write tools below exist but aren't listed here yet.
+/// `mcp__pensieve__<tool>` shape the CLI expects. Read tools + add_tag (TAGS update,
+/// 2026-11-13: the owner asks the AI to tag entries; the tool itself refuses new tags
+/// without an explicit create flag). The other write tools stay off — see the
+/// PATRONUS-AI wiki.md for why.
 pub const ALLOWED_TOOLS: &[&str] = &[
     "mcp__pensieve__search_notes",
     "mcp__pensieve__get_note",
     "mcp__pensieve__list_recent",
     "mcp__pensieve__list_tags",
+    "mcp__pensieve__add_tag",
 ];
 
 /// Built on the server (mcp/server.rs) and ready to flip on — not in ALLOWED_TOOLS, so
@@ -32,7 +35,6 @@ pub const ALLOWED_TOOLS: &[&str] = &[
 pub const WRITE_TOOLS: &[&str] = &[
     "mcp__pensieve__create_note",
     "mcp__pensieve__edit_note",
-    "mcp__pensieve__add_tag",
     "mcp__pensieve__link_note",
 ];
 

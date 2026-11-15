@@ -10,7 +10,7 @@ import { parseMediaPath } from "../media/ref";
 import { isAudioRef, audioRefForSidecar } from "./audioRef";
 
 /** The slice of the store the queue needs — narrowed so tests can pass a trivial fake. */
-export type QueueStore = Pick<Store, "listMedia" | "loadTranscript">;
+export type QueueStore = Pick<Store, "listMedia" | "loadTranscript"> & Partial<Pick<Store, "listRawMemories">>;
 
 /** One pending (untranscribed) audio file, ready to show as a queue row. */
 export interface AudioQueueItem {
@@ -63,6 +63,11 @@ export async function listUntranscribedAudio(
   store: QueueStore = getStore(),
 ): Promise<AudioQueueItem[]> {
   const { audioRefs, transcribedBySidecar } = partitionAudioRefs(await store.listMedia());
+  // A PACKAGE's recordings are Patronus's to transcribe — it picks the language from the
+  // package's spell (see lib/packages). The plain auto-transcriber leaves them alone.
+  const packageIds = new Set(
+    ((await store.listRawMemories?.()) ?? []).filter((r) => r.kind && r.kind !== "journal").map((r) => r.id),
+  );
 
   const out: AudioQueueItem[] = [];
   for (const ref of audioRefs) {
@@ -70,6 +75,7 @@ export async function listUntranscribedAudio(
     if ((await store.loadTranscript(ref)) !== null) continue; // browser / belt-and-braces
     const parsed = parseMediaPath(ref);
     if (!parsed) continue;
+    if (packageIds.has(parsed.noteId)) continue;
     out.push({
       ref,
       noteId: parsed.noteId,

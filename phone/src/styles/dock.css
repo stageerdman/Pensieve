@@ -113,25 +113,6 @@
   }
 }
 
-/* attention-only sync dot (home has no free cell for a sync spell) */
-.spell-fab[data-alert]::after {
-  content: "";
-  position: absolute;
-  top: -1px;
-  right: -1px;
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  border: 2px solid hsl(var(--surface));
-}
-.spell-fab[data-alert="warn"]::after {
-  background: hsl(var(--warn));
-}
-.spell-fab[data-alert="danger"]::after {
-  background: hsl(var(--danger));
-  animation: syncAlert 1.4s var(--ease) infinite;
-}
-
 /* ── a collapsed spell (non-home views) ──────────────────────────────────── */
 .dock-spell {
   position: relative;
@@ -330,3 +311,4 @@
     transform: translateX(-50%) translateY(0);
   }
 }
+

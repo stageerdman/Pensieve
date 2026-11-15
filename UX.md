@@ -14,6 +14,9 @@ allowed — the controls ARE the Dock.)
 `DockLayout` and let `placeDock()` put them in cells:
 - 4 cells (0..3). The gold **Spell-Menu button** occupies ONE cell (`menuSlot`), normally the
   bottom-RIGHT (cell 3). It is the opener; the radial ring blooms UP from it.
+- **The Spell-Menu button is bare — NOTHING on or next to it.** No status dot (red/yellow/any
+  colour), no badge, no sync rune, no indicator of any kind. Sync status lives in the Sync spell
+  inside the menu. Owner has asked for this more than once; locked by `SpellMenuButton.test.tsx`.
 - The other cells hold EITHER one **expanded** spell (spans the 3 free cells, e.g. home's Accio bar)
   OR up to **3 collapsed** spells (one cell each). Never mixed.
 - A **Back/close is a collapsed spell**, and it may ONLY sit in a real cell **adjacent to the menu
@@ -72,6 +75,23 @@ From the vision exploration (`updates/2026-10-05 PENSIEVE-VISION/`):
 - **Summon** — an *Accio*-style, keyboard-fast, super-fast magical **search**. Not the
   home — a ⌘K retrieval layer. **Keep as inspiration for the search engine (later).**
 - **The Mind Map** — fascinating but not actually useful. **Dropped.**
+
+## Tags are threads — DECIDED (2026-11-13, owner)
+**A tag is a promise to retrieve, not a description.** It names a thread the owner will
+deliberately pull up later: a project (`@CANI` → daily actions, weekly review), a practice
+(`@Success Bag`), or a focus to study one day (`@Sales Mindset`, `@Mindset Review`). Test:
+*"Can I picture the day I'll search for this?"* If not, it isn't a tag. The name stays
+"tag"; the meaning is "thread".
+- **Not tags:** words in the text (search finds them) · the kind of note (category) ·
+  importance (starred/pinned) · people / related notes (links) · dates (Accio time lens) ·
+  mood, status, life chapter (future properties).
+- **The vocabulary** (`<vault>/tags.json`) holds every thread + a one-line "what belongs
+  here". Whispering offers it; a case-variant reuses the existing spelling; a new tag is an
+  explicit "＋ New tag" choice (creating a tag = creating a thread).
+- **The owner tags by default** — on the flask row beside category, no Details trip.
+- **AI tags only when asked** (desktop, e.g. "tag my last untagged entries"): reuses the
+  vocabulary, 0–2 per note, never a tag that repeats the note's own words, and must ask
+  before starting a new thread (the tool refuses unknown tags without explicit consent).
 
 ## Working rule
 Iterate with **at most two concepts at a time** from here on.

@@ -298,7 +298,11 @@ export function noteToRemoteContent(note: Note): string {
 export function noteFromRemoteContent(id: string, content: string, times: RemoteNoteTimes, existing?: Note): Note {
   const { fields, body } = parseFrontmatter(content);
   const { title, body: rest } = splitTitleAndBody(body);
-  const createdAt = times.createdAt ?? existing?.createdAt ?? Date.now();
+  // A note's original date can travel in its frontmatter (`created:` ISO — the Notion
+  // importer writes it); it beats the remote file's upload time.
+  const fmRaw = fields.extra?.created?.replace(/^["']|["']$/g, "");
+  const fmCreated = fmRaw && Number.isFinite(Date.parse(fmRaw)) ? Date.parse(fmRaw) : undefined;
+  const createdAt = fmCreated ?? times.createdAt ?? existing?.createdAt ?? Date.now();
   const updatedAt = times.updatedAt ?? Date.now();
   const icon = fields.icon;
   const cat = icon ? nearestPhoneCat(desktopColorHue(icon.color)) : (existing?.cat ?? "--cat-blue");

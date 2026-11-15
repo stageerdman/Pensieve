@@ -447,3 +447,37 @@ describe("useSync — summon and conflict resolution", () => {
     expect(engine.keepLocal).toHaveBeenCalledTimes(1);
   });
 });
+
+// Live 2026-11-13: a phone package landed 77s after the last (manual) sync and sat at
+// "Waiting for the desktop" — the desktop never synced on its own.
+describe("useSync — auto-sync", () => {
+  it("syncs on its own when the window regains focus (and not twice in a row)", async () => {
+    await mountIdle();
+    expect(engine.run).not.toHaveBeenCalled();
+    act(() => void window.dispatchEvent(new Event("focus")));
+    await waitFor(() => expect(engine.run).toHaveBeenCalledTimes(1));
+    act(() => void window.dispatchEvent(new Event("focus")));
+    await Promise.resolve();
+    expect(engine.run).toHaveBeenCalledTimes(1); // within the min gap
+  });
+
+  it("syncs every minute while the app is open", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await mountIdle();
+      await act(async () => void (await vi.advanceTimersByTimeAsync(60_000)));
+      expect(engine.run).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not auto-sync when signed out", async () => {
+    isConnected.mockResolvedValue(false);
+    const { result: r } = renderHook(() => useSync());
+    await waitFor(() => expect(r.current.ui.phase).toBe("disconnected"));
+    act(() => void window.dispatchEvent(new Event("focus")));
+    await Promise.resolve();
+    expect(engine.run).not.toHaveBeenCalled();
+  });
+});

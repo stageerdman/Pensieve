@@ -5,17 +5,22 @@
 
 export interface ConfirmDeleteRawBatchProps {
   pageCount: number;
+  /** A sealed form package (not a Journal batch): ask about THE FORM, by its name. */
+  packageTitle?: string;
   onCancel: () => void;
   onConfirm: () => void;
 }
 
-export function ConfirmDeleteRawBatch({ pageCount, onCancel, onConfirm }: ConfirmDeleteRawBatchProps) {
+export function ConfirmDeleteRawBatch({ pageCount, packageTitle, onCancel, onConfirm }: ConfirmDeleteRawBatchProps) {
+  const title = packageTitle !== undefined ? `Delete ${packageTitle || "this form"}?` : "Delete this batch?";
   return (
-    <div className="ph-confirm-overlay" role="alertdialog" aria-label="Delete this batch?">
+    <div className="ph-confirm-overlay" role="alertdialog" aria-label={title}>
       <div className="ph-confirm-card">
-        <p className="ph-confirm-title">Delete this batch?</p>
+        <p className="ph-confirm-title">{title}</p>
         <p className="ph-confirm-body">
-          Removes all {pageCount} page{pageCount === 1 ? "" : "s"} here and the cloud copy, if it already synced.
+          {packageTitle !== undefined
+            ? "Removes your answers and the recording here, and the cloud copy if it already synced."
+            : `Removes all ${pageCount} page${pageCount === 1 ? "" : "s"} here and the cloud copy, if it already synced.`}
         </p>
         <div className="ph-confirm-actions">
           <button type="button" className="ph-confirm-cancel" onClick={onCancel}>

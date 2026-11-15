@@ -72,7 +72,14 @@ point the importer at it.
       Sources) which have no Pensieve equivalent today. These are open
       decisions — surface to the owner before building the importer, don't
       guess silently.
-- [ ] **P6 — Importer.** `features/journal-import`: pull all 1,980 rows via
+- [ ] **P6a — Fetch (2026-11-15).** Notion's Export gave only the table CSV (no bodies,
+      no images), so pull via the official API instead: `importer/fetch.mjs` — newest
+      first, ~3 req/s, resumable, downloads uploaded files immediately (signed URLs
+      expire), stages raw JSON in `<appdata>/notion-staging/` (outside git). Needs an
+      owner-made internal integration token + the DB shared with it.
+- [ ] **P6b — Convert.** staging JSON → Pensieve `.md` + sidecar per the P5 spec in
+      `wiki.md`; two-pass so page→page refs become `{@id|title}` + `links`.
+- [ ] **P6 — Importer (original plan).** `features/journal-import`: pull all 1,980 rows via
       the Notion connector, map per the P5 spec, write `.md` + frontmatter into
       the vault. Batch it (1,980 pages is a lot of individual fetches) and make
       it resumable/idempotent — a failed run halfway through must not duplicate
@@ -84,5 +91,8 @@ point the importer at it.
       folder `- OPEN` → `- CLOSED`.
 
 ## Status
+2026-11-15: P5 spec DECIDED by owner (wiki.md). Vault backed up to
+`vault-backup-2026-11-15-pre-notion-import`. Export zip = CSV only → API fetcher written,
+waiting on the owner's integration token.
 2026-10-28: Update created. P1+P2 done (this session) — see `wiki.md` for the
 exact migration record. P3 onward not started.

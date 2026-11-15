@@ -62,4 +62,7 @@ export interface Note {
   isNew?: boolean;
   /** Desktop-only metadata, carried through unedited — see {@link ForeignMeta}. */
   foreign?: ForeignMeta;
+  /** PACKAGES: a One Question walk-through in progress (= its form's id). Local only — never
+   *  synced as a memory; on Done (or at startup after a crash) it's sealed into a package. */
+  draft?: string;
 }

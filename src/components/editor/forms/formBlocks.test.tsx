@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ScaleView, splitAnchors } from "./ScaleBlock";
-import { CharmView } from "./CharmBlock";
 
 const anchors = JSON.stringify(["Delete it", "Noise", "Fine", "Mini high", "Core memory"]);
 const editorWith = (isEditable = true) => ({ isEditable, updateBlock: vi.fn() });
@@ -37,16 +36,5 @@ describe("ScaleView", () => {
 
   it("splitAnchors strips numbering and emphasis", () => {
     expect(splitAnchors("_1. a_\n\n2) b\n3 - c")).toEqual(["a", "b", "c"]);
-  });
-});
-
-describe("CharmView", () => {
-  it("edits the name and prompt", () => {
-    const ed = editorWith();
-    render(<CharmView block={{ id: "c", props: { name: "", prompt: "" } }} editor={ed} />);
-    fireEvent.change(screen.getByLabelText("Charm name"), { target: { value: "Compress" } });
-    expect(ed.updateBlock).toHaveBeenLastCalledWith("c", { props: { name: "Compress" } });
-    fireEvent.change(screen.getByLabelText("Charm prompt"), { target: { value: "Summarise my week" } });
-    expect(ed.updateBlock).toHaveBeenLastCalledWith("c", { props: { prompt: "Summarise my week" } });
   });
 });

@@ -7,8 +7,9 @@
 //   - a region holding a ```pensieve:scale fence is a SCALE field;
 //   - a region holding `- [ ]` / `* [x]` items is a CHECKLIST field;
 //   - anything else is a QUESTION field (open text: paragraphs, bullets, numbers);
-//   - a ```pensieve:charm fence is a CHARM (a named AI command). It belongs to no
-//     field and ends the region before it.
+//   - a ```pensieve:patronus fence is a Patronus block (one AI spell: "Process on sync"
+//     or "Compress"). It belongs to no field and ends the region before it. A button
+//     spell (Compress) is listed in `charms`; so is a legacy ```pensieve:charm fence.
 // Lines inside a region that aren't the answer (guidance, the scale fence, checklist
 // items) are the field's scaffold; answers are written after them (see answers.ts).
 //
@@ -17,6 +18,7 @@
 
 import { stripForeignColorRuns } from "../md/colorRuns";
 import { CHARM_LANG, SCALE_LANG, parseCharm, parseScale, type Charm, type Scale } from "./fences";
+import { PATRONUS_LANG, parsePatronus, spellLabel } from "../packages/patronus";
 
 export type FieldKind = "question" | "scale" | "checklist";
 
@@ -126,7 +128,7 @@ export function parseForm(markdown: string): ParsedForm {
       ? lines[titleLine].replace(/^#{1,6}\s*/, "").replace(/\*\*/g, "").trim()
       : "";
 
-  // Boundaries: question lines and charm fences (both outside other fences).
+  // Boundaries: question lines and charm/Patronus fences (all outside other fences).
   const charms: CharmBlock[] = [];
   const starts: { line: number; question: string }[] = [];
   const stops: number[] = []; // charm starts end the preceding region too
@@ -135,6 +137,10 @@ export function parseForm(markdown: string): ParsedForm {
     if (f) {
       if (f.lang === CHARM_LANG) {
         charms.push({ ...parseCharm(f.body), start: f.start, end: f.end });
+        stops.push(f.start);
+      } else if (f.lang === PATRONUS_LANG) {
+        const p = parsePatronus(f.body);
+        if (p.spell !== "sync") charms.push({ name: spellLabel(p.spell), prompt: p.instruction, start: f.start, end: f.end });
         stops.push(f.start);
       }
       i = f.end;

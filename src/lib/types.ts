@@ -3,6 +3,7 @@
 // YAML frontmatter in the .md file — see lib/md/frontmatter. Timeline entries are
 // disposable history kept beside the note.
 
+import type { PackageKind } from "./packages/kinds";
 import type { NoteIcon } from "./flasks/icon";
 export type { NoteIcon } from "./flasks/icon";
 import type { Transcript } from "./transcripts/types";
@@ -29,6 +30,12 @@ export interface RawMemory {
   updatedAt?: number;
   // Ordered photographed-page refs (media/<id>/<mediaId>.<ext>), order = page order.
   pages: string[];
+  /** PACKAGES (2026-11-13): a raw record can be a package — see src/lib/packages/record.ts. */
+  kind?: PackageKind;
+  title?: string;
+  fromForm?: string;
+  markdown?: string;
+  media?: string[];
 }
 
 export interface NoteMeta {
