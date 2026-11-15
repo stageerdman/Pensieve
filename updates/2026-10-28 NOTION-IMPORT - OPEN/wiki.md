@@ -139,7 +139,7 @@ Pensieve refs: `{@noteId|title}` inline + the note's `links` list. Two-pass impo
 to all pages first, then rewrite links).
 **Dropped:** People, Skills, Self Mastery Skills, Source(s), Specific Source(s), Categories-DB
 relation, Status, Core Point, Life Stage.
-**Highlight:** ⭐ → `starred`, 📌 → `pinned`. **Date Overwrite** → `createdAt`
+**Highlight:** ⭐ → `starred`; 📌 DROPPED (owner 2026-11-15 — Working set is its own list, old pins stale). **Date Overwrite** → `createdAt`
 (Notion `Created time` → `addedAt`).
 **Body content:** YouTube/video embeds → plain URL · multiple uploaded images → downloaded
 into the vault; consecutive images → gallery block, images placed between text stay inline

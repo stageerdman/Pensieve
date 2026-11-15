@@ -394,7 +394,7 @@ async function convertPage(page: any, blocks: NBlock[]) {
     updatedAt: new Date(page.last_edited_time).getTime(),
     categories,
     tags,
-    pinned: highlight.includes("📌"),
+    pinned: false, // owner 2026-11-15: Notion 📌 is dropped (stale pins); ⭐ → starred
     starred: highlight.includes("⭐"),
   };
   return { noteId, file, meta, media: ctx.media, unresolved: [...ctx.unresolved] };
