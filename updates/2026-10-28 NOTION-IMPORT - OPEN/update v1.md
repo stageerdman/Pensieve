@@ -77,7 +77,13 @@ point the importer at it.
       first, ~3 req/s, resumable, downloads uploaded files immediately (signed URLs
       expire), stages raw JSON in `<appdata>/notion-staging/` (outside git). Needs an
       owner-made internal integration token + the DB shared with it.
-- [ ] **P6b — Convert.** staging JSON → Pensieve `.md` + sidecar per the P5 spec in
+- [x] **P6-phone — Phone can hold the import (2026-11-15, main `516008c`, deployed).**
+      Phone notes moved localStorage (~5 MB, silently failing) → IndexedDB; video/audio
+      download on play instead of during sync (+ phone now knows video refs at all).
+      Desktop sync keeps starred/open stats on a pulled note and dates new notes from
+      frontmatter `created:`. Owner device check owed: notes still there after update.
+- [ ] **P6b — Convert.** `importer/convert.ts` + `verify.ts` built; 35-page dry run:
+      0 failures, 35/35 identical through the editor's load→save, 0 missing media. staging JSON → Pensieve `.md` + sidecar per the P5 spec in
       `wiki.md`; two-pass so page→page refs become `{@id|title}` + `links`.
 - [ ] **P6 — Importer (original plan).** `features/journal-import`: pull all 1,980 rows via
       the Notion connector, map per the P5 spec, write `.md` + frontmatter into
@@ -94,5 +100,8 @@ point the importer at it.
 2026-11-15: P5 spec DECIDED by owner (wiki.md). Vault backed up to
 `vault-backup-2026-11-15-pre-notion-import`. Export zip = CSV only → API fetcher written,
 waiting on the owner's integration token.
+Later same day: token in place, full fetch running (resumable); phone + sync fixes shipped
+(see P6-phone). Next: finish fetch → full dry-run convert + verify → owner sample review →
+real import into the backed-up vault.
 2026-10-28: Update created. P1+P2 done (this session) — see `wiki.md` for the
 exact migration record. P3 onward not started.
