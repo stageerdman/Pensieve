@@ -20,6 +20,7 @@ import { loadVault, newId, persistVault } from "./vaultStore";
 import { haptic, prefersReducedMotion } from "./util";
 import { parseQuery, passesDate, passesText } from "./lib/wand/accioQuery";
 import { rankNotes } from "./lib/wand/accioRank";
+import { sortNewestFirst } from "./lib/wand/feedWindow";
 import { CAT_HUE, SHAPES } from "./lib/wand/flaskSvg";
 import type { SyncStatus } from "./lib/wand/syncMachine";
 
@@ -74,11 +75,13 @@ import { serializeBlocks, type NoteBlock } from "./lib/media/noteMedia";
 const DICTATION_SAMPLE =
   "I keep coming back to the idea that the phone shouldn't make me think. It should just catch the thought before it escapes.";
 
-/** viewData(): the reel's list — everything, or the filtered matches. Source ~691-695. */
+/** viewData(): the reel's list — everything, or the filtered matches. Source ~691-695.
+ *  Newest-first by creation date (FAST-LOAD): the reel is windowed by week (Reel/useFeedWindow),
+ *  so its order must be date order, not vault insertion order (a sync pull inserts in pull order). */
 function computeView(data: Note[], query: string, openedOrder: string[]): Note[] {
   const { text, dates } = parseQuery(query);
-  if (!text && !dates.length) return data.slice();
-  return data.filter((d) => passesText(d, text) && passesDate(d, dates, openedOrder));
+  if (!text && !dates.length) return sortNewestFirst(data);
+  return sortNewestFirst(data.filter((d) => passesText(d, text) && passesDate(d, dates, openedOrder)));
 }
 
 /** The header count copy. Source ~706-707. */
@@ -1148,6 +1151,7 @@ export function PhoneApp() {
           view={view}
           rawBatches={rawBatches}
           queryText={queryText}
+          windowKey={accio.filterQuery}
           onOpen={openNote}
           onOpenRaw={(b) => setDetailBatchId(b.id)}
           reelRef={reelRef}
