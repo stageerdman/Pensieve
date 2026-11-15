@@ -112,6 +112,12 @@ describe("parseQuery — keyword whispering (completions)", () => {
     expect(flag!.source).toEqual([0, 3]); // splices "pin"
   });
 
+  it("'sta' whispers 'starred'", () => {
+    const flag = parse("sta").suggestions.find((s) => s.filter.kind === "flag");
+    expect(flag?.filter).toEqual({ kind: "flag", flag: "starred" });
+    expect(flag!.source).toEqual([0, 3]);
+  });
+
   it("'last' whispers date phrases", () => {
     const ls = labels("last");
     expect(ls).toContain("last week");
@@ -185,6 +191,12 @@ describe("parseQuery — categories", () => {
 describe("parseQuery — flags & free text", () => {
   it("pinned → flag", () => {
     expect(kinds("pinned")).toContain("flag");
+  });
+
+  it("starred → the starred flag (mirrors pinned)", () => {
+    const flag = parse("starred").suggestions.find((s) => s.filter.kind === "flag");
+    expect(flag?.filter).toEqual({ kind: "flag", flag: "starred" });
+    expect(flag?.label).toBe("Starred");
   });
 
   it("unrecognized words stay as live text", () => {

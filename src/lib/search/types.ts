@@ -19,7 +19,10 @@ export interface DateRange {
 }
 
 /** Flags are boolean note properties we can filter on. Extensible. */
-export type FlagKind = "pinned";
+export type FlagKind = "pinned" | "starred";
+
+/** Every flag, in completion order — the keyword IS the flag name ("pinned", "starred"). */
+export const FLAG_KINDS: readonly FlagKind[] = ["pinned", "starred"];
 
 /** One concrete constraint. `tag`/`category` are ONE-OF sets: a note matches if it has
  *  ANY of the listed values (this is how "tag contains one of #A, #B" is represented). */

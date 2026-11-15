@@ -48,7 +48,7 @@ export function FilterEditPopover({ filter, ctx, onReplace, onClose }: Props) {
       {(filter.kind === "title" || filter.kind === "text") && (
         <TextEdit value={filter.text} onChange={(text) => onReplace({ ...filter, text } as Filter)} />
       )}
-      {filter.kind === "flag" && <p className="px-1 py-1 text-xs text-text-muted">Only pinned thoughts. Right-click the chip to remove it.</p>}
+      {filter.kind === "flag" && <p className="px-1 py-1 text-xs text-text-muted">Only {filter.flag} thoughts. Right-click the chip to remove it.</p>}
     </div>
   );
 }

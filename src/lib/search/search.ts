@@ -38,6 +38,7 @@ function toSearchable(n: NoteMeta): SearchableNote {
     createdAt: n.createdAt,
     updatedAt: n.updatedAt,
     pinned: n.pinned ?? false,
+    starred: n.starred ?? false,
   };
 }
 
