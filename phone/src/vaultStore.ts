@@ -4,20 +4,37 @@
 // can read/write the SAME storage the Wand UI renders from, instead of a second,
 // divergent copy.
 //
-// STORAGE (NOTION-IMPORT, 2026-11-15): notes live in IndexedDB, not localStorage.
-// localStorage caps at ~5 MB per origin and `setItem` past it throws — which this module
-// used to swallow, so the phone silently stopped saving. The Notion import alone is ~7 MB
-// of text. IndexedDB has room for gigabytes.
+// STORAGE (FAST-LOAD, 2026-11-15): one IndexedDB record PER NOTE, held in memory as objects.
+// History: localStorage (~5 MB cap, failed silently past it) → one IndexedDB key holding the
+// whole vault as a JSON string (NOTION-IMPORT) → this. The single-string layout re-parsed ~7 MB
+// on every loadVault() and re-stringified + rewrote all of it on every save; the sync LocalVault
+// called it once per note, so a 2,000-note first pull was O(n²) (~47 s in the bench). Now:
+//   - hydrateVault() reads every record once (getAll) into a Map<id, Rec> — never parsed again.
+//   - getNote/putNote/removeNote/listNoteMeta are O(1)-per-note (sync uses these).
+//   - loadVault()/persistVault() keep their whole-array shape for PhoneApp; persistVault DIFFS
+//     against what it handed out and writes only the notes that actually changed.
+//   - writes are coalesced: everything dirtied while a write is in flight goes in the next one
+//     transaction, so a burst costs a handful of small transactions, not 7 MB each.
 //
-// The API stays SYNCHRONOUS (loadVault/persistVault) so no caller changes: the vault is
-// read from IndexedDB once at boot (`hydrateVault`, awaited in main.tsx before the first
-// render) into an in-memory serialized copy; reads parse that copy (fresh objects every
-// call, exactly like the old localStorage parse), and writes update it immediately and
-// write it through to IndexedDB in order (latest wins). A device that still has notes in
-// localStorage has them moved over once, then the old key is removed.
+// COPY-ON-READ: callers mutate what they load (PhoneApp edits notes in place), so every read hands
+// out a fresh deep copy. Stored records are private and immutable — replaced, never mutated —
+// which lets persistVault compare by the object it handed out.
 //
-// Before hydration (unit tests, or IndexedDB unavailable e.g. private mode) the old
-// localStorage behaviour is used unchanged.
+// THREE-WAY SAFETY: persistVault(data) only deletes notes the caller had SEEN (its last
+// loadVault/persistVault), and only overwrites notes the caller CHANGED since then. So a full-array
+// save from the UI during a sync pull can no longer wipe notes the pull just wrote behind its back
+// (the old "vault = data" semantics would have, and the next sync would then push those as
+// deletions).
+//
+// MIGRATION (crash-safe): the old single key (and the even older localStorage key) are moved
+// into per-note records in ONE IndexedDB transaction that also writes the layout marker and deletes
+// the old key — IndexedDB transactions are atomic, so a crash leaves either the old layout intact
+// or the new one complete, never half. localStorage is removed only after that commits; if a crash
+// lands between the two, the next boot re-migrates from localStorage (the newest copy, see below).
+// A corrupt old blob is never deleted — it's parked under a backup key.
+//
+// Before hydration (unit tests, or IndexedDB unavailable e.g. private mode) the old localStorage
+// behaviour is used unchanged.
 //
 // `newId()` mirrors the desktop browser store's scheme (src/lib/store/browser.ts)
 // — a base36 time prefix + random suffix — so a note minted on the phone is a
@@ -27,24 +44,84 @@
 // until OneDrive sync or the owner's own writing fills it.
 
 import type { Note } from "./types";
+import { log } from "./lib/logger";
 
 export function newId(): string {
   return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
 }
 
-const VAULT_KEY = "pensieve.phone.vault";
+const VAULT_KEY = "pensieve.phone.vault"; // legacy: localStorage key AND the old single IDB key
+const LAYOUT_KEY = "pensieve.phone.vault.layout";
+const CORRUPT_KEY = "pensieve.phone.vault.corrupt";
+const LAYOUT_PER_NOTE = 2;
 const DB_NAME = "pensieve-phone-vault";
-const STORE = "kv";
+const KV = "kv";
+const NOTES = "notes";
 
-/** The authoritative in-memory copy once hydrated (serialized JSON array), else null. */
-let memory: string | null = null;
-let hydrated = false;
+/** One stored note. `s` orders the vault (higher = earlier in the array, i.e. newer). */
+interface Rec {
+  s: number;
+  n: Note;
+}
+
+/** The authoritative in-memory vault once hydrated, else null (localStorage mode). */
+let recs: Map<string, Rec> | null = null;
+let maxSeq = 0;
+/** id → the stored note object at the time the whole-array caller last saw it. */
+let baseline = new Map<string, Note>();
+/** ids whose record must be (re)written or deleted on the next flush. */
+const dirty = new Set<string>();
+let ordered: Rec[] | null = null; // cache of recs sorted by s desc
+
+// ---------------------------------------------------------------- plain-data helpers
+
+function clone<T>(v: T): T {
+  if (Array.isArray(v)) return v.map(clone) as unknown as T;
+  if (v && typeof v === "object") {
+    const o: Record<string, unknown> = {};
+    for (const k in v) o[k] = clone((v as Record<string, unknown>)[k]);
+    return o as T;
+  }
+  return v;
+}
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== "object" || typeof b !== "object" || !a || !b) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    const bb = b as unknown[];
+    if (a.length !== bb.length) return false;
+    for (let i = 0; i < a.length; i++) if (!deepEqual(a[i], bb[i])) return false;
+    return true;
+  }
+  const ao = a as Record<string, unknown>;
+  const bo = b as Record<string, unknown>;
+  for (const k in ao) if (ao[k] !== undefined && !deepEqual(ao[k], bo[k])) return false;
+  for (const k in bo) if (bo[k] !== undefined && ao[k] === undefined) return false;
+  return true;
+}
+
+function parse(raw: string | null): Note[] | null {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    if (Array.isArray(v) && v.every((n) => n && typeof n.id === "string")) return v as Note[];
+  } catch {
+    /* corrupt */
+  }
+  return null; // corrupt — the caller decides (never silently drop the blob)
+}
+
+// ---------------------------------------------------------------- IndexedDB
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
+    const req = indexedDB.open(DB_NAME, 2);
     req.onupgradeneeded = () => {
-      if (!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE);
+      // Schema only — the data move happens in hydrate's single atomic transaction.
+      if (!req.result.objectStoreNames.contains(KV)) req.result.createObjectStore(KV);
+      if (!req.result.objectStoreNames.contains(NOTES)) req.result.createObjectStore(NOTES);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -54,20 +131,29 @@ function openDb(): Promise<IDBDatabase> {
 let dbPromise: Promise<IDBDatabase> | null = null;
 const db = () => (dbPromise ??= openDb());
 
-function idb<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+/** Run `fn` in one transaction over `stores`; resolves with its result when the tx COMMITS. */
+function tx<T>(mode: IDBTransactionMode, stores: string[], fn: (t: IDBTransaction) => () => T): Promise<T> {
   return db().then(
     (d) =>
       new Promise<T>((resolve, reject) => {
-        const t = d.transaction(STORE, mode);
-        const req = fn(t.objectStore(STORE));
-        t.oncomplete = () => resolve(req.result);
+        const t = d.transaction(stores, mode);
+        let result: () => T;
+        try {
+          result = fn(t);
+        } catch (e) {
+          t.abort(); // all-or-nothing: never let the requests queued so far auto-commit
+          throw e;
+        }
+        t.oncomplete = () => resolve(result());
         t.onerror = () => reject(t.error);
         t.onabort = () => reject(t.error);
       }),
   );
 }
 
-/** Read the vault from IndexedDB into memory (moving a localStorage vault over once).
+// ---------------------------------------------------------------- hydration + migration
+
+/** Read the vault from IndexedDB into memory (migrating an older layout once).
  *  Await before the first render. Never throws — on failure the module keeps using
  *  localStorage, i.e. the pre-IndexedDB behaviour. */
 export async function hydrateVault(timeoutMs = 4000): Promise<void> {
@@ -82,10 +168,19 @@ export async function hydrateVault(timeoutMs = 4000): Promise<void> {
 }
 
 async function hydrateFromIdb(isAbandoned: () => boolean): Promise<void> {
+  const t0 = performance.now();
   try {
     if (typeof indexedDB === "undefined") return;
-    const stored = await idb<unknown>("readonly", (s) => s.get(VAULT_KEY));
+    const read = await tx("readonly", [KV, NOTES], (t) => {
+      const kv = t.objectStore(KV);
+      const layout = kv.get(LAYOUT_KEY);
+      const single = kv.get(VAULT_KEY);
+      const keys = t.objectStore(NOTES).getAllKeys();
+      const vals = t.objectStore(NOTES).getAll();
+      return () => ({ layout: layout.result, single: single.result, keys: keys.result, vals: vals.result as Rec[] });
+    });
     if (isAbandoned()) return;
+
     // A localStorage vault, when present, is always the newest copy: it is removed only
     // after a hydration fully succeeds, so it survives exactly when a previous boot fell
     // back to it (and may have edited it since).
@@ -95,43 +190,111 @@ async function hydrateFromIdb(isAbandoned: () => boolean): Promise<void> {
     } catch {
       /* unavailable */
     }
-    if (legacy !== null || typeof stored !== "string") {
-      const initial = legacy ?? "[]";
-      await idb("readwrite", (s) => s.put(initial, VAULT_KEY));
+
+    let source: Note[] | null = null; // non-null → (re)write the per-note store from it
+    const corrupt: string[] = []; // unreadable old blobs — parked, never deleted
+    let from = "per-note";
+    if (legacy !== null) {
+      source = parse(legacy);
+      from = "localStorage";
+      if (!source) corrupt.push(legacy);
+    }
+    if (!source && read.layout !== LAYOUT_PER_NOTE) {
+      if (typeof read.single === "string") {
+        source = parse(read.single);
+        from = "single-key";
+        if (!source) corrupt.push(read.single);
+      }
+      source ??= []; // a fresh install, or nothing readable: start the per-note layout empty
+    }
+
+    const next = new Map<string, Rec>();
+    if (source) {
+      // newest-first array → descending seqs
+      source.forEach((n, i) => next.has(n.id) || next.set(n.id, { s: source!.length - i, n }));
+      await tx("readwrite", [KV, NOTES], (t) => {
+        const notes = t.objectStore(NOTES);
+        const kv = t.objectStore(KV);
+        notes.clear();
+        for (const [id, r] of next) notes.put(r, id);
+        if (corrupt.length) kv.put(corrupt, CORRUPT_KEY);
+        kv.put(LAYOUT_PER_NOTE, LAYOUT_KEY);
+        kv.delete(VAULT_KEY);
+        return () => undefined;
+      });
       if (isAbandoned()) return;
-      memory = initial;
+      log.info("vault", "migrated", { from, notes: next.size, corruptParked: corrupt.length });
     } else {
-      memory = stored;
+      if (corrupt.length) {
+        // an unreadable localStorage blob: park it before localStorage is cleared below
+        const blob = corrupt;
+        await tx("readwrite", [KV], (t) => (t.objectStore(KV).put(blob, CORRUPT_KEY), () => undefined));
+        log.warn("vault", "corrupt-legacy-parked", { bytes: blob[0].length });
+      }
+      read.vals.forEach((r, i) => {
+        const id = read.keys[i];
+        if (typeof id === "string" && r && r.n && typeof r.n.id === "string") next.set(id, r);
+      });
     }
     if (isAbandoned()) return;
-    hydrated = true;
+
+    recs = next;
+    maxSeq = 0;
+    for (const r of next.values()) if (r.s > maxSeq) maxSeq = r.s;
+    ordered = null;
+    baseline = new Map();
     try {
       localStorage.removeItem(VAULT_KEY); // only after IndexedDB holds the notes
     } catch {
       /* unavailable */
     }
-  } catch {
-    if (!isAbandoned()) {
-      memory = null;
-      hydrated = false;
-    }
+    log.info("vault", "hydrated", { notes: next.size, ms: Math.round(performance.now() - t0) });
+  } catch (e) {
+    if (!isAbandoned()) recs = null;
+    log.warn("vault", "hydrate-failed", { error: String(e) });
   }
 }
 
-// Write-through queue: one IndexedDB write at a time, always of the newest snapshot.
-let pending: string | null = null;
+// ---------------------------------------------------------------- coalesced write-back
+
 let writing = false;
+let scheduled = false;
+
+function markDirty(id: string) {
+  dirty.add(id);
+  ordered = null;
+  if (!scheduled && !writing) {
+    scheduled = true;
+    setTimeout(() => {
+      scheduled = false;
+      void flush();
+    }, 0);
+  }
+}
+
 async function flush(): Promise<void> {
-  if (writing) return;
+  if (writing || !recs) return;
   writing = true;
   try {
-    while (pending !== null) {
-      const snapshot = pending;
-      pending = null;
+    while (dirty.size) {
+      const ids = [...dirty];
+      dirty.clear();
+      // snapshot NOW (records are immutable, so holding the reference is the snapshot)
+      const ops = ids.map((id) => [id, recs!.get(id)] as const);
       try {
-        await idb("readwrite", (s) => s.put(snapshot, VAULT_KEY));
-      } catch {
-        /* a failed write is superseded by the next persist; memory stays authoritative */
+        await tx("readwrite", [NOTES], (t) => {
+          const s = t.objectStore(NOTES);
+          for (const [id, r] of ops) {
+            if (r) s.put(r, id);
+            else s.delete(id);
+          }
+          return () => undefined;
+        });
+      } catch (e) {
+        // keep memory authoritative; retry these with the next write
+        for (const id of ids) dirty.add(id);
+        log.warn("vault", "write-failed", { ids: ids.length, error: String(e) });
+        break;
       }
     }
   } finally {
@@ -141,51 +304,81 @@ async function flush(): Promise<void> {
 
 /** Resolves once every queued write has reached IndexedDB (tests / before teardown). */
 export async function vaultWritesSettled(): Promise<void> {
-  while (writing || pending !== null) {
+  for (let guard = 0; guard < 1000 && (writing || scheduled || dirty.size); guard++) {
     await flush();
     await new Promise((r) => setTimeout(r, 0));
   }
 }
 
-function parse(raw: string | null): Note[] {
-  if (!raw) return [];
-  try {
-    const v = JSON.parse(raw);
-    if (Array.isArray(v) && v.every((n) => n && typeof n.id === "string")) return v as Note[];
-  } catch {
-    /* corrupt — treat as empty rather than crash */
-  }
-  return [];
-}
+// ---------------------------------------------------------------- localStorage mode
 
-export function loadVault(): Note[] {
-  if (hydrated) return parse(memory);
+function lsLoad(): Note[] {
   try {
-    return parse(localStorage.getItem(VAULT_KEY));
+    return parse(localStorage.getItem(VAULT_KEY)) ?? [];
   } catch {
     return [];
   }
 }
-
-export function persistVault(data: Note[]): void {
-  const json = JSON.stringify(data);
-  if (hydrated) {
-    memory = json;
-    pending = json;
-    void flush();
-    return;
-  }
+function lsPersist(data: Note[]) {
   try {
-    localStorage.setItem(VAULT_KEY, json);
+    localStorage.setItem(VAULT_KEY, JSON.stringify(data));
   } catch {
     /* quota / unavailable — a reload just starts from whatever was last saved */
   }
 }
 
+// ---------------------------------------------------------------- whole-array API (PhoneApp)
+
+function sorted(): Rec[] {
+  return (ordered ??= [...recs!.values()].sort((a, b) => b.s - a.s));
+}
+
+/** Every note, newest-first, as fresh copies the caller may mutate. */
+export function loadVault(): Note[] {
+  if (!recs) return lsLoad();
+  const list = sorted();
+  baseline = new Map(list.map((r) => [r.n.id, r.n]));
+  return list.map((r) => clone(r.n));
+}
+
+/** Save the caller's whole array: writes only the notes it changed, deletes only the notes it
+ *  saw (last loadVault/persistVault) and dropped, and keeps its order. Notes written by someone
+ *  else meanwhile (a sync pull) that it never saw are left alone. */
+export function persistVault(data: Note[]): void {
+  if (!recs) return lsPersist(data);
+  const seen = new Map<string, Note>();
+  let prev = -Infinity;
+  for (let i = data.length - 1; i >= 0; i--) {
+    const note = data[i];
+    if (!note || typeof note.id !== "string" || seen.has(note.id)) continue;
+    const rec = recs.get(note.id);
+    const base = baseline.get(note.id) ?? rec?.n;
+    const changed = !rec || !deepEqual(note, base);
+    let s = rec?.s;
+    const reorder = s === undefined || s <= prev;
+    if (reorder) s = ++maxSeq;
+    if (changed || reorder) {
+      const r: Rec = { s: s!, n: changed ? clone(note) : rec!.n };
+      recs.set(note.id, r);
+      markDirty(note.id);
+    }
+    prev = s!;
+    seen.set(note.id, recs.get(note.id)!.n);
+  }
+  for (const id of baseline.keys()) {
+    if (!seen.has(id) && recs.delete(id)) markDirty(id);
+  }
+  baseline = seen;
+}
+
 /** Wipe the vault back to nothing. Does NOT touch media bytes (IndexedDB) or the
  *  OneDrive connection/sync state. */
 export function clearVault(): void {
-  if (hydrated) persistVault([]);
+  if (recs) {
+    for (const id of [...recs.keys()]) markDirty(id);
+    recs.clear();
+    baseline = new Map();
+  }
   try {
     localStorage.removeItem(VAULT_KEY);
   } catch {
@@ -193,10 +386,54 @@ export function clearVault(): void {
   }
 }
 
+// ---------------------------------------------------------------- per-note API (sync)
+
+export interface NoteMeta {
+  id: string;
+  updatedAt: number;
+  draft?: string;
+}
+
+/** id + updatedAt (+ draft) of every note — no copying of bodies. */
+export function listNoteMeta(): NoteMeta[] {
+  const list = recs ? sorted().map((r) => r.n) : lsLoad();
+  return list.map((n) => (n.draft ? { id: n.id, updatedAt: n.updatedAt, draft: n.draft } : { id: n.id, updatedAt: n.updatedAt }));
+}
+
+/** One note as a fresh copy, or undefined. */
+export function getNote(id: string): Note | undefined {
+  if (!recs) return lsLoad().find((n) => n.id === id);
+  const r = recs.get(id);
+  return r ? clone(r.n) : undefined;
+}
+
+/** Insert (at the front — newest) or replace in place. */
+export function putNote(note: Note): void {
+  if (!recs) {
+    const d = lsLoad();
+    const i = d.findIndex((n) => n.id === note.id);
+    if (i >= 0) d[i] = note;
+    else d.unshift(note);
+    return lsPersist(d);
+  }
+  const r = recs.get(note.id);
+  recs.set(note.id, { s: r ? r.s : ++maxSeq, n: clone(note) });
+  markDirty(note.id);
+}
+
+export function removeNote(id: string): void {
+  if (!recs) return lsPersist(lsLoad().filter((n) => n.id !== id));
+  if (recs.delete(id)) markDirty(id);
+}
+
 /** Test-only: forget the hydrated state so a test starts on the localStorage path. */
 export function __resetVaultForTests(): void {
-  memory = null;
-  hydrated = false;
-  pending = null;
+  recs = null;
+  maxSeq = 0;
+  baseline = new Map();
+  dirty.clear();
+  ordered = null;
+  scheduled = false;
+  writing = false;
   dbPromise = null;
 }

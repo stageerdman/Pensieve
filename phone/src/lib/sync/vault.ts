@@ -7,7 +7,7 @@
 // engine.ts (ported in Phase 3) is injected with this vault + a GraphClient and
 // knows nothing about where the bytes actually live.
 
-import { loadVault, persistVault } from "../../vaultStore";
+import { getNote, listNoteMeta, putNote, removeNote } from "../../vaultStore";
 import { deleteMedia, getMediaBytes, listMediaKeys, putMedia } from "../media/mediaStore";
 import { loadRawBatch, loadRawBatches, saveRawBatch, deleteRawBatchRecord, type RawMemory } from "../media/rawMemoryStore";
 import { mediaContentType } from "./adapter";
@@ -50,28 +50,23 @@ export function phoneVault(): LocalVault {
     async listNotes() {
       // A form walk-through in progress (`draft`) never syncs as a memory — it leaves the
       // phone as a sealed package on Done (see lib/forms/session packageFromSession).
-      return loadVault()
+      // Per-note ops (FAST-LOAD): no whole-vault parse per call — a 2,000-note pull is O(n).
+      return listNoteMeta()
         .filter((n) => !n.draft)
         .map((n) => ({ id: n.id, updatedAt: n.updatedAt }));
     },
 
     async readNote(id) {
-      const note = loadVault().find((n) => n.id === id);
+      const note = getNote(id);
       return note ? noteToRemoteContent(note) : null;
     },
 
     async writeNote(id, content, times) {
-      const data = loadVault();
-      const i = data.findIndex((n) => n.id === id);
-      const existing = i >= 0 ? data[i] : undefined;
-      const note = noteFromRemoteContent(id, content, times ?? {}, existing);
-      if (i >= 0) data[i] = note;
-      else data.unshift(note);
-      persistVault(data);
+      putNote(noteFromRemoteContent(id, content, times ?? {}, getNote(id)));
     },
 
     async deleteNote(id) {
-      persistVault(loadVault().filter((n) => n.id !== id));
+      removeNote(id);
     },
 
     async readState() {
