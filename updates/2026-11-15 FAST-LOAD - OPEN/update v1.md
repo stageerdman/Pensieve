@@ -28,7 +28,7 @@ scroll back, let's say after a few minutes. And make sure the same thing is on t
 - [ ] P1 Desktop data path — bulk Rust listing (one IPC, parallel reads), cached excerpt/chars
       index, no full relist on flag/remove, search index + media scan deferred off the first paint.
 - [ ] P2 Desktop gallery windowing (load week-by-week, unload after 3 min off-screen).
-- [ ] P3 Phone — vault parse once/in-memory objects, O(1) per-note sync ops, feed windowing.
+- [x] P3 Phone — per-note IndexedDB vault (in-memory, O(1) sync ops, diffing saves, atomic migration) + week-windowed reel. On `update/fast-load-phone`; numbers in wiki.md → Phone. Not yet device-checked.
 - [ ] P4 Measure on the real 2,090-note vault (before/after), tests, build + deploy, owner check.
 
 ## Status
