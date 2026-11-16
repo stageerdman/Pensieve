@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { log } from "./logger";
 
 describe("logger", () => {
@@ -33,5 +33,32 @@ describe("logger", () => {
   it("stamps every entry with the session id", () => {
     log.info("m", "e");
     expect(log.query()[0].session).toBe(log.sessionId);
+  });
+
+  it("batches entries to the sink and flushes on demand", () => {
+    const batches: string[][] = [];
+    log.setSink((es) => void batches.push(es.map((e) => e.event)));
+    log.info("sync", "a");
+    log.info("sync", "b");
+    expect(batches).toEqual([]); // queued, not one write per entry
+    log.flush();
+    expect(batches).toEqual([["a", "b"]]);
+  });
+
+  it("flushes on a timer, and a throwing sink never breaks logging", () => {
+    vi.useFakeTimers();
+    try {
+      const sink = vi.fn(() => {
+        throw new Error("disk full");
+      });
+      log.setSink(sink);
+      log.info("sync", "x");
+      vi.advanceTimersByTime(2500);
+      expect(sink).toHaveBeenCalledTimes(1);
+      expect(() => log.info("sync", "y")).not.toThrow();
+      expect(log.query({ event: "y" })).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

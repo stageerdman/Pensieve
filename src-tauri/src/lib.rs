@@ -14,6 +14,7 @@ mod ai_vision;
 mod ai_text;
 mod assistant;
 mod knowledge;
+mod log_store;
 mod media_transfer;
 pub mod mcp;
 mod sync;
@@ -270,6 +271,7 @@ pub fn run() {
             read_bytes,
             list_dir,
             remove_path,
+            log_store::append_log,
             vault_bulk::list_notes_bulk,
             vault_bulk::read_note_bodies,
             vault_bulk::read_texts_bulk,

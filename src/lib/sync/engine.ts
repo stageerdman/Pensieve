@@ -116,13 +116,21 @@ async function pullReferencedMedia(
   have: Set<string>,
   media: Record<string, MediaSyncRecord>,
   result: SyncResult,
+  onProgress?: (p: SyncProgress) => void,
 ): Promise<void> {
+  const todo: string[] = [];
   for (const ref of referencedRefs) {
     if (have.has(ref)) {
       media[ref] ??= { ref, backedUp: true };
       setMediaBackupState(ref, "backed-up");
-      continue;
+    } else {
+      todo.push(ref);
     }
+  }
+  if (todo.length) log.info("sync", "media.pull.plan", { count: todo.length });
+  for (let i = 0; i < todo.length; i++) {
+    const ref = todo[i];
+    onProgress?.({ direction: "down", name: ref, doneItems: i, totalItems: todo.length, stage: "media" });
     try {
       const meta = await mediaMeta(graph, ref);
       if (!meta) continue; // not on the remote (yet) — leave it; a later sync may find it
@@ -159,16 +167,21 @@ async function pushLocalMedia(
   vault: LocalVault,
   state: SyncState,
   result: SyncResult,
+  onProgress?: (p: SyncProgress) => void,
 ): Promise<void> {
   const media = state.media!;
   const local = await vault.listMedia();
+  const todo: string[] = [];
   for (const ref of local) {
-    if (media[ref]?.backedUp) {
-      setMediaBackupState(ref, "backed-up");
-      continue;
-    }
+    if (media[ref]?.backedUp) setMediaBackupState(ref, "backed-up");
+    else todo.push(ref);
+  }
+  if (todo.length) log.info("sync", "media.push.plan", { count: todo.length });
+  for (let i = 0; i < todo.length; i++) {
+    const ref = todo[i];
     const size = await vault.mediaSize(ref);
     if (size == null) continue; // vanished since listing
+    onProgress?.({ direction: "up", name: ref, doneItems: i, totalItems: todo.length, bytes: size, stage: "media" });
     setMediaBackupState(ref, "uploading");
     try {
       const remoteId =
@@ -273,6 +286,7 @@ export async function sync(
   const result = emptyResult();
 
   // ---------- PULL: classify ----------
+  const prevDeltaLink = state.deltaLink;
   const { items, deltaLink } = await delta(graph, state.deltaLink);
   const localBefore = new Map((await vault.listNotes()).map((n) => [n.id, n.updatedAt]));
   const rawLocalBefore = new Map((await vault.listRawMemories()).map((n) => [n.id, n.updatedAt]));
@@ -408,7 +422,21 @@ export async function sync(
   const totalItems = downloads.length + uploads.length;
   let doneItems = 0;
   const emit = (direction: "down" | "up", name: string, bytes?: number) =>
-    onProgress?.({ direction, name, doneItems, totalItems, bytes });
+    onProgress?.({ direction, name, doneItems, totalItems, bytes, stage: "notes" });
+  // What this run is about to do — so a surprising headline count ("3412 of 3412") is
+  // explainable from the logs after the fact (how many pulls vs pushes, from where).
+  log.info("sync", "sync.plan", {
+    downloads: downloads.length,
+    downloadsNew: downloads.filter((d) => !state.notes[d.id]).length,
+    uploads: uploads.length,
+    uploadsNew: uploads.filter((u) => !state.notes[u.id]).length,
+    localDeletes: localDeletes.length,
+    conflicts: conflicted.size,
+    deltaItems: items.length,
+    deltaFresh: !prevDeltaLink,
+    rawDownloads: rawDownloads.length,
+    rawUploads: rawUploads.length,
+  });
 
   // Remote deletions → local (no transfer, no progress tick).
   for (const id of localDeletes) {
@@ -537,8 +565,8 @@ export async function sync(
   // note progress bar (the gold rune on each image is its surface); it's best-effort so a
   // flaky image never blocks the note sync.
   const haveMedia = new Set(await vault.listMedia());
-  await pullReferencedMedia(graph, vault, pulledMediaRefs, haveMedia, state.media!, result);
-  await pushLocalMedia(graph, vault, state, result);
+  await pullReferencedMedia(graph, vault, pulledMediaRefs, haveMedia, state.media!, result, onProgress);
+  await pushLocalMedia(graph, vault, state, result, onProgress);
 
   // ---------- LOCAL DELETIONS → remote ----------
   // Use the CURRENT on-disk set (downloads above added notes; localDeletes removed
@@ -768,7 +796,7 @@ export async function restoreFromCloud(
   // Rehydrate the referenced media binaries (content-addressed, so a fresh vault just
   // downloads them). Best-effort — a missing/flaky image shows its broken/rune state.
   const haveMedia = new Set(await vault.listMedia());
-  await pullReferencedMedia(graph, vault, restoredMediaRefs, haveMedia, state.media!, result);
+  await pullReferencedMedia(graph, vault, restoredMediaRefs, haveMedia, state.media!, result, onProgress);
 
   state.lastSyncedAt = nowMs();
   result.lastSyncedAt = state.lastSyncedAt;

@@ -272,6 +272,27 @@ describe("sync engine — media backup", () => {
     expect(getMediaBackupState(REF)).toBe("backed-up");
   });
 
+  it("reports media as its own progress stage after the notes, with its own count", async () => {
+    vault.edit("x", NOTE, 5);
+    vault.media.set(REF, new Uint8Array([1, 2, 3]));
+    vault.media.set("media/x/two.png", new Uint8Array([4]));
+    const events: Array<{ stage?: string; direction: string; doneItems: number; totalItems: number; name: string }> = [];
+    await sync(graph, vault, (p) => events.push({ ...p }));
+
+    // Notes first (1 of 1), then media with a separate total (1 of 2, 2 of 2) — so a
+    // finished note count never reads as "done" while media is still uploading.
+    expect(events.map((e) => e.stage)).toEqual(["notes", "media", "media"]);
+    expect(events[0]).toMatchObject({ totalItems: 1, doneItems: 0 });
+    expect(events.slice(1).map((e) => [e.direction, e.doneItems, e.totalItems])).toEqual([
+      ["up", 0, 2],
+      ["up", 1, 2],
+    ]);
+    // Already-backed-up media never ticks on the next run.
+    const again: unknown[] = [];
+    await sync(graph, vault, (p) => again.push(p));
+    expect(again).toEqual([]);
+  });
+
   it("does not re-upload an already-backed-up media file on the next sync", async () => {
     vault.edit("x", NOTE, 5);
     vault.media.set(REF, new Uint8Array([1, 2, 3]));

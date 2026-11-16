@@ -1,4 +1,4 @@
-import type { SyncUi } from "./types";
+import type { SyncProgress, SyncUi } from "./types";
 import { relativeTime } from "../format";
 
 // Pure derivation of everything the sync header affordance shows — glyph state, copy,
@@ -119,4 +119,18 @@ export function deriveSyncView(ui: SyncUi, pending: boolean, justSynced: boolean
     primary,
     showMeter,
   };
+}
+
+/** The live transfer row's two lines, pure. Notes and media are separate stages with
+ *  separate counts — media (the slow, large payload) is labelled so a finished note
+ *  count never reads as "all done" while photos/recordings are still uploading.
+ *  `subject` is the note the item belongs to (a media ref is `media/<noteId>/<file>`),
+ *  for the caller to turn into a title. */
+export function describeTransfer(t: SyncProgress): { count: string; subject: string } {
+  const n = `${Math.min(t.doneItems + 1, t.totalItems)} of ${t.totalItems}`;
+  if (t.stage === "media") {
+    const noteId = t.name.split("/")[1] ?? t.name;
+    return { count: `Media · ${n}`, subject: noteId };
+  }
+  return { count: n, subject: t.name };
 }

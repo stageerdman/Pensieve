@@ -38,8 +38,17 @@ function newSessionId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
+/** Where entries are persisted beyond the in-memory ring (desktop: a capped JSONL file
+ *  via the Rust `append_log` command). Receives batches, never single entries. */
+export type LogSink = (entries: LogEntry[]) => void | Promise<void>;
+const FLUSH_MS = 2000;
+const FLUSH_AT = 200; // flush early if a burst queues this many
+
 class Logger {
   private buf: LogEntry[] = [];
+  private sink: LogSink | null = null;
+  private pending: LogEntry[] = [];
+  private timer: ReturnType<typeof setTimeout> | null = null;
   private session = newSessionId();
   private minConsole: LogLevel = "info";
 
@@ -54,6 +63,11 @@ class Logger {
     };
     this.buf.push(entry);
     if (this.buf.length > CAP) this.buf.splice(0, this.buf.length - CAP);
+    if (this.sink) {
+      this.pending.push(entry);
+      if (this.pending.length >= FLUSH_AT) this.flush();
+      else this.timer ??= setTimeout(() => this.flush(), FLUSH_MS);
+    }
     if (LEVEL_ORDER[level] >= LEVEL_ORDER[this.minConsole]) {
       const line = `[${level}] ${module}:${event}`;
       if (level === "error") console.error(line, data ?? "");
@@ -92,6 +106,26 @@ class Logger {
     return out;
   }
 
+  /** Persist entries from now on (batched). Pass null to stop. */
+  setSink(sink: LogSink | null) {
+    this.sink = sink;
+  }
+
+  /** Hand any queued entries to the sink now (e.g. on page hide). Never throws — a
+   *  failing sink must not take logging (or the app) down with it. */
+  flush() {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    const batch = this.pending;
+    this.pending = [];
+    if (!this.sink || batch.length === 0) return;
+    try {
+      void Promise.resolve(this.sink(batch)).catch((e) => console.warn("[logger] sink failed", e));
+    } catch (e) {
+      console.warn("[logger] sink failed", e);
+    }
+  }
+
   get sessionId() {
     return this.session;
   }
@@ -99,6 +133,10 @@ class Logger {
   /** Test helper — reset buffer and session. */
   _reset() {
     this.buf = [];
+    this.pending = [];
+    this.sink = null;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
     this.session = newSessionId();
   }
 }
