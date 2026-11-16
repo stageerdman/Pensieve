@@ -581,3 +581,182 @@ describe("phone sync engine — Raw Memory records", () => {
     expect(drive.files.has("raw/r1.json")).toBe(true);
   });
 });
+
+// ---- PHONE-WINDOW: rolling 2-week window ----
+import { fetchRemoteNote } from "./engine";
+import { WINDOW_MS, type NotesIndexEntry } from "./window";
+
+class WinVault extends MemVault {
+  index: NotesIndexEntry[] | null = null;
+  opens: Record<string, number> = {};
+  created = new Map<string, number>();
+  async listNotes(): Promise<LocalNoteInfo[]> {
+    return [...this.notes].map(([id, n]) => ({ id, updatedAt: n.updatedAt, createdAt: this.created.get(id) }));
+  }
+  async readNotesIndex() {
+    return this.index;
+  }
+  async writeNotesIndex(e: NotesIndexEntry[]) {
+    this.index = e;
+  }
+  async readOpens() {
+    return this.opens;
+  }
+  async deleteMedia(ref: string) {
+    this.media.delete(ref);
+  }
+}
+
+describe("sync engine — PHONE-WINDOW rolling window", () => {
+  const NOW = Date.now();
+  const OLD = NOW - WINDOW_MS - 86_400_000; // 15 days ago
+  const RECENT = NOW - 86_400_000; // yesterday
+  let drive: FakeDrive;
+  let graph: GraphClient;
+  let vault: WinVault;
+  const publish = (notes: NotesIndexEntry[]) => drive.put("notes-index.json", JSON.stringify({ v: 1, notes }));
+
+  beforeEach(() => {
+    drive = new FakeDrive();
+    graph = drive.client();
+    vault = new WinVault();
+  });
+
+  it("without a published index, mirrors everything and forgets nothing (old behaviour)", async () => {
+    drive.put("old.md", "# Old\n");
+    const r = await sync(graph, vault, undefined, { forget: true });
+    expect(r.pulled).toEqual(["old"]);
+    expect(r.forgotten).toBeUndefined();
+    expect(vault.notes.has("old")).toBe(true);
+  });
+
+  it("downloads only memories created or opened (desktop or phone) inside the window", async () => {
+    for (const id of ["old", "fresh", "deskOpened", "phoneOpened"]) drive.put(`${id}.md`, `# ${id}\n`);
+    publish([
+      { id: "old", t: "Old", c: OLD, u: OLD },
+      { id: "fresh", t: "Fresh", c: RECENT, u: RECENT },
+      { id: "deskOpened", t: "D", c: OLD, u: OLD, o: RECENT },
+      { id: "phoneOpened", t: "P", c: OLD, u: OLD },
+    ]);
+    vault.opens = { phoneOpened: RECENT };
+    const r = await sync(graph, vault);
+    expect(r.pulled.sort()).toEqual(["deskOpened", "fresh", "phoneOpened"]);
+    expect(vault.notes.has("old")).toBe(false);
+    expect(vault.state.notes.old.remoteOnly).toBe(true);
+  });
+
+  it("forgets clean old memories locally but NEVER deletes them from OneDrive", async () => {
+    drive.put("old.md", "# Old\n");
+    drive.put("fresh.md", "# Fresh\n");
+    await sync(graph, vault); // no index yet → full mirror
+    expect(vault.notes.size).toBe(2);
+
+    publish([
+      { id: "old", t: "Old", c: OLD, u: OLD },
+      { id: "fresh", t: "Fresh", c: RECENT, u: RECENT },
+    ]);
+    const r = await sync(graph, vault, undefined, { forget: true });
+    expect(r.forgotten).toEqual(["old"]);
+    expect(vault.notes.has("old")).toBe(false);
+    expect(vault.state.notes.old.remoteOnly).toBe(true);
+
+    // Several more syncs: the forgotten memory's absence is never read as a phone delete.
+    await sync(graph, vault, undefined, { forget: true });
+    const r3 = await sync(graph, vault);
+    expect(r3.pushedDeletes).toEqual([]);
+    expect(drive.files.get("old.md")?.content).toBe("# Old\n");
+  });
+
+  it("only forgets when asked (once per app session), never mid-session", async () => {
+    drive.put("old.md", "# Old\n");
+    await sync(graph, vault);
+    publish([{ id: "old", t: "Old", c: OLD, u: OLD }]);
+    const r = await sync(graph, vault);
+    expect(r.forgotten).toBeUndefined();
+    expect(vault.notes.has("old")).toBe(true);
+  });
+
+  it("never forgets a memory with an unsynced phone edit or a protected one", async () => {
+    drive.put("old.md", "# Old\n");
+    drive.put("shown.md", "# Shown\n");
+    await sync(graph, vault);
+    publish([
+      { id: "old", t: "Old", c: OLD, u: OLD },
+      { id: "shown", t: "Shown", c: OLD, u: OLD },
+    ]);
+    // Simulate an edit that can't upload this run: the push gets rejected (412).
+    vault.edit("old", "# Old edited\n", Date.now() + 10_000);
+    drive.put("old.md", "# Old changed elsewhere\n"); // → conflict, stays dirty
+    const r = await sync(graph, vault, undefined, { forget: true, protect: ["shown"] });
+    expect(r.forgotten ?? []).toEqual([]);
+    expect([...vault.notes.keys()].sort()).toEqual(["old", "shown"]);
+  });
+
+  it("brings a forgotten memory back once it's opened at the computer", async () => {
+    drive.put("old.md", "# Old\n");
+    publish([{ id: "old", t: "Old", c: OLD, u: OLD }]);
+    await sync(graph, vault);
+    expect(vault.notes.has("old")).toBe(false);
+
+    publish([{ id: "old", t: "Old", c: OLD, u: OLD, o: NOW }]); // opened on desktop just now
+    const r = await sync(graph, vault);
+    expect(r.pulled).toEqual(["old"]);
+    expect(vault.notes.get("old")?.content).toBe("# Old\n");
+    expect(vault.state.notes.old.remoteOnly).toBeUndefined();
+  });
+
+  it("frees media used only by forgotten memories, keeps shared and not-yet-backed-up media", async () => {
+    const A = "media/old/a.png";
+    const SHARED = "media/old/s.png";
+    drive.put("old.md", `# Old\n\n![a](${A})\n\n![s](${SHARED})\n`);
+    drive.put("fresh.md", `# Fresh\n\n![s](${SHARED})\n`);
+    await sync(graph, vault);
+    vault.putMedia(A, new Uint8Array([1]));
+    vault.putMedia(SHARED, new Uint8Array([2]));
+    vault.state.media = { [A]: { ref: A, backedUp: true }, [SHARED]: { ref: SHARED, backedUp: true } };
+    publish([
+      { id: "old", t: "Old", c: OLD, u: OLD },
+      { id: "fresh", t: "Fresh", c: RECENT, u: RECENT },
+    ]);
+    await sync(graph, vault, undefined, { forget: true });
+    expect(vault.media.has(A)).toBe(false);
+    expect(vault.media.has(SHARED)).toBe(true);
+  });
+
+  it("a crash between forget's state write and the removal heals: the note is a normal record again", async () => {
+    drive.put("old.md", "# Old\n");
+    await sync(graph, vault);
+    vault.state.notes.old.remoteOnly = true; // as if the app died right after the state write
+    await sync(graph, vault);
+    expect(vault.state.notes.old.remoteOnly).toBeUndefined();
+    // …so a real phone-side delete of it still propagates.
+    vault.notes.delete("old");
+    const r = await sync(graph, vault);
+    expect(r.pushedDeletes).toEqual(["old"]);
+  });
+
+  it("fetch-on-tap brings one older memory in as a normal, deletable record", async () => {
+    drive.put("old.md", "# Old\n");
+    publish([{ id: "old", t: "Old", c: OLD, u: OLD }]);
+    await sync(graph, vault);
+    const r = await fetchRemoteNote(graph, vault, "old");
+    expect(r.ok).toBe(true);
+    expect(vault.notes.get("old")?.content).toBe("# Old\n");
+    expect(vault.state.notes.old.remoteOnly).toBeUndefined();
+    expect((await fetchRemoteNote(graph, vault, "missing")).ok).toBe(false);
+  });
+
+  it("restore mirrors only the window", async () => {
+    drive.put("old.md", "# Old\n");
+    drive.put("fresh.md", "# Fresh\n");
+    vault.edit("old", "# stale local\n", 1);
+    publish([
+      { id: "old", t: "Old", c: OLD, u: OLD },
+      { id: "fresh", t: "Fresh", c: RECENT, u: RECENT },
+    ]);
+    const r = await restoreFromCloud(graph, vault);
+    expect(r.pulled).toEqual(["fresh"]);
+    expect(vault.notes.has("old")).toBe(false);
+    expect(vault.state.notes.old.remoteOnly).toBe(true);
+  });
+});

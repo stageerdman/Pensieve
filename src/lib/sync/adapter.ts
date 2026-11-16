@@ -13,6 +13,7 @@ import { GRAPH_BASE, REMOTE_ROOT } from "./config";
 import { ConflictError, TransientSyncError, type RemoteItem, type SyncAccount, type SyncQuota } from "./types";
 import { isMediaPath, parseMediaPath } from "../media";
 import { log } from "../logger";
+import { NOTES_INDEX_NAME } from "./notesIndex";
 
 /** The signed-in account (Graph /me). Personal accounts expose the address as
  *  `userPrincipalName`; `mail` is often null, so fall back to it. */
@@ -157,6 +158,21 @@ export async function uploadNote(
   const item = (await res.json()) as RemoteItem;
   log.debug("sync", "adapter.upload", { noteId, cTag: item.cTag, conditional: !!ifMatch });
   return item;
+}
+
+/** Publish the notes index (notesIndex.ts) at `<root>/notes-index.json`. Unconditional
+ *  PUT — the desktop is its only writer. Not a note (no `.md`) and not under raw/, so
+ *  both devices' delta loops already skip it. */
+export async function uploadNotesIndex(graph: GraphClient, json: string): Promise<void> {
+  const res = await graph.fetch(`${filePath(NOTES_INDEX_NAME)}:/content`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: json,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`uploadNotesIndex failed (${res.status}): ${text.slice(0, 200)}`);
+  }
 }
 
 /** Delete a note's remote file. Absent (404) is treated as success. A stale

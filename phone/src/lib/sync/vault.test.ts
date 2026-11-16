@@ -24,7 +24,7 @@ describe("phoneVault", () => {
   it("listNotes reflects what's in the vault", async () => {
     persistVault([NOTE]);
     const vault = phoneVault();
-    expect(await vault.listNotes()).toEqual([{ id: "n1", updatedAt: 2000 }]);
+    expect(await vault.listNotes()).toMatchObject([{ id: "n1", updatedAt: 2000 }]);
   });
 
   it("readNote composes the markdown .md for an existing note, null for a missing one", async () => {
@@ -39,7 +39,7 @@ describe("phoneVault", () => {
     const vault = phoneVault();
     await vault.writeNote("new1", "Title\n\nBody", { createdAt: 10, updatedAt: 20 });
     const notes = await vault.listNotes();
-    expect(notes).toEqual([{ id: "new1", updatedAt: 20 }]);
+    expect(notes).toMatchObject([{ id: "new1", updatedAt: 20 }]);
     expect((await vault.readNote("new1"))?.endsWith("Title\n\nBody")).toBe(true);
   });
 
@@ -49,7 +49,7 @@ describe("phoneVault", () => {
     await vault.writeNote("n1", "Hello\n\nEdited", { updatedAt: 3000 });
     const notes = await vault.listNotes();
     expect(notes).toHaveLength(1);
-    expect(notes[0]).toEqual({ id: "n1", updatedAt: 3000 });
+    expect(notes[0]).toMatchObject({ id: "n1", updatedAt: 3000 });
   });
 
   it("deleteNote removes it", async () => {

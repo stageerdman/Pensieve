@@ -391,13 +391,18 @@ export function clearVault(): void {
 export interface NoteMeta {
   id: string;
   updatedAt: number;
+  createdAt?: number;
   draft?: string;
 }
 
 /** id + updatedAt (+ draft) of every note — no copying of bodies. */
 export function listNoteMeta(): NoteMeta[] {
   const list = recs ? sorted().map((r) => r.n) : lsLoad();
-  return list.map((n) => (n.draft ? { id: n.id, updatedAt: n.updatedAt, draft: n.draft } : { id: n.id, updatedAt: n.updatedAt }));
+  return list.map((n) =>
+    n.draft
+      ? { id: n.id, updatedAt: n.updatedAt, createdAt: n.createdAt, draft: n.draft }
+      : { id: n.id, updatedAt: n.updatedAt, createdAt: n.createdAt },
+  );
 }
 
 /** One note as a fresh copy, or undefined. */

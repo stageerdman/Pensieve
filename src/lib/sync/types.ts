@@ -145,6 +145,9 @@ export interface SyncState {
   raw?: Record<string, RawSyncRecord>;
   /** Last full sync (epoch ms). */
   lastSyncedAt: number | null;
+  /** Hash of the notes-index.json last uploaded (see notesIndex.ts) — skip re-uploading
+   *  an unchanged index. Absent = never uploaded. */
+  notesIndexHash?: string;
 }
 
 export const EMPTY_SYNC_STATE: SyncState = {

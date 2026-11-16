@@ -264,6 +264,25 @@ describe("sync engine", () => {
     expect(drive.files.get("x.md")?.content).toBe("# X\n");
   });
 
+  it("publishes notes-index.json for the phone, skips an unchanged one, and never treats it as a note", async () => {
+    vault.edit("x", "# X\n", 5);
+    let entries = [{ id: "x", t: "X", c: 1, u: 5 }];
+    const v = Object.assign(vault, { listIndexEntries: async () => entries });
+    await sync(graph, v);
+    const idx = JSON.parse(drive.files.get("notes-index.json")!.content);
+    expect(idx).toEqual({ v: 1, notes: [{ id: "x", t: "X", c: 1, u: 5 }] });
+
+    const firstCTag = drive.files.get("notes-index.json")!.cTag;
+    const r2 = await sync(graph, v); // unchanged → no re-upload; its own delta echo is not a note
+    expect(drive.files.get("notes-index.json")!.cTag).toBe(firstCTag);
+    expect(r2.pulled).toEqual([]);
+    expect(await vault.readNote("notes-index")).toBeNull();
+
+    entries = [{ id: "x", t: "X", c: 1, u: 5, o: 99 } as typeof entries[number]]; // opened on desktop
+    await sync(graph, v);
+    expect(JSON.parse(drive.files.get("notes-index.json")!.content).notes[0].o).toBe(99);
+  });
+
   it("initial pull downloads remote notes into the empty vault", async () => {
     drive.put("a.md", "# A\n");
     drive.put("b.md", "# B\n");

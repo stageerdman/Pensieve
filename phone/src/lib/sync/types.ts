@@ -24,6 +24,10 @@ export interface NoteSyncRecord {
   cTag: string;
   localUpdatedAt: number;
   syncedAt: number;
+  /** PHONE-WINDOW: this memory exists on OneDrive but is deliberately NOT on this phone
+   *  (outside the rolling window, see window.ts). Its absence locally is NOT a delete —
+   *  the deletion pass skips it. Cleared when the memory is brought back in. */
+  remoteOnly?: boolean;
 }
 
 /** Same shape, for a Raw Memory batch (`raw/<id>.json`) instead of a note's `.md` —
@@ -54,6 +58,8 @@ export interface SyncState {
   media?: Record<string, MediaSyncRecord>;
   raw?: Record<string, RawSyncRecord>;
   lastSyncedAt: number | null;
+  /** cTag of the notes-index.json last fetched — skip re-downloading an unchanged one. */
+  notesIndexCTag?: string;
 }
 
 export const EMPTY_SYNC_STATE: SyncState = { deltaLink: null, notes: {}, media: {}, raw: {}, lastSyncedAt: null };
@@ -86,6 +92,8 @@ export interface SyncProgress {
 }
 
 export interface SyncResult {
+  /** PHONE-WINDOW: memories forgotten locally this run (still on OneDrive). */
+  forgotten?: string[];
   pulled: string[];
   pushed: string[];
   pulledDeletes: string[];

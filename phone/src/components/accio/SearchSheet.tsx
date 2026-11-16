@@ -11,7 +11,18 @@ import { useEffect, useRef } from "react";
 import type { Note } from "../../types";
 import { SearchResultRow } from "./SearchResultRow";
 
-export function SearchSheet({ list, queryText, onOpen }: { list: Note[]; queryText: string; onOpen: (n: Note) => void }) {
+export function SearchSheet({
+  list,
+  queryText,
+  onOpen,
+  fetchingId = null,
+}: {
+  list: Note[];
+  queryText: string;
+  onOpen: (n: Note) => void;
+  /** PHONE-WINDOW: the older memory currently being fetched, if any. */
+  fetchingId?: string | null;
+}) {
   const resultsRef = useRef<HTMLDivElement>(null);
   const rows = list.slice(0, 30); // natural order; reversed below so best match sits last
 
@@ -36,7 +47,7 @@ export function SearchSheet({ list, queryText, onOpen }: { list: Note[]; queryTe
           rows
             .slice()
             .reverse()
-            .map((n) => <SearchResultRow key={n.id} note={n} queryText={queryText} onOpen={onOpen} />)
+            .map((n) => <SearchResultRow key={n.id} note={n} queryText={queryText} onOpen={onOpen} fetching={n.id === fetchingId} />)
         )}
       </div>
     </div>

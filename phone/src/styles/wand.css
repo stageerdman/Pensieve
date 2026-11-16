@@ -972,6 +972,17 @@ body {
   min-width: 0;
   flex: 1;
 }
+/* PHONE-WINDOW: an older memory pouring in from OneDrive (shown only after ~250ms) */
+.sr.fetching .flask {
+  animation: sr-pour 0.8s ease-in-out infinite alternate;
+}
+@keyframes sr-pour {
+  from { opacity: 0.5; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sr.fetching .flask { animation: none; }
+}
 .sr .title {
   font-size: 15px;
   font-weight: 600;

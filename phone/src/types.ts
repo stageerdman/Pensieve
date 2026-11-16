@@ -60,6 +60,9 @@ export interface Note {
   fresh?: boolean;
   /** Not yet committed into DATA (so the first real edit unshifts it in). */
   isNew?: boolean;
+  /** PHONE-WINDOW: an older memory that is NOT on the phone — a title-only search stub built
+   *  from the notes index (lib/sync/remoteStubs.ts). Opening it fetches it first. */
+  remote?: boolean;
   /** Desktop-only metadata, carried through unedited — see {@link ForeignMeta}. */
   foreign?: ForeignMeta;
   /** PACKAGES: a One Question walk-through in progress (= its form's id). Local only — never

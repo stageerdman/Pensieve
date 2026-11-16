@@ -10,6 +10,7 @@ import { parseFrontmatter } from "../md/frontmatter";
 import { titleFromMarkdown } from "../text";
 import { MEDIA_DIR, base64ToBytes, bytesToBase64 } from "../media";
 import { downloadMediaChunked, mediaSize as nativeMediaSize, uploadMediaChunked } from "./native";
+import { indexEntryFromMeta, type NotesIndexEntry } from "./notesIndex";
 
 export interface LocalNoteInfo {
   id: string;
@@ -62,6 +63,9 @@ export interface LocalVault {
   /** Stream a large media file from an authenticated Graph content URL straight to
    *  disk, resuming from wherever a previous partial attempt left off. Native-only. */
   downloadMediaStream?(ref: string, contentUrl: string, bearerToken: string, expectedSize: number): Promise<void>;
+  /** Every note as a notes-index entry (title/dates/desktop lastOpenedAt) — published so
+   *  the phone can keep a rolling window yet find any memory. Optional: absent = no index. */
+  listIndexEntries?(): Promise<NotesIndexEntry[]>;
 }
 
 // ---- Tauri implementation (the on-disk vault) ----
@@ -80,6 +84,7 @@ const STATE_PATH = "sync/state.json";
 
 interface Meta {
   title: string;
+  lastOpenedAt?: number;
   createdAt: number;
   addedAt?: number;
   updatedAt: number;
@@ -97,6 +102,11 @@ export function tauriVault(): LocalVault {
     },
 
     readNote: (id) => readText(notePath(id)),
+
+    async listIndexEntries() {
+      const recs = await invoke<{ id: string; meta: Meta | null }[]>("list_notes_bulk", { withBodies: false });
+      return recs.map((r) => indexEntryFromMeta(r.id, r.meta));
+    },
 
     async writeNote(id, content, times) {
       await writeText(notePath(id), content);

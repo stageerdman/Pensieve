@@ -35,7 +35,9 @@ import {
   uploadMedia,
   uploadNote,
   uploadRawRecord,
+  uploadNotesIndex,
 } from "./adapter";
+import { hashText, serializeNotesIndex } from "./notesIndex";
 import {
   extractMediaRefs,
   primeMediaBackupStates,
@@ -258,6 +260,23 @@ async function uploadLargeMedia(
 
   const { remoteId } = await vault.uploadMediaStream!(ref, session.uploadUrl, resumeFrom);
   return remoteId;
+}
+
+/** Publish notes-index.json (notesIndex.ts) when it changed since the last upload —
+ *  the phone's rolling window + title search depend on it. Best-effort: a failure is
+ *  logged and retried next sync, never fails the sync itself. */
+async function publishNotesIndex(graph: GraphClient, vault: LocalVault, state: SyncState): Promise<void> {
+  if (!vault.listIndexEntries) return;
+  try {
+    const json = serializeNotesIndex(await vault.listIndexEntries());
+    const hash = hashText(json);
+    if (hash === state.notesIndexHash) return;
+    await uploadNotesIndex(graph, json);
+    state.notesIndexHash = hash;
+    log.info("sync", "notes-index.published", { bytes: json.length });
+  } catch (e) {
+    log.warn("sync", "notes-index.failed", { error: String(e) });
+  }
 }
 
 /** Run a full two-way sync. Pull first (so remote wins where only remote changed),
@@ -612,6 +631,8 @@ export async function sync(
       log.info("sync", "raw.delete.conflict", { id });
     }
   }
+
+  await publishNotesIndex(graph, vault, state);
 
   state.lastSyncedAt = nowMs();
   result.lastSyncedAt = state.lastSyncedAt;
