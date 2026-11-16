@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "tauri": "tauri",
-    "tauri:build": "tauri build && bash scripts/install-app.sh"
+    "tauri:build": "tauri build && bash scripts/install-app.sh",
+    "logs": "node scripts/logs.mjs"
   },
   "dependencies": {
     "@blocknote/core": "^0.55.0",
