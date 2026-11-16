@@ -14,6 +14,7 @@ import { REMOTE_ROOT } from "./config";
 import { ConflictError, TransientSyncError } from "./errors";
 import type { RemoteItem, SyncAccount, SyncQuota } from "./types";
 import { isMediaPath } from "../media/noteMedia";
+import { NOTES_INDEX_NAME } from "./window";
 
 export async function getAccount(graph: GraphClient): Promise<SyncAccount> {
   // The DRIVE's owner first: it's the account we actually back up to, and it answers even
@@ -113,6 +114,23 @@ export async function downloadNote(graph: GraphClient, name: string): Promise<{ 
   if (!contentRes.ok) throw await contentError("downloadNote content", contentRes);
   const content = await contentRes.text();
   return { content, item };
+}
+
+/** The desktop-published notes index (PHONE-WINDOW, window.ts). null = not published yet;
+ *  "unchanged" = same cTag as `knownCTag` (skips the ~200 KB body). */
+export async function downloadNotesIndex(
+  graph: GraphClient,
+  knownCTag?: string,
+): Promise<{ json: string; cTag: string } | "unchanged" | null> {
+  const metaRes = await graph.fetch(`${filePath(NOTES_INDEX_NAME)}?$select=id,name,cTag`);
+  if (metaRes.status === 404) return null;
+  if (!metaRes.ok) throw await contentError("downloadNotesIndex meta", metaRes);
+  const item = (await metaRes.json()) as RemoteItem;
+  if (knownCTag && item.cTag === knownCTag) return "unchanged";
+  const res = await graph.fetch(`${filePath(NOTES_INDEX_NAME)}:/content`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw await contentError("downloadNotesIndex content", res);
+  return { json: await res.text(), cTag: item.cTag ?? "" };
 }
 
 export async function uploadNote(graph: GraphClient, noteId: string, content: string, ifMatch?: string): Promise<RemoteItem> {

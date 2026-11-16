@@ -13,10 +13,14 @@ import { loadRawBatch, loadRawBatches, saveRawBatch, deleteRawBatchRecord, type 
 import { mediaContentType } from "./adapter";
 import { noteFromRemoteContent, noteToRemoteContent } from "./noteFormat";
 import { EMPTY_SYNC_STATE, type SyncState } from "./types";
+import type { NotesIndexEntry } from "./window";
+import { loadOpens } from "./opens";
 
 export interface LocalNoteInfo {
   id: string;
   updatedAt: number;
+  /** PHONE-WINDOW: the note's creation time, for the rolling window. */
+  createdAt?: number;
 }
 
 export interface WriteTimes {
@@ -44,9 +48,17 @@ export interface LocalVault {
   /** False when the local vault did not load fully (see vaultStore.vaultReady) — sync refuses
    *  to run rather than read "missing" notes as local deletes. Optional: absent = ready. */
   isReady?(): boolean;
+  /** PHONE-WINDOW (window.ts): the last fetched notes index, or null. */
+  readNotesIndex?(): Promise<NotesIndexEntry[] | null>;
+  writeNotesIndex?(entries: NotesIndexEntry[]): Promise<void>;
+  /** id → last opened on this phone. */
+  readOpens?(): Promise<Record<string, number>>;
+  /** Free a media file's local bytes (the remote copy is untouched). */
+  deleteMedia?(ref: string): Promise<void>;
 }
 
 const STATE_KEY = "pensieve.phone.syncState";
+const INDEX_KEY = "pensieve.phone.notesIndex";
 
 export function phoneVault(): LocalVault {
   return {
@@ -58,7 +70,7 @@ export function phoneVault(): LocalVault {
       // Per-note ops (FAST-LOAD): no whole-vault parse per call — a 2,000-note pull is O(n).
       return listNoteMeta()
         .filter((n) => !n.draft)
-        .map((n) => ({ id: n.id, updatedAt: n.updatedAt }));
+        .map((n) => ({ id: n.id, updatedAt: n.updatedAt, createdAt: n.createdAt }));
     },
 
     async readNote(id) {
@@ -91,6 +103,24 @@ export function phoneVault(): LocalVault {
         /* quota / unavailable — next sync just re-derives what it can */
       }
     },
+
+    async readNotesIndex() {
+      try {
+        const raw = localStorage.getItem(INDEX_KEY);
+        return raw ? (JSON.parse(raw) as NotesIndexEntry[]) : null;
+      } catch {
+        return null;
+      }
+    },
+    async writeNotesIndex(entries) {
+      try {
+        localStorage.setItem(INDEX_KEY, JSON.stringify(entries));
+      } catch {
+        /* quota — the window just stays off until it fits */
+      }
+    },
+    readOpens: async () => loadOpens(),
+    deleteMedia: (ref) => deleteMedia(ref),
 
     listMedia: () => listMediaKeys(),
     readMediaBytes: (ref) => getMediaBytes(ref),
