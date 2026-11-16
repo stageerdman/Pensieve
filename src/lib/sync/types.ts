@@ -100,6 +100,10 @@ export interface SyncProgress {
   totalItems: number;
   /** Size of the current item in bytes, if known. */
   bytes?: number;
+  /** Which stage this tick belongs to. Notes move first; media (photos, audio, video —
+   *  the slow, large payload) follows with its OWN count, so "N of N notes" finishing
+   *  never reads as "done" while media is still uploading. Absent = "notes". */
+  stage?: "notes" | "media";
 }
 
 /** Per-media backup bookkeeping. Media is content-addressed by its stable ref (immutable

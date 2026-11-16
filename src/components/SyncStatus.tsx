@@ -8,7 +8,7 @@ import { SpaceMeter } from "./SpaceMeter";
 import { RestoreFromCloud } from "./RestoreFromCloud";
 import { formatBytes, relativeTime } from "../lib/format";
 import type { SyncConflict } from "../lib/sync/engine";
-import { deriveSyncView } from "../lib/sync/deriveSyncView";
+import { deriveSyncView, describeTransfer } from "../lib/sync/deriveSyncView";
 import type { useSync } from "../hooks/useSync";
 import { isTauri } from "../lib/store";
 import { NativeTranscriptionEngine } from "../lib/transcripts/nativeEngine";
@@ -171,13 +171,13 @@ export function SyncStatus({
                   <>
                     <p className="text-xs text-text">
                       <span className="text-text-muted">{transfer.direction === "down" ? "↓" : "↑"}</span>{" "}
-                      {transfer.doneItems + 1} of {transfer.totalItems}
+                      {describeTransfer(transfer).count}
                       {transfer.bytes && transfer.bytes > BIG_FILE && (
                         <span className="text-text-muted"> · {formatBytes(transfer.bytes)}</span>
                       )}
                     </p>
-                    <p className="truncate text-xs text-text-muted" title={titleFor(transfer.name)}>
-                      {titleFor(transfer.name)}
+                    <p className="truncate text-xs text-text-muted" title={titleFor(describeTransfer(transfer).subject)}>
+                      {titleFor(describeTransfer(transfer).subject)}
                     </p>
                   </>
                 ) : (
