@@ -20,6 +20,8 @@ import { loadVault, newId, persistVault } from "./vaultStore";
 import { haptic, prefersReducedMotion } from "./util";
 import { parseQuery, passesDate, passesText } from "./lib/wand/accioQuery";
 import { rankNotes } from "./lib/wand/accioRank";
+import { remoteStubs } from "./lib/sync/remoteStubs";
+import { recordOpen } from "./lib/sync/opens";
 import { sortNewestFirst } from "./lib/wand/feedWindow";
 import { CAT_HUE, SHAPES } from "./lib/wand/flaskSvg";
 import type { SyncStatus } from "./lib/wand/syncMachine";
@@ -78,6 +80,13 @@ const DICTATION_SAMPLE =
 /** viewData(): the reel's list — everything, or the filtered matches. Source ~691-695.
  *  Newest-first by creation date (FAST-LOAD): the reel is windowed by week (Reel/useFeedWindow),
  *  so its order must be date order, not vault insertion order (a sync pull inserts in pull order). */
+/** The Accio sheet's ranking. With a typed query, older memories that aren't on the phone
+ *  (PHONE-WINDOW title stubs) join the SAME ranking after the local ones in each tier. */
+function rankSearch(data: Note[], query: string, openedOrder: string[]): Note[] {
+  if (!parseQuery(query).text) return rankNotes(data, query, openedOrder);
+  return rankNotes([...data, ...remoteStubs(data)], query, openedOrder);
+}
+
 function computeView(data: Note[], query: string, openedOrder: string[]): Note[] {
   const { text, dates } = parseQuery(query);
   if (!text && !dates.length) return sortNewestFirst(data);
@@ -252,7 +261,7 @@ export function PhoneApp() {
     const data = dataRef.current!;
     const v = computeView(data, query, openedOrderRef.current);
     setView(v);
-    setSearchList(rankNotes(data, query, openedOrderRef.current));
+    setSearchList(rankSearch(data, query, openedOrderRef.current));
     setCount(computeCount(query, v.length, data.length));
   }
 
@@ -341,7 +350,7 @@ export function PhoneApp() {
       renderAll(q);
       reelIntent.current = { mode: "jump0", to: 0 };
     },
-    onSheet: (q) => setSearchList(rankNotes(dataRef.current!, q, openedOrderRef.current)),
+    onSheet: (q) => setSearchList(rankSearch(dataRef.current!, q, openedOrderRef.current)),
     onClear: (restoreTop) => {
       renderAll("");
       reelIntent.current = { mode: "restore", to: restoreTop };
@@ -359,9 +368,34 @@ export function PhoneApp() {
     openedOrderRef.current.push(id);
   }
 
+  // PHONE-WINDOW: tapping an older memory (not on the phone) pours it in from OneDrive
+  // first, then opens it — never an empty page filled later. The flask only animates if
+  // the fetch outlasts ~250ms; repeat taps are ignored; dismissing Accio cancels the open
+  // (the fetched memory stays). Offline → a toast; tapping the row again retries.
+  const [fetchingId, setFetchingId] = useState<string | null>(null);
+  const fetchInFlight = useRef<string | null>(null);
+  const searchingNow = useRef(false);
+  searchingNow.current = accio.searching; // read after the await — the closure's copy is stale
+  async function openFromSearch(d: Note) {
+    if (!d.remote) return openNote(d);
+    if (fetchInFlight.current) return;
+    if (!onedrive.connected) return showToast("Connect OneDrive to open older memories", 3000);
+    fetchInFlight.current = d.id;
+    const shimmer = setTimeout(() => setFetchingId(d.id), 250);
+    const outcome = await onedrive.fetchNote(d.id);
+    clearTimeout(shimmer);
+    setFetchingId(null);
+    fetchInFlight.current = null;
+    if (outcome === "failed") return showToast("Offline — this memory is on OneDrive. Tap it again once connected.", 3000);
+    if (outcome === "missing") return showToast("This memory is no longer on OneDrive", 3000);
+    const local = dataRef.current!.find((n) => n.id === d.id);
+    if (local && searchingNow.current) openNote(local);
+  }
+
   function openNote(d: Note) {
     currentRef.current = d;
     noteOpened(d.id);
+    if (!d.fresh) recordOpen(d.id); // PHONE-WINDOW: an opened memory stays for 2 weeks
     accio.hideBar(); // drop the summon bar if up; the filter/pill persists
     // cancel a pending unmount from a just-closed page so a quick reopen isn't yanked away
     if (noteUnmountTimer.current) {
@@ -798,10 +832,10 @@ export function PhoneApp() {
       return next;
     });
   }
-  function showToast(msg: string) {
+  function showToast(msg: string, ms = 1500) {
     setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(""), 1500);
+    toastTimer.current = setTimeout(() => setToast(""), ms);
   }
   function runRecent(q: string) {
     accio.handleInput(q); // rerun the filter in place (resident, no keyboard)
@@ -1185,7 +1219,7 @@ export function PhoneApp() {
           none of it sits in the home DOM at rest. */}
       {accio.searching ? (
         <>
-          <SearchSheet list={searchList} queryText={queryText} onOpen={openNote} />
+          <SearchSheet list={searchList} queryText={queryText} onOpen={(n) => void openFromSearch(n)} fetchingId={fetchingId} />
           {!accio.filterQuery.trim() ? <DockSettings recents={recents} onRun={runRecent} /> : null}
           <SummonBar
             inputRef={accioInputRef}

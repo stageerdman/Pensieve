@@ -44,6 +44,8 @@ export interface OneDriveSync {
   disconnect: () => void;
   run: () => Promise<SyncOutcome>;
   restore: () => Promise<SyncOutcome>;
+  /** PHONE-WINDOW: bring one older memory onto the phone (Accio tap). */
+  fetchNote: (id: string) => Promise<"ok" | "missing" | "failed">;
 }
 
 /** `onChanged` is called after a sync that may have pulled/removed notes (or Raw
@@ -82,9 +84,14 @@ export function useOneDriveSync(onChanged?: (info?: { pushedRaw?: string[] }) =>
     setConnected(false);
   }, []);
 
+  // PHONE-WINDOW: forget old memories on the FIRST successful sync of an app session only
+  // (at launch, not mid-scroll — cards must never vanish under the thumb).
+  const forgotThisSession = useRef(false);
+
   const run = useCallback(async (): Promise<SyncOutcome> => {
     try {
-      const result = await engineRef.current.run();
+      const result = await engineRef.current.run(undefined, { forget: !forgotThisSession.current });
+      forgotThisSession.current = true;
       onChangedRef.current?.({ pushedRaw: result.pushedRaw });
       return { ok: true, message: "All memories safe · just now", pushedRaw: result.pushedRaw };
     } catch (e) {
@@ -120,5 +127,16 @@ export function useOneDriveSync(onChanged?: (info?: { pushedRaw?: string[] }) =>
     }
   }, []);
 
-  return { connected, account, connect, disconnect, run, restore };
+  const fetchNote = useCallback(async (id: string): Promise<"ok" | "missing" | "failed"> => {
+    try {
+      const ok = await engineRef.current.fetchNote(id);
+      if (ok) onChangedRef.current?.();
+      return ok ? "ok" : "missing";
+    } catch (e) {
+      log.warn("sync", "window.fetch-failed", { id, error: String(e) });
+      return "failed";
+    }
+  }, []);
+
+  return { connected, account, connect, disconnect, run, restore, fetchNote };
 }

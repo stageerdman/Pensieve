@@ -7,13 +7,25 @@ import type { Note } from "../../types";
 import { highlight } from "../../highlight";
 import { Flask } from "../Flask";
 
-export function SearchResultRow({ note, queryText, onOpen }: { note: Note; queryText: string; onOpen: (n: Note) => void }) {
+export function SearchResultRow({
+  note,
+  queryText,
+  onOpen,
+  fetching = false,
+}: {
+  note: Note;
+  queryText: string;
+  onOpen: (n: Note) => void;
+  /** PHONE-WINDOW: an older memory is being poured in from OneDrive (flask fills). */
+  fetching?: boolean;
+}) {
   return (
-    <div className="sr" data-id={note.id} onClick={() => onOpen(note)}>
-      <Flask shape={note.shape} cat={note.cat} fill={note.fill} />
+    <div className={"sr" + (fetching ? " fetching" : "")} data-id={note.id} onClick={() => onOpen(note)}>
+      <Flask shape={note.shape} cat={note.cat} fill={fetching ? 1 : note.fill} />
       <div className="body">
         <div className="title">{highlight(note.t || "New thought", queryText)}</div>
-        <div className="snip">{highlight(note.c || "…", queryText)}</div>
+        {/* an older memory has only its title on the phone — no snippet line at all */}
+        {!note.remote && <div className="snip">{highlight(note.c || "…", queryText)}</div>}
       </div>
       <div className="when">{note.created || note.d}</div>
     </div>

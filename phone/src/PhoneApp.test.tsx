@@ -120,6 +120,34 @@ describe("PhoneApp — Accio (resident → summon)", () => {
   });
 });
 
+describe("PhoneApp — PHONE-WINDOW older memories in Accio", () => {
+  it("finds a memory that isn't on the phone by title (no snippet), and an offline tap toasts", async () => {
+    localStorage.setItem(
+      "pensieve.phone.notesIndex",
+      JSON.stringify([{ id: "far-away", t: "Zanzibar notes", c: 1_600_000_000_000, u: 1_600_000_000_000 }]),
+    );
+    connectOneDriveForTest();
+    const { container } = await boot();
+    await act(async () => {
+      fireEvent.click(container.querySelector<HTMLElement>(".accio-bar")!);
+    });
+    const input = container.querySelector<HTMLInputElement>(".summon input")!;
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "zanzibar" } });
+    });
+    const row = container.querySelector<HTMLElement>('.search-results .sr[data-id="far-away"]');
+    expect(row).toBeTruthy();
+    expect(row!.querySelector(".snip")).toBeNull(); // title only — its body isn't here
+    expect(container.querySelectorAll(".reel .slot").length).toBe(0); // the reel stays local
+
+    await act(async () => {
+      fireEvent.click(row!);
+    });
+    await flush();
+    expect(container.querySelector(".spell-toast")?.textContent).toMatch(/^Offline — this memory is on OneDrive/);
+  });
+});
+
 describe("PhoneApp — the Spell Menu", () => {
   it("blooms the general ring (gold) from the menu button — home has no local suggestions", async () => {
     const { container } = await boot();
