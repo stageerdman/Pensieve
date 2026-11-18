@@ -4,8 +4,31 @@
 // same way, even though what they scan is unrelated.
 import type { RawMemory, Store } from "../types";
 import { packageKind } from "../packages/record";
+import { log } from "../logger";
 
-export type RawBatchStore = Pick<Store, "listRawMemories">;
+// listMedia is optional: when present, a record whose binaries haven't all arrived yet is
+// held back (see mediaReady) — when absent (simple callers/tests), everything counts as here.
+export type RawBatchStore = Pick<Store, "listRawMemories"> & Partial<Pick<Store, "listMedia">>;
+
+/** Every media ref a record needs on disk before it can be processed: a Journal batch's
+ *  page photos + a package's recordings/photos. */
+export function requiredMedia(rm: RawMemory): string[] {
+  return [...rm.pages, ...(rm.media ?? [])];
+}
+
+/** The phone uploads a record and its media separately, so a sync can land the record
+ *  before a large recording has finished arriving (2026-11-18: a 21-min WAV landed 45s
+ *  after its record → Patronus failed "audio not found"). Such a record waits — the next
+ *  sync pulls the missing media and the queue scan picks it up then. */
+async function mediaReadyFilter(store: RawBatchStore): Promise<(rm: RawMemory) => boolean> {
+  if (!store.listMedia) return () => true;
+  const have = new Set(await store.listMedia());
+  return (rm) => {
+    const missing = requiredMedia(rm).filter((ref) => !have.has(ref));
+    if (missing.length) log.info("raw", "queue.wait-media", { id: rm.id, missing: missing.length });
+    return missing.length === 0;
+  };
+}
 
 /** One Raw Memory ready to show as a Process queue row. */
 export interface RawBatchQueueItem {
@@ -17,8 +40,10 @@ export interface RawBatchQueueItem {
  *  yet, and `processing`/`done` are already being handled (see RawMemoryStatus). */
 export async function listUnprocessedRawBatches(store: RawBatchStore): Promise<RawBatchQueueItem[]> {
   const all: RawMemory[] = await store.listRawMemories();
+  const ready = await mediaReadyFilter(store);
   return all
     .filter((rm) => rm.status === "synced" && packageKind(rm) === "journal" && rm.pages.length > 0)
+    .filter(ready)
     .map((rm) => ({ id: rm.id, pageCount: rm.pages.length }));
 }
 
@@ -30,9 +55,11 @@ export interface PackageQueueItem {
 
 export async function listPackagesToResolve(store: RawBatchStore): Promise<PackageQueueItem[]> {
   const all: RawMemory[] = await store.listRawMemories();
+  const ready = await mediaReadyFilter(store);
   return all
     // "processing" too: one left over from a run the app quit in the middle of must not be
     // stuck forever (the queue de-dupes by id, so a live run is never started twice).
     .filter((rm) => (rm.status === "synced" || rm.status === "processing") && packageKind(rm) === "form" && !!rm.markdown)
+    .filter(ready)
     .map((rm) => ({ id: rm.id, title: rm.title || "Form" }));
 }

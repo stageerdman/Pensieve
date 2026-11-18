@@ -169,7 +169,11 @@ class FakeDrive {
           })
           .map(([fullKey, f]) => {
             const { bareName, parentPath } = splitPath(fullKey);
-            return { id: f.id, name: bareName, cTag: f.cTag, lastModifiedDateTime: f.time, parentReference: { path: parentPath } };
+            // Real Graph OMITS any field a $select doesn't name — parentReference included.
+            // (The fake used to always send it, which hid the 2026-11-18 listing bug.)
+            const sel = path.match(/[?&]\$select=([^&]*)/)?.[1]?.split(",");
+            const withParent = !sel || sel.includes("parentReference");
+            return { id: f.id, name: bareName, cTag: f.cTag, lastModifiedDateTime: f.time, ...(withParent ? { parentReference: { path: parentPath } } : {}) };
           });
         return resp(200, { value });
       }
@@ -547,6 +551,56 @@ describe("sync engine — Raw Memory records", () => {
     const r = await sync(graph, vault);
     expect(r.pulledMedia).toEqual(["media/r1/a.jpg"]);
     expect(await vault.readMediaBytes("media/r1/a.jpg")).not.toBeNull();
+  });
+
+  it("a synced record SURVIVES the next sync (the listing must carry parentReference — 2026-11-18 bug deleted it locally mid-processing)", async () => {
+    drive.put("raw/r1.json", rawJson("r1", []));
+    await sync(graph, vault);
+    const r2 = await sync(graph, vault);
+    expect(r2.pulledRawDeletes).toEqual([]);
+    expect(await vault.readRawMemory("r1")).not.toBeNull();
+  });
+
+  it("re-adopts a remote record this device lost track of (the bug's aftermath: gone locally + from state, delta silent)", async () => {
+    drive.put("raw/r1.json", rawJson("r1", []));
+    await sync(graph, vault);
+    await vault.deleteRawMemory("r1");
+    delete vault.state.raw!.r1;
+    const r = await sync(graph, vault);
+    expect(r.pulledRaw).toEqual(["r1"]);
+    expect(await vault.readRawMemory("r1")).not.toBeNull();
+  });
+
+  it("an orphan whose memory already exists is a processed leftover — deleted remotely, never re-processed", async () => {
+    drive.put("raw/p1.json", rawJson("p1", []));
+    await sync(graph, vault); // pulled
+    // pre-fix aftermath: resolved into memory p1, then the record was lost locally AND from
+    // state before its tombstone went out — the remote copy lingers, the delta is past it
+    vault.edit("p1", "# resolved memory\n", 5);
+    await vault.deleteRawMemory("p1");
+    delete vault.state.raw!["p1"];
+    const r = await sync(graph, vault);
+    expect(r.pulledRaw).toEqual([]);
+    expect(await vault.readRawMemory("p1")).toBeNull();
+    expect(drive.files.has("raw/p1.json")).toBe(false);
+  });
+
+  it("never re-adopts a record pending a LOCAL delete (processed here, tombstone not pushed yet)", async () => {
+    drive.put("raw/r1.json", rawJson("r1", []));
+    await sync(graph, vault);
+    await vault.deleteRawMemory("r1");
+    const r = await sync(graph, vault);
+    expect(r.pulledRaw).toEqual([]);
+    expect(r.pushedRawDeletes).toEqual(["r1"]);
+  });
+
+  it("retries a record's media on a LATER sync when it wasn't on the remote yet (phone still uploading)", async () => {
+    drive.put("raw/r1.json", rawJson("r1", ["media/r1/a.jpg"]));
+    const r1 = await sync(graph, vault);
+    expect(r1.pulledMedia).toEqual([]); // not uploaded yet
+    drive.put("media/r1/a.jpg", "BYTES");
+    const r2 = await sync(graph, vault);
+    expect(r2.pulledMedia).toEqual(["media/r1/a.jpg"]);
   });
 
   it("propagates a remote deletion to the local vault (phone-side delete reaching desktop)", async () => {

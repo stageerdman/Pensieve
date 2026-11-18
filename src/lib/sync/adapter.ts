@@ -227,7 +227,11 @@ export function rawIdFromItem(item: RemoteItem): string | null {
  *  a batch) just means "no raw records yet", not a real error. */
 export async function listRawRecords(graph: GraphClient): Promise<RemoteItem[]> {
   const out: RemoteItem[] = [];
-  let path: string | null = `${rootPath()}/${enc(RAW_DIR)}:/children?$select=id,name,eTag,cTag,size,lastModifiedDateTime,folder`;
+  let path: string | null = `${rootPath()}/${enc(RAW_DIR)}:/children?$select=id,name,eTag,cTag,size,lastModifiedDateTime,folder,parentReference`;
+  // parentReference MUST be selected: rawIdFromItem recognises a record by its parent path,
+  // and Graph omits unselected fields — without it every listed record read as "not a raw
+  // record", so the reconciliation saw an empty raw/ and deleted every synced record locally
+  // (2026-11-18, confirmed against the real API).
   let absolute = false;
   while (path) {
     const res = await graph.fetch(path, { absolute });
