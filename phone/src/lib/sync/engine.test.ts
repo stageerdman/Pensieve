@@ -80,6 +80,8 @@ interface RemoteFile {
 
 class FakeDrive {
   files = new Map<string, RemoteFile>();
+  putLog: string[] = []; // every content PUT, in order — upload-ordering tests
+  failPuts = new Set<string>(); // keys whose content PUT fails (500)
   tombstones: Array<{ name: string; id: string; ver: number }> = [];
   rootExists = true;
   ver = 0;
@@ -154,7 +156,11 @@ class FakeDrive {
           })
           .map(([key, f]) => {
             const { bareName, parentPath } = self.splitPath(key);
-            return { id: f.id, name: bareName, cTag: f.cTag, lastModifiedDateTime: f.time, parentReference: { path: parentPath } };
+            // Real Graph OMITS any field a $select doesn't name — parentReference included.
+            // (The fake used to always send it, which hid the 2026-11-18 listing bug.)
+            const sel = path.match(/[?&]\$select=([^&]*)/)?.[1]?.split(",");
+            const withParent = !sel || sel.includes("parentReference");
+            return { id: f.id, name: bareName, cTag: f.cTag, lastModifiedDateTime: f.time, ...(withParent ? { parentReference: { path: parentPath } } : {}) };
           });
         return resp(200, { value });
       }
@@ -182,6 +188,8 @@ class FakeDrive {
           return f ? resp(200, f.content) : resp(404);
         }
         if (method === "PUT") {
+          if (self.failPuts.has(name)) return resp(500, "boom");
+          self.putLog.push(name);
           const ifMatch = (opts.headers as Record<string, string> | undefined)?.["If-Match"];
           const existing = self.files.get(name);
           if (ifMatch && (!existing || existing.cTag !== ifMatch)) return resp(412);
@@ -569,6 +577,57 @@ describe("phone sync engine — Raw Memory records", () => {
     const r = await restoreFromCloud(graph, vault);
     expect(r.pulledRawDeletes).toEqual(["r1"]);
     expect(await vault.listRawMemories()).toEqual([]);
+  });
+
+  // ---- 2026-11-18: a 21-min recording's record reached the desktop 45s before its WAV ----
+  const pkgJson = (id: string, media: string[]) => JSON.stringify({ id, status: "synced", createdAt: 1, pages: [], kind: "form", media });
+
+  it("uploads a record's media BEFORE the record itself", async () => {
+    await vault.writeMediaBytes("media/r1/a.wav", new Uint8Array([1, 2, 3]));
+    vault.editRaw("r1", pkgJson("r1", ["media/r1/a.wav"]), 5);
+    await sync(graph, vault);
+    expect(drive.putLog.indexOf("media/r1/a.wav")).toBeGreaterThanOrEqual(0);
+    expect(drive.putLog.indexOf("media/r1/a.wav")).toBeLessThan(drive.putLog.indexOf("raw/r1.json"));
+  });
+
+  it("holds a record back while its media failed to upload, then sends it once the media lands", async () => {
+    await vault.writeMediaBytes("media/r1/a.wav", new Uint8Array([1, 2, 3]));
+    vault.editRaw("r1", pkgJson("r1", ["media/r1/a.wav"]), 5);
+    drive.failPuts.add("media/r1/a.wav");
+    const r1 = await sync(graph, vault);
+    expect(r1.pushedRaw).toEqual([]);
+    expect(drive.files.has("raw/r1.json")).toBe(false);
+    drive.failPuts.clear();
+    const r2 = await sync(graph, vault);
+    expect(r2.pushedRaw).toEqual(["r1"]);
+    expect(drive.files.has("media/r1/a.wav")).toBe(true);
+  });
+
+  it("a synced record SURVIVES the next sync (the listing must carry parentReference — 2026-11-18 bug deleted it locally)", async () => {
+    vault.editRaw("r1", rawJson("r1", []), 5);
+    await sync(graph, vault);
+    const r2 = await sync(graph, vault);
+    expect(r2.pulledRawDeletes).toEqual([]);
+    expect(await vault.readRawMemory("r1")).not.toBeNull();
+  });
+
+  it("re-adopts a remote record this device lost track of (the bug's aftermath: gone locally + from state)", async () => {
+    drive.put("raw/r1.json", rawJson("r1", []));
+    await sync(graph, vault);
+    await vault.deleteRawMemory("r1");
+    delete vault.state.raw!.r1;
+    const r = await sync(graph, vault);
+    expect(r.pulledRaw).toEqual(["r1"]);
+    expect(await vault.readRawMemory("r1")).not.toBeNull();
+  });
+
+  it("never re-adopts a record pending a LOCAL delete (still in state)", async () => {
+    vault.editRaw("r1", rawJson("r1", []), 5);
+    await sync(graph, vault);
+    await vault.deleteRawMemory("r1");
+    const r = await sync(graph, vault);
+    expect(r.pulledRaw).toEqual([]);
+    expect(r.pushedRawDeletes).toEqual(["r1"]);
   });
 
   it("notes and raw records sync side by side in one call without interfering", async () => {

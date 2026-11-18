@@ -135,7 +135,12 @@ async function pullReferencedMedia(
     onProgress?.({ direction: "down", name: ref, doneItems: i, totalItems: todo.length, stage: "media" });
     try {
       const meta = await mediaMeta(graph, ref);
-      if (!meta) continue; // not on the remote (yet) — leave it; a later sync may find it
+      if (!meta) {
+        // Not on the remote (yet) — e.g. the other device is still uploading it. Leave it; a
+        // later sync retries. Logged so a "file not found" downstream is explainable.
+        log.warn("sync", "media.pull.not-on-remote", { ref });
+        continue;
+      }
 
       if (meta.size > LARGE_MEDIA_THRESHOLD && vault.downloadMediaStream) {
         const token = await graph.token();
@@ -411,6 +416,25 @@ export async function sync(
     if (rawLocalDeletes.includes(id) || rawConflicted.has(id)) continue; // already handled above
     rawLocalDeletes.push(id);
   }
+  // Orphan adoption: a record on the remote this device has never synced and doesn't hold
+  // — e.g. one the pre-fix listing bug (above) deleted locally, after which the delta never
+  // re-sends it because the remote copy didn't change. Pull it. (A record still in
+  // state.raw but missing locally is a pending LOCAL delete — never re-adopted.)
+  const rawQueued = new Set(rawDownloads.map((d) => d.id));
+  for (const item of remoteRawNow) {
+    const id = rawIdFromItem(item);
+    if (!id || state.raw[id] || rawLocalBefore.has(id) || rawQueued.has(id)) continue;
+    if (localBefore.has(id)) {
+      // A memory with this id already exists = a package this desktop already resolved,
+      // whose remote tombstone never went out (same bug). Never re-run Patronus over it:
+      // track it so the raw delete pass below removes the leftover from the remote.
+      log.info("sync", "raw.adopt.already-processed", { id });
+      state.raw[id] = { id, remoteId: item.id, cTag: item.cTag ?? "", localUpdatedAt: 0, syncedAt: nowMs() };
+      continue;
+    }
+    log.info("sync", "raw.adopt", { id });
+    rawDownloads.push({ id, item });
+  }
 
   // ---------- PUSH: classify ----------
   const localNow = await vault.listNotes();
@@ -584,6 +608,22 @@ export async function sync(
   // note progress bar (the gold rune on each image is its surface); it's best-effort so a
   // flaky image never blocks the note sync.
   const haveMedia = new Set(await vault.listMedia());
+  // Backfill for raw records: a record's media is otherwise only fetched in the sync that
+  // pulls the record — if a binary wasn't on the remote YET (the phone still uploading it),
+  // nothing would ever retry, and the Process queue holds the record until it's all here
+  // (lib/raw/queue mediaReady). Raw records are few — re-checking each sync is cheap.
+  for (const { id } of await vault.listRawMemories()) {
+    const content = await vault.readRawMemory(id);
+    if (content === null) continue;
+    try {
+      const parsed = JSON.parse(content) as { pages?: unknown; media?: unknown };
+      for (const list of [parsed.pages, parsed.media]) {
+        if (Array.isArray(list)) for (const ref of list) if (typeof ref === "string" && !haveMedia.has(ref)) pulledMediaRefs.add(ref);
+      }
+    } catch {
+      /* unparseable — logged by the pull above when it arrived */
+    }
+  }
   await pullReferencedMedia(graph, vault, pulledMediaRefs, haveMedia, state.media!, result, onProgress);
   await pushLocalMedia(graph, vault, state, result, onProgress);
 

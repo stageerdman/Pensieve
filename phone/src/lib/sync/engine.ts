@@ -126,7 +126,12 @@ async function pullReferencedMedia(
     }
     try {
       const bytes = await downloadMedia(graph, ref);
-      if (!bytes) continue; // not on the remote (yet) — a later sync may find it
+      if (!bytes) {
+        // Not on the remote (yet) — the other device may still be uploading it. A later
+        // sync retries; logged so a downstream "file not found" is explainable.
+        log.warn("sync", "media.pull.not-on-remote", { ref });
+        continue;
+      }
       await vault.writeMediaBytes(ref, bytes);
       have.add(ref);
       media[ref] = { ref, backedUp: true };
@@ -384,6 +389,20 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
     if (rawLocalDeletes.includes(id) || rawConflicted.has(id)) continue; // already handled above
     rawLocalDeletes.push(id);
   }
+  // Orphan adoption: a record on the remote this device has never synced and doesn't hold
+  // — e.g. one the pre-fix listing bug (above) deleted locally, after which the delta never
+  // re-sends it because the remote copy didn't change. Pull it. (A record still in
+  // state.raw but missing locally is a pending LOCAL delete — never re-adopted.)
+  const rawQueued = new Set(rawDownloads.map((d) => d.id));
+  for (const item of remoteRawNow) {
+    const id = rawIdFromItem(item);
+    if (!id || state.raw[id] || rawLocalBefore.has(id) || rawQueued.has(id)) continue;
+    // A memory with this id exists = a package the desktop already resolved (its remote
+    // leftover is the desktop's to delete) — don't resurrect it here.
+    if (localBefore.has(id) || state.notes[id]) continue;
+    log.info("sync", "raw.adopt", { id });
+    rawDownloads.push({ id, item });
+  }
 
   // ---------- PUSH: classify ----------
   const localNow = await vault.listNotes();
@@ -480,20 +499,6 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
     result.pulledRaw.push(id);
   }
 
-  for (const info of rawUploads) {
-    const rec = state.raw[info.id];
-    const content = await vault.readRawMemory(info.id);
-    if (content === null) continue;
-    try {
-      const item = await uploadRawRecord(graph, info.id, content, rec?.cTag);
-      state.raw[info.id] = { id: info.id, remoteId: item.id ?? rec?.remoteId ?? "", cTag: item.cTag ?? rec?.cTag ?? "", localUpdatedAt: info.updatedAt, syncedAt: nowMs() };
-      result.pushedRaw.push(info.id);
-    } catch (e) {
-      if (!(e instanceof ConflictError)) throw e;
-      log.info("sync", "raw.push.conflict", { id: info.id });
-    }
-  }
-
   // ---------- MEDIA BACKUP ----------
   const haveMedia = new Set(await vault.listMedia());
   // Backfill: a note that WASN'T re-downloaded this pass (no remote delta) can still
@@ -515,6 +520,32 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
   }
   await pullReferencedMedia(graph, vault, pulledMediaRefs, haveMedia, state.media!, result);
   await pushLocalMedia(graph, vault, state, result);
+
+  // ---------- RAW RECORDS → remote (AFTER media) ----------
+  // A record goes up only once every binary it references is confirmed on the remote. The
+  // desktop starts processing the moment a record lands, so record-before-media let it run
+  // against a recording that hadn't arrived yet (2026-11-18: a 21-min WAV finished 45s after
+  // its record → "audio not found"). A record whose media failed to upload waits for a later
+  // sync; a ref that isn't on this phone at all has nothing to wait for and doesn't block.
+  const localMediaNow = new Set(await vault.listMedia());
+  for (const info of rawUploads) {
+    const rec = state.raw[info.id];
+    const content = await vault.readRawMemory(info.id);
+    if (content === null) continue;
+    const pending = rawMediaRefs(content).filter((ref) => localMediaNow.has(ref) && !state.media![ref]?.backedUp);
+    if (pending.length) {
+      log.info("sync", "raw.push.wait-media", { id: info.id, pending: pending.length });
+      continue;
+    }
+    try {
+      const item = await uploadRawRecord(graph, info.id, content, rec?.cTag);
+      state.raw[info.id] = { id: info.id, remoteId: item.id ?? rec?.remoteId ?? "", cTag: item.cTag ?? rec?.cTag ?? "", localUpdatedAt: info.updatedAt, syncedAt: nowMs() };
+      result.pushedRaw.push(info.id);
+    } catch (e) {
+      if (!(e instanceof ConflictError)) throw e;
+      log.info("sync", "raw.push.conflict", { id: info.id });
+    }
+  }
 
   // ---------- LOCAL DELETIONS → remote ----------
   const liveIds = new Set((await vault.listNotes()).map((n) => n.id));
