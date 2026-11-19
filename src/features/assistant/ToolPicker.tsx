@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useDismiss } from "../../hooks/useDismiss";
 import { Globe, X } from "../../components/icons";
 import type { AssistantTool } from "../../lib/ai/askAgent";
@@ -19,6 +19,15 @@ export function ToolPicker({
   onChange: (tools: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // × unmounts itself (the pill becomes the globe), which would drop keyboard focus to
+  // <body>. Hand it to the globe that replaces it, so the owner stays beside Send.
+  const focusGlobeNext = useRef(false);
+  const globeRef = (el: HTMLButtonElement | null) => {
+    if (el && focusGlobeNext.current) {
+      focusGlobeNext.current = false;
+      el.focus();
+    }
+  };
   // Capture-phase Escape so closing the list doesn't also close the whole Patronus
   // window (its own Escape listener sits on the same document).
   const ref = useDismiss<HTMLDivElement>(() => setOpen(false), {
@@ -38,6 +47,7 @@ export function ToolPicker({
     <div ref={ref} className="relative shrink-0">
       {on.length === 0 ? (
         <button
+          ref={globeRef}
           type="button"
           aria-label="Tools"
           title="Tools"
@@ -71,7 +81,11 @@ export function ToolPicker({
             type="button"
             aria-label={`Turn off ${on.map((t) => t.label).join(", ")}`}
             title="Turn off"
-            onClick={() => onChange([])}
+            onClick={() => {
+              focusGlobeNext.current = true;
+              setOpen(false);
+              onChange([]);
+            }}
             className="mr-1 inline-flex h-6 w-6 items-center justify-center rounded-sm hover:bg-accent/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <X size={14} />
