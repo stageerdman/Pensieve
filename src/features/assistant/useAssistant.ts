@@ -171,6 +171,7 @@ export function useAssistant() {
           agent.systemPrompt,
           agent.id,
           priorSessionId,
+          [], // no tools until the chat's tool picker lands (PATRONUS-WEB-TOOLS Phase 3)
         );
         patchMessage(forAgentId, replyId, {
           text: reply.text,

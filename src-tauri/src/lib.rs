@@ -12,6 +12,7 @@ use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 
 mod ai_vision;
 mod ai_text;
+mod ai_tools;
 mod assistant;
 mod knowledge;
 mod log_store;
@@ -292,6 +293,7 @@ pub fn run() {
             ai_text::ask_claude_text,
             ai_text::ask_claude_with_vault,
             assistant::ask_agent,
+            ai_tools::commands::list_assistant_tools,
             knowledge::commands::ingest_knowledge_file,
             knowledge::commands::ingest_knowledge_bytes,
             knowledge::commands::remove_knowledge_file,

@@ -5,14 +5,24 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
-export type AgentReply = { text: string; sessionId: string };
+export type WebSource = { title: string | null; url: string };
+/** One web call a reply made: `detail` is the query or URL that left the machine. */
+export type WebCall = {
+  kind: "search" | "fetch";
+  detail: string;
+  sources: WebSource[];
+};
+export type AgentReply = { text: string; sessionId: string; web: WebCall[] };
 
+/** `tools` are tool ids from listAssistantTools() (e.g. ["web"]) granted to this one
+ *  message; [] grants nothing. Rust rejects an unknown id. */
 export async function askAgent(
   jobId: string,
   message: string,
   instructions: string,
   agentId: string,
   sessionId: string | undefined,
+  tools: string[],
 ): Promise<AgentReply> {
   return invoke<AgentReply>("ask_agent", {
     jobId,
@@ -20,6 +30,33 @@ export async function askAgent(
     instructions,
     agentId,
     sessionId: sessionId ?? null,
+    tools,
+  });
+}
+
+export type AssistantTool = { id: string; label: string; description: string };
+
+/** The tools a chat may switch on, from the Rust registry (ai_tools/registry.rs). */
+export async function listAssistantTools(): Promise<AssistantTool[]> {
+  return invoke<AssistantTool[]>("list_assistant_tools");
+}
+
+interface AssistantWebCallPayload {
+  jobId: string;
+  kind: WebCall["kind"];
+  detail: string;
+}
+
+/** Fires the moment a reply calls a web tool, before results: drives the live
+ *  "Searching the web: …" line. Sources arrive with the final AgentReply.web. */
+export async function onAssistantWebCall(
+  jobId: string,
+  onCall: (call: Omit<WebCall, "sources">) => void,
+): Promise<UnlistenFn> {
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<AssistantWebCallPayload>("assistant-web-call", (event) => {
+    if (event.payload.jobId === jobId)
+      onCall({ kind: event.payload.kind, detail: event.payload.detail });
   });
 }
 

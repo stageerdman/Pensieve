@@ -91,7 +91,7 @@ Each phase ends with its tests, then a real run. Commit after each phase.
 ### Phase 0 — Plan *(this doc)*: done
 Tests: n/a. Exit: plan, phases and tool list agreed.
 
-### Phase 1 — Spike: the CLI's web tools under our flags
+### Phase 1 — Spike: the CLI's web tools under our flags *(done)*
 Throwaway script in this folder (`spike/`), never in `src/`. Hand-run `claude -p` with
 our exact flags plus `--tools "WebSearch,WebFetch"`, and answer:
 1. Does `--tools` take a comma list of built-ins, and do only those schemas load?
@@ -109,7 +109,7 @@ our exact flags plus `--tools "WebSearch,WebFetch"`, and answer:
 saved under `spike/`. If 1, 2 or 5 fails, switch to the MCP `web_fetch` fallback and
 update this plan (v2) before Phase 2.
 
-### Phase 2 — Backend: grants the chat call respects
+### Phase 2 — Backend: grants the chat call respects *(done)*
 - `ai_tools/registry.rs`, `args.rs` and `commands.rs` as above. Register
   `list_assistant_tools`.
 - `ask_agent` gains `tools: Vec<String>`. It resolves them first (fail fast) and builds
@@ -163,3 +163,21 @@ with log excerpts pasted into the status below.
 
 ## Status
 - 2026-11-19: Phase 0 done. The plan and tool list are decided. Next: Phase 1 spike.
+- 2026-11-19: **Phase 1 done** (wiki.md "Spike findings"). The CLI's built-in web tools
+  work, so no MCP fallback. Two changes to the design from what we found:
+  (a) "off" = `--tools ""` **plus** `--disallowedTools WebSearch,WebFetch`, because
+  the allowlist alone let a WebFetch through; (b) the system prompt always ends with a
+  web on/off line, and an empty CLI reply becomes a clear error (on → off mid-chat
+  edge case).
+- 2026-11-19: **Phase 2 done.** Built `src-tauri/src/ai_tools/` (registry, args,
+  commands) and split `assistant.rs` into `assistant/` (`mod.rs` command, `stream.rs`
+  pure NDJSON parser, `notes.rs`, `web.rs`). `vault_tool_args` deleted; spells use the
+  shared builder with no grants. `ask_agent` takes `tools`, returns `web` (calls +
+  sources) and emits `assistant-web-call` live (contract in wiki.md). Frontend wrapper
+  `src/lib/ai/askAgent.ts` updated (`tools`, `listAssistantTools`,
+  `onAssistantWebCall`); `useAssistant` passes `[]` until the picker lands.
+  Tests: `cargo test --lib` 47 passed (registry, args, web, stream against real
+  recordings, notes); `npm test` 1484 passed; `tsc` clean. Real run: the final "off"
+  flag set against the live CLI loads no tools and Patronus says it can't look it up.
+  Not yet done: the in-app `npm run tauri dev` run (needs Phase 3's picker to send
+  `["web"]`). Next: Phase 3 frontend.

@@ -14,6 +14,9 @@ use std::io::{Read, Write};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
+use crate::ai_tools::args::tool_args;
+use crate::ai_tools::registry::ToolGrants;
+
 const TIMEOUT: Duration = Duration::from_secs(300);
 
 #[tauri::command]
@@ -28,29 +31,14 @@ pub async fn ask_claude_with_vault(app: tauri::AppHandle, prompt: String) -> Res
     let vault_root = crate::vault_root(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let config = crate::mcp::config::write_config_file(&vault_root).map_err(|e| format!("Couldn't prepare MCP tools: {e}"))?;
-        let out = ask_blocking(&prompt, &vault_tool_args(&config));
+        // A spell reads the vault and nothing else: read tools only, never a grant.
+        let args = tool_args(&config, crate::mcp::config::READ_TOOLS, &ToolGrants::none());
+        let out = ask_blocking(&prompt, &args);
         let _ = std::fs::remove_file(&config);
         out
     })
     .await
     .map_err(|e| e.to_string())?
-}
-
-/// --strict-mcp-config: only Pensieve's server; --tools "": none of the CLI's built-in tools
-/// (Bash/Edit/…, see assistant.rs); dontAsk: a tool outside the allow-list is refused, never
-/// prompted (nobody can answer a prompt in -p mode).
-pub fn vault_tool_args(config: &std::path::Path) -> Vec<String> {
-    vec![
-        "--mcp-config".into(),
-        config.to_string_lossy().into_owned(),
-        "--strict-mcp-config".into(),
-        "--allowedTools".into(),
-        crate::mcp::config::READ_TOOLS.join(","),
-        "--tools".into(),
-        String::new(),
-        "--permission-mode".into(),
-        "dontAsk".into(),
-    ]
 }
 
 fn ask_blocking(prompt: &str, extra_args: &[String]) -> Result<String, String> {
