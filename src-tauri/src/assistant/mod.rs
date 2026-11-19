@@ -81,6 +81,15 @@ const RETRIEVAL_TOP_K: usize = 8;
 // an empty bubble.
 const EMPTY_REPLY: &str = "Patronus gave no answer. If this question needs the web, switch on Web search and send it again.";
 
+/// A finished CLI turn as the chat sees it. A blank answer is an error, never an empty
+/// bubble: the UI then offers "Retry" and "Retry with web search" under it.
+fn reply_from(outcome: StreamOutcome) -> Result<AgentReply, String> {
+    if outcome.text.trim().is_empty() {
+        return Err(EMPTY_REPLY.to_string());
+    }
+    Ok(AgentReply { text: outcome.text, session_id: outcome.session_id, web: outcome.web })
+}
+
 #[tauri::command]
 pub async fn ask_agent(
     app: AppHandle,
@@ -131,11 +140,7 @@ impl Ask<'_> {
         let args = tool_args(&mcp_config, crate::mcp::config::ALLOWED_TOOLS, self.grants);
         let result = self.run_cli(&system_prompt, &args);
         let _ = std::fs::remove_file(&mcp_config);
-        let outcome = result?;
-        if outcome.text.trim().is_empty() {
-            return Err(EMPTY_REPLY.to_string());
-        }
-        Ok(AgentReply { text: outcome.text, session_id: outcome.session_id, web: outcome.web })
+        reply_from(result?)
     }
 
     // Knowledge grounding: the chunks most relevant to this message go ahead of the
@@ -221,5 +226,48 @@ impl Ask<'_> {
                 Ok(())
             }
         };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn outcome_of(ndjson: &str) -> StreamOutcome {
+        let mut stream = ReplyStream::new(Vec::new());
+        for line in ndjson.lines() {
+            stream.feed(line);
+        }
+        stream.finish()
+    }
+
+    // The spike's empty reply (wiki.md, point 3): web on, then off, then a question that
+    // wants the web. The CLI reports success, but the model ended the turn with no text
+    // (here after thinking only). Shape from a live off-after-on run, text left out.
+    const EMPTY_AFTER_WEB_OFF: &str = concat!(
+        r#"{"type":"assistant","message":{"content":[{"type":"thinking","thinking":"","signature":"x"}]},"session_id":"s1"}"#,
+        "\n",
+        r#"{"type":"result","subtype":"success","is_error":false,"stop_reason":"end_turn","result":"","session_id":"s1"}"#,
+    );
+
+    #[test]
+    fn an_empty_reply_becomes_a_clear_message_not_a_blank_bubble() {
+        let reply = reply_from(outcome_of(EMPTY_AFTER_WEB_OFF));
+        assert_eq!(reply.err().as_deref(), Some(EMPTY_REPLY));
+    }
+
+    #[test]
+    fn a_whitespace_only_reply_counts_as_empty() {
+        let reply = reply_from(StreamOutcome { text: " \n\t".into(), session_id: "s1".into(), ..StreamOutcome::default() });
+        assert_eq!(reply.err().as_deref(), Some(EMPTY_REPLY));
+    }
+
+    // The live off-after-on recording where the model did answer: the guard must let it through.
+    #[test]
+    fn a_real_answer_after_web_off_passes_through() {
+        let reply = reply_from(outcome_of(include_str!("fixtures/web_off_after_on.ndjson"))).ok().expect("a reply");
+        assert!(reply.text.starts_with("I couldn't check this time."));
+        assert_eq!(reply.session_id, "db83465d-2528-4ad0-944e-f28c06e3008f");
+        assert!(reply.web.is_empty());
     }
 }

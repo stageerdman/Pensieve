@@ -35,7 +35,8 @@ Trimmed recordings live as test fixtures in `src-tauri/src/assistant/fixtures/`.
    builds exactly that.
 3. **`--resume` across grant changes.** Off → on works. On → off works for normal
    questions (e.g. a private reflection). But on → off followed by a question that
-   *wants* the web returns an **empty reply** (repeatable): changing the tool list
+   *wants* the web returns an **empty reply** (repeatable in the spike, intermittent
+   in the Phase 4 reruns): changing the tool list
    drops the earlier thinking (`thinking_dropped … tools_changed`) and the model ends
    the turn with no text. Thinking off doesn't help. Loading-but-denying would avoid it
    but leaks (point 2), so we don't. Instead the backend turns an empty reply into a
@@ -81,7 +82,7 @@ are in `test-run/out/`.
 |---|---|---|---|
 | 1 | Web off: ask it to research | **Pass** | `off`: init tools = the 3 vault tools only. It searched the vault, made no web call, and replied "I can't look this up for you… I don't have web access", pointing to where to look. 17 s. The one-tap offer is the "Search the web" link (ReplyActions). |
 | 2 | Web on: searches and cites | **Pass** | `on`: WebSearch, then 2× WebFetch (blog.rust-lang.org), then a correct answer (Rust 1.100.0, 12 Nov 2026) ending in a 6-link "Sources" list. 39 s. |
-| 3 | Picker easy to find | **Pass (code read), live click pending** | Jony: the picker sits between the textarea and Send, the same h-9 size. One Composer serves the popover and full screen. Globe → accent "Web ×" pill. × turns it off in one click. The live click test needs the native app (the list loads only inside Tauri). |
+| 3 | Picker easy to find | **Pass (rendered harness), native click pending** | Jony, `ownerWalk.test.tsx` (a–e) on the real popover and full-screen surfaces over the real AssistantProvider, faking only the Rust bridge: the picker is directly before Send at the same h-9 size. Globe → accent "Web ×" pill, and one click on × turns it off (focus-drop bug fixed, 5a501eb). A click in the native app is still owed, because the list loads only inside Tauri. |
 | 4 | No leaks between chats / agents | **Pass after fix** | Agents: `useAssistant.test` "tools are scoped per agent", "a new chat starts with no tools", "one-off web send… that message only". Each `claude -p` is its own process: `offAfterOn` (web on, then the same session resumed with web off) loads no web tools. **Bug found and fixed below.** |
 | - | No private journal words in queries | **Pass** | `private`: the model read the journal via `list_recent`/`search_notes`, then ran 3 searches ("siblings disagreeing about parent's dementia care…", "caregiver working full time…", "waking at 4am…"). None of the 4 private words reached a query (`leaks: []`). |
 
@@ -95,6 +96,24 @@ cause: the parser didn't know the grant. Fix: `ReplyStream::new(granted_builtins
 web call that wasn't granted becomes `StreamEvent::UngrantedWebCall`, logged at warn
 and never emitted to the UI. Regression test: `ungranted_web_calls_never_show_as_searches`
 on the live recording `assistant/fixtures/web_off_after_on.ndjson`.
+
+**Bug: empty reply after web is switched off (spike point 3, fixed and tested).**
+Re-run live with the real chat config (vault tools + off note), web on and then off in
+the same session, then a question that asks for the web: 2 of 2 runs answered properly
+("I couldn't check… web search is off", `out/offAfterOn.ndjson`, `out/offAfterOn-r2.ndjson`).
+A rerun of the spike's bare config (`spike/sample-off-resumed.ndjson`) answered too. So
+the blank turn is intermittent, but it was repeatable in the spike, so the guard stays.
+The model's empty turn can't be fixed from our side. What we own is what the owner sees:
+- Rust: `assistant::reply_from` (pure) turns a blank or whitespace-only CLI answer into
+  `EMPTY_REPLY`, never an empty bubble. Tests in `assistant/mod.rs`:
+  `an_empty_reply_becomes_a_clear_message_not_a_blank_bubble`,
+  `a_whitespace_only_reply_counts_as_empty`, and `a_real_answer_after_web_off_passes_through`
+  (on the live `web_off_after_on.ndjson`).
+- UI: `ownerWalk.test.tsx` (f), on both surfaces: web on → × off → ask for the web →
+  empty reply. The bubble shows the message. One click on "Retry with web search" resends
+  the same text with `["web"]` on the same session, and the chat's own pill stays off.
+- **Not run:** `cargo test --lib`. `cargo` isn't on this checkout's allowed command list,
+  so the Rust tests compile only by reading. Vitest (30/30 assistant) and tsc are green.
 
 **Lessons**
 - Off doesn't stop the model *trying* a tool it used earlier in the session. The

@@ -250,4 +250,30 @@ describe.each(["popover", "fullscreen"] as const)("owner walk: %s", (surface) =>
     await pick("Patronus");
     expect(screen.getByText("Web")).toBeTruthy();
   });
+
+  // The empty-reply bug: web on, then off, then a question that wants the web. The CLI
+  // can end that turn with no text; Rust turns it into EMPTY_REPLY (assistant/mod.rs).
+  it("(f) an empty reply after web is switched off shows why and recovers in one click", async () => {
+    await mount(surface);
+    fireEvent.click(screen.getByLabelText("Tools"));
+    fireEvent.click(screen.getByRole("switch", { name: /Web search/ }));
+    fireEvent.keyDown(document, { key: "Escape" });
+    await type("latest rust?");
+    fireEvent.click(screen.getByLabelText("Turn off Web search"));
+
+    const EMPTY_REPLY =
+      "Patronus gave no answer. If this question needs the web, switch on Web search and send it again.";
+    askAgent.mockRejectedValueOnce(EMPTY_REPLY);
+    await type("anything newer? check the web");
+    expect(toolsOfCall(1)).toEqual([]);
+    expect(screen.getByText(EMPTY_REPLY)).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Retry with web search" }));
+    });
+    expect(askAgent.mock.calls[2][1]).toBe("anything newer? check the web");
+    expect(toolsOfCall(2)).toEqual(["web"]);
+    expect(askAgent.mock.calls[2][4]).toBe("s1"); // same conversation, resumed
+    expect(screen.queryByText("Web")).toBeNull(); // the chat itself stays off
+  });
 });

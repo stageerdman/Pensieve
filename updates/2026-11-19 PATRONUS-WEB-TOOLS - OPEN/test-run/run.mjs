@@ -3,7 +3,7 @@
 // read from the Rust sources at run time, so this can't drift from the app.
 // The vault MCP server is stub-vault.mjs (same tool names, one private journal entry),
 // since the app binary that serves the real one can't be built here.
-// Usage: node run.mjs <case> [resumeSessionId]
+// Usage: [RUN=<tag>] node run.mjs <case> [resumeSessionId]
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { PRIVATE_WORDS } from "./journal.mjs";
@@ -97,7 +97,9 @@ const out = spawnSync("claude", args, { cwd: tmpdir(), encoding: "utf8", timeout
 mkdirSync(join(here, "out"), { recursive: true });
 // Partial-message deltas are noise in a saved record; keep the whole events only.
 const kept = out.stdout.split("\n").filter((l) => l.trim() && !l.includes('"stream_event"'));
-writeFileSync(join(here, "out", `${name}.ndjson`), kept.join("\n") + "\n");
+// RUN=<tag> keeps repeat runs from overwriting the recordings the wiki cites.
+const file = process.env.RUN ? `${name}-${process.env.RUN}` : name;
+writeFileSync(join(here, "out", `${file}.ndjson`), kept.join("\n") + "\n");
 
 const report = { case: name, web: c.web, resumed: !!resume, initTools: null, calls: [], denials: [], leaks: [], reply: null, session: null };
 for (const line of kept) {
