@@ -13,9 +13,13 @@ use super::web::{sources_of, web_call, WebCall};
 pub enum StreamEvent {
     Delta(String),
     NotesFound(Vec<NoteRef>),
-    /// Fires the moment the model calls a web tool, before any result: the UI's
+    /// Fires the moment the model calls a granted web tool, before any result: the UI's
     /// "Searching the web: …" line.
     WebCall(WebCall),
+    /// The model called a web tool this message wasn't granted. It happens: after web
+    /// was on earlier in the chat, the model still tries it. The CLI refuses it (the
+    /// tool isn't loaded), so it must never show as a search (test run, wiki.md).
+    UngrantedWebCall(WebCall),
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -29,6 +33,8 @@ pub struct StreamOutcome {
 
 #[derive(Default)]
 pub struct ReplyStream {
+    /// The CLI built-ins this message was granted (ToolGrants::cli_builtins).
+    granted_builtins: Vec<&'static str>,
     // A tool_result only carries tool_use_id, so this maps it back to the tool's name.
     // Grows by a handful of entries per reply.
     tool_names: HashMap<String, String>,
@@ -37,6 +43,10 @@ pub struct ReplyStream {
 }
 
 impl ReplyStream {
+    pub fn new(granted_builtins: Vec<&'static str>) -> Self {
+        Self { granted_builtins, ..Self::default() }
+    }
+
     pub fn feed(&mut self, line: &str) -> Vec<StreamEvent> {
         let Ok(event) = serde_json::from_str::<Value>(line.trim()) else { return Vec::new() };
         match event["type"].as_str() {
@@ -64,6 +74,9 @@ impl ReplyStream {
         let (id, name) = (block["id"].as_str()?, block["name"].as_str()?);
         self.tool_names.insert(id.to_string(), name.to_string());
         let call = web_call(block)?;
+        if !self.granted_builtins.contains(&call.tool.as_str()) {
+            return Some(StreamEvent::UngrantedWebCall(call));
+        }
         self.pending_web.insert(id.to_string(), call.clone());
         Some(StreamEvent::WebCall(call))
     }
@@ -108,8 +121,10 @@ mod tests {
     use super::*;
     use crate::assistant::web::WebKind;
 
-    fn run(ndjson: &str) -> (Vec<StreamEvent>, StreamOutcome) {
-        let mut stream = ReplyStream::default();
+    const WEB_ON: &[&str] = &["WebSearch", "WebFetch"];
+
+    fn run(ndjson: &str, granted: &[&'static str]) -> (Vec<StreamEvent>, StreamOutcome) {
+        let mut stream = ReplyStream::new(granted.to_vec());
         let events = ndjson.lines().flat_map(|l| stream.feed(l)).collect();
         (events, stream.finish())
     }
@@ -120,7 +135,7 @@ mod tests {
 
     #[test]
     fn a_granted_web_reply_reports_its_query_url_and_sources() {
-        let (events, outcome) = run(include_str!("fixtures/web_granted.ndjson"));
+        let (events, outcome) = run(include_str!("fixtures/web_granted.ndjson"), WEB_ON);
         let live = web_calls(&events);
         assert_eq!(live.len(), 2);
         assert_eq!((live[0].kind, live[0].detail.as_str()), (WebKind::Search, "latest stable Kotlin release version"));
@@ -136,11 +151,24 @@ mod tests {
 
     #[test]
     fn refused_web_calls_are_not_reported_as_used() {
-        let (events, outcome) = run(include_str!("fixtures/web_refused.ndjson"));
+        let (events, outcome) = run(include_str!("fixtures/web_refused.ndjson"), WEB_ON);
         assert_eq!(web_calls(&events).len(), 3);
         // Only the one call whose result was not an error counts as used.
         assert_eq!(outcome.web.len(), 1);
         assert_eq!(outcome.web[0].detail, "https://nodejs.org/en/about/previous-releases");
+    }
+
+    // Live recording (test run): web on, then switched off in the same chat. The model
+    // still called WebFetch + WebSearch; the CLI refused both. The UI used to show
+    // "Searching the web: …" for them with web off.
+    #[test]
+    fn ungranted_web_calls_never_show_as_searches() {
+        let (events, outcome) = run(include_str!("fixtures/web_off_after_on.ndjson"), &[]);
+        assert!(web_calls(&events).is_empty());
+        let ungranted = events.iter().filter(|e| matches!(e, StreamEvent::UngrantedWebCall(_))).count();
+        assert_eq!(ungranted, 2);
+        assert!(outcome.web.is_empty());
+        assert!(outcome.text.contains("1.100.0"));
     }
 
     #[test]
@@ -150,7 +178,7 @@ mod tests {
             "\n",
             r#"{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":[{"type":"text","text":"[{\"id\":\"n1\",\"title\":\"Lake\"}]"}]}]}}"#,
         );
-        let (events, outcome) = run(ndjson);
+        let (events, outcome) = run(ndjson, &[]);
         assert_eq!(events, vec![StreamEvent::NotesFound(vec![NoteRef { id: "n1".into(), title: "Lake".into() }])]);
         assert!(outcome.web.is_empty());
     }
@@ -158,6 +186,6 @@ mod tests {
     #[test]
     fn deltas_stream_and_junk_lines_are_ignored() {
         let ndjson = "not json\n{\"type\":\"stream_event\",\"event\":{\"type\":\"content_block_delta\",\"delta\":{\"text\":\"Hi\"}}}";
-        assert_eq!(run(ndjson).0, vec![StreamEvent::Delta("Hi".into())]);
+        assert_eq!(run(ndjson, &[]).0, vec![StreamEvent::Delta("Hi".into())]);
     }
 }

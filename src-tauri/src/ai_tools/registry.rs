@@ -62,7 +62,7 @@ impl ToolGrants {
         ids_of(&self.granted)
     }
 
-    pub fn grants_builtin(&self, name: &str) -> bool {
+    fn grants_builtin(&self, name: &str) -> bool {
         self.granted.iter().any(|t| t.cli_builtins.contains(&name))
     }
 
