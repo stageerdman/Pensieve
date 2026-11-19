@@ -180,7 +180,7 @@ impl Ask<'_> {
             })
         });
 
-        let mut stream = ReplyStream::default();
+        let mut stream = ReplyStream::new(self.grants.cli_builtins());
         let stdout = child.stdout.take().expect("stdout was piped");
         for line in BufReader::new(stdout).lines().map_while(Result::ok) {
             for event in stream.feed(&line) {
@@ -211,13 +211,14 @@ impl Ask<'_> {
             StreamEvent::Delta(delta) => self.app.emit("ask-agent-progress", AskAgentProgress { job_id, delta }),
             StreamEvent::NotesFound(notes) => self.app.emit("assistant-notes-found", NotesFoundEvent { job_id, notes }),
             StreamEvent::WebCall(call) => {
-                // Can't happen while the grant is respected (the tool isn't even loaded);
-                // if it ever does, the log must say so loudly.
-                if !self.grants.grants_builtin(&call.tool) {
-                    log::error!("assistant.web_call without grant: job={job_id} tool={} detail={}", call.tool, call.detail);
-                }
                 log::info!("assistant.web_call job={job_id} kind={:?} detail={}", call.kind, call.detail);
                 self.app.emit("assistant-web-call", WebCallEvent { job_id, kind: call.kind, detail: call.detail })
+            }
+            // The CLI refuses it (not loaded), so nothing left the machine. Log it and keep
+            // it out of the UI: showing "Searching the web" with web off would mislead.
+            StreamEvent::UngrantedWebCall(call) => {
+                log::warn!("assistant.web_call refused, not granted: job={job_id} tool={} detail={}", call.tool, call.detail);
+                Ok(())
             }
         };
     }

@@ -196,3 +196,11 @@ with log excerpts pasted into the status below.
   sync + Reel ones also time out on the pre-Phase-3 commit, and App passes alone.
   **Not done:** the in-app click test (Phase 4). No agent here can drive the
   native webview, so it needs the owner's run or a reviewer's.
+- 2026-11-19: **Phase 4 user test (Uncle Bob + Jony)**, recorded in wiki.md "Test run".
+  Live CLI runs with the app's exact flags and prompt: web off, web on, private words,
+  and on → off in one chat. All 4 checks pass. One bug fixed: an ungranted web call the
+  model attempts (and the CLI refuses) showed as "Searching the web" with web off. The
+  parser now knows the grant (`stream.rs`), with a regression test on the live
+  recording. `npm test` for assistant passes (20). **Still open:** `cargo test --lib`
+  (cargo isn't available to agents in this checkout, so the Rust change and its test
+  are unrun), Jony's live picker click-through, then `tauri:build` + close-out.
