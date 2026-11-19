@@ -181,3 +181,18 @@ with log excerpts pasted into the status below.
   flag set against the live CLI loads no tools and Patronus says it can't look it up.
   Not yet done: the in-app `npm run tauri dev` run (needs Phase 3's picker to send
   `["web"]`). Next: Phase 3 frontend.
+- 2026-11-19: **Phase 3 done** (Jony). Spec: `tool-picker-spec.md`. Built from
+  Columbo's flow, with these cuts: there's no three-dots menu (its one item is now a
+  quiet "Search the web" link on the latest web-off reply), and the picker button
+  itself becomes the "Web ×" pill when on (one control, not two). New:
+  `ToolPicker.tsx`, `WebActivity.tsx` (live "Searching the web: query", then a
+  collapsed "Searched the web · N sources" with the queries and browser-opening
+  source pills), `ReplyActions.tsx`, `ChatPane.tsx` (one messages+composer for the
+  popover and full screen). `useAssistant`: `tools`/`setTools` per agent chat,
+  `send(text, {tools})` for one-off grants, and each message stamped with its tools.
+  Tests: 18 new (hook grants/scoping/live events, picker states, web activity, reply
+  actions), all green. `tsc` and `npm run build` are clean. In the full `npm test`
+  under machine load, 6 tests timed out in sync/App/Summon/phone Reel files. The
+  sync + Reel ones also time out on the pre-Phase-3 commit, and App passes alone.
+  **Not done:** the in-app click test (Phase 4). No agent here can drive the
+  native webview, so it needs the owner's run or a reviewer's.
