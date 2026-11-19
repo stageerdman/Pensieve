@@ -221,6 +221,17 @@ export const Search = (p: IconProps) =>
     p,
   );
 
+// Globe — Patronus's web search (tool picker, "Searched the web", web source chips).
+export const Globe = (p: IconProps) =>
+  svg(
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18Z" />
+    </>,
+    p,
+  );
+
 // The summon "sigil" — concentric rings + compass ticks. Slowly rotates while the
 // summon bar is focused (see .summon-sigil in index.css). Matches the Summon concept.
 export const Sigil = (p: IconProps) =>

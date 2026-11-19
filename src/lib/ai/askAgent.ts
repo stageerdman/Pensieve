@@ -36,6 +36,10 @@ export async function askAgent(
 
 export type AssistantTool = { id: string; label: string; description: string };
 
+/** The registry id of web search — the one tool the chat has web-specific UI for
+ *  ("Search the web" on a reply). Everything else reads the list generically. */
+export const WEB_TOOL_ID = "web";
+
 /** The tools a chat may switch on, from the Rust registry (ai_tools/registry.rs). */
 export async function listAssistantTools(): Promise<AssistantTool[]> {
   return invoke<AssistantTool[]>("list_assistant_tools");

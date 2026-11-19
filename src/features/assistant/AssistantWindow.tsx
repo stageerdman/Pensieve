@@ -3,9 +3,7 @@ import { useDismiss } from "../../hooks/useDismiss";
 import { IconButton } from "../../components/IconButton";
 import { X, ChevronDown, Expand } from "../../components/icons";
 import type { Agent } from "../../lib/ai/agents";
-import type { ChatMessage } from "./useAssistant";
-import { MessageList } from "./MessageList";
-import { Composer } from "./Composer";
+import { ChatPane } from "./ChatPane";
 
 // The Patronus popover — grows out of the same bottom-left corner the orb sits in.
 // A plain fixed panel for v1, not a full drag-to-dock/resize surface (that's a bigger
@@ -17,10 +15,6 @@ export function AssistantWindow({
   agents,
   agentId,
   onAgentChange,
-  messages,
-  sending,
-  onSend,
-  onRetry,
   onOpenNote,
   onClose,
   onExpand,
@@ -28,10 +22,6 @@ export function AssistantWindow({
   agents: Agent[];
   agentId: string;
   onAgentChange: (id: string) => void;
-  messages: ChatMessage[];
-  sending: boolean;
-  onSend: (text: string) => void;
-  onRetry: (text: string) => void;
   onOpenNote: (id: string) => void;
   onClose: () => void;
   onExpand: () => void;
@@ -97,13 +87,7 @@ export function AssistantWindow({
         </div>
       </div>
 
-      <MessageList
-        messages={messages}
-        agentName={activeAgent.name}
-        onRetry={onRetry}
-        onOpenNote={onOpenNote}
-      />
-      <Composer onSend={onSend} disabled={sending} />
+      <ChatPane onOpenNote={onOpenNote} />
     </div>
   );
 }

@@ -17,17 +17,8 @@ export function Assistant({
   onExpand: () => void;
   onOpenNote: (id: string) => void;
 }) {
-  const {
-    open,
-    openAssistant,
-    close,
-    agents,
-    agentId,
-    setAgentId,
-    messages,
-    sending,
-    send,
-  } = useAssistantContext();
+  const { open, openAssistant, close, agents, agentId, setAgentId } =
+    useAssistantContext();
 
   if (!isTauri() || hidden) return null;
 
@@ -38,10 +29,6 @@ export function Assistant({
       agents={agents}
       agentId={agentId}
       onAgentChange={setAgentId}
-      messages={messages}
-      sending={sending}
-      onSend={send}
-      onRetry={send}
       onOpenNote={onOpenNote}
       onClose={close}
       onExpand={() => {

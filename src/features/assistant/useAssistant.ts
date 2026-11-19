@@ -8,10 +8,16 @@ import { SEED_AGENTS, type Agent } from "../../lib/ai/agents";
 import { listAgents, saveAgents } from "../../lib/ai/agentStore";
 import {
   askAgent,
+  listAssistantTools,
   onAskAgentProgress,
   onAssistantNotesFound,
+  onAssistantWebCall,
+  WEB_TOOL_ID,
+  type AssistantTool,
   type NoteRef,
+  type WebCall,
 } from "../../lib/ai/askAgent";
+import { isTauri } from "../../lib/store";
 
 export type ChatMessage = {
   id: string;
@@ -19,13 +25,19 @@ export type ChatMessage = {
   text: string;
   streaming?: boolean;
   error?: boolean;
-  /** Only set on a failed assistant message — the original user text, so Retry can
-   *  resend it without the user retyping (see this update's wiki.md / UX review). */
-  retryText?: string;
+  /** On a reply: the user text it answers, so Retry / "Search the web" can resend it
+   *  without the user retyping (see this update's wiki.md / UX review). */
+  prompt?: string;
+  /** Tool ids this message was sent with (stamped on both the user message and its
+   *  reply), so the transcript knows when the web was on. */
+  tools?: string[];
   /** Notes the reply's own search_notes/get_note/list_recent tool calls actually found
    *  — rendered as clickable chips so a memory can be opened as a tab, not just
    *  described in prose. Deduped by id as tool results arrive. */
   foundNotes?: NoteRef[];
+  /** Web calls the reply made: live (sources empty) while streaming, then replaced by
+   *  the final list from Rust (only calls that actually ran, with their sources). */
+  web?: WebCall[];
 };
 
 interface AgentSession {
@@ -34,9 +46,18 @@ interface AgentSession {
   /** Scoped per agent, not global — switching agents mid-reply shouldn't lock the
    *  composer for an agent that isn't actually busy (see UX review). */
   sending: boolean;
+  /** Tool ids switched on for this chat (PATRONUS-WEB-TOOLS). Starts empty for every
+   *  chat and every app start; sticks for this chat until switched off. */
+  tools: string[];
 }
 
-const EMPTY_SESSION: AgentSession = { messages: [], sending: false };
+const EMPTY_SESSION: AgentSession = { messages: [], sending: false, tools: [] };
+
+export interface SendOptions {
+  /** Grant these tools to this one message instead of the chat's own set. The chat
+   *  setting is left as it is ("Search the web" on a single reply). */
+  tools?: string[];
+}
 
 function newJobId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -55,6 +76,16 @@ export function useAssistant() {
   // Keyed by agentId, not a single ref — a reply in flight for one agent must not be
   // clobbered by another agent's unlisten while both are mid-stream.
   const unlistenByAgent = useRef<Map<string, () => void>>(new Map());
+  const [availableTools, setAvailableTools] = useState<AssistantTool[]>([]);
+
+  // The picker's list comes from the Rust registry only (ids + labels live there).
+  // AI is desktop-only, so outside Tauri the list just stays empty.
+  useEffect(() => {
+    if (!isTauri()) return;
+    void listAssistantTools()
+      .then(setAvailableTools)
+      .catch(() => setAvailableTools([]));
+  }, []);
 
   useEffect(() => {
     void listAgents().then((loaded) => {
@@ -112,15 +143,18 @@ export function useAssistant() {
   );
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, options: SendOptions = {}) => {
       const trimmed = text.trim();
       const forAgentId = agentId;
       if (!trimmed || (sessions[forAgentId]?.sending ?? false)) return;
       const agent = getAgent(forAgentId);
+      // The set in effect right now is exactly what this one message is granted.
+      const tools = options.tools ?? sessions[forAgentId]?.tools ?? [];
       const userMsg: ChatMessage = {
         id: newJobId(),
         role: "user",
         text: trimmed,
+        tools,
       };
       const replyId = newJobId();
       const replyMsg: ChatMessage = {
@@ -128,6 +162,8 @@ export function useAssistant() {
         role: "assistant",
         text: "",
         streaming: true,
+        prompt: trimmed,
+        tools,
       };
 
       setSessions((prev) => {
@@ -156,9 +192,15 @@ export function useAssistant() {
         }
         patchMessage(forAgentId, replyId, { foundNotes: foundSoFar });
       });
+      let webSoFar: WebCall[] = [];
+      const unlistenWeb = await onAssistantWebCall(jobId, (call) => {
+        webSoFar = [...webSoFar, { ...call, sources: [] }];
+        patchMessage(forAgentId, replyId, { web: webSoFar });
+      });
       const unlisten = () => {
         unlistenProgress();
         unlistenNotes();
+        unlistenWeb();
       };
       unlistenByAgent.current.get(forAgentId)?.();
       unlistenByAgent.current.set(forAgentId, unlisten);
@@ -171,11 +213,12 @@ export function useAssistant() {
           agent.systemPrompt,
           agent.id,
           priorSessionId,
-          [], // no tools until the chat's tool picker lands (PATRONUS-WEB-TOOLS Phase 3)
+          tools,
         );
         patchMessage(forAgentId, replyId, {
           text: reply.text,
           streaming: false,
+          web: reply.web,
         });
         patchSession(forAgentId, { sessionId: reply.sessionId });
       } catch (e) {
@@ -184,7 +227,6 @@ export function useAssistant() {
           text: message,
           streaming: false,
           error: true,
-          retryText: trimmed,
         });
       } finally {
         unlisten();
@@ -203,6 +245,12 @@ export function useAssistant() {
   // send()'s own `finally` block is what actually cleans up its listener.
   const close = useCallback(() => setOpen(false), []);
 
+  /** Switch the current chat's tools. Takes effect from the next message on. */
+  const setTools = useCallback(
+    (tools: string[]) => patchSession(agentId, { tools }),
+    [agentId, patchSession],
+  );
+
   return {
     open,
     openAssistant: () => setOpen(true),
@@ -214,6 +262,12 @@ export function useAssistant() {
     messages: session.messages,
     sending: session.sending,
     send,
+    availableTools,
+    webToolId: availableTools.some((t) => t.id === WEB_TOOL_ID)
+      ? WEB_TOOL_ID
+      : undefined,
+    tools: session.tools,
+    setTools,
   };
 }
 

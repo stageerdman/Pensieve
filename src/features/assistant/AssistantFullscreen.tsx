@@ -1,7 +1,6 @@
 import { Plus } from "../../components/icons";
 import { useAssistantContext } from "./AssistantContext";
-import { MessageList } from "./MessageList";
-import { Composer } from "./Composer";
+import { ChatPane } from "./ChatPane";
 
 // The full-screen Patronus surface — opened as its own tab (App.tsx/TabBar), not a new
 // window: a persistent agent sidebar (masters-wheel's ChatPage/Sidebar, minus the
@@ -15,9 +14,7 @@ export function AssistantFullscreen({
   onAddAgent: () => void;
   onOpenNote: (id: string) => void;
 }) {
-  const { agents, agentId, setAgentId, messages, sending, send } =
-    useAssistantContext();
-  const activeAgent = agents.find((a) => a.id === agentId) ?? agents[0];
+  const { agents, agentId, setAgentId } = useAssistantContext();
 
   return (
     <div className="flex h-full min-h-0 w-full">
@@ -51,13 +48,7 @@ export function AssistantFullscreen({
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <MessageList
-          messages={messages}
-          agentName={activeAgent?.name ?? "Patronus"}
-          onRetry={send}
-          onOpenNote={onOpenNote}
-        />
-        <Composer onSend={send} disabled={sending} />
+        <ChatPane onOpenNote={onOpenNote} />
       </div>
     </div>
   );

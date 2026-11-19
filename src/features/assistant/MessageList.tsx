@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { Bookmark } from "../../components/icons";
 import type { ChatMessage } from "./useAssistant";
+import { WebActivity } from "./WebActivity";
+import { ReplyActions } from "./ReplyActions";
 
 // Plain text bubbles for v1 — no Markdown rendering yet (a reply is read, not edited,
 // so this is a smaller gap than it would be in the note editor). Auto-scrolls to the
@@ -13,13 +15,18 @@ export function MessageList({
   agentName,
   onRetry,
   onOpenNote,
+  webToolId,
 }: {
   messages: ChatMessage[];
   agentName: string;
-  onRetry: (text: string) => void;
+  onRetry: (text: string, options?: { tools?: string[] }) => void;
   onOpenNote: (id: string) => void;
+  /** The registry's web tool id when it exists — enables "Search the web" on a reply. */
+  webToolId?: string;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
+  const latestReplyId = [...messages].reverse().find((m) => m.role === "assistant")
+    ?.id;
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
@@ -42,7 +49,7 @@ export function MessageList({
             "flex " + (m.role === "user" ? "justify-end" : "justify-start")
           }
         >
-          <div className="max-w-[85%]">
+          <div className="group max-w-[85%]">
             <div
               className={
                 "whitespace-pre-wrap rounded-lg px-3 py-2 text-sm leading-relaxed " +
@@ -53,6 +60,9 @@ export function MessageList({
                     : "bg-surface-raised text-text")
               }
             >
+              {m.streaming && m.web && (
+                <WebActivity calls={m.web} streaming />
+              )}
               {m.text || (m.streaming ? "…" : "")}
             </div>
 
@@ -73,15 +83,16 @@ export function MessageList({
               </div>
             )}
 
-            {m.error && m.retryText && (
-              <button
-                type="button"
-                onClick={() => onRetry(m.retryText!)}
-                className="mt-1 text-xs font-medium text-accent hover:underline"
-              >
-                Retry
-              </button>
+            {!m.streaming && m.web && (
+              <WebActivity calls={m.web} streaming={false} />
             )}
+
+            <ReplyActions
+              message={m}
+              isLatest={m.id === latestReplyId}
+              webToolId={webToolId}
+              onRetry={onRetry}
+            />
           </div>
         </div>
       ))}
