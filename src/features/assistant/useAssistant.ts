@@ -18,6 +18,7 @@ import {
   type WebCall,
 } from "../../lib/ai/askAgent";
 import { isTauri } from "../../lib/store";
+import { log } from "../../lib/logger";
 
 export type ChatMessage = {
   id: string;
@@ -84,7 +85,13 @@ export function useAssistant() {
     if (!isTauri()) return;
     void listAssistantTools()
       .then(setAvailableTools)
-      .catch(() => setAvailableTools([]));
+      .catch((err) => {
+        // An empty list hides the globe beside Send; the log is the only trace of why.
+        log.error("assistant", "tools.list.failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setAvailableTools([]);
+      });
   }, []);
 
   useEffect(() => {
