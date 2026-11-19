@@ -65,4 +65,44 @@ The "on" line also tells the model to keep queries generic (no private words).
 - `list_assistant_tools()` → `[{ id, label, description }]` for the picker.
 - Logs: `assistant.ask` (agent, job, tools, resume), `assistant.web_call` (kind,
   detail), `assistant.reply` (chars, web_calls); errors at error level with the same
-  context. A web call without a grant logs `assistant.web_call without grant`.
+  context. A web call the model attempts without a grant (the CLI refuses it) logs
+  `assistant.web_call refused, not granted` at warn level and is never shown in the UI.
+
+## Test run: "Test it like a real user" (Phase 4, 2026-11-19)
+Uncle Bob (backend) + Jony (picker). Script: `test-run/run.mjs <case>`, live `claude -p`
+(Opus 5.5, logged-in account) with the exact `ai_tools/args.rs` flags. The system
+prompt is built from the Rust source strings (CORE_RULE, TOOL_USE_RULE, on/off note),
+read at run time. The vault MCP server is `test-run/stub-vault.mjs`, with the same
+tool names, serving one private journal entry ("Rough week": Marta, Sunny Pines,
+Dr. Halvorsen, Brightwave). The app binary can't be built in this checkout. Recordings
+are in `test-run/out/`.
+
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| 1 | Web off: ask it to research | **Pass** | `off`: init tools = the 3 vault tools only. It searched the vault, made no web call, and replied "I can't look this up for you… I don't have web access", pointing to where to look. 17 s. The one-tap offer is the "Search the web" link (ReplyActions). |
+| 2 | Web on: searches and cites | **Pass** | `on`: WebSearch, then 2× WebFetch (blog.rust-lang.org), then a correct answer (Rust 1.100.0, 12 Nov 2026) ending in a 6-link "Sources" list. 39 s. |
+| 3 | Picker easy to find | **Pass (code read), live click pending** | Jony: the picker sits between the textarea and Send, the same h-9 size. One Composer serves the popover and full screen. Globe → accent "Web ×" pill. × turns it off in one click. The live click test needs the native app (the list loads only inside Tauri). |
+| 4 | No leaks between chats / agents | **Pass after fix** | Agents: `useAssistant.test` "tools are scoped per agent", "a new chat starts with no tools", "one-off web send… that message only". Each `claude -p` is its own process: `offAfterOn` (web on, then the same session resumed with web off) loads no web tools. **Bug found and fixed below.** |
+| - | No private journal words in queries | **Pass** | `private`: the model read the journal via `list_recent`/`search_notes`, then ran 3 searches ("siblings disagreeing about parent's dementia care…", "caregiver working full time…", "waking at 4am…"). None of the 4 private words reached a query (`leaks: []`). |
+
+**Bug (found in check 4, fixed):** after web was on in a chat, a later web-off turn
+still had the model *call* WebFetch + WebSearch from memory of the chat. The CLI
+refused both ("No such tool available… disabled for this session"), so nothing left
+the machine. But `stream.rs` emitted the live `assistant-web-call` for any web
+`tool_use`, so the owner would have seen "Searching the web: Rust 1.100.1 point
+release" with web **off**, and the log claimed a grant breach at error level. Root
+cause: the parser didn't know the grant. Fix: `ReplyStream::new(granted_builtins)`. A
+web call that wasn't granted becomes `StreamEvent::UngrantedWebCall`, logged at warn
+and never emitted to the UI. Regression test: `ungranted_web_calls_never_show_as_searches`
+on the live recording `assistant/fixtures/web_off_after_on.ndjson`.
+
+**Lessons**
+- Off doesn't stop the model *trying* a tool it used earlier in the session. The
+  hard deny holds (the tool isn't loaded), but the UI must show only granted calls.
+- With **zero** tools loaded, a web-off research question hung the CLI for 5+ minutes
+  (no output, killed at the timeout), even with the off note. The real chat always
+  loads the vault tools, and then it answers in ~17 s. Don't ever ship a chat call
+  with `--tools ""` and no MCP tools.
+- In the web-off reply, the model said it couldn't search but didn't repeat the
+  off note's "switch on Web search next to Send" hint. The reply's own "Search the
+  web" link covers that, so this isn't a failure.
