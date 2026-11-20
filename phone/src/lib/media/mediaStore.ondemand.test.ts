@@ -2,7 +2,31 @@
 // hundreds of MB); the media store fetches it from OneDrive the first time it's played.
 import "fake-indexeddb/auto";
 import { describe, it, expect, vi } from "vitest";
-import { getMediaBytes, resolveAudioDataUrl, setRemoteMediaFetcher } from "./mediaStore";
+import { getMediaBytes, INLINE_MEDIA_MAX_BYTES, playbackUrlKind, putMedia, resolveAudioDataUrl, setRemoteMediaFetcher } from "./mediaStore";
+
+describe("long recordings", () => {
+  it("inline data: up to the cap, an object URL above it (a 32-min take is 62MB)", () => {
+    expect(playbackUrlKind(14_700_000)).toBe("data");
+    expect(playbackUrlKind(INLINE_MEDIA_MAX_BYTES)).toBe("data");
+    expect(playbackUrlKind(62_000_000)).toBe("blob");
+  });
+
+  it("a long take plays from an object URL, and new bytes (a Repair) get a fresh one", async () => {
+    let n = 0;
+    const revoke = vi.fn();
+    vi.stubGlobal("URL", Object.assign(class extends URL {}, { createObjectURL: () => `blob:u${++n}`, revokeObjectURL: revoke }));
+    setRemoteMediaFetcher(async () => ({ bytes: new Uint8Array(INLINE_MEDIA_MAX_BYTES + 1), type: "audio/wav" }));
+    const big = () => new Blob([new Uint8Array(1)], { type: "audio/wav" });
+    const first = (await resolveAudioDataUrl("media/n3/long.wav")).url;
+    expect(first).toBe("blob:u1");
+    expect((await resolveAudioDataUrl("media/n3/long.wav")).url).toBe(first); // reused, not re-copied
+    await putMedia("media/n3/long.wav", big());
+    expect(revoke).toHaveBeenCalledWith(first);
+    expect((await resolveAudioDataUrl("media/n3/long.wav")).url).toBe("blob:u2");
+    vi.unstubAllGlobals();
+    setRemoteMediaFetcher(null);
+  });
+});
 
 describe("on-demand media", () => {
   it("fetches a missing ref once, keeps it, and serves it next time without the network", async () => {

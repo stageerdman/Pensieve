@@ -12,6 +12,7 @@
 // they share only design tokens. A future shared `lib/` boundary could unify the two.)
 
 import { isMediaPath, MEDIA_DIR } from "./noteMedia";
+import { log } from "../logger";
 import { parseTranscript, transcriptRefFor, type Transcript } from "./transcript";
 
 const DB_NAME = "pensieve-phone-media";
@@ -145,6 +146,7 @@ const urlCache = new Map<string, string>();
  *  callers whose ONLY copy this is (finalizing a recording) must check it.
  *  Stores the raw bytes, not the `Blob` itself — see `StoredBytes` above for why. */
 export async function putMedia(ref: string, blob: Blob): Promise<boolean> {
+  forgetCachedUrl(ref); // new bytes (a Repair, a sync pull) — never keep playing the old ones
   try {
     const bytes = await blob.arrayBuffer();
     await tx("readwrite", (s) => s.put({ type: blob.type, bytes }, ref));
@@ -158,8 +160,23 @@ export async function putMedia(ref: string, blob: Blob): Promise<boolean> {
  *  background byte write. Returns the object URL to drop into `<img src>` immediately. */
 export function registerLocalMedia(ref: string, blob: Blob): string {
   const url = URL.createObjectURL(blob);
+  void putMedia(ref, blob); // first: it drops any cached url for the ref synchronously
   urlCache.set(ref, url);
-  void putMedia(ref, blob);
+  return url;
+}
+
+function forgetCachedUrl(ref: string): void {
+  const url = urlCache.get(ref);
+  if (!url) return;
+  URL.revokeObjectURL(url);
+  urlCache.delete(ref);
+}
+
+function objectUrlFor(ref: string, record: StoredBytes): string {
+  const cached = urlCache.get(ref);
+  if (cached) return cached;
+  const url = URL.createObjectURL(new Blob([record.bytes], { type: record.type }));
+  urlCache.set(ref, url);
   return url;
 }
 
@@ -172,10 +189,7 @@ export async function resolveMediaUrl(ref: string): Promise<string | null> {
   if (cached) return cached;
   try {
     const record = await readOrFetch(ref);
-    if (!record) return null;
-    const url = URL.createObjectURL(new Blob([record.bytes], { type: record.type }));
-    urlCache.set(ref, url);
-    return url;
+    return record ? objectUrlFor(ref, record) : null;
   } catch {
     return null;
   }
@@ -213,9 +227,18 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
  *  on a verified-valid, correctly-sized, correctly-typed audio/wav blob — see
  *  VOICE-FINALIZE-TEARDOWN-ORDER memory). A `data:` URI sidesteps blob: URL resolution
  *  entirely — the bytes are inline in the src attribute, nothing for AVFoundation to fail to
- *  fetch. Recordings here are capped small (~1.9MB/min at 16kHz mono), so the ~33% base64
- *  overhead is a non-issue. */
+ *  fetch. A data: URI is only built up to INLINE_MEDIA_MAX_BYTES though: a recording runs
+ *  ~1.9MB/min at 16kHz mono, so a long take (a 32-min one is 62MB → an 83MB base64 string)
+ *  is more than WebKit will load inline and fails with err=4 — those get an object URL over
+ *  the in-memory bytes (an ArrayBuffer, not the lazy IDB Blob the blob: failure was seen on). */
 export type AudioDataUrlResult = { url: string; reason?: undefined } | { url: null; reason: string };
+
+/** ~10 minutes of recording: above this the base64 copy is too big to inline. */
+export const INLINE_MEDIA_MAX_BYTES = 20 * 1024 * 1024;
+
+export function playbackUrlKind(size: number): "data" | "blob" {
+  return size <= INLINE_MEDIA_MAX_BYTES ? "data" : "blob";
+}
 
 export async function resolveAudioDataUrl(ref: string): Promise<AudioDataUrlResult> {
   if (!ref) return { url: null, reason: "empty-ref" };
@@ -223,6 +246,11 @@ export async function resolveAudioDataUrl(ref: string): Promise<AudioDataUrlResu
   try {
     const content = await readOrFetch(ref);
     if (!content) return { url: null, reason: "not-found-in-idb" };
+    const size = content.bytes.byteLength;
+    if (playbackUrlKind(size) === "blob") {
+      log.info("media", "playback.objectUrl", { ref, size });
+      return { url: objectUrlFor(ref, content) };
+    }
     const base64 = arrayBufferToBase64(content.bytes);
     return { url: `data:${content.type || "audio/wav"};base64,${base64}` };
   } catch (e) {
