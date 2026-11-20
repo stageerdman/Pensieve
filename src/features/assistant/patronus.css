@@ -68,3 +68,18 @@
     transparent 3px
   );
 }
+
+/* The composer's in-field globe appears/disappears softly (WebIndicator.tsx). */
+.patronus-fade-in {
+  animation: patronus-fade-in 120ms ease-out;
+}
+@keyframes patronus-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .patronus-fade-in {
+    animation: none;
+  }
+}

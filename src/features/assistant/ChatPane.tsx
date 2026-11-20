@@ -2,7 +2,7 @@ import { useAssistantContext } from "./AssistantContext";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
 
-// The conversation itself — messages + composer (with its tool picker) — shared by the
+// The conversation itself — messages + composer (with its slash commands) — shared by the
 // popover (AssistantWindow) and the full-screen tab (AssistantFullscreen), so both read
 // the same chat state and can never wire it differently.
 export function ChatPane({ onOpenNote }: { onOpenNote: (id: string) => void }) {
@@ -30,8 +30,9 @@ export function ChatPane({ onOpenNote }: { onOpenNote: (id: string) => void }) {
       />
       <Composer
         onSend={send}
-        disabled={sending}
+        sending={sending}
         availableTools={availableTools}
+        webToolId={webToolId}
         tools={tools}
         onToolsChange={setTools}
       />

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FC, type ReactNode } from "react";
 import { slashNav, isSlashNavKey } from "./slashNav";
+import "./slashmenu.css";
 
 // Our own slash-menu UI + keyboard. BlockNote renders this (via the "/" controller's
 // `suggestionMenuComponent`) only while the menu is open, so the document-level keydown

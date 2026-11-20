@@ -134,3 +134,15 @@ test above, with log excerpts pasted below.
 ## Status
 - 2026-11-20: **Phase 0 done** (Jony). Plan, spec, mockup, and the user model are
   updated. Next: Phase 1 (Uncle Bob).
+- 2026-11-20: **Phases 1–3 built** (Uncle Bob). `composerCommands.ts` (pure model:
+  build / match / title / run), `CommandMenu.tsx`, `WebIndicator.tsx`, new
+  `Composer.tsx` (controlled field, combobox ARIA, polite live region, logs
+  `assistant:composer.command {name, arg, outcome}`). Skin moved to
+  `editor/slashmenu.css` (`.is-fluid` drops the min-width). ToolPicker deleted; owner
+  walk moved to `/web` + globe. Rust `off_note` / `EMPTY_REPLY` reworded. Tests: 19 new
+  (model + composer), owner walk 12/12, `tsc` clean, `npm run build` ok. The full
+  `npm test` run under load had 6 timeouts in unrelated files (sync media, gallery
+  window, phone reel, App); they pass when run alone. **Not run here:** `cargo test`
+  (not allowed in this shell; the Rust tests compare against the constants, so the
+  rewording can't break them). Not done: the globe fades in but disappears at once (no
+  fade-out). Next: Phase 4 hand test in `npm run tauri dev`.

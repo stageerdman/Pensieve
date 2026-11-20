@@ -6,11 +6,10 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from "@testing-library/react";
 
-// PATRONUS-WEB-TOOLS "Test it like a real user", picker side (items a–e in the update
-// folder's wiki.md "Test run"). Walks the real popover and full-screen surfaces over the
+// PATRONUS-WEB-TOOLS "Test it like a real user" (items a–f in that update's wiki.md
+// "Test run"), moved to the COMPACT-COMPOSER flow: /web in the field, globe to turn off. Walks the real popover and full-screen surfaces over the
 // real AssistantProvider/useAssistant. Only the Rust bridge is faked.
 
 type WebCb = (call: { kind: "search" | "fetch"; detail: string }) => void;
@@ -56,6 +55,7 @@ import { AssistantWindow } from "./AssistantWindow";
 import { AssistantFullscreen } from "./AssistantFullscreen";
 
 const toolsOfCall = (n: number) => askAgent.mock.calls[n][5];
+const globe = () => screen.queryByRole("button", { name: "Web search is on. Turn off" });
 
 function Popover({ onClose }: { onClose: () => void }) {
   const { agents, agentId, setAgentId } = useAssistantContext();
@@ -82,15 +82,13 @@ async function mount(surface: "popover" | "fullscreen") {
       )}
     </AssistantProvider>,
   );
-  await screen.findByLabelText("Tools");
+  await screen.findByPlaceholderText("Ask anything · / for commands");
   return { ...r, onClose };
 }
 
-const sendRow = () => screen.getByRole("button", { name: "Send" }).parentElement!;
-
 async function type(text: string) {
   const box = screen.getByLabelText("Message") as HTMLTextAreaElement;
-  box.value = text;
+  fireEvent.change(box, { target: { value: text } });
   await act(async () => {
     fireEvent.keyDown(box, { key: "Enter" });
   });
@@ -108,46 +106,41 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe.each(["popover", "fullscreen"] as const)("owner walk: %s", (surface) => {
-  it("(a) the picker sits in the Send row, directly before Send", async () => {
+  it("(a) one full-width field: no Send button, no globe while web is off", async () => {
     await mount(surface);
-    const row = sendRow();
-    const kids = Array.from(row.children);
-    const send = screen.getByRole("button", { name: "Send" });
-    const picker = within(row).getByLabelText("Tools");
-    expect(kids.indexOf(send)).toBe(kids.length - 1);
-    expect(kids[kids.length - 2].contains(picker)).toBe(true);
-    expect(picker.className).toContain("h-9");
-    expect(send.className).toContain("h-9");
+    const box = screen.getByLabelText("Message");
+    expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
+    expect(box.className).toContain("w-full");
+    expect(globe()).toBeNull();
   });
 
-  it("(b) globe → accent Web × pill; one click on × turns it off and keeps focus", async () => {
+  it("(b) /web turns web on (globe in the field); Escape on the menu keeps the window; the globe turns it off", async () => {
     const { onClose } = await mount(surface);
-    fireEvent.click(screen.getByLabelText("Tools"));
-    fireEvent.click(screen.getByRole("switch", { name: /Web search/ }));
-    const pill = screen.getByLabelText("Tools: Web search on");
-    expect(pill.textContent).toBe("Web");
-    expect(pill.parentElement!.className).toContain("bg-accent/10");
-    expect(pill.parentElement!.className).toContain("text-accent");
+    const box = screen.getByLabelText("Message") as HTMLTextAreaElement;
+    await type("/web");
+    expect(box.value).toBe("");
+    expect(globe()!.className).toContain("text-accent");
+    await type("with web");
+    expect(toolsOfCall(0)).toEqual(["web"]);
 
-    // Escape closes the list only, never the Patronus window behind it.
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("switch")).toBeNull();
+    // Escape closes the menu only, never the Patronus window behind it.
+    fireEvent.change(box, { target: { value: "/w" } });
+    expect(screen.getByRole("listbox", { name: "Commands" })).toBeTruthy();
+    fireEvent.keyDown(box, { key: "Escape" });
+    expect(screen.queryByRole("listbox")).toBeNull();
     expect(onClose).not.toHaveBeenCalled();
+    fireEvent.change(box, { target: { value: "" } });
 
-    const x = screen.getByLabelText("Turn off Web search");
-    x.focus();
-    fireEvent.click(x);
-    const globe = screen.getByLabelText("Tools");
-    expect(screen.queryByText("Web")).toBeNull();
-    expect(document.activeElement).toBe(globe);
+    fireEvent.click(globe()!);
+    expect(globe()).toBeNull();
+    expect(document.activeElement).toBe(box);
     await type("after off");
-    expect(toolsOfCall(0)).toEqual([]);
+    expect(toolsOfCall(1)).toEqual([]);
   });
 
   it("(c) live search line, then collapsed sources that open in the browser and differ from note chips", async () => {
     await mount(surface);
-    fireEvent.click(screen.getByLabelText("Tools"));
-    fireEvent.click(screen.getByRole("switch", { name: /Web search/ }));
+    await type("/web");
     let resolve!: (v: unknown) => void;
     askAgent.mockImplementationOnce(
       (jobId: string) =>
@@ -216,8 +209,8 @@ describe.each(["popover", "fullscreen"] as const)("owner walk: %s", (surface) =>
     expect(askAgent.mock.calls[2][1]).toBe("second");
     expect(toolsOfCall(2)).toEqual(["web"]);
     // The chat's own setting never moved.
-    expect(screen.getByLabelText("Tools")).toBeTruthy();
-    expect(screen.queryByText("Web")).toBeNull();
+    expect(globe()).toBeNull();
+    expect(globe()).toBeNull();
     // The new latest reply was sent with web, so the link isn't offered again.
     expect(screen.queryByRole("button", { name: "Search the web" })).toBeNull();
     await type("third");
@@ -226,10 +219,8 @@ describe.each(["popover", "fullscreen"] as const)("owner walk: %s", (surface) =>
 
   it("(e) switching agents shows that agent's own tool state, off by default", async () => {
     await mount(surface);
-    fireEvent.click(screen.getByLabelText("Tools"));
-    fireEvent.click(screen.getByRole("switch", { name: /Web search/ }));
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.getByText("Web")).toBeTruthy();
+    await type("/web");
+    expect(globe()).toBeTruthy();
 
     const pick = async (name: string) => {
       if (surface === "popover") {
@@ -242,27 +233,25 @@ describe.each(["popover", "fullscreen"] as const)("owner walk: %s", (surface) =>
     };
 
     await pick("Curator");
-    expect(screen.getByLabelText("Tools")).toBeTruthy();
-    expect(screen.queryByText("Web")).toBeNull();
+    expect(globe()).toBeNull();
+    expect(globe()).toBeNull();
     await type("hi curator");
     expect(toolsOfCall(0)).toEqual([]);
 
     await pick("Patronus");
-    expect(screen.getByText("Web")).toBeTruthy();
+    expect(globe()).toBeTruthy();
   });
 
   // The empty-reply bug: web on, then off, then a question that wants the web. The CLI
   // can end that turn with no text; Rust turns it into EMPTY_REPLY (assistant/mod.rs).
   it("(f) an empty reply after web is switched off shows why and recovers in one click", async () => {
     await mount(surface);
-    fireEvent.click(screen.getByLabelText("Tools"));
-    fireEvent.click(screen.getByRole("switch", { name: /Web search/ }));
-    fireEvent.keyDown(document, { key: "Escape" });
+    await type("/web");
     await type("latest rust?");
-    fireEvent.click(screen.getByLabelText("Turn off Web search"));
+    fireEvent.click(globe()!);
 
     const EMPTY_REPLY =
-      "Patronus gave no answer. If this question needs the web, switch on Web search and send it again.";
+      "Patronus gave no answer. If this question needs the web, type /web and send it again.";
     askAgent.mockRejectedValueOnce(EMPTY_REPLY);
     await type("anything newer? check the web");
     expect(toolsOfCall(1)).toEqual([]);
@@ -274,6 +263,6 @@ describe.each(["popover", "fullscreen"] as const)("owner walk: %s", (surface) =>
     expect(askAgent.mock.calls[2][1]).toBe("anything newer? check the web");
     expect(toolsOfCall(2)).toEqual(["web"]);
     expect(askAgent.mock.calls[2][4]).toBe("s1"); // same conversation, resumed
-    expect(screen.queryByText("Web")).toBeNull(); // the chat itself stays off
+    expect(globe()).toBeNull(); // the chat itself stays off
   });
 });

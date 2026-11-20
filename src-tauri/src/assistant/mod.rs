@@ -79,7 +79,7 @@ const RETRIEVAL_TOP_K: usize = 8;
 // Seen in the spike: a chat that used the web, then asks for the web again with it
 // switched off, gets an empty reply from the CLI (wiki.md). Say so instead of showing
 // an empty bubble.
-const EMPTY_REPLY: &str = "Patronus gave no answer. If this question needs the web, switch on Web search and send it again.";
+const EMPTY_REPLY: &str = "Patronus gave no answer. If this question needs the web, type /web and send it again.";
 
 /// A finished CLI turn as the chat sees it. A blank answer is an error, never an empty
 /// bubble: the UI then offers "Retry" and "Retry with web search" under it.

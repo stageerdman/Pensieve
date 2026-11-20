@@ -79,14 +79,14 @@ export function useAssistant() {
   const unlistenByAgent = useRef<Map<string, () => void>>(new Map());
   const [availableTools, setAvailableTools] = useState<AssistantTool[]>([]);
 
-  // The picker's list comes from the Rust registry only (ids + labels live there).
+  // The slash commands' list comes from the Rust registry only (ids + labels live there).
   // AI is desktop-only, so outside Tauri the list just stays empty.
   useEffect(() => {
     if (!isTauri()) return;
     void listAssistantTools()
       .then(setAvailableTools)
       .catch((err) => {
-        // An empty list hides the globe beside Send; the log is the only trace of why.
+        // An empty list means no slash commands; the log is the only trace of why.
         log.error("assistant", "tools.list.failed", {
           error: err instanceof Error ? err.message : String(err),
         });

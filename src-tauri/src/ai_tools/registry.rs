@@ -33,7 +33,7 @@ pub const WEB: ToolDef = ToolDef {
     off_note: "Web search is OFF for this message: you cannot search or open web pages, \
         even if you did earlier in this chat. If a question needs current information \
         from the web, say plainly that you can't look it up right now, give your best \
-        answer from what you know, and say the owner can switch on Web search next to Send.",
+        answer from what you know, and say the owner can type /web to switch on web search.",
 };
 
 pub const TOOLS: &[&ToolDef] = &[&WEB];
@@ -104,7 +104,7 @@ fn ids_of(tools: &[&ToolDef]) -> Vec<&'static str> {
     tools.iter().map(|t| t.id).collect()
 }
 
-/// What the picker shows: id + label + description, never CLI names.
+/// What the composer's slash commands show: id + label + description, never CLI names.
 #[derive(Serialize, Debug, PartialEq, Eq)]
 pub struct ToolInfo {
     pub id: &'static str,

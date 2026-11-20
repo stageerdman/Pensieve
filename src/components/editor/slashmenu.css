@@ -1,0 +1,61 @@
+/* The slash-menu skin, shared by the editor's SlashMenu.tsx and Patronus's
+   CommandMenu.tsx. Its own file so Patronus never depends on the editor skin being
+   loaded. Menus/popovers = z-20. */
+.pensieve-slashmenu {
+  max-height: 20rem;
+  overflow-y: auto;
+  min-width: 15rem;
+  padding: 4px;
+  background: hsl(var(--surface-raised));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  box-shadow: 0 10px 30px -10px hsl(0 0% 0% / 0.35);
+}
+/* Sized by its container (the composer field), never wider than a narrow window. */
+.pensieve-slashmenu.is-fluid {
+  min-width: 0;
+}
+.pensieve-slashmenu.is-empty {
+  padding: 0.6em 0.8em;
+  color: hsl(var(--text-muted));
+  font-size: calc(0.8125rem * var(--font-scale));
+}
+.pensieve-slashmenu-group {
+  padding: 0.4em 0.6em 0.15em;
+  font-size: calc(0.6875rem * var(--font-scale));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: hsl(var(--text-muted));
+}
+.pensieve-slashmenu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  width: 100%;
+  text-align: left;
+  padding: 0.4em 0.6em;
+  border: none;
+  background: transparent;
+  color: hsl(var(--text));
+  border-radius: calc(var(--radius) - 2px);
+  cursor: pointer;
+}
+.pensieve-slashmenu-item.is-active {
+  background: hsl(var(--accent) / 0.14);
+}
+.pensieve-slashmenu-icon {
+  display: inline-flex;
+  color: hsl(var(--text-muted));
+}
+.pensieve-slashmenu-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.pensieve-slashmenu-title {
+  font-size: calc(0.875rem * var(--font-scale));
+}
+.pensieve-slashmenu-sub {
+  font-size: calc(0.6875rem * var(--font-scale));
+  color: hsl(var(--text-muted));
+}
