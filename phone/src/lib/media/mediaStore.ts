@@ -140,14 +140,17 @@ function getBlobBytes(ref: string): Promise<{ bytes: ArrayBuffer; type: string }
 // ref -> object URL, so a resolved image is reused and a just-inserted one is instant.
 const urlCache = new Map<string, string>();
 
-/** Persist bytes for a ref (background write). Swallows failures (quota / no IndexedDB).
+/** Persist bytes for a ref (background write). Resolves false instead of throwing on failure
+ *  (quota / no IndexedDB) — fire-and-forget callers still have their in-memory object URL;
+ *  callers whose ONLY copy this is (finalizing a recording) must check it.
  *  Stores the raw bytes, not the `Blob` itself — see `StoredBytes` above for why. */
-export async function putMedia(ref: string, blob: Blob): Promise<void> {
+export async function putMedia(ref: string, blob: Blob): Promise<boolean> {
   try {
     const bytes = await blob.arrayBuffer();
     await tx("readwrite", (s) => s.put({ type: blob.type, bytes }, ref));
+    return true;
   } catch {
-    /* no IndexedDB (jsdom) or quota — the in-memory object URL still shows this session */
+    return false;
   }
 }
 

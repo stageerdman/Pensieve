@@ -39,6 +39,25 @@ anything else hitting the recovery sweep is legacy and goes through `finalizeLeg
 would otherwise silently wrap old MediaRecorder bytes in a WAV header and produce garbage. Safe
 to delete that fallback path once satisfied no pre-upgrade session could still be orphaned.
 
+## A phone call during a recording (2026-11-20)
+Reported: a call came in mid-take, was declined; the timer kept running but nothing was
+captured, and the saved file showed err=4. Cause: nothing listened for the OS taking the audio
+session. On iOS a call moves the AudioContext out of "running" ("interrupted"), mutes the mic
+track and the ScriptProcessor just stops calling back — no error anywhere — and WebKit often
+leaves that track/context dead after the call. Fix (`captureWatch.ts`): any of context
+interrupted / track muted / track ended / no callbacks for 3s → pause the take with the mic
+released (same path as session mode's lock-pause), say so in the panel, and Resume re-opens a
+fresh mic into the SAME session, so it is still one file.
+Also closed on the way: chunks were still stored as IDB Blobs (the same WebKit lazy-blob bug
+mediaStore already fixed) — now ArrayBuffers; a failed chunk read used to look like "zero
+chunks" and delete the session, and a failed WAV write still added a block and deleted the
+chunks — both now keep the session for the next launch's recovery sweep.
+Repair: a recording that won't play shows **Repair** — `wavRepair.ts` rebuilds the header from
+the actual bytes (keeps every byte of audio, aligns the tail, wraps bare PCM), writes back only
+if it changed, then retries with a fresh player (after a call the failure can be the iOS audio
+session rather than the file). Not verified on a real iPhone call — test by recording, taking
+a call, declining it, then Resume → Done.
+
 ## Why ScriptProcessorNode and not AudioWorklet
 AudioWorklet is the modern replacement and avoids main-thread audio processing, but requires a
 separate module script file loaded via `audioContext.audioWorklet.addModule(url)` — more

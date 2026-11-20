@@ -8,6 +8,8 @@
 // chunk's worth of audio (a few seconds) — never the whole take. voiceCapture.ts is the only
 // caller; this module is pure storage, no MediaRecorder/DOM knowledge.
 
+import { log } from "../logger";
+
 const DB_NAME = "pensieve-phone-recording";
 const SESSION_STORE = "sessions";
 const CHUNK_STORE = "chunks";
@@ -72,26 +74,40 @@ export async function createSession(meta: RecordingSessionMeta): Promise<void> {
   await tx(SESSION_STORE, "readwrite", (s) => s.put(meta));
 }
 
-/** Persist one chunk as it arrives. Swallows failures (quota / no IndexedDB) — the caller
- *  still has the chunk in the live MediaRecorder stream; losing the durable copy just means a
- *  worse worst case, not an exception that aborts the recording. */
-export async function appendChunk(sessionId: string, seq: number, blob: Blob): Promise<void> {
+/** Persist one chunk as it arrives. Stored as a plain ArrayBuffer, never a Blob: WebKit hands
+ *  IndexedDB Blobs back as lazy file-backed handles that throw once their transaction is gone
+ *  (see mediaStore.ts StoredBytes) — and finalize reads chunks well after that. Swallows
+ *  failures (quota / no IndexedDB): losing the durable copy just means a worse worst case,
+ *  not an exception that aborts the recording. */
+export async function appendChunk(sessionId: string, seq: number, bytes: ArrayBuffer): Promise<void> {
   try {
-    await tx(CHUNK_STORE, "readwrite", (s) => s.put(blob, chunkKey(sessionId, seq)));
-  } catch {
-    /* no-op */
+    await tx(CHUNK_STORE, "readwrite", (s) => s.put(bytes, chunkKey(sessionId, seq)));
+  } catch (e) {
+    log.warn("recording", "chunk.write-failed", { sessionId, seq, error: String(e) });
   }
 }
 
-/** Every chunk for a session, in order — the canonical source of truth for finalizing (NOT
- *  whatever the live MediaRecorder closure still has in memory, which may be gone by the time
- *  we finalize from a recovery sweep on a fresh page load). */
+/** Every chunk for a session, in order, as in-memory Blobs — the canonical source of truth
+ *  for finalizing (NOT whatever the live capture still has in memory, which may be gone by the
+ *  time we finalize from a recovery sweep on a fresh page load). Chunks written by an older
+ *  build are Blobs; those are read to bytes inside the transaction's own callback, while
+ *  WebKit can still resolve them. */
 export async function readChunksOrdered(sessionId: string): Promise<Blob[]> {
   try {
-    const all = await tx<Blob[]>(CHUNK_STORE, "readonly", (s) => s.getAll(chunkRange(sessionId)));
-    return all;
-  } catch {
-    return [];
+    const db = await openDb();
+    return await new Promise<Blob[]>((resolve, reject) => {
+      const req = db.transaction(CHUNK_STORE, "readonly").objectStore(CHUNK_STORE).getAll(chunkRange(sessionId));
+      req.onsuccess = () => {
+        const values = req.result as (ArrayBuffer | Blob)[];
+        Promise.all(values.map((v) => (v instanceof Blob ? v.arrayBuffer() : v)))
+          .then((buffers) => resolve(buffers.map((b) => new Blob([b]))))
+          .catch(reject);
+      };
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) {
+    log.error("recording", "chunks.read-failed", { sessionId, error: String(e) });
+    throw new Error(`Couldn't read the recording's saved audio (session ${sessionId}): ${String(e)}`);
   }
 }
 

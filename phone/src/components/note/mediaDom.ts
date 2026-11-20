@@ -39,7 +39,8 @@ import { _debugBlobMeta, cachedMediaUrl, loadTranscript, resolveAudioDataUrl, re
 import type { Transcript } from "../../lib/media/transcript";
 import { phoneLightbox } from "../../lib/media/lightboxController";
 import { phoneCollection } from "../../lib/media/collectionController";
-import { _debugRegistrySize, fmtTime, getController } from "../../lib/media/audioController";
+import { _debugRegistrySize, discardController, fmtTime, getController } from "../../lib/media/audioController";
+import { repairStoredAudio } from "../../lib/media/audioRepair";
 import { log } from "../../lib/logger";
 import { phoneTranscriptReader } from "../../lib/media/transcriptReaderController";
 
@@ -236,6 +237,37 @@ const PLAY_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentC
 const PAUSE_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><rect x="6.5" y="5" width="3.6" height="14" rx="1"/><rect x="13.9" y="5" width="3.6" height="14" rx="1"/></svg>';
 const TRANSCRIPT_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 6h14"/><path d="M5 10h10"/><path d="M5 14h14"/><path d="M5 18h8"/></svg>';
 
+/** "Repair" on a recording that won't play: rebuild its file if it's damaged, then retry with a
+ *  fresh player either way — after a call the failure is sometimes the iOS audio session, not
+ *  the bytes, and the old errored element never loads again. */
+function buildRepairButton(ref: string, rebuild: () => void): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "ph-audio-repair";
+  btn.textContent = "Repair";
+  wireMediaTap(btn, () => {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = "Repairing…";
+    void repairStoredAudio(ref)
+      .then((outcome) => {
+        log.info("audio", "repair.outcome", { ref, outcome });
+        if (outcome === "unrecoverable" || outcome === "missing") {
+          btn.textContent = "No audio found";
+          return;
+        }
+        discardController(ref);
+        rebuild();
+      })
+      .catch((e) => {
+        log.error("audio", "repair.failed", { ref, error: String(e) });
+        btn.disabled = false;
+        btn.textContent = "Repair failed — retry";
+      });
+  });
+  return btn;
+}
+
 export function buildAudioEl(block: Extract<NoteBlock, { kind: "audio" }>, ctx: MediaCtx): HTMLElement {
   const el = document.createElement("div");
   el.className = "ph-media ph-audio";
@@ -332,7 +364,7 @@ export function buildAudioEl(block: Extract<NoteBlock, { kind: "audio" }>, ctx: 
       const broken = document.createElement("span");
       broken.className = "ph-audio-broken";
       broken.textContent = "Can't play this recording";
-      bar.appendChild(broken);
+      bar.append(broken, buildRepairButton(ref, () => el.replaceWith(buildAudioEl(block, ctx))));
       const diag = appendDiag(
         `err=${errCode}(${errCode ? ERR_NAMES[errCode] : "?"}) ready=${c.readyState} net=${c.networkState} slots=${_debugRegistrySize()}/5`,
       );

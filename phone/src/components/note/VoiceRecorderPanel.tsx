@@ -37,6 +37,7 @@ export function VoiceRecorderPanel({ noteId, placeholderBody, deps, onClose }: V
   const [error, setError] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [interrupted, setInterrupted] = useState(false);
   const [bars, setBars] = useState<number[]>(() => new Array(BAR_COUNT).fill(0.08));
   const rafRef = useRef(0);
   const selfStoppedRef = useRef(false);
@@ -72,6 +73,7 @@ export function VoiceRecorderPanel({ noteId, placeholderBody, deps, onClose }: V
         }
         setElapsed(snap.elapsedSec);
         setPaused(snap.state === "paused");
+        setInterrupted(snap.interrupted);
         setBars((prev) => [...prev.slice(1), 0.08 + snap.sampleAmplitude * 0.92]);
         rafRef.current = requestAnimationFrame(loop);
       };
@@ -86,8 +88,14 @@ export function VoiceRecorderPanel({ noteId, placeholderBody, deps, onClose }: V
 
   const togglePause = () => {
     haptic(8);
-    if (paused) resumeRecording();
-    else pauseRecording();
+    if (!paused) {
+      pauseRecording();
+      return;
+    }
+    // After an interruption resume re-opens the mic, which can fail (still on the call).
+    void resumeRecording().then((r) => {
+      if (!r.ok) deps.toast?.(r.error);
+    });
   };
 
   const handleDone = () => {
@@ -110,7 +118,7 @@ export function VoiceRecorderPanel({ noteId, placeholderBody, deps, onClose }: V
           <>
             <div className="ph-voice-status">
               <span className={"ph-voice-dot" + (paused ? " is-paused" : "")} aria-hidden="true" />
-              <span>{phase === "requesting" ? "Starting…" : paused ? "Paused" : "Recording"}</span>
+              <span>{phase === "requesting" ? "Starting…" : interrupted ? "Paused — mic was interrupted" : paused ? "Paused" : "Recording"}</span>
             </div>
             <div className="ph-voice-time">{fmtElapsed(elapsed)}</div>
             <div className="ph-voice-wave" aria-hidden="true">

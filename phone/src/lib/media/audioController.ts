@@ -69,11 +69,7 @@ function evictLRUIfFull(): void {
     }
   }
   if (oldestKey === null) return; // everything in the registry is somehow playing — nothing safe to evict
-  const c = registry.get(oldestKey)!;
-  c._el.pause();
-  c._el.removeAttribute("src");
-  c._el.load();
-  registry.delete(oldestKey);
+  discardController(oldestKey);
 }
 
 /** DEBUG ONLY (VOICE-PLAYBACK investigation, 2026-11-01) — how many live controllers this
@@ -228,12 +224,19 @@ export function releaseController(key: string): void {
   const c = registry.get(key);
   if (!c) return;
   c._refs--;
-  if (c._refs <= 0) {
-    c._el.pause();
-    c._el.removeAttribute("src");
-    c._el.load();
-    registry.delete(key);
-  }
+  if (c._refs <= 0) discardController(key);
+}
+
+/** Throw away the controller for `key` regardless of holders — after a failed load (its
+ *  element stays errored for good) so the next getController builds a fresh one. Also the
+ *  one teardown path eviction and release share. */
+export function discardController(key: string): void {
+  const c = registry.get(key);
+  if (!c) return;
+  c._el.pause();
+  c._el.removeAttribute("src");
+  c._el.load();
+  registry.delete(key);
 }
 
 /** Pause whatever is currently playing (used when leaving a note). */

@@ -130,7 +130,10 @@ export function phoneVault(): LocalVault {
     // relies on it to pick a decoder; an untyped blob: URL silently fails to play some audio
     // containers (m4a) while others happen to still decode by content-sniffing, which is
     // exactly the "plays in one recording but not others" bug this fixes.
-    writeMediaBytes: (ref, bytes) => putMedia(ref, new Blob([bytes as BlobPart], { type: mediaContentType(ref) })),
+    async writeMediaBytes(ref, bytes) {
+      // Same best-effort write as before putMedia started reporting success; sync ignores it.
+      await putMedia(ref, new Blob([bytes as BlobPart], { type: mediaContentType(ref) }));
+    },
     async mediaSize(ref) {
       const bytes = await getMediaBytes(ref);
       return bytes ? bytes.byteLength : null;

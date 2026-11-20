@@ -67,10 +67,9 @@ function writeAsciiString(view: DataView, offset: number, str: string): void {
   for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
 }
 
-/** A standard 44-byte canonical PCM WAV header for mono 16-bit audio. */
-export function buildWavHeader(dataSize: number, sampleRate: number): ArrayBuffer {
-  const numChannels = 1;
-  const bitsPerSample = 16;
+/** A standard 44-byte canonical PCM WAV header (mono 16-bit unless told otherwise — the
+ *  other shapes only come up when repairing a file, see wavRepair.ts). */
+export function buildWavHeader(dataSize: number, sampleRate: number, numChannels = 1, bitsPerSample = 16): ArrayBuffer {
   const blockAlign = (numChannels * bitsPerSample) / 8;
   const byteRate = sampleRate * blockAlign;
   const buffer = new ArrayBuffer(44);

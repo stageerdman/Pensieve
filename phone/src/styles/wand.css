@@ -1582,6 +1582,20 @@ body {
   font-size: 13px;
   color: hsl(var(--warn));
 }
+.ph-audio-repair {
+  margin-left: auto;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--warn) / 0.4);
+  background: transparent;
+  color: hsl(var(--warn));
+  font-size: 13px;
+  touch-action: none;
+}
+.ph-audio-repair:disabled {
+  opacity: 0.6;
+}
 
 /* ── journal block: a processed Raw Memory's page strip, inline in the note body — a
    DIFFERENT context from the capture/detail screens' full-bleed .ph-journal-strip, so its
