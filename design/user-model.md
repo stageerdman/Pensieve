@@ -19,12 +19,21 @@ organising, planning and deep reflection, not for daily logging.
 - They check sources: "is that from my notes or a website?" Web and note sources must
   look different.
 - They glance before sending something personal: "is this going to the internet?"
-  The on-state must be visible next to Send.
+  The on-state must be visible where the eye is just before Enter. Since
+  COMPACT-COMPOSER, that's a small globe inside the field.
+- They use Patronus in a small popover (300–360px wide) and write long messages.
+  Every fixed control beside the field squeezes the text (owner report, 2026-11-20).
+  Composer controls therefore go inside the field, or behind `/`.
+- They work keyboard-first on the desktop. Enter sends, and `/w` Enter switches on web.
 
 ## Assumptions (guesses, to check)
 - The agent's instructions keep search queries generic. The shown query is how the
   owner verifies that. *Check:* read the queries in real use.
-- Two clicks to switch on web (open the picker, flip the switch) is acceptable while
-  there is one tool. *Check:* ask the owner after a week of use.
+- ~~Two clicks to switch on web is acceptable.~~ The picker is replaced by `/web`
+  (COMPACT-COMPOSER).
+- Nobody misses a Send button. *Check:* ask the owner after a week. The fallback is a
+  small arrow icon inside the field.
+- The placeholder "/ for commands" is enough for the owner to find `/web`. *Check:* do
+  they use `/web`, or only the "Search the web" link on replies?
 - A hover-revealed "Search the web" on the latest reply is found when it's needed.
   *Check:* see whether the owner uses it, or always goes to the picker.

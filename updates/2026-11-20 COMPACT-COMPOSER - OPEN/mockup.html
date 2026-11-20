@@ -1,0 +1,149 @@
+<!doctype html>
+<!-- Static mockup of the compact composer (composer-spec.md). Open in a browser.
+     Each frame is the Patronus popover's composer at its narrowest width (300px).
+     Colours approximate the dark theme tokens; the build uses the real tokens. -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Compact composer · mockup</title>
+<style>
+  :root {
+    --surface: #0f1420; --surface-raised: #182033; --border: #2a3448;
+    --text: #e6e9f0; --muted: #8a93a6; --accent: #7aa2ff;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+  }
+  body { background: #090c14; color: var(--text); margin: 40px; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+  p.lead { color: var(--muted); font-size: 14px; margin: 0 0 32px; }
+  .grid { display: flex; flex-wrap: wrap; gap: 40px 32px; }
+  figure { margin: 0; width: 300px; }
+  figcaption { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.4; }
+  figcaption b { color: var(--text); font-weight: 600; }
+  .win { width: 300px; background: var(--surface); border: 1px solid var(--border);
+         border-radius: 10px; overflow: visible; }
+  .msgs { height: 96px; padding: 12px; font-size: 14px; color: var(--muted);
+          display: flex; align-items: flex-end; }
+  .composer { border-top: 1px solid var(--border); padding: 12px; }
+  .field { position: relative; }
+  .ta { box-sizing: border-box; width: 100%; min-height: 36px; max-height: 128px;
+        overflow: hidden; border: 1px solid var(--border); border-radius: 6px;
+        background: var(--surface); padding: 8px 12px; font-size: 14px; line-height: 20px;
+        white-space: pre-wrap; word-wrap: break-word; }
+  .ta.focus { box-shadow: 0 0 0 2px var(--accent); border-color: transparent; }
+  .ta.web { padding-right: 36px; }
+  .ph { color: var(--muted); }
+  .caret { display: inline-block; width: 1px; height: 16px; background: var(--text);
+           vertical-align: -3px; }
+  .globe { position: absolute; right: 6px; bottom: 6px; width: 24px; height: 24px;
+           border-radius: 4px; display: flex; align-items: center; justify-content: center;
+           color: var(--accent); }
+  .globe.hover { background: rgba(122,162,255,.1); }
+  .menu { position: absolute; left: 0; right: 0; bottom: 100%; margin-bottom: 4px;
+          background: var(--surface-raised); border: 1px solid var(--border);
+          border-radius: 6px; padding: 4px; box-shadow: 0 10px 30px -10px rgba(0,0,0,.35); }
+  .row { display: flex; align-items: center; gap: 9px; padding: 6px 9px; border-radius: 4px; }
+  .row.active { background: rgba(122,162,255,.14); }
+  .row .ic { color: var(--muted); display: inline-flex; }
+  .row .t { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+  .row .t1 { font-size: 14px; }
+  .row .t2 { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden;
+             text-overflow: ellipsis; }
+  .row .k { margin-left: auto; font: 11px ui-monospace, Menlo, monospace; color: var(--muted); }
+  .bubble { background: var(--surface-raised); border-radius: 10px; padding: 6px 10px;
+            color: var(--text); font-size: 14px; }
+  .before { margin-top: 48px; }
+  .before .row2 { display: flex; gap: 8px; align-items: flex-end; }
+  .before .ta { flex: 1; width: auto; }
+  .btn { height: 36px; padding: 0 12px; border-radius: 6px; background: var(--accent);
+         color: #fff; font-size: 14px; display: flex; align-items: center; font-weight: 500; }
+  .pill { height: 36px; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 10px;
+          border-radius: 6px; background: rgba(122,162,255,.1); color: var(--accent);
+          font-size: 14px; font-weight: 500; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="10"/><path d="M2 12h20"/>
+    <path d="M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10 15 15 0 0 1-4-10 15 15 0 0 1 4-10z"/>
+  </symbol>
+</svg>
+
+<h1>Compact composer</h1>
+<p class="lead">One field. Enter sends · Shift+Enter new line · “/” for commands · the globe shows only while web search is on.</p>
+
+<div class="grid">
+
+  <figure>
+    <div class="win"><div class="msgs">…</div><div class="composer"><div class="field">
+      <div class="ta focus"><span class="caret"></span><span class="ph">Ask anything · / for commands</span></div>
+    </div></div></div>
+    <figcaption><b>A · Empty, web off.</b> Focused on open. The placeholder teaches the one thing you can’t guess.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="win"><div class="msgs">…</div><div class="composer"><div class="field">
+      <div class="ta focus">I keep coming back to the idea that the morning walks are where my best thinking happens, and I wonder whether I should protect that time more deliberately instead of filling it with podcasts<span class="caret"></span></div>
+    </div></div></div>
+    <figcaption><b>C · Long message.</b> Full width, so it wraps far less; grows to 128px, then scrolls.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="win"><div class="msgs">…</div><div class="composer"><div class="field">
+      <div class="menu">
+        <div class="row active">
+          <span class="ic"><svg width="16" height="16"><use href="#globe"/></svg></span>
+          <span class="t"><span class="t1">Turn on web search</span><span class="t2">Search the web and read pages for this chat.</span></span>
+          <span class="k">/web</span>
+        </div>
+      </div>
+      <div class="ta focus">/w<span class="caret"></span></div>
+    </div></div></div>
+    <figcaption><b>D · Typing “/w”.</b> Menu above the field, field-wide. The row says exactly what Enter will do.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="win"><div class="msgs">…</div><div class="composer"><div class="field">
+      <div class="ta focus web">What changed in the EU AI Act this month?<span class="caret"></span></div>
+      <div class="globe" title="Web search is on. Click to turn off"><svg width="16" height="16"><use href="#globe"/></svg></div>
+    </div></div></div>
+    <figcaption><b>E · Web on, typing.</b> A 24px accent globe, inside the field, where the eye is before Enter. Click it to turn web off.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="win"><div class="msgs">…</div><div class="composer"><div class="field">
+      <div class="menu">
+        <div class="row active">
+          <span class="ic"><svg width="16" height="16"><use href="#globe"/></svg></span>
+          <span class="t"><span class="t1">Turn off web search</span><span class="t2">Search the web and read pages for this chat.</span></span>
+          <span class="k">/web</span>
+        </div>
+      </div>
+      <div class="ta focus web">/web<span class="caret"></span></div>
+      <div class="globe"><svg width="16" height="16"><use href="#globe"/></svg></div>
+    </div></div></div>
+    <figcaption><b>F · Web on, “/web”.</b> Same command, opposite verb. Enter → field clears, globe fades out.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="win"><div class="msgs"><span class="bubble">Searching the web: EU AI Act November 2026</span></div><div class="composer"><div class="field">
+      <div class="ta focus web">and how does that affect small<span class="caret"></span></div>
+      <div class="globe hover"><svg width="16" height="16"><use href="#globe"/></svg></div>
+    </div></div></div>
+    <figcaption><b>G · Reply streaming.</b> Field stays editable; Enter waits until the reply is done. Globe shown in hover state.</figcaption>
+  </figure>
+
+</div>
+
+<figure class="before">
+  <div class="win"><div class="msgs">…</div><div class="composer"><div class="row2">
+    <div class="ta">I keep coming back to the idea that the morning walks are where my best thinking</div>
+    <div class="pill"><svg width="16" height="16"><use href="#globe"/></svg>Web <span style="font-size:12px;padding:0 4px">✕</span></div>
+    <div class="btn">Send</div>
+  </div></div></div>
+  <figcaption><b>Before (today), for comparison.</b> Pill + Send take ~140px of a 276px row.</figcaption>
+</figure>
+
+</body>
+</html>
