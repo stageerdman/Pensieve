@@ -819,3 +819,67 @@ describe("sync engine — PHONE-WINDOW rolling window", () => {
     expect(vault.state.notes.old.remoteOnly).toBe(true);
   });
 });
+
+// The real round trip (2026-11-20): recorded on the phone → synced → the Mac renamed it and
+// transcribed both takes → the phone (where the memory had merely been opened again) must
+// end up matching the Mac, not stay "New Recording" with no transcripts.
+describe("phone sync engine — phone → Mac rename + transcribe → phone", () => {
+  const fence = (id: string) => "```pensieve:audio\nmedia/n/" + id + ".wav\n```";
+  const phoneCopy = `---\ntags: []\nlinks: []\nicon: teardrop/yellow\n---\n\nNew Recording\n\n${fence("a")}\n\n${fence("b")}`;
+  const macCopy = `---\ncategories: [Journal]\ntags: [Ria]\nlinks: []\nicon: teardrop/yellow\n---\n\n# Sales Mindset\n\n${fence("a")}\n\n${fence("b")}`;
+  const sidecar = (id: string, model: string) => JSON.stringify({ version: 1, media: `media/n/${id}.wav`, meta: { model }, segments: [] });
+  const text = (bytes: Uint8Array | undefined) => new TextDecoder().decode(bytes);
+
+  let vault: MemVault;
+  let drive: FakeDrive;
+  let graph: GraphClient;
+
+  beforeEach(async () => {
+    vault = new MemVault();
+    drive = new FakeDrive();
+    graph = drive.client();
+    vault.edit("n", phoneCopy, 5);
+    vault.putMedia("media/n/a.wav", new Uint8Array([1]));
+    vault.putMedia("media/n/b.wav", new Uint8Array([2]));
+    await sync(graph, vault); // phone → OneDrive
+    // The Mac renames, categorises and transcribes both takes.
+    drive.put("n.md", macCopy);
+    drive.put("media/n/a.wav.transcript.json", sidecar("a", "parakeet"));
+    drive.put("media/n/b.wav.transcript.json", sidecar("b", "parakeet"));
+    vault.edit("n", phoneCopy, 50); // opened again on the phone: updatedAt bumped, content same
+  });
+
+  it("pulls the Mac's name and transcripts even though the phone's copy looks newer", async () => {
+    const r = await sync(graph, vault);
+    expect(r.conflicts).toEqual([]);
+    expect(r.pulled).toEqual(["n"]);
+    expect(await vault.readNote("n")).toBe(macCopy);
+    expect(text(vault.media.get("media/n/a.wav.transcript.json"))).toContain("parakeet");
+    expect(drive.files.get("n.md")?.content).toBe(macCopy); // nothing pushed over it
+    expect((await sync(graph, vault)).pushed).toEqual([]); // and settled
+  });
+
+  it("heals the memory already stuck (its delta consumed by an earlier conflicted sync)", async () => {
+    vault.state.deltaLink = `https://fake/delta?v=${drive.ver}`;
+    const r = await sync(graph, vault);
+    expect(r.conflicts).toEqual([]);
+    expect(await vault.readNote("n")).toBe(macCopy);
+    expect(drive.files.get("n.md")?.content).toBe(macCopy);
+  });
+
+  it("a real phone edit is still a conflict — never clobbered either way", async () => {
+    vault.edit("n", phoneCopy + "\n\nTyped on the phone", 50);
+    const r = await sync(graph, vault);
+    expect(r.conflicts.map((c) => c.noteId)).toEqual(["n"]);
+    expect(await vault.readNote("n")).toContain("Typed on the phone");
+    expect(drive.files.get("n.md")?.content).toBe(macCopy);
+  });
+
+  it("a re-transcription on the Mac replaces the transcript the phone already holds", async () => {
+    await sync(graph, vault);
+    drive.put("media/n/a.wav.transcript.json", sidecar("a", "czech-whisper"));
+    const r = await sync(graph, vault);
+    expect(r.pulledMedia).toEqual(["media/n/a.wav.transcript.json"]);
+    expect(text(vault.media.get("media/n/a.wav.transcript.json"))).toContain("czech-whisper");
+  });
+});

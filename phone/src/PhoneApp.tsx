@@ -65,6 +65,7 @@ import { JournalDetailScreen } from "./components/note/JournalDetailScreen";
 import { createRawBatch, deleteRawBatch, loadRawBatches, markRawBatchesSynced, persistRawBatches, type RawMemory } from "./lib/media/rawMemoryStore";
 import { mintAudioRef, mintMediaRef, mintVideoRef, registerLocalMedia } from "./lib/media/mediaStore";
 import { offerSaveToPhotos } from "./lib/media/saveToPhotos";
+import { CAPTURE_PLACEHOLDER } from "./lib/capturePlaceholders";
 import type { MediaImage } from "./lib/media/noteMedia";
 import { pauseAllAudio } from "./lib/media/audioController";
 import { isRecording, pauseRecording, recoverOrphanedRecordings, resumeRecording, startRecording, stopRecording, activeSnapshot, type VoiceCaptureDeps } from "./lib/media/voiceCapture";
@@ -454,11 +455,11 @@ export function PhoneApp() {
     // original user gesture; a setTimeout-deferred click breaks that and iOS may stall or
     // refuse it. The note's conjure animation can proceed in parallel; camera UI covers it.
     openImagePicker("camera");
-    openCaptureNote("New Image", "added image");
+    openCaptureNote(CAPTURE_PLACEHOLDER.image.title, CAPTURE_PLACEHOLDER.image.body);
   }
 
   function startCaptureVoice() {
-    const d = openCaptureNote("New Recording", "added recording");
+    const d = openCaptureNote(CAPTURE_PLACEHOLDER.voice.title, CAPTURE_PLACEHOLDER.voice.body);
     setTimeout(() => setVoicePanel({ open: true, noteId: d.id, placeholderBody: d.c }), 460);
   }
 
@@ -476,7 +477,7 @@ export function PhoneApp() {
    *  Voice's WebKit MediaRecorder problems apply here. Mints "New Video" first. */
   function startCaptureVideo() {
     openVideoPicker("film");
-    openCaptureNote("New Video", "added video");
+    openCaptureNote(CAPTURE_PLACEHOLDER.video.title, CAPTURE_PLACEHOLDER.video.body);
   }
 
   /** The "Video" conditional spell's Film option: attaches a clip to the memory that's

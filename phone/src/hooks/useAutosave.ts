@@ -44,6 +44,10 @@ export function useAutosave(
       // Serialize the body DOM to the shared markdown model: title (first H1), then each
       // block as text OR, for a media block, its `![](ref)` / `pensieve:gallery` markdown.
       const { title, content } = serializeNoteBody(noteBody);
+      // Closing a memory always commits; with nothing changed that must stay a no-op. Bumping
+      // updatedAt here made merely OPENING a synced memory look like a phone edit, so the next
+      // sync saw "both changed" and never pulled the computer's rename/transcripts again.
+      if (!current.isNew && title === current.t && content === current.c) return;
       current.t = title;
       current.c = content;
       current.fill = Math.min(1, Math.max(0.18, current.c.length / 220));

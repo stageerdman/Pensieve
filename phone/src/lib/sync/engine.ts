@@ -21,8 +21,10 @@ import {
   listNotes,
   listRawRecords,
   mediaContentType,
+  mediaRefFromItem,
   noteIdFromName,
   rawIdFromItem,
+  remoteName,
   remoteRootExists,
   uploadMedia,
   uploadNote,
@@ -35,7 +37,8 @@ import { EMPTY_SYNC_STATE, type MediaSyncRecord, type RemoteItem, type SyncAccou
 import { getAccessToken, clearTokenCache } from "./tokens";
 import { parseNoteContent } from "../media/noteMedia";
 import { isMediaPath } from "../media/noteMedia";
-import { transcriptRefFor } from "../media/transcript";
+import { TRANSCRIPT_SIDECAR_SUFFIX, transcriptRefFor } from "../media/transcript";
+import { remoteSupersedesLocal } from "./supersedes";
 import { log } from "../logger";
 import { setRemoteMediaFetcher } from "../media/mediaStore";
 
@@ -136,8 +139,9 @@ async function pullReferencedMedia(
       have.add(ref);
       media[ref] = { ref, backedUp: true };
       result.pulledMedia.push(ref);
-    } catch {
-      /* flaky image — retried on a later sync */
+    } catch (e) {
+      // Flaky download — retried on a later sync, but never silently.
+      log.warn("sync", "media.pull.failed", { ref, error: String(e) });
     }
   }
 }
@@ -158,6 +162,33 @@ async function pushLocalMedia(graph: GraphClient, vault: LocalVault, state: Sync
       media[ref] = { ref, remoteId: media[ref]?.remoteId, backedUp: false, failedAt: nowMs() };
     }
   }
+}
+
+/** Write a downloaded note into the vault and record it as in sync. Returns the remote time
+ *  it was stamped with (the baseline a later local edit is compared against). */
+async function applyPulledNote(
+  vault: LocalVault,
+  state: SyncState,
+  id: string,
+  dl: { content: string; item: RemoteItem },
+  item?: RemoteItem,
+): Promise<number> {
+  const modified = item?.lastModifiedDateTime ?? dl.item.lastModifiedDateTime;
+  const remoteTime = modified ? Date.parse(modified) : nowMs();
+  await vault.writeNote(id, dl.content, { updatedAt: remoteTime });
+  state.notes[id] = { id, remoteId: item?.id || dl.item.id, cTag: dl.item.cTag ?? item?.cTag ?? "", localUpdatedAt: remoteTime, syncedAt: nowMs() };
+  return remoteTime;
+}
+
+/** A note changed on both sides is only a real conflict if the phone's copy holds something
+ *  the remote's lacks (see supersedes.ts). If not, take the remote's copy and return true. */
+async function takeRemoteIfItSupersedes(graph: GraphClient, vault: LocalVault, state: SyncState, id: string): Promise<boolean> {
+  const local = await vault.readNote(id);
+  const dl = await downloadNote(graph, remoteName(id));
+  if (local === null || !dl || !remoteSupersedesLocal(local, dl.content)) return false;
+  await applyPulledNote(vault, state, id, dl);
+  log.info("sync", "conflict.healed-take-remote", { id });
+  return true;
 }
 
 /** Run a full two-way sync. Pull first (so remote wins where only remote changed),
@@ -288,6 +319,7 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
   const rawConflicted = new Set<string>();
   const rawLocalDeletes: string[] = [];
   const rawDownloads: { id: string; item: RemoteItem }[] = [];
+  const changedSidecars = new Set<string>();
 
   for (const item of items) {
     if (item.folder) continue;
@@ -320,6 +352,11 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
 
       const remoteChanged = rec === undefined || rec.cTag !== item.cTag;
       if (localChanged && remoteChanged) {
+        if (await takeRemoteIfItSupersedes(graph, vault, state, id)) {
+          localBefore.set(id, state.notes[id].localUpdatedAt);
+          result.pulled.push(id);
+          continue;
+        }
         const remoteUpdatedAt = item.lastModifiedDateTime ? Date.parse(item.lastModifiedDateTime) : undefined;
         result.conflicts.push({ noteId: id, reason: "both-changed", localUpdatedAt, remoteUpdatedAt });
         conflicted.add(id);
@@ -327,6 +364,15 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
       }
       if (!remoteChanged) continue;
       downloads.push({ id, item });
+      continue;
+    }
+
+    // A transcript sidecar the computer (re)wrote: media is otherwise immutable, but a
+    // sidecar is rewritten on every re-transcription — note it so a copy already held here
+    // is fetched again below instead of being kept stale forever.
+    const mediaRef = mediaRefFromItem(item);
+    if (mediaRef) {
+      if (!item.deleted && mediaRef.endsWith(TRANSCRIPT_SIDECAR_SUFFIX)) changedSidecars.add(mediaRef);
       continue;
     }
 
@@ -450,11 +496,8 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
       doneItems++;
       continue;
     }
-    const modified = item.lastModifiedDateTime ?? dl.item.lastModifiedDateTime;
-    const remoteTime = modified ? Date.parse(modified) : nowMs();
-    await vault.writeNote(id, dl.content, { updatedAt: remoteTime });
+    const remoteTime = await applyPulledNote(vault, state, id, dl, item);
     for (const ref of extractMediaRefs(dl.content)) pulledMediaRefs.add(ref);
-    state.notes[id] = { id, remoteId: item.id || dl.item.id, cTag: dl.item.cTag ?? item.cTag ?? "", localUpdatedAt: remoteTime, syncedAt: nowMs() };
     localBefore.set(id, remoteTime);
     result.pulled.push(id);
     doneItems++;
@@ -473,8 +516,11 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
       state.notes[info.id] = { id: info.id, remoteId: item.id ?? rec?.remoteId ?? "", cTag: item.cTag ?? rec?.cTag ?? "", localUpdatedAt: info.updatedAt, syncedAt: nowMs() };
       result.pushed.push(info.id);
     } catch (e) {
-      if (e instanceof ConflictError) result.conflicts.push({ noteId: info.id, reason: "push-rejected" });
-      else throw e;
+      if (!(e instanceof ConflictError)) throw e;
+      // The remote moved on since our cTag (e.g. a both-changed note whose delta was already
+      // consumed) — heal it the same way when the phone's copy adds nothing.
+      if (await takeRemoteIfItSupersedes(graph, vault, state, info.id)) result.pulled.push(info.id);
+      else result.conflicts.push({ noteId: info.id, reason: "push-rejected" });
     }
     doneItems++;
   }
@@ -517,6 +563,11 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
       // backedUp:true on sight — short-circuiting the push that was actually still pending.
       if (!haveMedia.has(ref)) pulledMediaRefs.add(ref);
     }
+  }
+  for (const ref of changedSidecars) {
+    if (!haveMedia.has(ref) || !state.media![ref]?.backedUp) continue;
+    haveMedia.delete(ref); // re-fetch: the held copy is an older transcription
+    pulledMediaRefs.add(ref);
   }
   await pullReferencedMedia(graph, vault, pulledMediaRefs, haveMedia, state.media!, result);
   await pushLocalMedia(graph, vault, state, result);

@@ -126,6 +126,9 @@ export interface MediaSyncRecord {
    *  byte-offset tracking. Cleared once the upload completes or a fresh session
    *  replaces it. */
   uploadSession?: { uploadUrl: string; expirationDateTime: string };
+  /** Byte size last synced. Only consulted for transcript sidecars — the one kind of media
+   *  rewritten in place (re-transcription), see sidecarFreshness.ts. */
+  size?: number;
 }
 
 /** The whole sync state, persisted beside the vault (not a note). */

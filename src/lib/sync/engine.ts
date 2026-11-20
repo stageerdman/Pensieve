@@ -38,6 +38,8 @@ import {
   uploadNotesIndex,
 } from "./adapter";
 import { hashText, serializeNotesIndex } from "./notesIndex";
+import { isRewrittenSidecar } from "./sidecarFreshness";
+import { TRANSCRIPT_SIDECAR_SUFFIX } from "../transcripts/transcript";
 import {
   extractMediaRefs,
   primeMediaBackupStates,
@@ -152,7 +154,7 @@ async function pullReferencedMedia(
       }
 
       have.add(ref);
-      media[ref] = { ref, backedUp: true };
+      media[ref] = { ref, backedUp: true, size: meta.size };
       setMediaBackupState(ref, "backed-up");
       result.pulledMedia.push(ref);
     } catch (e) {
@@ -180,7 +182,8 @@ async function pushLocalMedia(
   const local = await vault.listMedia();
   const todo: string[] = [];
   for (const ref of local) {
-    if (media[ref]?.backedUp) setMediaBackupState(ref, "backed-up");
+    const stale = media[ref]?.backedUp && ref.endsWith(TRANSCRIPT_SIDECAR_SUFFIX) && isRewrittenSidecar(ref, media[ref], await vault.mediaSize(ref));
+    if (media[ref]?.backedUp && !stale) setMediaBackupState(ref, "backed-up");
     else todo.push(ref);
   }
   if (todo.length) log.info("sync", "media.push.plan", { count: todo.length });
@@ -195,7 +198,7 @@ async function pushLocalMedia(
         size > LARGE_MEDIA_THRESHOLD && vault.uploadMediaStream
           ? await uploadLargeMedia(graph, vault, state, ref, size)
           : await uploadSmallMedia(graph, vault, ref);
-      media[ref] = { ref, remoteId, backedUp: true };
+      media[ref] = { ref, remoteId, backedUp: true, size };
       setMediaBackupState(ref, "backed-up");
       result.pushedMedia.push(ref);
     } catch (e) {
