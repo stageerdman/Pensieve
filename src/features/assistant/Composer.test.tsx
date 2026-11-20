@@ -136,6 +136,23 @@ describe("Composer: slash commands", () => {
     expect(toolsSeen).not.toHaveBeenCalled();
   });
 
+  it("reopens after Escape once the text changes, even back to the same text", () => {
+    const { type, key } = mount();
+    type("/");
+    key("Escape");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    type("");
+    type("/");
+    expect(screen.getByRole("listbox")).toBeTruthy();
+  });
+
+  it("ignores the Enter that confirms an IME composition in WebKit (keyCode 229)", () => {
+    const { onSend, type, key } = mount();
+    type("café");
+    key("Enter", { keyCode: 229 });
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
   it("arrow keys wrap through the rows", () => {
     const wiki = { id: "wiki", label: "Wiki", description: "Read the wiki." };
     const { box, type, key } = mount({ available: [WEB, wiki] });

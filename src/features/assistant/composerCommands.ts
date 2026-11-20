@@ -38,18 +38,23 @@ export function buildCommands(available: AssistantTool[], enabled: string[]): Co
   }));
 }
 
+const ARGS: CommandArg[] = ["on", "off"];
+
 /** Rules: the whole field starts with "/", one line, "/<name-prefix>[ on|off]".
- *  Anything else is closed, so "/etc/hosts is missing" just sends as a message. */
+ *  A partial arg ("o", "of") keeps the menu open, so typing "/web off" never flickers;
+ *  "o" is still ambiguous, so it toggles. Anything else is closed, so
+ *  "/etc/hosts is missing" just sends as a message. */
 export function matchCommands(text: string, commands: ComposerCommand[]): CommandMatch {
   if (!text.startsWith("/") || text.includes("\n")) return CLOSED;
   const body = text.slice(1);
   const space = body.indexOf(" ");
   const query = (space === -1 ? body : body.slice(0, space)).toLowerCase();
   const rest = space === -1 ? "" : body.slice(space + 1).trim().toLowerCase();
-  if (rest !== "" && rest !== "on" && rest !== "off") return CLOSED;
+  const args = ARGS.filter((a) => a.startsWith(rest));
+  if (args.length === 0) return CLOSED;
   const items = commands.filter((c) => c.name.toLowerCase().startsWith(query));
   if (items.length === 0) return CLOSED;
-  return rest === "" ? { items } : { items, arg: rest };
+  return args.length === 1 ? { items, arg: args[0] } : { items };
 }
 
 /** The state Enter will put the tool in. */

@@ -56,12 +56,17 @@ export function Composer({
     const el = ref.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT_PX)}px`;
+    // border-box: scrollHeight leaves out the border, so add it back, or a one-line
+    // field is 2px short and scrolls under the caret.
+    const border = el.offsetHeight - el.clientHeight;
+    el.style.height = `${Math.min(el.scrollHeight + border, MAX_HEIGHT_PX)}px`;
   }, [text]);
 
   const changeText = (value: string) => {
     setText(value);
     setActiveIndex(0);
+    // Any edit ends an Escape: "/", Esc, Backspace, "/" opens the menu again.
+    setDismissedFor(null);
   };
 
   const submit = () => {
@@ -102,7 +107,9 @@ export function Composer({
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // Enter confirms an IME composition (accented / CJK input); it must not send.
-    if (e.nativeEvent.isComposing) return;
+    // WebKit (the Tauri shell on macOS) sends that Enter with isComposing false but
+    // keyCode 229, so check both.
+    if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
     if (menuOpen && isSlashNavKey(e.key)) return onMenuKey(e);
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();

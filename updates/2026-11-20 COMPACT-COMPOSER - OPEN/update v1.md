@@ -146,3 +146,18 @@ test above, with log excerpts pasted below.
   (not allowed in this shell; the Rust tests compare against the constants, so the
   rewording can't break them). Not done: the globe fades in but disappears at once (no
   fade-out). Next: Phase 4 hand test in `npm run tauri dev`.
+- 2026-11-20: **Design review** (Jony). I reviewed the code against the spec for a 300px
+  window and a long message (no browser here, so I worked through the layout by hand
+  from the CSS). The layout, hierarchy and ARIA match. I fixed four things:
+  (1) the auto-grow now adds the border back, because with border-box a one-line field
+  was 2px short and scrolled under the caret; (2) a half-typed arg (`/web o`, `/web of`)
+  keeps the menu open, where before it flickered shut mid-word; (3) any edit clears an
+  Escape dismissal, so `/`, Esc, Backspace, `/` opens the menu again; (4) Enter with
+  `keyCode 229` is ignored as an IME confirm, because WebKit sends it with
+  `isComposing` false. The globe inset is now 7px, so it sits centred in the 38px
+  field. I deleted the fade-out requirement from the spec: an instant vanish is the
+  confirmation. +4 tests, 47/47 assistant tests pass, `tsc` clean.
+  **Check by hand in Phase 4:** with web on and a message longer than 6 lines, does
+  the macOS overlay scrollbar's thumb hide under the globe at the bottom right? If it
+  does, the fix is `right-[11px]` on the globe only while the field scrolls. Don't
+  change anything before seeing it.

@@ -30,8 +30,15 @@ describe("matchCommands", () => {
     expect(matchCommands("/web", off).arg).toBeUndefined();
   });
 
+  it("stays open while an arg is half typed, so the menu never flickers", () => {
+    expect(names("/web o")).toEqual(["web"]);
+    expect(matchCommands("/web o", off).arg).toBeUndefined(); // still ambiguous: toggle
+    expect(matchCommands("/web of", off).arg).toBe("off");
+  });
+
   it("stays closed for anything that is not a command, so it sends as a message", () => {
     expect(names("/web foo")).toEqual([]);
+    expect(names("/web onn")).toEqual([]);
     expect(names("/x")).toEqual([]);
     expect(names("hi /web")).toEqual([]);
     expect(names("/web\nmore")).toEqual([]);

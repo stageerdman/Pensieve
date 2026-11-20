@@ -40,18 +40,20 @@ shows every state below at the popover's narrowest width (300px).
 | State | Looks like |
 |---|---|
 | Web off (or no tools) | nothing is rendered |
-| Web on | a 24×24 button at `absolute bottom-1.5 right-1.5`, `rounded-sm text-accent`, `Globe size={16}`. Hover: `bg-accent/10`. Focus: `focus-visible:ring-2 ring-accent` |
+| Web on | a 24×24 button at `absolute bottom-[7px] right-[7px]`, `rounded-sm text-accent`, `Globe size={16}`. Hover: `bg-accent/10`. Focus: `focus-visible:ring-2 ring-accent` |
 | Several tools on (future) | same globe, with a dot badge if the tool has no globe-like icon. Decide when a second tool exists; don't build it now |
 
 - Bottom-anchored on purpose: on a one-line field it is vertically centred
-  (6 + 24 + 6 = 36px), and on a tall field it stays near the last line, where the
+  (7 + 24 + 7 = 38px: 20px line + 16px padding + 2px border), and on a tall field it stays near the last line, where the
   caret and the eye are just before Enter.
 - **Name** (aria-label): `Web search is on. Turn off`. **Tooltip** (`title`):
   `Web search is on. Click to turn off`.
 - **Click:** `setTools(enabled without "web")`, then focus the textarea. Announce
   "Web search off".
-- **Appear and disappear:** opacity 0 → 1 over 120ms, ease-out. No motion with
-  `prefers-reduced-motion`.
+- **Appear:** opacity 0 → 1 over 120ms, ease-out. No motion with
+  `prefers-reduced-motion`. **Disappear: at once.** You just clicked it or ran
+  `/web`, so the instant vanish is the confirmation. A fade-out would be extra code
+  for nothing.
 - Mousedown on it must not blur the textarea (call `preventDefault` on mousedown),
   so the caret doesn't jump.
 
@@ -80,7 +82,9 @@ Let `text` = the whole field value.
 3. `items` = commands whose `name` starts with `query`, case-insensitive. `/` alone
    lists them all, in registry order.
 4. `rest` (trimmed, lowercased): empty means toggle. `on` or `off` means `arg`, and the
-   row title becomes that verb. Anything else means no match (closed).
+   row title becomes that verb. A partial arg keeps the menu open so it never flickers
+   mid-word: `o` is still ambiguous (toggle), `of` means `off`. Anything else means no
+   match (closed).
 5. `items` empty means closed. **A closed menu means Enter sends the text as a normal
    message.** So `/etc/hosts is missing` or `/shrug` just sends.
 
