@@ -14,7 +14,7 @@ export function WebIndicator({ on, onTurnOff }: { on: boolean; onTurnOff: () => 
       title="Web search is on. Click to turn off"
       onMouseDown={(e) => e.preventDefault()}
       onClick={onTurnOff}
-      className="patronus-fade-in absolute bottom-[7px] right-[7px]inline-flex h-6 w-6 items-center justify-center rounded-sm text-accent hover:bg-accent/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      className="patronus-fade-in absolute bottom-[7px] right-[7px] inline-flex h-6 w-6 items-center justify-center rounded-sm text-accent hover:bg-accent/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
       <Globe size={16} />
     </button>

@@ -191,6 +191,14 @@ describe("Composer: web indicator", () => {
     expect(globe()).toBeNull();
   });
 
+  it("sits centred inside the field: 7px inset, icon centred", () => {
+    mount({ initialTools: ["web"] });
+    const classes = globe()!.className.split(/\s+/);
+    for (const c of ["absolute", "bottom-[7px]", "right-[7px]", "inline-flex", "items-center", "justify-center"]) {
+      expect(classes).toContain(c);
+    }
+  });
+
   it("clicking the globe turns web off and puts focus back in the field", () => {
     const { box } = mount({ initialTools: ["web"] });
     expect(box.className).toContain("pr-9");
