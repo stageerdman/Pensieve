@@ -184,8 +184,10 @@ export class TauriStore implements Store {
       { categories: note.categories, tags: note.tags, links: note.links, icon: note.icon, extra: note.extra },
       note.markdown,
     );
-    await writeText(notePath(note.id), file);
+    // Sidecar first, .md last: the .md is what makes a note exist in the listing, so a crash
+    // between the two never shows a note with a missing sidecar (wrong date/title).
     await writeText(metaPath(note.id), JSON.stringify(meta));
+    await writeText(notePath(note.id), file);
     log.debug("store", "save", { id: note.id, title: meta.title });
   }
 
@@ -338,8 +340,10 @@ export class TauriStore implements Store {
     // now, so only a Journal batch's folder is wiped (see lib/packages/record).
     const ownedByMemory = (await readText(`notes/${id}.md`).catch(() => null)) !== null;
     const files = ownedByMemory ? [] : await listDir(`media/${id}`).catch(() => [] as string[]);
-    for (const f of files) await removePath(`media/${id}/${f}`).catch(() => undefined);
+    // The record goes FIRST: a crash before the photos are gone leaves only orphan photos
+    // (harmless), never a record whose pages are half-deleted (it would wait for them forever).
     await removePath(`raw/${id}.json`);
+    for (const f of files) await removePath(`media/${id}/${f}`).catch(() => undefined);
     log.info("raw", "remove", { id, pagesRemoved: files.length });
   }
 }

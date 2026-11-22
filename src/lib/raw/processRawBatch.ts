@@ -9,6 +9,7 @@ import { splitByDate, sharesBoundary, type PageSignal, type DateGroup } from "./
 import { parseDetectedDate } from "./parseDetectedDate";
 import { resolveYearPlaceholders } from "./resolveYearPlaceholders";
 import { log } from "../logger";
+import { mediaRef, parseMediaPath } from "../media/ref";
 
 /** What the vision call reports for one page. */
 export interface PageDescription {
@@ -38,15 +39,14 @@ export interface PageDescription {
 export type DescribePage = (ref: string, absolutePath: string) => Promise<PageDescription>;
 
 /** The narrow slice of Store this orchestrator needs — injectable for tests. */
-export type RawBatchStore = Pick<Store, "create" | "save" | "saveMedia" | "saveTranscript">;
+export type RawBatchStore = Pick<Store, "save" | "saveTranscript">;
 
 export interface ProcessRawBatchDeps {
   store: RawBatchStore;
-  /** Vault-relative ref ("media/<id>/<file>") → the page's real bytes, for re-saving it
-   *  into a new note's own media folder. Store-agnostic (works via fetch on either a
-   *  Tauri asset:// URL or a browser blob: URL) — see the real impl in processRawBatch's
-   *  caller (e.g. ProcessQueue wiring), not here. */
-  readMediaBytes: (ref: string) => Promise<{ bytes: ArrayBuffer; ext: string }>;
+  /** Copy one vault file to another vault path, never leaving the target half-written
+   *  (Tauri: the atomic `copy_file` command). Used to duplicate a page photo into its
+   *  new Memory's own media folder. */
+  copyMedia: (fromRef: string, toRef: string) => Promise<void>;
   /** Vault-relative ref → an absolute filesystem path the vision subprocess can Read. */
   resolveAbsolutePath: (ref: string) => Promise<string>;
   describePage: DescribePage;
@@ -54,6 +54,23 @@ export interface ProcessRawBatchDeps {
   /** Called after each page's AI describe call resolves — the Process queue's only
    *  real progress signal (one subprocess call per page, no sub-page streaming). */
   onPageDone?: (done: number, total: number) => void;
+  /** Pages an earlier, interrupted attempt already described (from its job checkpoint) —
+   *  reused as-is, so a resumed batch gets the SAME split and the AI isn't paid twice. */
+  known?: Readonly<Record<string, PageDescription>>;
+  /** Awaited after each NEW description, before the next page — the checkpoint hook. */
+  onPageDescribed?: (ref: string, d: PageDescription) => Promise<void>;
+}
+
+/** The Memory a batch's n-th date group becomes. Deterministic on purpose: a rerun after a
+ *  crash overwrites the same Memory instead of minting a duplicate (exactly-once). */
+export function journalNoteId(rawId: string, groupIndex: number): string {
+  return `${rawId}-${groupIndex + 1}`;
+}
+
+/** Where a group's k-th page photo lands — deterministic for the same reason. */
+export function journalPageRef(noteId: string, pageIndex: number, originalRef: string): string {
+  const ext = parseMediaPath(originalRef)?.ext ?? "jpg";
+  return mediaRef(noteId, `p${pageIndex + 1}`, ext);
 }
 
 export interface ProcessRawBatchResult {
@@ -100,19 +117,47 @@ function pageTranscript(ref: string, text: string): Transcript {
   };
 }
 
-async function duplicateMediaInto(
-  deps: Pick<ProcessRawBatchDeps, "store" | "readMediaBytes">,
-  originalRef: string,
-  newNoteId: string,
-): Promise<string> {
-  const { bytes, ext } = await deps.readMediaBytes(originalRef);
-  return deps.store.saveMedia(newNoteId, bytes, ext);
+/** A journal Memory built in one go — never `store.create()` first, which would put an
+ *  empty "Untitled" note on disk that a crash could leave behind. */
+function journalNote(id: string, markdown: string, createdAt: number): Note {
+  return {
+    id,
+    title: "",
+    markdown,
+    createdAt,
+    addedAt: createdAt,
+    updatedAt: createdAt,
+    categories: [],
+    tags: [],
+    links: [],
+    pinned: false,
+    starred: false,
+  };
+}
+
+/** Every page's description, in page order: reused from `known` when an earlier attempt
+ *  got it, otherwise asked for and checkpointed before moving on. */
+async function describePages(rm: RawMemory, deps: ProcessRawBatchDeps): Promise<PageDescription[]> {
+  const out: PageDescription[] = [];
+  for (let i = 0; i < rm.pages.length; i++) {
+    const ref = rm.pages[i];
+    let d = deps.known?.[ref];
+    if (!d) {
+      d = await deps.describePage(ref, await deps.resolveAbsolutePath(ref));
+      await deps.onPageDescribed?.(ref, d);
+    }
+    out.push(d);
+    log.info("raw", "describe.page", { rawId: rm.id, ref, dateHeader: d.dateHeader, reused: !!deps.known?.[ref] });
+    deps.onPageDone?.(i + 1, rm.pages.length);
+  }
+  return out;
 }
 
 /** Process one synced Raw Memory into N final Memories (1 per detected date). Does NOT
- *  delete the raw batch itself — the caller does that only after this resolves, so a
- *  crash mid-process leaves (at worst) a redundant raw batch next to already-created
- *  finals, never silent data loss (see wiki.md). */
+ *  delete the raw batch itself — the caller does that only after this resolves. Safe to
+ *  run again after a crash at any point: every output has a fixed path (journalNoteId /
+ *  journalPageRef), each Memory's `.md` is written last, so a rerun overwrites instead of
+ *  duplicating and nothing half-done is ever listed (see lib/raw/job). */
 export async function processRawBatch(rm: RawMemory, deps: ProcessRawBatchDeps): Promise<ProcessRawBatchResult> {
   const signals: PageSignal[] = [];
   const textByRef = new Map<string, string>();
@@ -123,16 +168,14 @@ export async function processRawBatch(rm: RawMemory, deps: ProcessRawBatchDeps):
   const previousPartByRef = new Map<string, string>();
   const now = deps.now?.() ?? new Date();
 
+  const descriptions = await describePages(rm, deps);
   for (let i = 0; i < rm.pages.length; i++) {
     const ref = rm.pages[i];
-    const abs = await deps.resolveAbsolutePath(ref);
-    const d = await deps.describePage(ref, abs);
+    const d = descriptions[i];
     textByRef.set(ref, d.transcript);
     if (d.title) titleByRef.set(ref, d.title);
     if (d.continuesPrevious && d.previousPart) previousPartByRef.set(ref, d.previousPart);
     signals.push({ ref, dateHeader: d.dateHeader, continuesPrevious: d.continuesPrevious });
-    log.info("raw", "describe.page", { rawId: rm.id, ref, dateHeader: d.dateHeader });
-    deps.onPageDone?.(i + 1, rm.pages.length);
   }
 
   // The AI never guesses a year per page (see describePageTauri.ts's prompt) — it writes
@@ -147,7 +190,7 @@ export async function processRawBatch(rm: RawMemory, deps: ProcessRawBatchDeps):
 
   for (let gi = 0; gi < groups.length; gi++) {
     const group = groups[gi];
-    const fresh: Note = await deps.store.create();
+    const noteId = journalNoteId(rm.id, gi);
     const pageRefs: { ref: string; caption?: string }[] = [];
     const ownText: string[] = [];
 
@@ -167,7 +210,8 @@ export async function processRawBatch(rm: RawMemory, deps: ProcessRawBatchDeps):
       const isClosingBoundary = pi === group.pages.length - 1 && sharesBoundary(groups, gi);
       const text = isClosingBoundary ? previousPartByRef.get(originalRef) ?? textByRef.get(originalRef) ?? "" : textByRef.get(originalRef) ?? "";
 
-      const ref = await duplicateMediaInto(deps, originalRef, fresh.id);
+      const ref = journalPageRef(noteId, pi, originalRef);
+      await deps.copyMedia(originalRef, ref);
       pageRefs.push({ ref });
       await deps.store.saveTranscript(ref, pageTranscript(ref, text));
       ownText.push(text);
@@ -176,9 +220,9 @@ export async function processRawBatch(rm: RawMemory, deps: ProcessRawBatchDeps):
     const createdAt = parseDetectedDate(group.date, now);
     const title = deriveTitle(titleByRef.get(group.pages[0]), ownText.join(" "), group.date);
     const markdown = `${title}\n\n${journalFenceMarkdown(pageRefs)}`;
-    await deps.store.save({ ...fresh, markdown, createdAt, addedAt: createdAt });
-    createdNoteIds.push(fresh.id);
-    log.info("raw", "group.created", { rawId: rm.id, noteId: fresh.id, date: group.date, pages: pageRefs.length });
+    await deps.store.save(journalNote(noteId, markdown, createdAt));
+    createdNoteIds.push(noteId);
+    log.info("raw", "group.created", { rawId: rm.id, noteId, date: group.date, pages: pageRefs.length });
   }
 
   return { createdNoteIds, groups };

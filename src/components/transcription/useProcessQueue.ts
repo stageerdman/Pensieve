@@ -24,8 +24,9 @@ import type { Store } from "../../lib/types";
 import { memoryFromPackage, modelForLanguage, packageRestorePoint, transcriptLanguage } from "../../lib/packages/resolve";
 import { transcriptText } from "../../lib/formFill/fillForm";
 import { parseForm } from "../../lib/forms";
-import { processRawBatch } from "../../lib/raw/processRawBatch";
 import { buildTauriRawBatchDeps } from "../../lib/raw/tauriRawBatchDeps";
+import { jobStore, recoverInterrupted, runJournalJob } from "../../lib/raw/job";
+import { tauriVaultFiles } from "../../lib/store/tauriVaultFiles";
 import { listFormsToFill } from "../../lib/formFill/queue";
 import { fillFormMemory } from "../../lib/formFill/fillForm";
 import { askClaudeTauri } from "../../lib/formFill/askClaudeTauri";
@@ -138,16 +139,18 @@ export function useProcessQueue(opts: {
       log.info("raw", "queue.start", { rawId: ref });
       const store = getStore();
       try {
-        const rm = await store.loadRawMemory(ref);
-        if (!rm) throw new Error("raw batch no longer exists");
-        await store.saveRawMemory({ ...rm, status: "processing" });
-        const result = await processRawBatch(rm, {
-          ...buildTauriRawBatchDeps(store),
-          onPageDone: (done, total) => {
-            setItems((prev) => prev.map((i) => (i.ref === ref ? { ...i, pct: Math.round((done / total) * 100) } : i)));
+        // Crash-safe: checkpointed, snapshotted, exactly-once (lib/raw/job). On failure the
+        // batch is already back to "synced" (or set aside) — nothing to roll back here.
+        const result = await runJournalJob(ref, {
+          raws: store,
+          files: tauriVaultFiles,
+          batch: {
+            ...buildTauriRawBatchDeps(store),
+            onPageDone: (done, total) => {
+              setItems((prev) => prev.map((i) => (i.ref === ref ? { ...i, pct: Math.round((done / total) * 100) } : i)));
+            },
           },
         });
-        await store.removeRawMemory(ref);
         for (const noteId of result.createdNoteIds) reindex.request(noteId);
         onNotesCreated?.(result.createdNoteIds); // these notes are LOCAL-only — no sync pull will ever surface them
         onTranscribed?.(); // triggers a sync, same as a finished transcript would
@@ -159,10 +162,6 @@ export function useProcessQueue(opts: {
         runningRef.current = null;
         const msg = cleanEngineError(e);
         log.error("raw", "queue.error", { rawId: ref, error: msg });
-        // Roll the batch back to "synced" so a retry (Run again) is possible — "processing"
-        // must never be a stuck terminal state.
-        const rm = await store.loadRawMemory(ref);
-        if (rm) await store.saveRawMemory({ ...rm, status: "synced" });
         setItems((prev) => prev.map((i) => (i.ref === ref ? { ...i, error: true, errorMsg: msg, phase: null } : i)));
         setPlaying(false);
       }
@@ -387,7 +386,7 @@ export function useProcessQueue(opts: {
     if (!enabled) return;
     const store = getStore();
     const found = await listUntranscribedAudio(titleFor, store);
-    const foundBatches = await listUnprocessedRawBatches(store);
+    const foundBatches = await listUnprocessedRawBatches(store, jobStore(tauriVaultFiles));
     const foundForms = await listFormsToFill(store);
     const foundPackages = await listPackagesToResolve(store);
     const foundSpells = await listNoteSpellsToRun(store);
@@ -459,10 +458,16 @@ export function useProcessQueue(opts: {
     if (persisted?.mode) setMode(persisted.mode);
     // FAST-LOAD: the scan walks the whole vault (media, raw batches, forms) — run it after
     // the first paint so it never competes with the note list for the launch.
+    // Crash recovery runs FIRST: anything a quit/crash cut off goes back to "ready" so the
+    // scan offers it again (lib/raw/job/recover). A failed recovery is logged, not fatal —
+    // the queue still works for everything else.
     whenIdle(() => {
-      void refresh().then(() => {
-        if (persisted?.playing) setPlaying(true);
-      });
+      void recoverInterrupted({ raws: getStore(), files: tauriVaultFiles })
+        .catch((e) => log.error("raw", "recover.error", { error: String(e) }))
+        .then(() => refresh())
+        .then(() => {
+          if (persisted?.playing) setPlaying(true);
+        });
     });
   }, [enabled, refresh]);
 

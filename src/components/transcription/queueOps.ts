@@ -165,7 +165,9 @@ export function mergeNewJournalItems(
       order: saved?.order ?? order,
       pct: 0,
       phase: null,
-      error: false,
+      // A set-aside batch arrives as an error row: never auto-run, Run retries it.
+      error: !!q.setAside,
+      errorMsg: q.setAside,
     });
   }
   return added.length ? [...prev, ...added] : prev;

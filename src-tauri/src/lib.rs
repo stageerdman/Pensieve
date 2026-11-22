@@ -82,24 +82,25 @@ fn read_text(app: AppHandle, rel: String) -> Result<Option<String>, String> {
 
 #[tauri::command]
 fn write_text(app: AppHandle, rel: String, contents: String) -> Result<(), String> {
-    let p = resolve(&app, &rel)?;
-    if let Some(parent) = p.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(&p, contents).map_err(|e| e.to_string())
+    // Atomic (temp + rename): a crash mid-write never leaves a torn note/record.
+    util::atomic_write(&resolve(&app, &rel)?, contents.as_bytes())
 }
 
 // Binary writes. `data` is base64 (not a Vec<u8> param): a JS number array over the invoke
 // bridge is slow for image-sized payloads, so the JS side base64-encodes and we decode here.
-// Mirrors write_text otherwise (reuses resolve, creates the parent dir).
+// Mirrors write_text otherwise (reuses resolve, atomic).
 #[tauri::command]
 fn write_bytes(app: AppHandle, rel: String, data: String) -> Result<(), String> {
     let p = resolve(&app, &rel)?;
     let bytes = STANDARD.decode(data.as_bytes()).map_err(|e| e.to_string())?;
-    if let Some(parent) = p.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(&p, bytes).map_err(|e| e.to_string())
+    util::atomic_write(&p, &bytes)
+}
+
+// Vault-internal copy (page photos into a new Memory, or into a processing snapshot) —
+// no bytes cross the IPC bridge, and the target is never half-written.
+#[tauri::command]
+fn copy_file(app: AppHandle, from: String, to: String) -> Result<(), String> {
+    util::atomic_copy(&resolve(&app, &from)?, &resolve(&app, &to)?)
 }
 
 // Binary read, returning base64 (None on NotFound). Used by the OneDrive binary-backup
@@ -269,6 +270,7 @@ pub fn run() {
             read_text,
             write_text,
             write_bytes,
+            copy_file,
             read_bytes,
             list_dir,
             remove_path,

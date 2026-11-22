@@ -5,6 +5,8 @@
 import type { RawMemory, Store } from "../types";
 import { packageKind } from "../packages/record";
 import { log } from "../logger";
+import type { JobStore } from "./job/jobRecord";
+import { JobSetAsideError } from "./job/errors";
 
 // listMedia is optional: when present, a record whose binaries haven't all arrived yet is
 // held back (see mediaReady) — when absent (simple callers/tests), everything counts as here.
@@ -34,17 +36,32 @@ async function mediaReadyFilter(store: RawBatchStore): Promise<(rm: RawMemory) =
 export interface RawBatchQueueItem {
   id: string;
   pageCount: number;
+  /** Set when the batch failed too often and was set aside — the row shows this as its
+   *  error and does not run until the owner presses Run (see lib/raw/job). */
+  setAside?: string;
 }
 
 /** Only `synced` batches are offered — `capturing`/`queued` aren't fully on this device
- *  yet, and `processing`/`done` are already being handled (see RawMemoryStatus). */
-export async function listUnprocessedRawBatches(store: RawBatchStore): Promise<RawBatchQueueItem[]> {
+ *  yet, and `processing`/`done` are already being handled (see RawMemoryStatus; a
+ *  `processing` one left by a crash is put back to `synced` on start by recoverInterrupted).
+ *  `jobs` (optional) marks set-aside batches. */
+export async function listUnprocessedRawBatches(
+  store: RawBatchStore,
+  jobs?: Pick<JobStore, "read">,
+): Promise<RawBatchQueueItem[]> {
   const all: RawMemory[] = await store.listRawMemories();
   const ready = await mediaReadyFilter(store);
-  return all
+  const batches = all
     .filter((rm) => rm.status === "synced" && packageKind(rm) === "journal" && rm.pages.length > 0)
-    .filter(ready)
-    .map((rm) => ({ id: rm.id, pageCount: rm.pages.length }));
+    .filter(ready);
+  const out: RawBatchQueueItem[] = [];
+  for (const rm of batches) {
+    const job = jobs ? await jobs.read(rm.id) : null;
+    const item: RawBatchQueueItem = { id: rm.id, pageCount: rm.pages.length };
+    if (job?.setAside) item.setAside = new JobSetAsideError(rm.id, job.attempts, job.lastError ?? "unknown").message;
+    out.push(item);
+  }
+  return out;
 }
 
 /** One synced form PACKAGE waiting for Patronus (see lib/packages). */
