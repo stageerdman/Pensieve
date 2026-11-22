@@ -51,7 +51,9 @@ import { MemoryPage } from "./components/note/MemoryPage";
 import type { FmtKey } from "./components/note/NoteToolbar";
 import { ConjureThread, conjure } from "./components/ConjureThread";
 import { currentBlock, focusTitle, placeCaret, syncPlaceholders } from "./components/note/noteEditing";
-import { insertAudio, insertImages, insertVideo, renderNoteBody, type MediaCtx } from "./components/note/mediaDom";
+import { insertAudio, insertImages, insertVideo, renderNoteBody, serializeNoteBody, type MediaCtx } from "./components/note/mediaDom";
+import { refreshOpenNote } from "./lib/sync/openNote";
+import { log } from "./lib/logger";
 import { phoneCollection } from "./lib/media/collectionController";
 import { PhoneLightbox } from "./components/note/PhoneLightbox";
 import { PhoneCollection } from "./components/note/PhoneCollection";
@@ -76,7 +78,7 @@ import { spellFor } from "../../src/lib/packages/kinds";
 import { serializeBlocks, type NoteBlock } from "./lib/media/noteMedia";
 import { isAwaitingProcessing, isFormTemplate } from "../../src/lib/forms";
 import { insertNoteSpell } from "./components/note/patronusSpellDom";
-import { newSpellBody } from "./lib/patronus/noteSpell";
+import { newSpellBody, spellsWaiting } from "./lib/patronus/noteSpell";
 
 /** viewData(): the reel's list — everything, or the filtered matches. Source ~691-695.
  *  Newest-first by creation date (FAST-LOAD): the reel is windowed by week (Reel/useFeedWindow),
@@ -271,10 +273,27 @@ export function PhoneApp() {
   // onDone sets status directly to "synced"); a freshly-captured batch never needs it.
   const onedrive = useOneDriveSync((info) => {
     dataRef.current = loadVault();
+    followOpenNote();
     renderAll(filterQueryRef.current);
     markRawBatchesSynced(info?.pushedRaw ?? []);
     setRawBatches(loadRawBatches());
   });
+
+  /** After the vault reloads, the open memory follows the vault's new object (or autosave
+   *  would write to an orphan and lose later typing) and shows a pulled copy (see openNote.ts). */
+  function followOpenNote() {
+    const open = currentRef.current;
+    const noteBody = noteBodyRef.current;
+    if (!open || !noteBody) return;
+    const r = refreshOpenNote(open, dataRef.current!, serializeNoteBody(noteBody));
+    if (r.kind === "none") return;
+    currentRef.current = r.note;
+    if (r.kind === "redraw") {
+      renderNoteBody(noteBody, r.note.t || "", r.note.c || "", mediaCtx);
+      syncPlaceholders(noteBody);
+    }
+    log.info("sync", "open-note.followed", { id: open.id, redraw: r.kind === "redraw" });
+  }
 
   const autosave = useAutosave(noteBodyRef, noteSavedRef, currentRef, {
     onInsert: (note) => {
@@ -758,6 +777,9 @@ export function PhoneApp() {
   // outside the Sync window — see sync.cast()/succeeded()/failed() below.
   function castSpell(opts?: { restore?: boolean }) {
     if (syncStatus === "syncing" || syncStatus === "offline") return;
+    // Save the open memory first, so words typed in the last moment (a spell's, too) go along.
+    const open = currentRef.current;
+    if (open && !pendingCaptureRef.current.has(open.id)) autosave.commit();
     sync.cast();
     haptic(14);
     const castId = spell.castId + 1;
@@ -766,8 +788,12 @@ export function PhoneApp() {
     void task.then(({ ok, reason, message }) => {
       setTimeout(() => {
         setSpell((s) => ({ ...s, show: false }));
-        if (ok) sync.succeeded();
-        else {
+        if (ok) {
+          sync.succeeded();
+          // Phone sync is manual: the computer casts on ITS sync, so the owner sees the
+          // result only after syncing again. Say so, once per sync, while a spell waits.
+          if (spellsWaiting(dataRef.current!.map((n) => n.c))) showToast("Patronus casts on the computer. Sync again in a minute to see it.", 3500);
+        } else {
           sync.failed(reason ?? "error", message);
           haptic(30);
         }
