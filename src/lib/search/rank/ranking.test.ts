@@ -72,6 +72,35 @@ describe("ranking — the owner's case", () => {
   });
 });
 
+// The slice of the owner's real vault from the user test (user-test.md, deep dive 6): starred
+// notes with "want"/"today" in the body pushed the unstarred title to #27 ("wht": #75).
+describe("ranking — half-remembered title (real-vault slice)", () => {
+  const vault: Fixture[] = [
+    { id: "the-one", title: "What do I want today", body: "Ship the search fix.", daysAgo: 400 },
+    {
+      id: "god-wants",
+      title: "God Wants to Ask it Refined",
+      body: "Today a big shift. What I want is quiet.",
+      daysAgo: 3,
+      starred: true,
+    },
+    {
+      id: "inner-judge",
+      title: "The Inner Judge & The Kid",
+      body: "The kid wants to play today; the judge wants work.",
+      daysAgo: 5,
+      starred: true,
+    },
+    { id: "starred-today", title: "Hour of Power", body: "today I felt strong", daysAgo: 1, starred: true },
+    { id: "starred-want", title: "CANI Report", body: "what I want next", daysAgo: 2, starred: true },
+    { id: "plain-body", title: "Journal", body: "today, honestly, I want rest", daysAgo: 0 },
+  ];
+
+  it.each(["what i want today", "wht i want today"])('"%s" puts "What do I want today" first', (query) => {
+    expect(search(vault, query)[0]).toBe("the-one");
+  });
+});
+
 describe("ranking — tiers and weights", () => {
   it("full phrase in the body beats the words scattered in the body", () => {
     const ids = search(
@@ -144,7 +173,18 @@ describe("ranking — tiers and weights", () => {
     expect(ids).toEqual(["new", "old"]);
   });
 
-  it("a starred memory leads its own tier but never jumps a better one", () => {
+  it("starred breaks a relevance tie but never jumps a better tier or score", () => {
+    const ids = search(
+      [
+        { id: "title-hit", title: "Harbour trip", body: "boats", daysAgo: 100 },
+        { id: "star-body", title: "Journal", body: "harbour trip", daysAgo: 0, starred: true },
+      ],
+      "trip harbour",
+    );
+    expect(ids).toEqual(["title-hit", "star-body"]);
+  });
+
+  it("a starred memory leads an equal match", () => {
     const ids = search(
       [
         { id: "exact", title: "Harbour", daysAgo: 100 },
