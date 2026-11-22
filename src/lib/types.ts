@@ -115,8 +115,10 @@ export interface TimelineEntry {
   markdown?: string; // snapshot of the body at session close — the restorable version
   /** Why an out-of-band snapshot exists: "before-ai" = what arrived before an AI fill (the
    *  version a Redo goes back to); "before-redo" = the AI result a Redo replaced;
-   *  "before-spell" = the memory before a form spell (Compress) wrote its answers in. */
-  label?: "before-ai" | "before-redo" | "before-spell";
+   *  "before-spell" = the memory before a form spell (Compress) wrote its answers in;
+   *  "before-patronus" = the memory before a note spell's result (what Undo restores);
+   *  "before-undo" = the note spell's result an Undo replaced. */
+  label?: "before-ai" | "before-redo" | "before-spell" | "before-patronus" | "before-undo";
 }
 
 /** Storage backend. Implemented by the browser adapter (dev) and Tauri (native). */
