@@ -3,6 +3,7 @@ import type { NoteMeta } from "../lib/types";
 import type { Filter, FilterLeaf, FilterNode, Relation } from "../lib/search/types";
 import { parseQuery, type Suggestion } from "../lib/search/grammar";
 import { runSearch, type SearchResult } from "../lib/search/search";
+import { rankResults } from "../lib/search/rankResults";
 import { appendLeaf, group, moveLeaf, removeNode, replaceFilter, setRelation, ungroup } from "../lib/search/tree";
 import { loadRecents, saveRecents, addRecent } from "../lib/search/recents";
 import { useSearchIndex } from "./useSearchIndex";
@@ -26,7 +27,7 @@ export interface SummonApi {
   suggestions: Suggestion[];
   whisper: ReturnType<typeof parseQuery>["whisper"];
   liveText: string; // the leftover free text actually being searched
-  results: NoteMeta[]; // filtered notes (gallery groups/sorts them)
+  results: NoteMeta[]; // filtered notes, best match first (the results list never re-sorts)
   match: Map<string, SearchResult>;
   total: number;
   active: boolean; // any chip or live text in play
@@ -88,7 +89,7 @@ export function useSummon(notes: NoteMeta[], categoryNames: string[]): SummonApi
 
   // version is a dep so a background index update re-runs the search.
   const outcome = useMemo(
-    () => runSearch(notes, query, index),
+    () => rankResults(runSearch(notes, query, index)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [notes, query, index, version],
   );

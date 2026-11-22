@@ -29,25 +29,23 @@ const SWEEP_MS = 20_000;
 
 export interface GalleryWindowArgs {
   sections: GallerySection[];
-  /** Timestamp the sections are ordered by (createdAt at rest, updatedAt during Accio). */
+  /** Timestamp the sections are ordered by (createdAt on Home). */
   tsOf: (n: NoteMeta) => number;
-  /** Sections exempt from windowing (Accio's Starred lead). */
-  keepWhole?: (key: string) => boolean;
-  /** Changing this starts the window over (entering/leaving a search, a new query). */
+  /** Changing this starts the window over (e.g. coming back from a search). */
   resetKey: unknown;
   now: number;
   rootRef: React.RefObject<HTMLElement>;
 }
 
-export function useGalleryWindow({ sections, tsOf, keepWhole, resetKey, now, rootRef }: GalleryWindowArgs) {
+export function useGalleryWindow({ sections, tsOf, resetKey, now, rootRef }: GalleryWindowArgs) {
   const supported = typeof IntersectionObserver !== "undefined";
 
   // Every windowed card's timestamp, newest first.
   const sortedDesc = useMemo(() => {
     const ts: number[] = [];
-    for (const s of sections) if (!keepWhole?.(s.key)) for (const n of s.notes) ts.push(tsOf(n));
+    for (const s of sections) for (const n of s.notes) ts.push(tsOf(n));
     return ts.sort((a, b) => b - a);
-  }, [sections, tsOf, keepWhole]);
+  }, [sections, tsOf]);
 
   // null = "not extended yet" → the opening cutoff, recomputed while the list loads in.
   const [extended, setExtended] = useState<number | null>(null);
@@ -66,8 +64,8 @@ export function useGalleryWindow({ sections, tsOf, keepWhole, resetKey, now, roo
   const cutoff = !supported ? -Infinity : (extended ?? initialCutoff(sortedDesc, now));
   const more = supported && hasMoreBefore(sortedDesc, cutoff);
   const visible = useMemo(
-    () => (cutoff === -Infinity ? sections : windowSections(sections, cutoff, tsOf, keepWhole)),
-    [sections, cutoff, tsOf, keepWhole],
+    () => (cutoff === -Infinity ? sections : windowSections(sections, cutoff, tsOf)),
+    [sections, cutoff, tsOf],
   );
 
   const cutoffRef = useRef(cutoff);

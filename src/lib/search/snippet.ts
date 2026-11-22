@@ -30,7 +30,23 @@ function marksWithin(bodyLower: string, terms: string[], from: number, to: numbe
       i = bodyLower.indexOf(t, i + t.length);
     }
   }
-  return ranges.sort((a, b) => a[0] - b[0]);
+  ranges.sort((a, b) => a[0] - b[0]);
+  // Merge overlaps ("sum" + "summon") so a renderer never repeats a character.
+  const merged: Array<[number, number]> = [];
+  for (const r of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
+    else merged.push([r[0], r[1]]);
+  }
+  return merged;
+}
+
+/** Highlight every query term in a short, whole string (a title): the string itself plus
+ *  its match ranges. No windowing; an empty `marks` when nothing matches. */
+export function markTerms(text: string, query: string): Snippet {
+  const terms = queryTerms(query);
+  if (terms.length === 0 || !text) return { text, marks: [] };
+  return { text, marks: marksWithin(text.toLowerCase(), terms, 0, text.length) };
 }
 
 /**
