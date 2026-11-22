@@ -290,12 +290,18 @@ Optimistic concurrency, built on the existing `castSpell` pattern:
   tested with a fake AI incl. "bullet list of dreams, then remove recording").
 - [x] Phase 3 — queue, run-once, conflict-safe write (`noteSpell/{ledger,job,queue}.ts`, Process
   queue row "Patronus — <title>"; a failed row does not pause the queue).
-- [ ] Phase 4 — phone authoring (typed).
-- [ ] Phase 5 — spoken commands (Mac side transcribes `voice:` already; phone recording UI pending).
-- [ ] Phase 6 — undo. Backend done (`state: undo` → restore `before-patronus`, guarded by hash);
-  phone Undo button pending.
+- [x] Phase 4 — phone authoring (typed), 2026-11-22, built, not deployed. Spell Menu →
+  Patronus in a memory; states pending / done / failed / undo / undone; Try again; Undo.
+  Design + cuts: `phone-block-spec.md`. Deploy (`npm run deploy:phone`) waits for the
+  merge to `main`.
+- [ ] Phase 5 — spoken commands. Phone: done by design via keyboard dictation in the
+  spell's field (no separate recorder, see spec). `voice:` is carried verbatim. Mac side
+  transcribes a `voice:` recording before running, if one is present. Needs a device round trip.
+- [ ] Phase 6 — undo. Phone side done (`done` → `undo`, shows `undone` and a refused
+  undo's reason). Mac side done (`state: undo` → restore `before-patronus`, guarded by hash;
+  answers `undone`, or `done` + `error:` when refused). Needs a device round trip.
 
-Known gaps after Phases 1–3: Phase 0b spike against the real model not run; the run ledger
+Known gaps after Phases 1–6: Phase 0b spike against the real model not run; the run ledger
 lives in Mac localStorage (`pensieve:patronus-runs`) rather than a JSON file; `syncNow` is a
 no-op when a sync is already running (the reload-and-compare still guards the write).
 - [ ] Phase 7 — end-to-end + ship.

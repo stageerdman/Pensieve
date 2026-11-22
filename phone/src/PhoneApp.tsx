@@ -74,6 +74,9 @@ import { FormPicker } from "./components/form/FormPicker";
 import { applySession, formsIn, mediaBlocksOf, packageFromSession, sessionHasContent, startSession, templateSpell, type FormSessionModel, type SessionAnswer, type SessionAnswers } from "./lib/forms/session";
 import { spellFor } from "../../src/lib/packages/kinds";
 import { serializeBlocks, type NoteBlock } from "./lib/media/noteMedia";
+import { isAwaitingProcessing, isFormTemplate } from "../../src/lib/forms";
+import { insertNoteSpell } from "./components/note/patronusSpellDom";
+import { newSpellBody } from "./lib/patronus/noteSpell";
 
 const DICTATION_SAMPLE =
   "I keep coming back to the idea that the phone shouldn't make me think. It should just catch the thought before it escapes.";
@@ -729,6 +732,17 @@ export function PhoneApp() {
     if (mode === "film") void offerSaveToPhotos(file);
   }
 
+  /** The note's Patronus spell: drop an armed spell block at the caret and put the keyboard
+   *  in its field (the iOS mic there = dictation). Only casual memories run spells — the
+   *  computer skips form templates and forms still waiting to be filled. */
+  function castNoteSpell() {
+    const noteBody = noteBodyRef.current;
+    if (!noteBody) return;
+    const extra = currentRef.current?.foreign?.extra;
+    if (isFormTemplate(extra) || isAwaitingProcessing(extra)) return showToast("Patronus spells run in memories, not forms", 2500);
+    insertNoteSpell(noteBody, newSpellBody(), mediaCtx);
+  }
+
   function applyFmt(f: FmtKey) {
     const noteBody = noteBodyRef.current;
     if (!noteBody) return;
@@ -1019,6 +1033,7 @@ export function PhoneApp() {
     else if (s.id === "film") startCaptureVideo();
     else if (s.id === "clip-film") filmIntoCurrentNote();
     else if (s.id === "clip-upload") uploadVideoIntoCurrentNote();
+    else if (s.id === "patronus") castNoteSpell();
     else if (s.id === "delete") setConfirmDelete(true); // never deletes on the tap — confirm first
     else if (s.id === "edit") phoneCollection.toggleEditMode(); // board-scoped: arrange/remove mode
     else if (s.id === "journal") setCaptureBatch(createRawBatch()); // mint + jump straight into the camera
@@ -1297,7 +1312,11 @@ export function PhoneApp() {
             menu.openMenu();
           }}
           onVoice={toggleDictation}
-          onDone={() => noteBodyRef.current?.blur()}
+          onDone={() => {
+            // the caret may be in a Patronus spell's own field, not the body itself
+            noteBodyRef.current?.blur();
+            if (document.activeElement instanceof HTMLElement && noteBodyRef.current?.contains(document.activeElement)) document.activeElement.blur();
+          }}
         />
       ) : null}
 

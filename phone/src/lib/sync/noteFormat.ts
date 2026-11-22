@@ -16,6 +16,7 @@
 import type { ForeignMeta, Note } from "../../types";
 import { stripForeignColorRuns } from "../../../../src/lib/md/colorRuns";
 import { CAT_HUE, type FlaskShape } from "../wand/flaskSvg";
+import { withPatronusHint } from "../patronus/noteSpell";
 
 // ---- frontmatter (mirrors src/lib/md/frontmatter.ts) ----
 
@@ -287,7 +288,8 @@ export function noteToRemoteContent(note: Note): string {
       vibrancy: f?.iconVibrancy,
       shine: f?.iconShine,
     },
-    extra: f?.extra,
+    // `patronus: pending|undo` while a note spell waits for the computer (its scan filter).
+    extra: withPatronusHint(f?.extra, note.c),
   };
   return composeFrontmatter(fields, body);
 }

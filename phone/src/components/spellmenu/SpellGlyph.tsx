@@ -114,6 +114,16 @@ const PATHS: Record<Exclude<IconName, "menu" | "sync">, React.ReactNode> = {
       <path d="m8.6 16.4 1.3 1.3 2.4-2.6" />
     </>
   ),
+  // a wand casting a guardian orb with a half-halo — "leave a spell the computer casts on
+  // sync" (PATRONUS-BLOCK); the orb echoes the block's own orb in the note.
+  patronus: (
+    <>
+      <path d="M4 20l6.2-6.2" />
+      <circle cx="15" cy="9" r="3.4" />
+      <path d="M20.6 6.4a6.2 6.2 0 0 1-3 8.3" />
+      <path d="M8.5 4.5v2.4M7.3 5.7h2.4" />
+    </>
+  ),
   book: (
     <>
       <path d="M12 7.2c-2.4-1.3-5.1-1.7-8-1.1v12.4c2.9-.6 5.6-.2 8 1.1Z" />

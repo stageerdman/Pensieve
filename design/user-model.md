@@ -12,6 +12,15 @@ organising, planning and deep reflection, not for daily logging.
 4. Check their thinking against the world, without leaving their own space
    (Patronus web search, opt-in per chat).
 5. Trust: private words never leave the machine unless they chose that.
+6. Leave a job for later from the phone ("tidy this", "make a list of the dreams, then
+   drop the recording") and walk away. The computer does it on sync, and they can take it
+   back (PATRONUS-BLOCK, 2026-11-22).
+
+## What they actually do (phone note spells)
+- They capture first and decide what to do with it right after, still in the memory. So
+  the spell lives in the memory's own Spell Menu ring, not in a separate screen.
+- They come back later only to glance: "did it happen, and what did it do?" One status
+  line plus the one `did:` line answers that; Undo is the only action.
 
 ## What they actually do (Patronus)
 - Research chats run many turns, so a tool switched on should stay on for that chat.
@@ -35,5 +44,9 @@ organising, planning and deep reflection, not for daily logging.
   small arrow icon inside the field.
 - The placeholder "/ for commands" is enough for the owner to find `/web`. *Check:* do
   they use `/web`, or only the "Search the web" link on replies?
+- Keyboard dictation in the spell's field is enough for "spoken" spells, with no separate
+  recorder. *Check:* after a week of real use, ask whether they missed recording a spell.
+- "Waits for the computer" is clear enough without a "being cast" state on the phone.
+  *Check:* the first real round trip (Phase 7).
 - A hover-revealed "Search the web" on the latest reply is found when it's needed.
   *Check:* see whether the owner uses it, or always goes to the picker.

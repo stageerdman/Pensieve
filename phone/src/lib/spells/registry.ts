@@ -115,6 +115,8 @@ export function conditionalSpells(context: PageContext): Spell[] {
         { id: "clip-upload", name: "Upload", icon: "upload" },
       ],
     },
+    // a note spell: a Patronus block the computer casts on the next sync (PATRONUS-BLOCK)
+    { id: "patronus", name: "Patronus", icon: "patronus" },
     { id: "delete", name: "Delete", icon: "trash", hue: "danger" },
   ];
 }
