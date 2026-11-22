@@ -1,6 +1,7 @@
-// The one ordering of search results. Relevance first (tier, then score); a starred memory
-// leads its tier (the owner's "starred rises" rule, kept inside relevance so an exact title
-// still wins); recency only breaks ties; the id keeps the order stable.
+// The one ordering of search results. Relevance decides (tier, then score: where the words hit);
+// starred only breaks a relevance tie (the owner's "starred rises" rule, kept below the score so
+// a title holding every typed word beats a starred note with body-only hits); then recency; the
+// id keeps the order stable.
 
 import type { Relevance } from "./rankDoc";
 
@@ -14,8 +15,8 @@ export interface RankedEntry {
 export function compareRanked(a: RankedEntry, b: RankedEntry): number {
   return (
     a.relevance.tier - b.relevance.tier ||
-    Number(b.starred) - Number(a.starred) ||
     b.relevance.score - a.relevance.score ||
+    Number(b.starred) - Number(a.starred) ||
     b.updatedAt - a.updatedAt ||
     byCodeUnit(a.id, b.id)
   );
