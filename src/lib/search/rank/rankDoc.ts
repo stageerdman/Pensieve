@@ -47,27 +47,26 @@ function isTitleExact(titleNorm: string, phrase: string): boolean {
 /** Whole word counts fully, a prefix half. */
 const hitValue = (h: HitValue) => (h === Hit.EXACT ? 1 : h === Hit.PREFIX ? 0.5 : 0);
 
+// Runs once per candidate note per keystroke (thousands): one pass, no per-note arrays.
 export function rankDoc(plan: QueryPlan, ev: DocEvidence): Relevance | null {
   if (plan.terms.length === 0) return null;
-  const title = plan.terms.map((t) => fieldHit(ev.titleNorm, t));
-  const tags = plan.terms.map((t) => fieldHit(ev.tagNorm, t));
-
   let score = 0;
   let found = 0;
-  plan.terms.forEach((_, i) => {
+  let allInTitle = true;
+  let allInTags = true;
+  plan.terms.forEach((term, i) => {
+    const title = fieldHit(ev.titleNorm, term);
+    const tags = fieldHit(ev.tagNorm, term);
     const body = ev.bodyHits[i] ?? Hit.NONE;
-    if (title[i] || tags[i] || body) found++;
-    score += WEIGHT.title * hitValue(title[i]) + WEIGHT.tags * hitValue(tags[i]) + WEIGHT.body * hitValue(body);
+    if (title || tags || body) found++;
+    allInTitle &&= title !== Hit.NONE;
+    allInTags &&= tags !== Hit.NONE;
+    score += WEIGHT.title * hitValue(title) + WEIGHT.tags * hitValue(tags) + WEIGHT.body * hitValue(body);
   });
   if (found === 0) return null;
 
   const all = found === plan.terms.length;
-  return {
-    tier: tierOf(plan, ev, all),
-    score,
-    allInTitle: title.every(Boolean),
-    allInTags: tags.every(Boolean),
-  };
+  return { tier: tierOf(plan, ev, all), score, allInTitle, allInTags };
 }
 
 function tierOf(plan: QueryPlan, ev: DocEvidence, all: boolean): TierValue {

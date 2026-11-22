@@ -55,7 +55,8 @@ export function hasSearchableText(text: string): boolean {
 
 export function runSearch(notes: NoteMeta[], query: FilterQuery, index: SearchIndex): SearchOutcome {
   const plan = planQuery(query.text);
-  const passing = notes.filter((n) => matchTree(query.items, toSearchable(n)));
+  // No chips is the typing case: skip a per-note copy that would only say "yes".
+  const passing = query.items.length ? notes.filter((n) => matchTree(query.items, toSearchable(n))) : notes;
   if (plan.terms.length === 0) return unranked(passing);
 
   const hits = plan.terms.map((t) => index.termHits(t));
@@ -103,12 +104,7 @@ function fieldNorms(n: NoteMeta) {
 /** Why it matched, for the card: the title, the tags, or (with a snippet) the body. */
 function describe(id: string, rel: Relevance, plan: QueryPlan, index: SearchIndex): SearchResult {
   const where: MatchWhere = rel.allInTitle ? "title" : rel.allInTags ? "tag" : "text";
-  return new RankedResult(id, where, rel.tier, where === "text" ? () => bodySnippet(id, plan, index) : null);
-}
-
-function bodySnippet(id: string, plan: QueryPlan, index: SearchIndex): Snippet | null {
-  const body = index.text(id);
-  return body ? makeSnippet(body, plan.terms, undefined, index.lowerText(id)) : null;
+  return new RankedResult(id, where, rel.tier, plan, index);
 }
 
 /** The snippet is cut on first read: only the cards on screen pay for it, not every hit. */
@@ -118,10 +114,15 @@ class RankedResult implements SearchResult {
     readonly id: string,
     readonly where: MatchWhere,
     readonly tier: TierValue,
-    private readonly makeSnippet: (() => Snippet | null) | null,
+    private readonly plan: QueryPlan,
+    private readonly index: SearchIndex,
   ) {}
   get snippet(): Snippet | null {
-    if (this.cut === undefined) this.cut = this.makeSnippet ? this.makeSnippet() : null;
+    if (this.cut === undefined) this.cut = this.where === "text" ? this.bodySnippet() : null;
     return this.cut;
+  }
+  private bodySnippet(): Snippet | null {
+    const body = this.index.text(this.id);
+    return body ? makeSnippet(body, this.plan.terms, undefined, this.index.lowerText(this.id)) : null;
   }
 }

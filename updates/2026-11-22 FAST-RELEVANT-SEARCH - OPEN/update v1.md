@@ -91,8 +91,8 @@ Tests: Gallery search mode renders the ranked order with no date labels; Summon 
 
 ## Live status
 - [x] P0 measured — causes above
-- [ ] P1 ranker
-- [ ] P2 fast index + benchmark
-- [ ] P3 runSearch ranks
-- [ ] P4 flat ranked UI + deferred input
-- [ ] P5 verify
+- [x] P1 ranker (`rank/ranking.test.ts`; score weights shipped as title 6 / tags 3 / body 1)
+- [x] P2 fast index + benchmark (sliced build is `useSearchIndex` → `setInSlices`)
+- [x] P3 runSearch ranks
+- [x] P4 flat ranked UI + deferred input (FlaskCard memo dropped — not needed, see wiki)
+- [x] P5 verify — numbers in `wiki.md`

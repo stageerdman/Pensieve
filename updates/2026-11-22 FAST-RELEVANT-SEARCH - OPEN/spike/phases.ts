@@ -1,5 +1,5 @@
 // Phase timing on a synthetic 10k vault: where does one keystroke go when almost every note matches?
-// Run: npx tsx "updates/2026-11-22 FAST-RELEVANT-SEARCH - OPEN/spike/phases.ts"
+// Run: npx vite-node"updates/2026-11-22 FAST-RELEVANT-SEARCH - OPEN/spike/phases.ts"
 import { MemoryIndex } from "../../../src/lib/search/indexer";
 import { runSearch } from "../../../src/lib/search/search";
 import { planQuery } from "../../../src/lib/search/rank/queryPlan";
