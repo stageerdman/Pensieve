@@ -11,7 +11,7 @@ import { contentOf, type NoteSpell } from "./block";
 import { NoteSpellFailure, classifyAskError } from "./errors";
 import { guardStep } from "./guards";
 import { mediaIn, mediaKind, unlinkMedia } from "./media";
-import { MAX_STEPS, buildNoteStepPrompt, parseNoteStep, type NoteAction, type NoteMedia, type Where } from "./protocol";
+import { MAX_STEPS, buildNoteStepPrompt, parseNoteStep, type EndAction, type NoteAction, type NoteMedia, type Where } from "./protocol";
 
 export type NoteSpellDeps = RunDeps;
 
@@ -100,6 +100,10 @@ export async function runNoteSpell(input: NoteSpellInput, deps: NoteSpellDeps): 
     guardStep(actions, { contentRefs: contentMedia.map((m) => m.ref), voiceRef, recordings });
 
     for (const a of actions) {
+      if (a.do === "cannot") {
+        log.info("patronus-note", "run.cannot", { id: input.id, steps: step, reason: a.reason });
+        throw new NoteSpellFailure(a.reason || "Patronus can't do that here");
+      }
       if (a.do === "finish") {
         for (const ref of removed) parts = removeMedia(parts, ref);
         deps.status("Finishing");
@@ -121,7 +125,7 @@ interface ExecState {
   done: string[];
 }
 
-async function execute(a: Exclude<NoteAction, { do: "finish" }>, parts: Parts, s: ExecState): Promise<Parts> {
+async function execute(a: Exclude<NoteAction, EndAction>, parts: Parts, s: ExecState): Promise<Parts> {
   switch (a.do) {
     case "transcribe": {
       s.deps.status(`Transcribing · ${LANG_LABEL[a.language]}`);

@@ -14,7 +14,13 @@ export type NoteAction =
   | { do: "add_text"; markdown: string; where: Where }
   | { do: "rewrite_text"; markdown: string }
   | { do: "remove_media"; ref: string }
-  | { do: "finish"; summary: string };
+  | { do: "finish"; summary: string }
+  | { do: "cannot"; reason: string };
+
+/** The actions that end a run (nothing after them counts). */
+export type EndAction = Extract<NoteAction, { do: "finish" | "cannot" }>;
+const ENDS: NoteAction["do"][] = ["finish", "cannot"];
+const isEnd =(a: NoteAction): a is EndAction => ENDS.includes(a.do);
 
 export interface NoteMedia {
   ref: string;
@@ -53,10 +59,11 @@ function spellText(ctx: NoteStepContext): string {
 
 const ACTIONS = [
   `{"do": "transcribe", "ref": "<recording ref>", "language": "english" | "czech"} — run the local speech-to-text on a recording listed below. Pick the language the owner most likely spoke.`,
-  `{"do": "add_text", "markdown": "<markdown>", "where": "after_block" | "end"} — add new text (a summary, a list) to the memory. Plain markdown, "- " bullets for lists. No media.`,
+  `{"do": "add_text", "markdown": "<markdown>", "where": "after_block" | "end"} — add new text (a summary, a list) to the memory. Plain markdown, "* " bullets for lists. No media.`,
   `{"do": "rewrite_text", "markdown": "<markdown>"} — replace the memory's whole text (rewrite, tidy, translate). Keep every media line exactly as it is unless you also remove it with remove_media.`,
   `{"do": "remove_media", "ref": "<media ref>"} — take a recording or photo out of the memory (it goes to the trash, nothing is deleted).`,
   `{"do": "finish", "summary": "<one short line: what you did>"} — the spell is fully done. Always the last action.`,
+  `{"do": "cannot", "reason": "<one short line for the owner: what you can't do here>"} — the spell asks for something these actions can't do (tags, moving or touching other memories, anything else). Use it instead of finish; nothing from this run is kept.`,
 ];
 
 export function buildNoteStepPrompt(ctx: NoteStepContext): string {
@@ -88,6 +95,8 @@ Respond with ONLY one JSON object, no markdown fence, no explanation:
 }
 
 const str = (v: unknown): v is string => typeof v === "string";
+/** A receipt line: one line, at most 200 characters ("" when absent). */
+const oneLine = (v: unknown): string => (str(v) ? v.replace(/\s+/g, " ").trim().slice(0, 200) : "");
 
 /** One raw action object → a typed action, or null when it isn't a well-formed known one. */
 function toAction(a: Record<string, unknown>): NoteAction | null {
@@ -101,7 +110,9 @@ function toAction(a: Record<string, unknown>): NoteAction | null {
     case "remove_media":
       return str(a.ref) ? { do: "remove_media", ref: a.ref.trim() } : null;
     case "finish":
-      return { do: "finish", summary: str(a.summary) ? a.summary.replace(/\s+/g, " ").trim().slice(0, 200) : "" };
+      return { do: "finish", summary: oneLine(a.summary) };
+    case "cannot":
+      return { do: "cannot", reason: oneLine(a.reason) };
     default:
       return null;
   }
@@ -131,7 +142,7 @@ export function parseNoteStep(raw: string): { actions: NoteAction[]; unknown: nu
       continue;
     }
     actions.push(action);
-    if (action.do === "finish") break; // nothing after finish counts
+    if (isEnd(action)) break; // nothing after the end counts
   }
   return { actions, unknown };
 }

@@ -3,6 +3,7 @@ import { findNoteSpell } from "./block";
 import { runNoteSpellJob } from "./job";
 import { listNoteSpellsToRun } from "./queue";
 import { AUDIO, DREAMS, VOICE, audioFence, fakeVault, note, scripted, spellFence } from "./fixtures";
+import { parseNoteContent, serializeBlocks } from "../../../../phone/src/lib/media/noteMedia";
 
 const BODY = `Morning\n\nWe talked about dreams.\n\n${audioFence(AUDIO)}\n\n${spellFence(DREAMS)}`;
 const HINT = { patronus: "pending" };
@@ -65,15 +66,21 @@ describe("runNoteSpellJob — run once, write once", () => {
     expect(v.timelines.get("n1")).toMatchObject([{ label: "before-patronus", markdown: BODY }]);
   });
 
-  it("a resurrected pending copy is not run again", async () => {
+  it("a resurrected pending copy is not run again: Fizzled with a reason, and Try again runs it", async () => {
     const v = fakeVault([note(BODY, HINT)]);
     await runNoteSpellJob("n1", v.deps(scripted(...DREAMS_REPLIES)));
     v.notes.set("n1", note(BODY, HINT)); // the phone's "keep mine"
     const ask = scripted({ actions: [{ do: "finish" }] });
     expect((await runNoteSpellJob("n1", v.deps(ask))).status).toBe("already-ran");
     expect(ask).not.toHaveBeenCalled();
-    expect(headersOf(v.notes.get("n1")!.markdown)?.did).toMatch(/^Already ran on 2026-11-22/);
-    expect(v.notes.get("n1")!.markdown).toContain(AUDIO); // the phone's copy is left as it is
+    const md = v.notes.get("n1")!.markdown;
+    expect(headersOf(md)).toMatchObject({ state: "failed", run: "1", error: expect.stringMatching(/^Already ran on 2026-11-22/) });
+    expect(md).toContain(AUDIO); // the phone's copy is left as it is
+
+    // the phone's Try again: failed → pending (error dropped, run kept) — a new run
+    const retried = md.replace("state: failed", "state: pending").replace(/\nerror: .*/, "");
+    v.notes.set("n1", note(retried, HINT));
+    expect((await runNoteSpellJob("n1", v.deps(scripted(...DREAMS_REPLIES)))).status).toBe("done");
   });
 
   it("Run again (run: counter bumped) is a new run", async () => {
@@ -104,6 +111,14 @@ describe("runNoteSpellJob — run once, write once", () => {
     const ask = vi.fn(async () => Promise.reject(new Error("spawn failed: is `claude` installed?")));
     await expect(runNoteSpellJob("n1", v.deps(ask))).rejects.toThrow("spawn failed");
     expect(v.saves).toEqual([]);
+  });
+
+  it("a spell it can't do ends Fizzled with Patronus's reason, the memory untouched", async () => {
+    const v = fakeVault([note(BODY, HINT)]);
+    const res = await runNoteSpellJob("n1", v.deps(scripted({ actions: [{ do: "cannot", reason: "I can't add tags or move memories." }] })));
+    expect(res).toEqual({ status: "failed", reason: "I can't add tags or move memories." });
+    expect(headersOf(v.saves[0].markdown)).toMatchObject({ state: "failed", error: "I can't add tags or move memories." });
+    expect(findNoteSpell(v.saves[0].markdown)!.before).toEqual(findNoteSpell(BODY)!.before);
   });
 
   it("keeps the spoken spell's voice line in the receipt", async () => {
@@ -142,5 +157,53 @@ describe("runNoteSpellJob — undo", () => {
     const again = w.notes.get("n1")!.markdown.replace("state: undone", "state: undo");
     w.notes.set("n1", note(again, { patronus: "undo" }));
     expect((await runNoteSpellJob("n1", w.deps(scripted()))).status).toBe("undo-refused");
+  });
+
+  it("works after the phone re-saved the result (its `* ` bullets are not an edit)", async () => {
+    const v = await ranThenUndo((md) => serializeBlocks(parseNoteContent(md)));
+    expect(v.notes.get("n1")!.markdown).toContain("* A red boat"); // the phone did rewrite it
+    expect((await runNoteSpellJob("n1", v.deps(scripted()))).status).toBe("undone");
+    expect(v.notes.get("n1")!.markdown).toContain(AUDIO);
+  });
+
+  it("keeps a spell added since the run, as it is now", async () => {
+    const later = spellFence("Translate it", { state: "failed", error: "boom" });
+    const v = await ranThenUndo((md) => `${md}\n\n${later}`);
+    expect((await runNoteSpellJob("n1", v.deps(scripted()))).status).toBe("undone");
+    expect(v.notes.get("n1")!.markdown).toBe(`${BODY.replace("state: pending", "state: undone")}\n\n${later}`);
+  });
+});
+
+describe("runNoteSpellJob — several spells in one memory", () => {
+  const CAST = spellFence("Summarise it", { state: "done", ran: "2026-11-21T08:00:00.000Z", did: "Summarised" });
+
+  it("a new spell under a cast one runs; the cast one is not shown to Patronus and stays as it was", async () => {
+    const md = `Morning\n\nSome text.\n\n${CAST}\n\n${spellFence("Add a title")}`;
+    const v = fakeVault([note(md, HINT)]);
+    expect(await listNoteSpellsToRun(v.store)).toHaveLength(1);
+    const ask = scripted({ actions: [{ do: "rewrite_text", markdown: "# Morning\n\nSome text." }, { do: "finish", summary: "Titled" }] });
+    expect((await runNoteSpellJob("n1", v.deps(ask))).status).toBe("done");
+    expect(ask.mock.calls[0][0]).not.toContain("Summarise it");
+    const saved = v.saves[0];
+    expect(saved.markdown).toBe(`# Morning\n\nSome text.\n\n${CAST}\n\n${spellFence("Add a title", { state: "done", ran: "2026-11-22T08:00:00.000Z", did: "Titled" })}`);
+    expect(saved.extra).toBeUndefined();
+  });
+
+  it("two pending spells: the first runs, a rewrite keeps the second, the hint stays for it", async () => {
+    const second = spellFence("Add a title");
+    const v = fakeVault([note(`Morning\n\nSome text.\n\n${spellFence("Fix the typos")}\n\n${second}`, HINT)]);
+    const ask = scripted({ actions: [{ do: "rewrite_text", markdown: "Morning\n\nSome text, fixed." }, { do: "finish", summary: "Fixed" }] });
+    expect((await runNoteSpellJob("n1", v.deps(ask))).status).toBe("done");
+    const saved = v.saves[0];
+    expect(saved.markdown).toContain(`Some text, fixed.`);
+    expect(saved.markdown.endsWith(second)).toBe(true);
+    expect(saved.extra).toEqual(HINT);
+    expect(findNoteSpell(saved.markdown)!.block.instruction).toBe("Add a title"); // next sync runs it
+  });
+
+  it("a blank pending spell (a stray tap) is not run", async () => {
+    const v = fakeVault([note(`Morning\n\n${spellFence("")}`, HINT)]);
+    expect(await listNoteSpellsToRun(v.store)).toEqual([]);
+    expect((await runNoteSpellJob("n1", v.deps(scripted()))).status).toBe("skipped");
   });
 });

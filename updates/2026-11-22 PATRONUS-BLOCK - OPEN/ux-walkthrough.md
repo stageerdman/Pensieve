@@ -5,6 +5,15 @@ spell block, autosave and sync; the Mac's queue, job, engine and undo) and ran t
 against 12 owner scenarios (`walkthrough-probes.test.ts.txt`: rename it to `.test.ts` inside
 `src/lib/patronus/noteSpell/` to run it). The existing suites pass (8 files, 83 tests).
 
+## Status (Uncle Bob, 2026-11-22)
+Fixed in the Mac engine, with regression tests in `job.test.ts` / `canonical.test.ts`:
+1 (Undo compares a list-blind hash, `canonical.ts`; the AI is told to write `* ` bullets),
+2 (the first *actionable* spell runs, the others are lifted out of Patronus's text and put
+back unchanged next to it, the hint stays while one still waits, undo keeps spells added
+since, blank pending spells are skipped), 5 ("Already ran" is now Fizzled with `run:` bumped,
+so Try again runs it on the owner's text), 6 (new `cannot {reason}` action → Fizzled). The
+probes file pins the OLD behaviour of 1, 2, 5, 6 and now fails there by design.
+
 ## Blockers
 1. **Phone Undo is refused when the result has a list.** The phone re-saves `- ` bullets as
    `* `. After the owner taps Undo, the Mac compares hashes, sees a change and answers "You
