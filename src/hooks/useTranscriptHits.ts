@@ -3,7 +3,7 @@ import type { NoteMeta } from "../lib/types";
 import type { SearchResult } from "../lib/search/search";
 import { getStore } from "../lib/store";
 import { extractMediaRefs } from "../lib/media/ref";
-import { queryTerms } from "../lib/search/tokenize";
+import { planQuery } from "../lib/search/rank/queryPlan";
 import { transcriptHits, type TranscriptHit } from "../lib/transcripts/transcriptMatches";
 import type { Transcript } from "../lib/transcripts/types";
 
@@ -32,7 +32,7 @@ export function useTranscriptHits(
   const [hits, setHits] = useState<Map<string, TranscriptJump[]>>(new Map());
 
   useEffect(() => {
-    const terms = queryTerms(queryText);
+    const terms = planQuery(queryText).terms; // the words that can match — never "I" alone
     const candidates = terms.length && match ? results.filter((n) => match.get(n.id)?.where === "text") : [];
     if (candidates.length === 0) {
       setHits((prev) => (prev.size ? new Map() : prev));

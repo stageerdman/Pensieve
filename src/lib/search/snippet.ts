@@ -3,8 +3,6 @@
 // "…the part of text that was found and its context around" with highlights. Pure and
 // case-insensitive; returns null when no term occurs in the text.
 
-import { queryTerms } from "./tokenize";
-
 export interface Snippet {
   text: string; // the context window (original casing, trimmed with ellipses)
   marks: Array<[number, number]>; // [start, end) ranges to highlight, relative to `text`
@@ -34,13 +32,13 @@ function marksWithin(bodyLower: string, terms: string[], from: number, to: numbe
 }
 
 /**
- * Build a snippet of `body` around the first query match. `radius` chars of context on
- * each side, snapped outward to word boundaries, with "…" where text was cut.
+ * Build a snippet of `body` around the first match of any (lower-case) term. `radius` chars
+ * of context on each side, snapped outward to word boundaries, with "…" where text was cut.
+ * Pass `lower` (body lower-cased) when you have it cached — lower-casing a long body per
+ * keystroke is what made typing lag.
  */
-export function makeSnippet(body: string, query: string, radius = 48): Snippet | null {
-  const terms = queryTerms(query);
+export function makeSnippet(body: string, terms: readonly string[], radius = 48, lower = body.toLowerCase()): Snippet | null {
   if (terms.length === 0 || !body) return null;
-  const lower = body.toLowerCase();
   const hit = firstHit(lower, terms);
   if (!hit) return null;
 

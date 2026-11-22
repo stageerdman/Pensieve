@@ -1,19 +1,20 @@
 // The orchestrator: given the note list, the stacked filter query, and the full-text
-// index, produce the filtered notes plus per-note match info (why it matched + a snippet)
-// for the gallery to render. Timeline grouping stays the gallery's job — we only decide
-// WHICH notes survive and attach the match reason; we keep the input order so the gallery
-// can group/sort by date as usual.
+// index, produce the matching notes IN RELEVANCE ORDER plus per-note match info (why it
+// matched + a snippet) for the gallery to render as one flat ranked list.
 //
-// Free-text semantics: a note matches the text query if, for EVERY term, the term appears
-// in the title, the tags, or the body (via the index). Ranking classifies the match for
-// display and relevance: title > tag > text (body) > structural-only.
+// Chips (tags / dates / categories / flags) filter: a note must pass them. Free text ranks
+// (rank/rankDoc.ts): every note with at least one matchable word passes, ordered exact title →
+// phrase in title → phrase in body → all words → some words; recency only breaks ties. Text
+// with no matchable word ("I", "what do") constrains nothing. Chips only → input order kept.
 
 import type { NoteMeta } from "../types";
 import type { FilterQuery } from "./types";
 import { matchTree, normTag, type SearchableNote } from "./evaluate";
-import { queryTerms } from "./tokenize";
 import { makeSnippet, type Snippet } from "./snippet";
-import type { SearchIndex } from "./indexer";
+import type { SearchIndex, TermHits } from "./indexer";
+import { normalize, planQuery, type QueryPlan } from "./rank/queryPlan";
+import { Hit, rankDoc, type HitValue, type Relevance, type TierValue } from "./rank/rankDoc";
+import { compareRanked, type RankedEntry } from "./rank/compare";
 
 export type MatchWhere = "title" | "tag" | "text";
 
@@ -21,11 +22,11 @@ export interface SearchResult {
   id: string;
   where: MatchWhere | null; // null when there is no free-text query
   snippet: Snippet | null; // present for body ("text") matches
-  rank: number; // 0 title, 1 tag, 2 text, 3 structural-only — lower = more relevant
+  tier: TierValue | null; // rank/rankDoc Tier; null when there is no free-text query
 }
 
 export interface SearchOutcome {
-  notes: NoteMeta[]; // the filtered notes, in input order (gallery groups/sorts them)
+  notes: NoteMeta[]; // matching notes, most relevant first (input order for chips only)
   match: Map<string, SearchResult>;
 }
 
@@ -47,49 +48,49 @@ export function isEmptyQuery(q: FilterQuery): boolean {
   return q.items.length === 0 && q.text.trim() === "";
 }
 
-export function runSearch(
-  notes: NoteMeta[],
-  query: FilterQuery,
-  index: SearchIndex,
-): SearchOutcome {
-  const terms = queryTerms(query.text);
-  // Per-term set of note ids whose BODY contains the term (via the index).
-  const bodySets = terms.map((t) => index.query(t));
+/** True when the free text can match anything (it has a word that isn't a stop word / one letter). */
+export function hasSearchableText(text: string): boolean {
+  return planQuery(text).terms.length > 0;
+}
+
+export function runSearch(notes: NoteMeta[], query: FilterQuery, index: SearchIndex): SearchOutcome {
+  const plan = planQuery(query.text);
+  const passing = notes.filter((n) => matchTree(query.items, toSearchable(n)));
+  if (plan.terms.length === 0) return unranked(passing);
+
+  const hits = plan.terms.map((t) => index.termHits(t));
+  const ranked: Array<RankedEntry & { note: NoteMeta }> = [];
+  for (const n of passing) {
+    const relevance = rankDoc(plan, {
+      titleNorm: normalize(n.title),
+      tagNorm: normalize((n.tags ?? []).map(normTag).join(" ")),
+      bodyHits: hits.map((h) => bodyHit(h, n.id)),
+      bodyHasPhrase: () => index.hasPhrase(n.id, plan.phrase),
+    });
+    if (relevance) ranked.push({ id: n.id, relevance, starred: !!n.starred, updatedAt: n.updatedAt, note: n });
+  }
+  ranked.sort(compareRanked);
 
   const match = new Map<string, SearchResult>();
-  const out: NoteMeta[] = [];
+  for (const r of ranked) match.set(r.id, describe(r.id, r.relevance, plan, index));
+  return { notes: ranked.map((r) => r.note), match };
+}
 
-  for (const n of notes) {
-    if (!matchTree(query.items, toSearchable(n))) continue;
+function unranked(notes: NoteMeta[]): SearchOutcome {
+  const match = new Map<string, SearchResult>();
+  for (const n of notes) match.set(n.id, { id: n.id, where: null, snippet: null, tier: null });
+  return { notes, match };
+}
 
-    let where: MatchWhere | null = null;
-    let snippet: Snippet | null = null;
-    let rank = 3;
+function bodyHit(h: TermHits, id: string): HitValue {
+  if (h.exact.has(id)) return Hit.EXACT;
+  return h.prefix.has(id) ? Hit.PREFIX : Hit.NONE;
+}
 
-    if (terms.length > 0) {
-      const titleL = n.title.toLowerCase();
-      const tagsL = (n.tags ?? []).map(normTag).join(" ");
-      const ok = terms.every(
-        (t, i) => titleL.includes(t) || tagsL.includes(t) || bodySets[i].has(n.id),
-      );
-      if (!ok) continue;
-
-      if (terms.every((t) => titleL.includes(t))) {
-        where = "title";
-        rank = 0;
-      } else if (terms.every((t) => tagsL.includes(t))) {
-        where = "tag";
-        rank = 1;
-      } else {
-        where = "text";
-        rank = 2;
-        snippet = makeSnippet(index.text(n.id) ?? "", query.text);
-      }
-    }
-
-    match.set(n.id, { id: n.id, where, snippet, rank });
-    out.push(n);
-  }
-
-  return { notes: out, match };
+/** Why it matched, for the card: the title, the tags, or (with a snippet) the body. */
+function describe(id: string, rel: Relevance, plan: QueryPlan, index: SearchIndex): SearchResult {
+  const where: MatchWhere = rel.allInTitle ? "title" : rel.allInTags ? "tag" : "text";
+  const body = where === "text" ? index.text(id) : undefined;
+  const snippet = body ? makeSnippet(body, plan.terms, undefined, index.lowerText(id)) : null;
+  return { id, where, snippet, tier: rel.tier };
 }
