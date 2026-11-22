@@ -3,7 +3,7 @@
 // split that is easiest to get wrong — and 2 batches so a crash in one can't leak into the
 // other.
 import type { RawMemory } from "../../../types";
-import type { PageDescription } from "../../processRawBatch";
+import type { DescribePage } from "../../processRawBatch";
 import { listUnprocessedRawBatches } from "../../queue";
 import { recoverInterrupted } from "../recover";
 import { jobStore } from "../jobRecord";
@@ -11,6 +11,7 @@ import { runJournalJob, type JournalJobDeps } from "../runJournalJob";
 import { JobFailedError, JobSetAsideError } from "../errors";
 import type { VaultFiles } from "../vaultFiles";
 import { vaultStore } from "./vaultStore";
+import { memoryFiles } from "./memoryFiles";
 
 export const BATCH_IDS = ["r1", "r2"];
 
@@ -27,15 +28,15 @@ export async function seedBatches(files: VaultFiles): Promise<void> {
 
 /** The fake AI: deterministic per page. a = Nov 3, b continues, c shares the boundary and
  *  opens Nov 4, d continues. */
-export async function describePage(ref: string): Promise<PageDescription> {
+export const describePage: DescribePage = async (ref) => {
   const page = ref.slice(ref.lastIndexOf("/") + 1, ref.lastIndexOf("."));
   const text = `handwriting on ${ref}`;
   if (page === "a") return { transcript: text, dateHeader: "3 November 2026", title: `Title ${ref}` };
   if (page === "c") return { transcript: text, dateHeader: "4 November 2026", continuesPrevious: true, previousPart: `tail of ${ref}`, title: `Title ${ref}` };
   return { transcript: text, dateHeader: null };
-}
+};
 
-export function jobDeps(files: VaultFiles, describe = describePage): JournalJobDeps {
+export function jobDeps(files: VaultFiles, describe: DescribePage = describePage): JournalJobDeps {
   return {
     raws: vaultStore(files),
     files,
@@ -52,7 +53,7 @@ export function jobDeps(files: VaultFiles, describe = describePage): JournalJobD
 /** What one app start does: recover, scan, run every offered batch in order — except
  *  set-aside ones, which the queue shows as error rows until the owner presses Run. A
  *  batch failing (not a kill) doesn't stop the others, just like the real queue. */
-export async function appStart(files: VaultFiles, describe = describePage): Promise<void> {
+export async function appStart(files: VaultFiles, describe: DescribePage = describePage): Promise<void> {
   const deps = jobDeps(files, describe);
   await recoverInterrupted({ raws: vaultStore(files), files });
   const offered = await listUnprocessedRawBatches(vaultStore(files), jobStore(files));
@@ -64,7 +65,16 @@ export async function appStart(files: VaultFiles, describe = describePage): Prom
   }
 }
 
-const VOLATILE = new Set(["updatedAt", "transcribedAt"]);
+/** The uninterrupted reference run (in memory): its outputs and how many writes it takes. */
+export async function cleanRun(): Promise<{ outputs: Record<string, unknown>; writes: number }> {
+  const m = memoryFiles();
+  await seedBatches(m.files);
+  const seeded = m.writesSoFar();
+  await appStart(m.files);
+  return { outputs: outputsOf(m.disk), writes: m.writesSoFar() - seeded };
+}
+
+const VOLATILE =new Set(["updatedAt", "transcribedAt"]);
 
 /** The disk's user-visible outputs, with timestamps stripped and temp files ignored —
  *  equal between two runs iff they produced the same Memories, byte for byte. */

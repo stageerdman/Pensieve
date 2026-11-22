@@ -1,18 +1,10 @@
 // The kill test, exhaustive form: the app dies at EVERY single write of a two-batch run,
 // restarts, and must end with each batch done exactly once — same Memories, byte for byte,
 // as a run that was never interrupted, nothing lost, nothing half-written, snapshots kept.
-// (The real-process SIGKILL form is killProcess.test.ts.)
+// (The real-process SIGKILL form is killProcess.node.test.ts.)
 import { describe, it, expect } from "vitest";
 import { memoryFiles, ProcessKilled } from "./testkit/memoryFiles";
-import { appStart, outputsOf, problemsIn, seedBatches } from "./testkit/scenario";
-
-async function cleanRun() {
-  const m = memoryFiles();
-  await seedBatches(m.files);
-  const seeded = m.writesSoFar();
-  await appStart(m.files);
-  return { outputs: outputsOf(m.disk), writes: m.writesSoFar() - seeded };
-}
+import { appStart, cleanRun, problemsIn, seedBatches } from "./testkit/scenario";
 
 /** Seed, then run app starts, killing the n-th write of each listed start. A late kill
  *  point may never be reached (a recovery run near the end has little left to do) — then

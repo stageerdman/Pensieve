@@ -36,13 +36,19 @@ Run order for one batch (each step atomic, each logged as `raw/job.*`):
 
 On app start: every raw record left `processing` goes back to `synced` (the desktop's
 "ready to process" state — `queued` means "still uploading from the phone" in this app)
-and is offered again; its job records the interruption.
+and is offered again. Every try is saved as "interrupted" the moment it starts (a real
+failure overwrites that, success deletes the job), so a crash at any point leaves the
+right reason. A job whose Memories were written but whose cleanup was cut off gets
+finished: leftover photos removed, job removed.
 
 Rust `write_text` / `write_bytes` / new `copy_file` write to a temp file then rename.
 
 ## Phases
 - [x] **P0 Roadmap** (this file).
-- [x] **P1 Atomic writes** — Rust temp+rename for every vault write; Rust unit tests.
+- [ ] **P1 Atomic writes** — Rust temp+rename for every vault write; Rust unit tests.
+      *Code + 3 tests in `src-tauri/src/util.rs` are written but NOT yet run or compiled:
+      `cargo` is not available in the build agent's shell. Tick after `cargo test` passes
+      in `src-tauri/` (and the app rebuilds).*
 - [x] **P2 Deterministic, idempotent outputs** — processRawBatch split into describe +
       write; fixed ids; no early `create()`. Tests: rerun overwrites, never duplicates.
 - [x] **P3 Job record + snapshot + runner** — attempts/set-aside, per-page checkpoint,
@@ -54,5 +60,8 @@ Rust `write_text` / `write_bytes` / new `copy_file` write to a temp file then re
       at several points against a real temp folder, restart, same checks.
 - [ ] **P6 Real vault** — only with a fresh verified backup; owner runs the rebuilt app.
 
+P2–P5 verified 2026-11-22: `npm test` 1648 passed, `npx tsc --noEmit` and
+`npm run typecheck:node-tests` clean.
+
 ## Live status
-See bottom of `wiki.md` for decisions; status is the checkbox list above.
+See `wiki.md` for decisions, tests and risks; status is the checkbox list above.
