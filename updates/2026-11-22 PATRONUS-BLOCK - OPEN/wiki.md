@@ -18,6 +18,13 @@
   deletes them, and `removeMedia` is explicit-only). Undo is a Timeline restore
   (`before-patronus`). Real byte deletion is out of scope.
 
+## Where the code lives (Phases 1–3)
+- `lib/patronus/noteSpell/` — pure engine (`run.ts` + `guards.ts` safety rails, `protocol.ts`
+  actions), `job.ts` (one run: pending or undo, write once after sync + reload compare),
+  `ledger.ts` (run record, Mac localStorage), `queue.ts` (scan → rows). Entry: `index.ts`.
+- Wiring: `queueOps.ts` (`NoteSpellProcessItem`), `useProcessQueue.ts` (`runNoteSpellItem`).
+  Errors on this row kind mark the row failed but do not pause the queue.
+
 ## Gotchas found while researching
 - `parsePatronus` treats everything after the `spell:` line as the instruction. Without
   Phase 1, new header lines would show up in the desktop block's text box and be
