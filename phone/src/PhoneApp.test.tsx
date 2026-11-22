@@ -55,7 +55,7 @@ function tapNode(container: HTMLElement, index: number) {
   fireEvent.click(btn);
 }
 
-/** Hold a spell node (longPress="window"/"speak") past SpellRing's HOLD_MS — pointerdown,
+/** Hold a spell node (longPress="window") past SpellRing's HOLD_MS — pointerdown,
  *  then wait, no pointerup/click (the hold timer alone drives onLongCast; a real click
  *  event is never synthesized from a bare pointerdown in jsdom). */
 async function holdNode(container: HTMLElement, index: number) {

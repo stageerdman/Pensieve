@@ -768,7 +768,6 @@ export function PhoneApp() {
     haptic(6);
   }
 
-  // ---- dictation (simulated) ----
   // ---- sync actions ----
   // One cast drives both directions — back up (weave UP) and restore (pull DOWN)
   // share the spell visual and the success/fail machine, differing only in which
