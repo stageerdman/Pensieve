@@ -1,7 +1,5 @@
 import { useRef, type KeyboardEvent, type MouseEvent } from "react";
 import type { NoteMeta } from "../../lib/types";
-import type { SearchResult } from "../../lib/search/search";
-import type { Snippet } from "../../lib/search/snippet";
 import type { CategoryDef } from "../../lib/categories/defs";
 import { colorOf } from "../../lib/categories/defs";
 import { catFg } from "../../lib/categories/palette";
@@ -10,6 +8,7 @@ import type { GalleryFields, SnippetLines } from "../../lib/gallery/view";
 import { FlaskFor } from "../../components/Flask";
 import { Bookmark } from "../../components/icons";
 import { StarHalo } from "../../components/StarHalo";
+import { onCardKeyDown } from "./cardKeys";
 
 // One memory in the gallery: a large flask (its visual identity) with the title and a
 // little of the actual content below it — a specimen on a shelf. The title is always
@@ -41,8 +40,6 @@ interface FlaskCardProps {
   categoryDefs: CategoryDef[];
   now: number;
   inWorkingSet: boolean;
-  /** Why this card matched the active summon query (snippet + reason), if any. */
-  searchMatch?: SearchResult | null;
   /** How many lines the title may use before it ellipsises (default 2). */
   titleLines?: 1 | 2;
   onOpen: (id: string, background: boolean) => void;
@@ -67,7 +64,6 @@ export function FlaskCard({
   categoryDefs,
   now,
   inWorkingSet,
-  searchMatch,
   titleLines = 2,
   onOpen,
   onContextMenu,
@@ -80,43 +76,24 @@ export function FlaskCard({
   const cats = note.categories ?? [];
   const tags = note.tags ?? [];
   const showDots = fields.category && cats.length > 0;
-  const matchSnippet = searchMatch?.where === "text" ? searchMatch.snippet : null;
   const showSnippet = fields.snippet && !!note.excerpt;
   const showTags = fields.tags && tags.length > 0;
-  const reason =
-    searchMatch?.where === "title"
-      ? "in title"
-      : searchMatch?.where === "tag"
-        ? "in tag"
-        : searchMatch?.where === "text"
-          ? "in note"
-          : null;
 
   const times: string[] = [];
   if (fields.createdRelative) times.push(relativeTime(note.createdAt, now));
   if (fields.createdAbs) times.push(absoluteDate(note.createdAt, now));
   const showMeta = showTags || times.length > 0;
 
-  const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      onOpen(note.id, e.metaKey || e.ctrlKey || e.altKey);
-    } else if (e.key === " ") {
-      // Space would otherwise activate the button (= open); instead it peeks.
-      e.preventDefault();
-      if (ref.current) onPeekToggle({ id: note.id, el: ref.current });
-    } else if (e.key.toLowerCase() === "w") {
-      e.preventDefault();
-      onToggleWorkingSet(note.id);
-    } else if (e.key.toLowerCase() === "s" && onToggleStar && !e.metaKey && !e.ctrlKey) {
-      e.preventDefault();
-      onToggleStar(note.id);
-    } else if (e.shiftKey && e.key === "F10") {
-      e.preventDefault();
-      const r = ref.current?.getBoundingClientRect();
-      if (r) onContextMenu({ preventDefault() {}, clientX: r.left + 12, clientY: r.bottom - 12 }, note.id);
-    }
-  };
+  const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) =>
+    onCardKeyDown(e, {
+      id: note.id,
+      el: ref.current,
+      onOpen,
+      onPeekToggle,
+      onToggleWorkingSet,
+      onToggleStar,
+      onContextMenu,
+    });
 
   return (
     <button
@@ -180,24 +157,10 @@ export function FlaskCard({
         </span>
       )}
 
-      {/* A body-text match shows the matched context (highlighted) in place of the
-          preview; otherwise the normal excerpt. No `block`: line-clamp needs
-          display:-webkit-box, which `block` would override. */}
-      {matchSnippet ? (
+      {/* No `block`: line-clamp needs display:-webkit-box, which `block` would override. */}
+      {showSnippet && (
         <span className={`mt-1 text-sm leading-snug text-text-muted ${CLAMP[snippetLines]}`}>
-          <Highlighted snippet={matchSnippet} />
-        </span>
-      ) : (
-        showSnippet && (
-          <span className={`mt-1 text-sm leading-snug text-text-muted ${CLAMP[snippetLines]}`}>
-            {note.excerpt}
-          </span>
-        )
-      )}
-
-      {reason && (
-        <span className="mt-1 select-none text-2xs uppercase tracking-wider text-accent/80">
-          {reason}
+          {note.excerpt}
         </span>
       )}
 
@@ -217,23 +180,4 @@ export function FlaskCard({
       )}
     </button>
   );
-}
-
-/** Render a snippet with its matched ranges wrapped in a subtle accent highlight. */
-function Highlighted({ snippet }: { snippet: Snippet }) {
-  const { text, marks } = snippet;
-  if (marks.length === 0) return <>{text}</>;
-  const parts: React.ReactNode[] = [];
-  let cursor = 0;
-  marks.forEach(([start, end], i) => {
-    if (start > cursor) parts.push(text.slice(cursor, start));
-    parts.push(
-      <mark key={i} className="rounded bg-accent/25 px-0.5 text-text">
-        {text.slice(start, end)}
-      </mark>,
-    );
-    cursor = end;
-  });
-  if (cursor < text.length) parts.push(text.slice(cursor));
-  return <>{parts}</>;
 }

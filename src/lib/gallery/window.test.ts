@@ -78,7 +78,6 @@ describe("gallery window — loading older weeks", () => {
 describe("windowSections", () => {
   const n = (id: string, ts: number) => ({ id, title: id, createdAt: ts, updatedAt: ts }) as NoteMeta;
   const sections: GallerySection[] = [
-    { key: "starred", label: "Starred", short: "Starred", notes: [n("s", 1)] },
     { key: "today", label: "Today", short: "Today", notes: [n("a", 100), n("b", 90)] },
     { key: "m-old", label: "Jan", short: "Jan", notes: [n("c", 50), n("d", 10)] },
   ];
@@ -86,7 +85,7 @@ describe("windowSections", () => {
   it("drops cards older than the cutoff and empty sections; untouched sections keep identity", () => {
     const out = windowSections(sections, 60, (x) => x.createdAt);
     expect(out.map((s) => s.key)).toEqual(["today"]);
-    expect(out[0]).toBe(sections[1]);
+    expect(out[0]).toBe(sections[0]);
     const partial = windowSections(sections, 20, (x) => x.createdAt);
     expect(partial.map((s) => [s.key, s.notes.map((x) => x.id)])).toEqual([
       ["today", ["a", "b"]],

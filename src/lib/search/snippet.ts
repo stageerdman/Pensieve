@@ -3,6 +3,8 @@
 // "…the part of text that was found and its context around" with highlights. Pure and
 // case-insensitive; returns null when no term occurs in the text.
 
+import { planQuery } from "./rank/queryPlan";
+
 export interface Snippet {
   text: string; // the context window (original casing, trimmed with ellipses)
   marks: Array<[number, number]>; // [start, end) ranges to highlight, relative to `text`
@@ -28,7 +30,24 @@ function marksWithin(bodyLower: string, terms: readonly string[], from: number, 
       i = bodyLower.indexOf(t, i + t.length);
     }
   }
-  return ranges.sort((a, b) => a[0] - b[0]);
+  ranges.sort((a, b) => a[0] - b[0]);
+  // Merge overlaps ("sum" + "summon") so a renderer never repeats a character.
+  const merged: Array<[number, number]> = [];
+  for (const r of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
+    else merged.push([r[0], r[1]]);
+  }
+  return merged;
+}
+
+/** Highlight every query term in a short, whole string (a title): the string itself plus
+ *  its match ranges. No windowing; an empty `marks` when nothing matches. Only the words the
+ *  ranker matches light up (no stop words or one-letter words — rank/queryPlan). */
+export function markTerms(text: string, query: string): Snippet {
+  const terms = planQuery(query).terms;
+  if (terms.length === 0 || !text) return { text, marks: [] };
+  return { text, marks: marksWithin(text.toLowerCase(), terms, 0, text.length) };
 }
 
 /**

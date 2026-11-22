@@ -1,30 +1,35 @@
-// SearchSheet.tsx — the "searching" presentation: results pour UP from the summon bar,
-// best match nearest the thumb.
+// SearchSheet.tsx — the Accio result list: one flat list, best match first, poured UP from
+// the summon bar / dock so the best match sits nearest the thumb (design/search-results.md).
 //
-// Source markup ~510, render ~1381-1393. A scrim dims the dormant reel/lens behind;
-// the results stack is anchored just above the bar. SAME single query as the reel
-// (HARD constraint #5) — this is the reel's data re-presented for thumb-scanning,
-// alive only while .searching. Strongest match is rendered LAST (bottom) and the list
-// is scrolled to the bottom; the top fade is applied only when it actually overflows.
+// It replaces the reel for as long as a query is typed OR held (keyboard down) — the reel
+// only comes back when the search is cleared. The order is the search's (rankSearch); this
+// view never sorts, it only reverses for bottom-anchoring. With nothing typed it shows no
+// rows at all (the recents chips are the whole offer), and the reel stays dimmed behind.
 
 import { useEffect, useRef } from "react";
 import type { Note } from "../../types";
 import { SearchResultRow } from "./SearchResultRow";
 
+const MAX_ROWS = 30;
+
 export function SearchSheet({
   list,
+  asked,
   queryText,
   onOpen,
   fetchingId = null,
 }: {
+  /** Best-first. */
   list: Note[];
+  /** A query is in (typed or held) — an empty list then means "no results". */
+  asked: boolean;
   queryText: string;
   onOpen: (n: Note) => void;
   /** PHONE-WINDOW: the older memory currently being fetched, if any. */
   fetchingId?: string | null;
 }) {
   const resultsRef = useRef<HTMLDivElement>(null);
-  const rows = list.slice(0, 30); // natural order; reversed below so best match sits last
+  const rows = list.slice(0, MAX_ROWS);
 
   useEffect(() => {
     const el = resultsRef.current;
@@ -38,16 +43,25 @@ export function SearchSheet({
   }, [list]);
 
   return (
-    <div className="search-sheet" data-n={String(list.length)}>
-      <div className="search-results" ref={resultsRef}>
-        {list.length === 0 ? (
-          <div className="sr-empty">Nothing answered the summons.</div>
+    <div className={"search-sheet" + (asked ? " asked" : "")} data-n={String(list.length)}>
+      <div
+        className="search-results"
+        ref={resultsRef}
+        role={asked ? "region" : undefined}
+        aria-label={asked ? `Search results, ${list.length}` : undefined}
+      >
+        {!asked ? null : list.length === 0 ? (
+          <div className="sr-empty" role="status">
+            Nothing answered the summons.
+          </div>
         ) : (
-          // strongest match nearest the bar → render it LAST (bottom)
+          // strongest match nearest the thumb → render it LAST (bottom)
           rows
             .slice()
             .reverse()
-            .map((n) => <SearchResultRow key={n.id} note={n} queryText={queryText} onOpen={onOpen} fetching={n.id === fetchingId} />)
+            .map((n) => (
+              <SearchResultRow key={n.id} note={n} queryText={queryText} onOpen={onOpen} fetching={n.id === fetchingId} />
+            ))
         )}
       </div>
     </div>

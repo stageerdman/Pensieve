@@ -27,7 +27,7 @@ export interface SummonApi {
   whisper: ReturnType<typeof parseQuery>["whisper"];
   liveText: string; // the leftover free text as typed (repaints every keystroke)
   searchedText: string; // the free text `results` were computed for (deferred; lags liveText while typing)
-  results: NoteMeta[]; // filtered notes (gallery groups/sorts them)
+  results: NoteMeta[]; // matching notes, best match first (the results list never re-sorts)
   match: Map<string, SearchResult>;
   total: number;
   active: boolean; // any chip or live text in play
