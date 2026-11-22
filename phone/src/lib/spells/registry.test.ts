@@ -20,7 +20,8 @@ describe("registry — the General roster", () => {
     expect(spellById("accio")!.hue).toBe("violet");
     expect(spellById("sync")!.hue).toBe("gold-state");
     expect(spellById("sync")!.opensWindow).toBe(true);
-    expect(spellById("write")!.longPress).toBe("speak");
+    // no hold-to-speak: speech is the iOS keyboard's own mic (the old hold typed a demo sentence)
+    expect(spellById("write")!.longPress).toBeUndefined();
   });
 
   it("an unknown id resolves to undefined", () => {

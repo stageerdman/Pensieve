@@ -11,7 +11,7 @@ import type { PageContext, Spell } from "./types";
 
 /** The General spellbook — the real daily spells, most-used first. */
 export const GENERAL_SPELLS: Spell[] = [
-  { id: "write", name: "Write", icon: "write", castGold: true, longPress: "speak" },
+  { id: "write", name: "Write", icon: "write", castGold: true },
   { id: "accio", name: "Accio", icon: "accio", hue: "violet" },
   // tap backs up immediately; hold opens the panel (account/space/conflicts/restore).
   { id: "sync", name: "Sync", icon: "sync", hue: "gold-state", opensWindow: true, longPress: "window" },

@@ -24,8 +24,6 @@ export function MemoryPage({
   bodyRef,
   dateRef,
   savedRef,
-  voiceRef,
-  micListening,
   onBack,
   onDateClick,
   onBodyInput,
@@ -35,7 +33,6 @@ export function MemoryPage({
   onFormat,
   onInsertImage,
   onOpenSpellMenu,
-  onVoice,
   onDone,
 }: {
   open: boolean;
@@ -44,8 +41,6 @@ export function MemoryPage({
   bodyRef: React.RefObject<HTMLDivElement>;
   dateRef: React.RefObject<HTMLDivElement>;
   savedRef: React.RefObject<HTMLDivElement>;
-  voiceRef: React.RefObject<HTMLButtonElement>;
-  micListening: boolean;
   onBack: () => void;
   onDateClick: () => void;
   onBodyInput: () => void;
@@ -55,7 +50,6 @@ export function MemoryPage({
   onFormat: (f: FmtKey) => void;
   onInsertImage: () => void;
   onOpenSpellMenu: () => void;
-  onVoice: () => void;
   onDone: () => void;
 }) {
   return (
@@ -85,7 +79,7 @@ export function MemoryPage({
       >
         <NoteBody bodyRef={bodyRef} onInput={onBodyInput} onKeyDown={onBodyKeyDown} onFocus={onBodyFocus} onBlur={onBodyBlur} />
       </div>
-      <NoteToolbar micListening={micListening} voiceRef={voiceRef} onFormat={onFormat} onInsertImage={onInsertImage} onVoice={onVoice} onDone={onDone} />
+      <NoteToolbar onFormat={onFormat} onInsertImage={onInsertImage} onDone={onDone} />
       {/* Bottom control bar = the 4-cell Dock (phone standard): Back beside the Spell Menu opener
           (Conditional "Photo"), bottom-right. Hides while editing — the keyboard toolbar takes over. */}
       <NoteActions onBack={onBack} onOpenMenu={onOpenSpellMenu} />

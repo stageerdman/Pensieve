@@ -36,7 +36,7 @@ export function panelCopy(status: SyncStatus, failReason?: SyncFailReason, failM
         primaryDisabled: false,
       };
     case "offline":
-      return { title: "You're offline.", sub: "Everything's saved here. It'll back up on its own once you're connected.", primary: "Waiting for connection", primaryDisabled: true };
+      return { title: "You're offline.", sub: "Everything's saved on this phone. Back up once you're connected.", primary: "Waiting for connection", primaryDisabled: true };
   }
 }
 

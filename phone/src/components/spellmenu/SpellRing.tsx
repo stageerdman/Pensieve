@@ -18,7 +18,7 @@ import type { CenterKind, MenuHue } from "../../hooks/useSpellMenu";
 import type { SyncStatus } from "../../lib/wand/syncMachine";
 import type { SyncRuneState } from "../../hooks/useSyncFlash";
 
-const HOLD_MS = 500; // long-press (Write = speak) — matches iOS default
+const HOLD_MS = 500; // long-press (Sync = panel) — matches iOS default
 const DRAG_THRESHOLD = 11; // px before a press becomes a spin (thumb-drift taps still register)
 const MAX_STEP_DEG = 30; // clamp a single move's angular delta for the POSITION write (center-jump guard)
 const MIN_RADIUS = 26; // px: ignore the angle when the finger is this close to the center

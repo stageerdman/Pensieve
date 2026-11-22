@@ -78,9 +78,6 @@ import { isAwaitingProcessing, isFormTemplate } from "../../src/lib/forms";
 import { insertNoteSpell } from "./components/note/patronusSpellDom";
 import { newSpellBody } from "./lib/patronus/noteSpell";
 
-const DICTATION_SAMPLE =
-  "I keep coming back to the idea that the phone shouldn't make me think. It should just catch the thought before it escapes.";
-
 /** viewData(): the reel's list — everything, or the filtered matches. Source ~691-695.
  *  Newest-first by creation date (FAST-LOAD): the reel is windowed by week (Reel/useFeedWindow),
  *  so its order must be date order, not vault insertion order (a sync pull inserts in pull order). */
@@ -163,7 +160,6 @@ export function PhoneApp() {
   const noteBodyRef = useRef<HTMLDivElement>(null);
   const noteDateRef = useRef<HTMLDivElement>(null);
   const noteSavedRef = useRef<HTMLDivElement>(null);
-  const voiceRef = useRef<HTMLButtonElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
@@ -178,7 +174,6 @@ export function PhoneApp() {
   const [collectionOpen, setCollectionOpen] = useState(false); // the full-screen photo board is on top
   const [editingNote, setEditingNote] = useState(false);
   const [kbOpen, setKbOpen] = useState(false);
-  const [micListening, setMicListening] = useState(false);
   const [spell, setSpell] = useState({ show: false, castId: 0 });
   const [confirmDelete, setConfirmDelete] = useState(false);
   // Raw Memory (RAW-MEMORY-JOURNAL): rawBatches is every batch still on this phone (a
@@ -228,7 +223,6 @@ export function PhoneApp() {
   const editingRef = useRef(editingNote);
   editingRef.current = editingNote;
   const filterQueryRef = useRef("");
-  const dictRef = useRef(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const noteUnmountTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -495,7 +489,7 @@ export function PhoneApp() {
     openVideoPicker("upload");
   }
 
-  function openNewNote(dictate: boolean) {
+  function openNewNote() {
     accio.clearSearch(); // a fresh thought lands on a clean, unfiltered home
     const now = Date.now();
     const d: Note = {
@@ -518,7 +512,6 @@ export function PhoneApp() {
       setTimeout(() => {
         const noteBody = noteBodyRef.current;
         if (noteBody) focusTitle(noteBody);
-        if (dictate) startDictation();
       }, 460);
     });
     haptic(10);
@@ -757,57 +750,6 @@ export function PhoneApp() {
   }
 
   // ---- dictation (simulated) ----
-  function typeInto(el: HTMLElement, text: string, done: () => void) {
-    if (reduce) {
-      el.textContent = text;
-      done();
-      return;
-    }
-    let i = 0;
-    const tick = () => {
-      i += Math.max(1, Math.round(Math.random() * 2));
-      el.textContent = text.slice(0, i);
-      if (i < text.length) setTimeout(tick, 26);
-      else done();
-    };
-    tick();
-  }
-  function startDictation() {
-    if (dictRef.current) return;
-    const noteBody = noteBodyRef.current;
-    if (!noteBody) return;
-    dictRef.current = true;
-    setMicListening(true);
-    const h = noteBody.firstElementChild as HTMLElement | null;
-    if (h && h.tagName === "H1" && !h.textContent!.trim()) h.textContent = "A thought, spoken";
-    let div = (h ? h.nextElementSibling : null) as HTMLElement | null;
-    if (!div) {
-      div = document.createElement("div");
-      div.innerHTML = "<br>";
-      noteBody.appendChild(div);
-    }
-    noteBody.focus();
-    syncPlaceholders(noteBody);
-    const target = div;
-    setTimeout(
-      () =>
-        typeInto(target, DICTATION_SAMPLE, () => {
-          setMicListening(false);
-          dictRef.current = false;
-          autosave.commit();
-        }),
-      650,
-    );
-  }
-  function toggleDictation() {
-    if (dictRef.current) {
-      setMicListening(false);
-      dictRef.current = false;
-    } else {
-      startDictation();
-    }
-  }
-
   // ---- sync actions ----
   // One cast drives both directions — back up (weave UP) and restore (pull DOWN)
   // share the spell visual and the success/fail machine, differing only in which
@@ -1021,7 +963,7 @@ export function PhoneApp() {
   function castSpellAction(s: Spell) {
     flashSparkle();
     menu.close();
-    if (s.id === "write") openNewNote(false);
+    if (s.id === "write") openNewNote();
     else if (s.id === "accio") accio.openAccio();
     else if (s.id === "sync") castSpell();
     else if (s.id === "image") openImagePicker("photo");
@@ -1050,14 +992,10 @@ export function PhoneApp() {
     } else if (s.id === "raw-delete") setConfirmDeleteRaw(true); // never deletes on the tap — confirm first
     else showToast(`✨ ${s.name} cast`);
   }
-  /** Held a spell: Write = speak; a "window" spell (Sync) opens its panel instead of
-   *  casting (the ring stays open underneath, same as the old tap-to-open behaviour). */
+  /** Held a spell: a "window" spell (Sync) opens its panel instead of casting (the ring stays
+   *  open underneath, same as the old tap-to-open behaviour). */
   function longCastSpell(s: Spell) {
-    if (s.longPress === "speak") {
-      flashSparkle();
-      menu.close();
-      openNewNote(true);
-    } else if (s.longPress === "window") {
+    if (s.longPress === "window") {
       flashSparkle();
       menu.openWindow(s.id);
     }
@@ -1297,8 +1235,6 @@ export function PhoneApp() {
           bodyRef={noteBodyRef}
           dateRef={noteDateRef}
           savedRef={noteSavedRef}
-          voiceRef={voiceRef}
-          micListening={micListening}
           onBack={() => exitNote()}
           onDateClick={() => noteBodyRef.current?.blur()}
           onBodyInput={onBodyInput}
@@ -1311,7 +1247,6 @@ export function PhoneApp() {
             haptic(10);
             menu.openMenu();
           }}
-          onVoice={toggleDictation}
           onDone={() => {
             // the caret may be in a Patronus spell's own field, not the body itself
             noteBodyRef.current?.blur();
