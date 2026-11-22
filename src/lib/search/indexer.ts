@@ -5,6 +5,7 @@
 //  - per doc, its tokens space-joined (`normalize`), so "is the whole phrase here?" is one
 //    `includes`; and the original text for snippets (lower-cased once, on first use).
 // Term lookups are memoised until the next change: while typing, only the last word is new.
+// Phrase checks remember which docs already failed, so a growing phrase rescans fewer docs.
 
 import { tokenize } from "./tokenize";
 import { normalizeTokens } from "./rank/queryPlan";
@@ -53,6 +54,7 @@ export class MemoryIndex implements SearchIndex {
   private inverted = new Map<string, Set<string>>(); // token → ids
   private vocab = new Vocabulary();
   private termCache = new Map<string, TermHits>();
+  private phraseMemo: { phrase: string; misses: Set<string> } | null = null;
 
   set(docs: IndexDoc[]): void {
     this.clear();
@@ -79,7 +81,7 @@ export class MemoryIndex implements SearchIndex {
   }
 
   remove(id: string): void {
-    this.termCache.clear();
+    this.invalidate();
     for (const token of this.docTokens.get(id) ?? []) {
       const posting = this.inverted.get(token);
       posting?.delete(id);
@@ -106,7 +108,24 @@ export class MemoryIndex implements SearchIndex {
   }
 
   hasPhrase(id: string, phrase: string): boolean {
-    return !!phrase && (this.norms.get(id)?.includes(phrase) ?? false);
+    if (!phrase) return false;
+    // One word: "contains the phrase" is "has a word starting with it" — the index knows.
+    if (phrase.indexOf(" ", 1) === -1) return this.termHits(phrase.slice(1)).prefix.has(id);
+    const misses = this.phraseMisses(phrase);
+    if (misses.has(id)) return false;
+    const found = this.norms.get(id)?.includes(phrase) ?? false;
+    if (!found) misses.add(id);
+    return found;
+  }
+
+  /** Docs known to lack `phrase`. Typing on extends the phrase, and a doc lacking the shorter
+   *  one lacks the longer one too — so each keystroke only re-scans the docs still in play. */
+  private phraseMisses(phrase: string): Set<string> {
+    const memo = this.phraseMemo;
+    if (memo?.phrase === phrase) return memo.misses;
+    const misses = memo && phrase.startsWith(memo.phrase) ? memo.misses : new Set<string>();
+    this.phraseMemo = { phrase, misses };
+    return misses;
   }
 
   text(id: string): string | undefined {
@@ -128,13 +147,20 @@ export class MemoryIndex implements SearchIndex {
   }
 
   private clear(): void {
-    for (const m of [this.haystack, this.lowered, this.norms, this.docTokens, this.inverted, this.termCache]) m.clear();
+    this.invalidate();
+    for (const m of [this.haystack, this.lowered, this.norms, this.docTokens, this.inverted]) m.clear();
     this.vocab.reset([]);
+  }
+
+  /** Any change to the docs makes the memoised lookups stale. */
+  private invalidate(): void {
+    this.termCache.clear();
+    this.phraseMemo = null;
   }
 
   /** Index one doc's text; returns the tokens it brought that no other doc had. */
   private indexDoc(id: string, text: string): string[] {
-    this.termCache.clear();
+    this.invalidate();
     this.haystack.set(id, text);
     const list = tokenize(text);
     this.norms.set(id, normalizeTokens(list));

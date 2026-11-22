@@ -93,11 +93,6 @@ describe("windowSections", () => {
       ["m-old", ["c"]],
     ]);
   });
-
-  it("never windows a keep-whole section (Accio's Starred lead)", () => {
-    const out = windowSections(sections, 60, (x) => x.createdAt, (k) => k === "starred");
-    expect(out.map((s) => s.key)).toEqual(["starred", "today"]);
-  });
 });
 
 describe("unloading far sections", () => {

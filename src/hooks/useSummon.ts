@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { NoteMeta } from "../lib/types";
 import type { Filter, FilterLeaf, FilterNode, Relation } from "../lib/search/types";
 import { parseQuery, type Suggestion } from "../lib/search/grammar";
-import { runSearch, type SearchResult } from "../lib/search/search";
+import { hasSearchableText, runSearch, type SearchResult } from "../lib/search/search";
 import { appendLeaf, group, moveLeaf, removeNode, replaceFilter, setRelation, ungroup } from "../lib/search/tree";
 import { loadRecents, saveRecents, addRecent } from "../lib/search/recents";
 import { useSearchIndex } from "./useSearchIndex";
@@ -25,7 +25,8 @@ export interface SummonApi {
   items: FilterNode[];
   suggestions: Suggestion[];
   whisper: ReturnType<typeof parseQuery>["whisper"];
-  liveText: string; // the leftover free text actually being searched
+  liveText: string; // the leftover free text as typed (repaints every keystroke)
+  searchedText: string; // the free text `results` were computed for (deferred; lags liveText while typing)
   results: NoteMeta[]; // filtered notes (gallery groups/sorts them)
   match: Map<string, SearchResult>;
   total: number;
@@ -79,7 +80,10 @@ export function useSummon(notes: NoteMeta[], categoryNames: string[]): SummonApi
   );
 
   const parse = useMemo(() => parseQuery(input, ctx, now, caret), [input, ctx, now, caret]);
-  const query = useMemo(() => ({ text: parse.text, items }), [parse.text, items]);
+  // The input repaints at once on every keystroke; the search and the gallery re-render
+  // follow on the deferred text, so React drops stale queries while you type.
+  const deferredText = useDeferredValue(parse.text);
+  const query = useMemo(() => ({ text: deferredText, items }), [deferredText, items]);
 
   // Full-text search needs the body index — build it the first time there's free text.
   useEffect(() => {
@@ -170,7 +174,8 @@ export function useSummon(notes: NoteMeta[], categoryNames: string[]): SummonApi
     if (t) recordSearch(t);
   }, [parse.text, recordSearch]);
 
-  const active = items.length > 0 || parse.text.trim().length > 0;
+  // Stop words and single letters alone ("I", "the") don't narrow anything — Home stays.
+  const active = items.length > 0 || hasSearchableText(deferredText);
 
   return {
     input,
@@ -180,6 +185,7 @@ export function useSummon(notes: NoteMeta[], categoryNames: string[]): SummonApi
     suggestions: parse.suggestions,
     whisper: parse.whisper,
     liveText: parse.text,
+    searchedText: deferredText,
     results: outcome.notes,
     match: outcome.match,
     total: notes.length,

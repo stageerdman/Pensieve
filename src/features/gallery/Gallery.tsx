@@ -4,8 +4,6 @@ import type { SearchResult } from "../../lib/search/search";
 import type { CategoryDef } from "../../lib/categories/defs";
 import type { GalleryState } from "../../lib/gallery/view";
 import { bucketize } from "../../lib/gallery/buckets";
-import { searchSections, STARRED_SECTION_KEY } from "../../lib/gallery/searchSections";
-import { log } from "../../lib/logger";
 import { FlaskFor } from "../../components/Flask";
 import { FlaskCard, type MenuAnchor, type PeekTarget } from "./FlaskCard";
 import { WorkingSetStrip } from "./WorkingSetStrip";
@@ -16,11 +14,10 @@ import type { TranscriptJump } from "../../hooks/useTranscriptHits";
 import { resolveMediaUrl } from "../../lib/media/url";
 import { transcriptPane } from "../../components/audio/transcriptController";
 import { useGalleryWindow } from "../../hooks/useGalleryWindow";
+import { useRankedWindow } from "../../hooks/useRankedWindow";
 
-// Stable module-level helpers for the window hook (its memos key off their identity).
+// Stable module-level helper for the window hook (its memos key off its identity).
 const byCreated = (n: NoteMeta) => n.createdAt;
-const byUpdated = (n: NoteMeta) => n.updatedAt;
-const isStarredLead = (key: string) => key === STARRED_SECTION_KEY;
 
 // Home: the memories as large flasks grouped by creation date (Apple-Photos style, newest
 // on top). Only the recent past is mounted at rest — the last week, at least a screenful —
@@ -77,34 +74,28 @@ export function Gallery({
     if (!url) return;
     transcriptPane.open({ src: url, playerKey: jump.ref, transcript: jump.transcript, seekTo: jump.time });
   };
-  // While an Accio query is active we hide the working-set strip and let ALL matching
-  // bottles share one normal grid — ordered by "when I last worked with them" (updatedAt),
-  // most recent on top. At rest (no query) the strip rides above and its memories are
-  // hidden from the grid below (it's their only home while pinned), grouped by creation.
-  // Starred memories that answer the free text lead the search in their own "Starred"
-  // section (lib/gallery/searchSections.ts); the rest keep their date buckets.
+  // While an Accio query is active we hide the working-set strip and show ALL matching
+  // bottles as one flat grid in the order runSearch ranked them (best answer first) — no
+  // date rail, since dates would scatter the ranking. At rest (no query) the strip rides
+  // above and its memories are hidden from the grid below (their only home while pinned),
+  // grouped by creation date.
   const hideWorkingSet = !!searchActive;
   const sections = useMemo(
-    () =>
-      hideWorkingSet
-        ? searchSections(notes, match, now)
-        : bucketize(notes.filter((n) => !wsSet.has(n.id)), now, "created"),
-    [notes, match, wsSet, now, hideWorkingSet],
+    () => (hideWorkingSet ? [] : bucketize(notes.filter((n) => !wsSet.has(n.id)), now, "created")),
+    [notes, wsSet, now, hideWorkingSet],
   );
-  const lifted = sections[0]?.key === STARRED_SECTION_KEY ? sections[0].notes.length : 0;
-  useEffect(() => {
-    if (hideWorkingSet) log.debug("gallery", "search.starredLift", { lifted, results: notes.length });
-  }, [hideWorkingSet, lifted, notes.length]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const win = useGalleryWindow({
     sections,
-    tsOf: hideWorkingSet ? byUpdated : byCreated,
-    keepWhole: isStarredLead,
-    // A new search (or leaving one) starts over from the recent week.
-    resetKey: hideWorkingSet ? match : "home",
+    tsOf: byCreated,
+    // Coming back from a search starts over from the recent week.
+    resetKey: hideWorkingSet ? "search" : "home",
     now,
     rootRef: scrollRef,
   });
+  // A new search starts over from the top page.
+  const ranked = useRankedWindow(hideWorkingSet ? notes.length : 0, match, scrollRef);
+  const isEmpty = hideWorkingSet ? notes.length === 0 : sections.length === 0;
 
   const [altHeld, setAltHeld] = useState(false);
   const [hovered, setHovered] = useState<PeekTarget | null>(null);
@@ -166,6 +157,31 @@ export function Gallery({
     if (hovered) setHovered(null);
   };
 
+  // One card, shared by the home timeline and the ranked search grid.
+  const card = (n: NoteMeta) => {
+    const jumps = transcriptJumps?.get(n.id);
+    return (
+      <div key={n.id} className="flex flex-col">
+        <FlaskCard
+          note={n}
+          fields={state.fields}
+          snippetLines={state.snippetLines}
+          categoryDefs={categoryDefs}
+          now={now}
+          inWorkingSet={wsSet.has(n.id)}
+          searchMatch={match?.get(n.id)}
+          onOpen={onOpen}
+          onContextMenu={openContextMenu}
+          onHoverChange={setHovered}
+          onPeekToggle={onPeekToggle}
+          onToggleWorkingSet={onToggleWorkingSet}
+          onToggleStar={onToggleStar}
+        />
+        {jumps && jumps.length > 0 && <TranscriptJumpLines jumps={jumps} onJump={(j) => void openJump(n.id, j)} />}
+      </div>
+    );
+  };
+
   return (
     <div
       ref={scrollRef}
@@ -223,15 +239,23 @@ export function Gallery({
           />
         )}
 
-        {sections.length === 0 ? (
+        {isEmpty ? (
           <Empty searchActive={searchActive} />
+        ) : hideWorkingSet ? (
+          <div key="accio" className="accio-answer-in">
+            <div
+              role="list"
+              aria-label="Search results"
+              className="grid grid-cols-[repeat(auto-fill,minmax(176px,224px))] justify-start gap-x-4 gap-y-6"
+            >
+              {notes.slice(0, ranked.shown).map(card)}
+            </div>
+            {ranked.hasMore && <div ref={ranked.sentinelRef} aria-hidden className="h-px" />}
+          </div>
         ) : (
           // Keyed by mode so the grid gently fades when a summon is cast or cleared —
           // the strip→grid merge reads as the view settling, not a flicker.
-          <div
-            key={hideWorkingSet ? "accio" : "home"}
-            className="accio-answer-in grid grid-cols-[80px_minmax(0,1fr)] gap-y-10"
-          >
+          <div key="home" className="accio-answer-in grid grid-cols-[80px_minmax(0,1fr)] gap-y-10">
             {win.sections.map((s) => {
               // A section unloaded after minutes far off-screen: same height, no cards.
               const held = win.collapsedHeight(s.key);
@@ -254,31 +278,7 @@ export function Gallery({
                   >
                     {held === undefined && (
                       <div className="grid grid-cols-[repeat(auto-fill,minmax(176px,224px))] justify-start gap-x-4 gap-y-6">
-                        {s.notes.map((n) => {
-                          const jumps = transcriptJumps?.get(n.id);
-                          return (
-                            <div key={n.id} className="flex flex-col">
-                              <FlaskCard
-                                note={n}
-                                fields={state.fields}
-                                snippetLines={state.snippetLines}
-                                categoryDefs={categoryDefs}
-                                now={now}
-                                inWorkingSet={wsSet.has(n.id)}
-                                searchMatch={match?.get(n.id)}
-                                onOpen={onOpen}
-                                onContextMenu={openContextMenu}
-                                onHoverChange={setHovered}
-                                onPeekToggle={onPeekToggle}
-                                onToggleWorkingSet={onToggleWorkingSet}
-                                onToggleStar={onToggleStar}
-                              />
-                              {jumps && jumps.length > 0 && (
-                                <TranscriptJumpLines jumps={jumps} onJump={(j) => void openJump(n.id, j)} />
-                              )}
-                            </div>
-                          );
-                        })}
+                        {s.notes.map(card)}
                       </div>
                     )}
                   </section>

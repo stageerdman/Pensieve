@@ -9,7 +9,7 @@ export interface Snippet {
 }
 
 /** Find the first occurrence (case-insensitive) of any term in `body`. */
-function firstHit(bodyLower: string, terms: string[]): { index: number; term: string } | null {
+function firstHit(bodyLower: string, terms: readonly string[]): { index: number; term: string } | null {
   let best: { index: number; term: string } | null = null;
   for (const t of terms) {
     const i = bodyLower.indexOf(t);
@@ -19,7 +19,7 @@ function firstHit(bodyLower: string, terms: string[]): { index: number; term: st
 }
 
 /** All [start,end) ranges of any term within [from,to) of bodyLower. */
-function marksWithin(bodyLower: string, terms: string[], from: number, to: number): Array<[number, number]> {
+function marksWithin(bodyLower: string, terms: readonly string[], from: number, to: number): Array<[number, number]> {
   const ranges: Array<[number, number]> = [];
   for (const t of terms) {
     let i = bodyLower.indexOf(t, from);

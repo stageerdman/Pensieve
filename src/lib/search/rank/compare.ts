@@ -17,6 +17,9 @@ export function compareRanked(a: RankedEntry, b: RankedEntry): number {
     Number(b.starred) - Number(a.starred) ||
     b.relevance.score - a.relevance.score ||
     b.updatedAt - a.updatedAt ||
-    a.id.localeCompare(b.id)
+    byCodeUnit(a.id, b.id)
   );
 }
+
+// Ids only need a stable order, not a linguistic one — localeCompare made big sorts slow.
+const byCodeUnit = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);

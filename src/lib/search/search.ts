@@ -61,9 +61,10 @@ export function runSearch(notes: NoteMeta[], query: FilterQuery, index: SearchIn
   const hits = plan.terms.map((t) => index.termHits(t));
   const ranked: Array<RankedEntry & { note: NoteMeta }> = [];
   for (const n of passing) {
+    const { titleNorm, tagNorm } = fieldNorms(n);
     const relevance = rankDoc(plan, {
-      titleNorm: normalize(n.title),
-      tagNorm: normalize((n.tags ?? []).map(normTag).join(" ")),
+      titleNorm,
+      tagNorm,
       bodyHits: hits.map((h) => bodyHit(h, n.id)),
       bodyHasPhrase: () => index.hasPhrase(n.id, plan.phrase),
     });
@@ -87,10 +88,40 @@ function bodyHit(h: TermHits, id: string): HitValue {
   return h.prefix.has(id) ? Hit.PREFIX : Hit.NONE;
 }
 
+// A note's normalised title and tags, kept per NoteMeta object: notes are immutable records
+// (an edit makes a new object), so this is re-done only for changed notes, not per keystroke.
+const normCache = new WeakMap<NoteMeta, { titleNorm: string; tagNorm: string }>();
+function fieldNorms(n: NoteMeta) {
+  let norms = normCache.get(n);
+  if (!norms) {
+    norms = { titleNorm: normalize(n.title), tagNorm: normalize((n.tags ?? []).map(normTag).join(" ")) };
+    normCache.set(n, norms);
+  }
+  return norms;
+}
+
 /** Why it matched, for the card: the title, the tags, or (with a snippet) the body. */
 function describe(id: string, rel: Relevance, plan: QueryPlan, index: SearchIndex): SearchResult {
   const where: MatchWhere = rel.allInTitle ? "title" : rel.allInTags ? "tag" : "text";
-  const body = where === "text" ? index.text(id) : undefined;
-  const snippet = body ? makeSnippet(body, plan.terms, undefined, index.lowerText(id)) : null;
-  return { id, where, snippet, tier: rel.tier };
+  return new RankedResult(id, where, rel.tier, where === "text" ? () => bodySnippet(id, plan, index) : null);
+}
+
+function bodySnippet(id: string, plan: QueryPlan, index: SearchIndex): Snippet | null {
+  const body = index.text(id);
+  return body ? makeSnippet(body, plan.terms, undefined, index.lowerText(id)) : null;
+}
+
+/** The snippet is cut on first read: only the cards on screen pay for it, not every hit. */
+class RankedResult implements SearchResult {
+  private cut: Snippet | null | undefined;
+  constructor(
+    readonly id: string,
+    readonly where: MatchWhere,
+    readonly tier: TierValue,
+    private readonly makeSnippet: (() => Snippet | null) | null,
+  ) {}
+  get snippet(): Snippet | null {
+    if (this.cut === undefined) this.cut = this.makeSnippet ? this.makeSnippet() : null;
+    return this.cut;
+  }
 }

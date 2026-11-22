@@ -179,7 +179,7 @@ describe("Gallery — working set", () => {
     });
     // No strip while summoning; the bottle now lives in the normal grid instead.
     expect(screen.queryByRole("list", { name: /working set/i })).not.toBeInTheDocument();
-    const grid = screen.getAllByRole("region")[1]; // a date section, not the strip
+    const grid = screen.getByRole("list", { name: "Search results" });
     expect(within(grid).getByText("Alpha")).toBeInTheDocument();
   });
 
@@ -255,20 +255,22 @@ describe("Gallery — starred", () => {
     expect(unstar).toHaveAttribute("aria-checked", "true");
   });
 
-  it("during a text search, starred matches lead in a 'Starred' section above the date buckets", () => {
+  it("during a search, results show in the given (ranked) order as one grid with no date labels", () => {
+    // Ranked order: the old exact-title hit first, then a fresh partial — dates must not reorder them.
     const notes = [
-      note({ id: "fresh", title: "Focus today", createdAt: NOW, updatedAt: NOW }),
-      note({ id: "old", title: "Focus long ago", createdAt: NOW - 400 * DAY, updatedAt: NOW - 400 * DAY, starred: true }),
+      note({ id: "old", title: "What do I want today", createdAt: NOW - 400 * DAY, updatedAt: NOW - 400 * DAY }),
+      note({ id: "fresh", title: "Want list", createdAt: NOW, updatedAt: NOW }),
     ];
     const match = new Map([
-      ["fresh", { id: "fresh", where: "title" as const, snippet: null, rank: 0 }],
-      ["old", { id: "old", where: "title" as const, snippet: null, rank: 0 }],
+      ["old", { id: "old", where: "title" as const, snippet: null, tier: 0 as const }],
+      ["fresh", { id: "fresh", where: "title" as const, snippet: null, tier: 4 as const }],
     ]);
     renderGallery(notes, { searchActive: true, match });
-    const sections = screen.getAllByRole("region").slice(1);
-    expect(sections[0].getAttribute("aria-label")).toBe("Starred");
-    expect(within(sections[0]).getByText("Focus long ago")).toBeInTheDocument();
-    expect(sections[1].getAttribute("aria-label")).toBe("Today");
+    const list = screen.getByRole("list", { name: "Search results" });
+    const titles = within(list).getAllByRole("button", { name: /What do I want today|Want list/ });
+    expect(titles[0].getAttribute("aria-label")).toMatch(/What do I want today/);
+    expect(screen.queryByRole("region", { name: "Today" })).toBeNull();
+    expect(screen.queryByText("Today")).toBeNull();
   });
 
   it("at rest (no search) a starred memory stays in its date group — no Starred section", () => {

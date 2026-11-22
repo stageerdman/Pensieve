@@ -31,11 +31,12 @@ export function useSearchIndex(notes: NoteMeta[]) {
     void (async () => {
       try {
         const docs = await store.bodies();
-        indexRef.current.set(docs);
+        // In slices so a cold build on a big vault never freezes typing.
+        await indexRef.current.setInSlices(docs);
         stampRef.current = new Map(notesRef.current.map((n) => [n.id, n.updatedAt]));
         log.info("search", "index.built", { count: docs.length });
-      } catch {
-        log.warn("search", "index.build.failed", {});
+      } catch (err) {
+        log.warn("search", "index.build.failed", { error: String(err) });
       } finally {
         setReady(true);
         setVersion((v) => v + 1);

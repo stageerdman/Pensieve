@@ -117,8 +117,8 @@ export default function App() {
   const categories = useCategoryDefs();
   const gallery = useGallery();
 
-  // Summon (search). Lives atop Home; ⌘A (⌘⇧A while typing) focuses it. Filters the gallery live while the
-  // timeline grouping is preserved (we only hand it a filtered note list + match info).
+  // Summon (search). Lives atop Home; ⌘A (⌘⇧A while typing) focuses it. While a query is
+  // active the gallery shows the results as one grid in relevance order (best answer first).
   const categoryNames = useMemo(
     () => categories.defs.map((d) => d.name),
     [categories.defs],
@@ -128,7 +128,7 @@ export default function App() {
   const transcriptJumps = useTranscriptHits(
     summon.results,
     summon.match,
-    summon.liveText,
+    summon.searchedText,
   );
   const summonInputRef = useRef<HTMLInputElement>(null);
 

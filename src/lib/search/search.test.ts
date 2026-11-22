@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { runSearch, isEmptyQuery } from "./search";
 import { MemoryIndex } from "./indexer";
+import { Tier } from "./rank/rankDoc";
 import type { NoteMeta } from "../types";
 import type { FilterQuery, FilterLeaf } from "./types";
 
@@ -81,22 +82,26 @@ describe("runSearch — full text + ranking", () => {
     expect(r.notes.map((n) => n.id)).toEqual(["a"]);
     const m = r.match.get("a")!;
     expect(m.where).toBe("text");
-    expect(m.rank).toBe(2);
+    expect(m.tier).toBe(Tier.BODY_PHRASE);
     expect(m.snippet!.text.toLowerCase()).toContain("latency");
   });
 
-  it("title match ranks above tag/body", () => {
+  it("a title word match is tagged as a title match", () => {
     const r = runSearch(notes, q({ text: "whisper" }), index);
-    // title "Whisper model notes" contains whisper -> where title
     expect(r.match.get("c")!.where).toBe("title");
-    expect(r.match.get("c")!.rank).toBe(0);
+    expect(r.match.get("c")!.tier).toBe(Tier.TITLE_PHRASE);
   });
 
   it("tag match when not in title/body", () => {
     const r = runSearch(notes, q({ text: "planning" }), index);
     expect(r.notes.map((n) => n.id)).toEqual(["a"]);
     expect(r.match.get("a")!.where).toBe("tag");
-    expect(r.match.get("a")!.rank).toBe(1);
+  });
+
+  it("stop words and single letters alone constrain nothing", () => {
+    const r = runSearch(notes, q({ text: "what do I" }), index);
+    expect(r.notes.map((n) => n.id)).toEqual(["a", "b", "c"]);
+    expect(r.match.get("a")!.tier).toBeNull();
   });
 
   it("text AND structural chip compose", () => {
@@ -113,10 +118,17 @@ describe("runSearch — full text + ranking", () => {
     expect(runSearch(notes, q({ text: "zzzz" }), index).notes).toHaveLength(0);
   });
 
-  it("preserves input order (gallery groups/sorts)", () => {
-    const r = runSearch(notes, q({ text: "notes" }), index);
-    // "notes" appears in b? no. in c title "Whisper model notes" and body c. a? body "first keystroke" no.
-    // keep whatever matches, in the original a,b,c order
-    expect(r.notes.map((n) => n.id)).toEqual(r.notes.map((n) => n.id).slice().sort((x, y) => (x < y ? -1 : 1)));
+  it("returns notes in relevance order, not input order", () => {
+    // c (last in input) has the exact title; a and b each hold only one of the words.
+    const r = runSearch(notes, q({ text: "whisper model notes summon walk" }), index);
+    const exact = runSearch(notes, q({ text: "Whisper model notes" }), index);
+    expect(exact.notes[0].id).toBe("c");
+    expect(exact.match.get("c")!.tier).toBe(Tier.TITLE_EXACT);
+    expect(r.notes[0].id).toBe("c");
+  });
+
+  it("chips only keep input order", () => {
+    const r = runSearch(notes, q({ items: [leaf({ kind: "category", categories: ["Notes & Lessons"] })] }), index);
+    expect(r.notes.map((n) => n.id)).toEqual(["b", "c"]);
   });
 });

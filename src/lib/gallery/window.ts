@@ -67,19 +67,14 @@ export function extendCutoff(sortedDesc: number[], cutoff: number, o: WindowOpts
 }
 
 /** The sections as rendered under the cutoff: cards older than it dropped, emptied sections
- *  dropped. `keepWhole` sections (Accio's lifted "Starred" lead) are never windowed. */
+ *  dropped. */
 export function windowSections(
   sections: GallerySection[],
   cutoff: number,
   tsOf: (n: GallerySection["notes"][number]) => number,
-  keepWhole: (key: string) => boolean = () => false,
 ): GallerySection[] {
   const out: GallerySection[] = [];
   for (const s of sections) {
-    if (keepWhole(s.key)) {
-      out.push(s);
-      continue;
-    }
     const notes = s.notes.filter((n) => tsOf(n) >= cutoff);
     if (notes.length === s.notes.length) out.push(s); // untouched → same object (memo-friendly)
     else if (notes.length) out.push({ ...s, notes });

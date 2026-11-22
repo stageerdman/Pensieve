@@ -53,6 +53,22 @@ describe("MemoryIndex", () => {
     expect(ix.hasPhrase("a", "")).toBe(false);
   });
 
+  it("a one-word phrase matches any word it starts", () => {
+    const ix = built();
+    expect(ix.hasPhrase("c", " walk")).toBe(true);
+    expect(ix.hasPhrase("c", " alk")).toBe(false);
+  });
+
+  it("remembered phrase misses never hide a match after backspacing or an edit", () => {
+    const ix = built();
+    expect(ix.hasPhrase("c", " every morning fixes")).toBe(false); // remembered as a miss
+    expect(ix.hasPhrase("c", " every morning fix")).toBe(true); // backspaced: shorter phrase, rescanned
+    expect(ix.hasPhrase("b", " small model is")).toBe(true);
+    expect(ix.hasPhrase("b", " small model is not")).toBe(false);
+    ix.update("b", "A small model is not enough.");
+    expect(ix.hasPhrase("b", " small model is not")).toBe(true);
+  });
+
   it("text() keeps the original case; lowerText() is its lower-cased twin", () => {
     const ix = built();
     expect(ix.text("a")).toContain("Summon");
