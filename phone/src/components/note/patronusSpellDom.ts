@@ -9,7 +9,7 @@
 // OPEN/phone-block-spec.md.
 
 import { encodePatronus, parsePatronus, type PatronusBlock } from "../../../../src/lib/packages/patronus";
-import { retrySpell, requestUndo, spellView, withInstruction } from "../../lib/patronus/noteSpell";
+import { editSpell, retrySpell, requestUndo, spellView } from "../../lib/patronus/noteSpell";
 import { haptic } from "../../util";
 import { log } from "../../lib/logger";
 import { wireMediaTap } from "./tapDom";
@@ -85,8 +85,16 @@ function render(el: HTMLElement, ctx: SpellCtx) {
     area.setAttribute("enterkeyhint", "done");
     isolate(area);
     area.addEventListener("input", () => {
-      writeBody(el, withInstruction(readSpell(el), area.value));
+      const cur = readSpell(el);
+      const next = editSpell(cur, area.value);
+      writeBody(el, next);
       fit(area);
+      // A fizzled spell re-arms as the owner fixes its words: repaint the status and drop
+      // Try again in place, so the field (and the keyboard) stay as they are.
+      if (next.headers?.state !== cur.headers?.state) {
+        log.info("patronus-note", "retry.on-edit", { from: cur.headers?.state, to: next.headers?.state });
+        repaint(el);
+      }
       ctx.onChange();
     });
     words.appendChild(area);
@@ -128,6 +136,16 @@ function render(el: HTMLElement, ctx: SpellCtx) {
     });
     el.appendChild(btn);
   }
+}
+
+/** Update everything but the words to the payload's state (used while the field is live). */
+function repaint(el: HTMLElement) {
+  const v = spellView(readSpell(el));
+  el.dataset.state = v.state;
+  el.setAttribute("aria-label", `Patronus spell, ${v.status}`);
+  const status = el.querySelector(".ph-spell-status");
+  if (status) status.textContent = v.status;
+  if (!v.action) el.querySelector(".ph-spell-action")?.remove();
 }
 
 /** Insert a fresh, armed spell at the caret's block (or at the end) and put the keyboard in

@@ -51,7 +51,9 @@ import { MemoryPage } from "./components/note/MemoryPage";
 import type { FmtKey } from "./components/note/NoteToolbar";
 import { ConjureThread, conjure } from "./components/ConjureThread";
 import { currentBlock, focusTitle, placeCaret, syncPlaceholders } from "./components/note/noteEditing";
-import { insertAudio, insertImages, insertVideo, renderNoteBody, type MediaCtx } from "./components/note/mediaDom";
+import { insertAudio, insertImages, insertVideo, renderNoteBody, serializeNoteBody, type MediaCtx } from "./components/note/mediaDom";
+import { refreshOpenNote } from "./lib/sync/openNote";
+import { log } from "./lib/logger";
 import { phoneCollection } from "./lib/media/collectionController";
 import { PhoneLightbox } from "./components/note/PhoneLightbox";
 import { PhoneCollection } from "./components/note/PhoneCollection";
@@ -76,10 +78,7 @@ import { spellFor } from "../../src/lib/packages/kinds";
 import { serializeBlocks, type NoteBlock } from "./lib/media/noteMedia";
 import { isAwaitingProcessing, isFormTemplate } from "../../src/lib/forms";
 import { insertNoteSpell } from "./components/note/patronusSpellDom";
-import { newSpellBody } from "./lib/patronus/noteSpell";
-
-const DICTATION_SAMPLE =
-  "I keep coming back to the idea that the phone shouldn't make me think. It should just catch the thought before it escapes.";
+import { newSpellBody, spellsWaiting } from "./lib/patronus/noteSpell";
 
 /** viewData(): the reel's list — everything, or the filtered matches. Source ~691-695.
  *  Newest-first by creation date (FAST-LOAD): the reel is windowed by week (Reel/useFeedWindow),
@@ -163,7 +162,6 @@ export function PhoneApp() {
   const noteBodyRef = useRef<HTMLDivElement>(null);
   const noteDateRef = useRef<HTMLDivElement>(null);
   const noteSavedRef = useRef<HTMLDivElement>(null);
-  const voiceRef = useRef<HTMLButtonElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
@@ -178,7 +176,6 @@ export function PhoneApp() {
   const [collectionOpen, setCollectionOpen] = useState(false); // the full-screen photo board is on top
   const [editingNote, setEditingNote] = useState(false);
   const [kbOpen, setKbOpen] = useState(false);
-  const [micListening, setMicListening] = useState(false);
   const [spell, setSpell] = useState({ show: false, castId: 0 });
   const [confirmDelete, setConfirmDelete] = useState(false);
   // Raw Memory (RAW-MEMORY-JOURNAL): rawBatches is every batch still on this phone (a
@@ -228,7 +225,6 @@ export function PhoneApp() {
   const editingRef = useRef(editingNote);
   editingRef.current = editingNote;
   const filterQueryRef = useRef("");
-  const dictRef = useRef(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const noteUnmountTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -277,10 +273,27 @@ export function PhoneApp() {
   // onDone sets status directly to "synced"); a freshly-captured batch never needs it.
   const onedrive = useOneDriveSync((info) => {
     dataRef.current = loadVault();
+    followOpenNote();
     renderAll(filterQueryRef.current);
     markRawBatchesSynced(info?.pushedRaw ?? []);
     setRawBatches(loadRawBatches());
   });
+
+  /** After the vault reloads, the open memory follows the vault's new object (or autosave
+   *  would write to an orphan and lose later typing) and shows a pulled copy (see openNote.ts). */
+  function followOpenNote() {
+    const open = currentRef.current;
+    const noteBody = noteBodyRef.current;
+    if (!open || !noteBody) return;
+    const r = refreshOpenNote(open, dataRef.current!, serializeNoteBody(noteBody));
+    if (r.kind === "none") return;
+    currentRef.current = r.note;
+    if (r.kind === "redraw") {
+      renderNoteBody(noteBody, r.note.t || "", r.note.c || "", mediaCtx);
+      syncPlaceholders(noteBody);
+    }
+    log.info("sync", "open-note.followed", { id: open.id, redraw: r.kind === "redraw" });
+  }
 
   const autosave = useAutosave(noteBodyRef, noteSavedRef, currentRef, {
     onInsert: (note) => {
@@ -495,7 +508,7 @@ export function PhoneApp() {
     openVideoPicker("upload");
   }
 
-  function openNewNote(dictate: boolean) {
+  function openNewNote() {
     accio.clearSearch(); // a fresh thought lands on a clean, unfiltered home
     const now = Date.now();
     const d: Note = {
@@ -518,7 +531,6 @@ export function PhoneApp() {
       setTimeout(() => {
         const noteBody = noteBodyRef.current;
         if (noteBody) focusTitle(noteBody);
-        if (dictate) startDictation();
       }, 460);
     });
     haptic(10);
@@ -756,58 +768,6 @@ export function PhoneApp() {
     haptic(6);
   }
 
-  // ---- dictation (simulated) ----
-  function typeInto(el: HTMLElement, text: string, done: () => void) {
-    if (reduce) {
-      el.textContent = text;
-      done();
-      return;
-    }
-    let i = 0;
-    const tick = () => {
-      i += Math.max(1, Math.round(Math.random() * 2));
-      el.textContent = text.slice(0, i);
-      if (i < text.length) setTimeout(tick, 26);
-      else done();
-    };
-    tick();
-  }
-  function startDictation() {
-    if (dictRef.current) return;
-    const noteBody = noteBodyRef.current;
-    if (!noteBody) return;
-    dictRef.current = true;
-    setMicListening(true);
-    const h = noteBody.firstElementChild as HTMLElement | null;
-    if (h && h.tagName === "H1" && !h.textContent!.trim()) h.textContent = "A thought, spoken";
-    let div = (h ? h.nextElementSibling : null) as HTMLElement | null;
-    if (!div) {
-      div = document.createElement("div");
-      div.innerHTML = "<br>";
-      noteBody.appendChild(div);
-    }
-    noteBody.focus();
-    syncPlaceholders(noteBody);
-    const target = div;
-    setTimeout(
-      () =>
-        typeInto(target, DICTATION_SAMPLE, () => {
-          setMicListening(false);
-          dictRef.current = false;
-          autosave.commit();
-        }),
-      650,
-    );
-  }
-  function toggleDictation() {
-    if (dictRef.current) {
-      setMicListening(false);
-      dictRef.current = false;
-    } else {
-      startDictation();
-    }
-  }
-
   // ---- sync actions ----
   // One cast drives both directions — back up (weave UP) and restore (pull DOWN)
   // share the spell visual and the success/fail machine, differing only in which
@@ -816,6 +776,9 @@ export function PhoneApp() {
   // outside the Sync window — see sync.cast()/succeeded()/failed() below.
   function castSpell(opts?: { restore?: boolean }) {
     if (syncStatus === "syncing" || syncStatus === "offline") return;
+    // Save the open memory first, so words typed in the last moment (a spell's, too) go along.
+    const open = currentRef.current;
+    if (open && !pendingCaptureRef.current.has(open.id)) autosave.commit();
     sync.cast();
     haptic(14);
     const castId = spell.castId + 1;
@@ -824,8 +787,12 @@ export function PhoneApp() {
     void task.then(({ ok, reason, message }) => {
       setTimeout(() => {
         setSpell((s) => ({ ...s, show: false }));
-        if (ok) sync.succeeded();
-        else {
+        if (ok) {
+          sync.succeeded();
+          // Phone sync is manual: the computer casts on ITS sync, so the owner sees the
+          // result only after syncing again. Say so, once per sync, while a spell waits.
+          if (spellsWaiting(dataRef.current!.map((n) => n.c))) showToast("Patronus casts on the computer. Sync again in a minute to see it.", 3500);
+        } else {
           sync.failed(reason ?? "error", message);
           haptic(30);
         }
@@ -1021,7 +988,7 @@ export function PhoneApp() {
   function castSpellAction(s: Spell) {
     flashSparkle();
     menu.close();
-    if (s.id === "write") openNewNote(false);
+    if (s.id === "write") openNewNote();
     else if (s.id === "accio") accio.openAccio();
     else if (s.id === "sync") castSpell();
     else if (s.id === "image") openImagePicker("photo");
@@ -1050,14 +1017,10 @@ export function PhoneApp() {
     } else if (s.id === "raw-delete") setConfirmDeleteRaw(true); // never deletes on the tap — confirm first
     else showToast(`✨ ${s.name} cast`);
   }
-  /** Held a spell: Write = speak; a "window" spell (Sync) opens its panel instead of
-   *  casting (the ring stays open underneath, same as the old tap-to-open behaviour). */
+  /** Held a spell: a "window" spell (Sync) opens its panel instead of casting (the ring stays
+   *  open underneath, same as the old tap-to-open behaviour). */
   function longCastSpell(s: Spell) {
-    if (s.longPress === "speak") {
-      flashSparkle();
-      menu.close();
-      openNewNote(true);
-    } else if (s.longPress === "window") {
+    if (s.longPress === "window") {
       flashSparkle();
       menu.openWindow(s.id);
     }
@@ -1297,8 +1260,6 @@ export function PhoneApp() {
           bodyRef={noteBodyRef}
           dateRef={noteDateRef}
           savedRef={noteSavedRef}
-          voiceRef={voiceRef}
-          micListening={micListening}
           onBack={() => exitNote()}
           onDateClick={() => noteBodyRef.current?.blur()}
           onBodyInput={onBodyInput}
@@ -1311,7 +1272,6 @@ export function PhoneApp() {
             haptic(10);
             menu.openMenu();
           }}
-          onVoice={toggleDictation}
           onDone={() => {
             // the caret may be in a Patronus spell's own field, not the body itself
             noteBodyRef.current?.blur();

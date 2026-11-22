@@ -4,11 +4,13 @@ import { PATRONUS_HINT_KEY as MAC_HINT_KEY, findNoteSpell } from "../../../../sr
 import {
   PATRONUS_HINT_KEY,
   computerWork,
+  editSpell,
   isNoteSpell,
   newSpellBody,
   requestUndo,
   retrySpell,
   spellView,
+  spellsWaiting,
   withPatronusHint,
 } from "./noteSpell";
 
@@ -58,6 +60,28 @@ describe("note spell — the phone's model", () => {
     expect(encodePatronus(next)).toBe("spell: sync\nstate: pending\nrun: 2\nSummarise this");
     const pending = block({ state: "pending" });
     expect(retrySpell(pending)).toBe(pending);
+  });
+
+  it("editing a fizzled spell's words re-arms it; other edits only change the words", () => {
+    const fizzled = block({ state: "failed", run: "1", error: "Patronus couldn't answer" }, "Sumarise this");
+    const fixed = editSpell(fizzled, "Summarise this");
+    expect(fixed.headers).toEqual({ state: "pending", run: "1" });
+    expect(fixed.instruction).toBe("Summarise this");
+    expect(editSpell(fizzled, "Sumarise this").headers?.state).toBe("failed"); // same words: still fizzled
+    expect(editSpell(block({ state: "pending" }), "y")).toMatchObject({ instruction: "y", headers: { state: "pending" } });
+  });
+
+  it("counts the memories whose spell still waits for the computer", () => {
+    const bodies = [
+      `Notes\n\n${fence(newSpellBody("Tidy"))}`,
+      fence("spell: sync\nstate: undo\nx"),
+      fence("spell: sync\nstate: done\nx"),
+      fence(newSpellBody()), // blank: not sent
+      "plain",
+      undefined,
+    ];
+    expect(spellsWaiting(bodies)).toBe(2);
+    expect(spellsWaiting([])).toBe(0);
   });
 
   it("Undo: done → undo; refused or not-done spells don't change", () => {

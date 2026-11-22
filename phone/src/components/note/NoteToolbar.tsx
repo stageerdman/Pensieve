@@ -3,24 +3,22 @@
 //
 // Source markup ~530-541. Format buttons use pointerdown + preventDefault so the
 // caret/selection in the editor is kept (source ~1008-1012).
+//
+// No mic key: speech goes through the iOS keyboard's own dictation mic, which types into
+// whatever has focus (the memory, or a Patronus spell's field). The old "Dictate" key was a
+// demo that typed a fixed sample sentence into the memory (PATRONUS-BLOCK UX walk-through).
 
 export type FmtKey = "title" | "body" | "bold" | "list";
 
 export function NoteToolbar({
-  micListening,
-  voiceRef,
   onFormat,
   onInsertImage,
-  onVoice,
   onDone,
 }: {
-  micListening: boolean;
-  voiceRef: React.RefObject<HTMLButtonElement>;
   onFormat: (f: FmtKey) => void;
   /** Insert a photo at the live caret (an INSERT, not a format) — fired on pointerdown +
    *  preventDefault like the format keys so the contentEditable selection is preserved. */
   onInsertImage: () => void;
-  onVoice: () => void;
   onDone: () => void;
 }) {
   const keep = (fn: () => void) => (e: React.PointerEvent) => {
@@ -52,17 +50,6 @@ export function NoteToolbar({
             <rect x="3.2" y="5.2" width="17.6" height="13.6" rx="2.4" />
             <circle cx="8.4" cy="9.8" r="1.5" />
             <path d="M4 16.5l4.6-4.3a1.6 1.6 0 0 1 2.2 0L16 17M14 14.2l1.8-1.7a1.6 1.6 0 0 1 2.2 0l2 1.9" />
-          </svg>
-        </button>
-        <button
-          className={micListening ? "tb mic listening" : "tb mic"}
-          ref={voiceRef}
-          aria-label="Dictate"
-          onPointerDown={keep(onVoice)}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="9" y="3" width="6" height="11" rx="3" />
-            <path d="M6 11a6 6 0 0 0 12 0M12 17v4" />
           </svg>
         </button>
         <button className="tb done" onPointerDown={keep(onDone)}>

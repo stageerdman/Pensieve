@@ -33,9 +33,9 @@ export interface Spell {
   opensWindow?: boolean;
   /** Write flashes gold on cast (serendipity / a flask always fills). */
   castGold?: boolean;
-  /** long-press does something distinct: Write (tap = write, hold = speak); a spell with
-   *  `opensWindow` and "window" (tap = cast directly, hold = open its panel — e.g. Sync). */
-  longPress?: "speak" | "window";
+  /** long-press does something distinct: a spell with `opensWindow` and "window" (tap = cast
+   *  directly, hold = open its panel — e.g. Sync). */
+  longPress?: "window";
   disabled?: boolean;
 }
 

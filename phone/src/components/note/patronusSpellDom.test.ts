@@ -70,6 +70,19 @@ describe("Patronus note spell block", () => {
     expect(serializeNoteBody(el).content).toBe(fence("spell: sync\nstate: pending\nrun: 1\nx"));
   });
 
+  it("fixing a fizzled spell's words re-arms it in place, keeping the field the owner types in", () => {
+    const { el, ctx, spell } = open(fence("spell: sync\nstate: failed\nrun: 1\nerror: Patronus couldn't answer\nSumarise"));
+    const area = spell()!.querySelector<HTMLTextAreaElement>(".ph-spell-input")!;
+    area.value = "Summarise";
+    area.dispatchEvent(new Event("input"));
+    expect(spell()!.querySelector(".ph-spell-input")).toBe(area); // not rebuilt: focus and caret stay
+    expect(spell()!.dataset.state).toBe("pending");
+    expect(spell()!.querySelector(".ph-spell-status")?.textContent).toBe("Waits for the computer");
+    expect(spell()!.querySelector(".ph-spell-action")).toBeNull();
+    expect(ctx.onChange).toHaveBeenCalledTimes(1);
+    expect(serializeNoteBody(el).content).toBe(fence("spell: sync\nstate: pending\nrun: 1\nSummarise"));
+  });
+
   it("an undone spell is quiet: no field, no button", () => {
     const { spell } = open(fence("spell: sync\nstate: undone\nx"));
     expect(spell()!.querySelector(".ph-spell-status")?.textContent).toBe("Undone");

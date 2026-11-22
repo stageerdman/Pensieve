@@ -93,6 +93,20 @@ export function withInstruction(p: PatronusBlock, instruction: string): Patronus
   return { ...p, instruction };
 }
 
+/** The owner changed the words. A fizzled spell whose words change is re-armed (failed →
+ *  pending, like Try again): fixing a typo should be enough to make it run. */
+export function editSpell(p: PatronusBlock, instruction: string): PatronusBlock {
+  const next = withInstruction(p, instruction);
+  return stateOf(p) === "failed" && instruction !== p.instruction ? retrySpell(next) : next;
+}
+
+/** How many memories hold a spell the computer still has to act on (for the after-sync nudge). */
+export function spellsWaiting(bodies: Iterable<string | undefined>): number {
+  let n = 0;
+  for (const b of bodies) if (b && b.includes("pensieve:patronus") && computerWork(b)) n++;
+  return n;
+}
+
 /** Try again: failed → pending; the error goes, the run counter stays. */
 export function retrySpell(p: PatronusBlock): PatronusBlock {
   if (stateOf(p) !== "failed") return p;

@@ -1021,35 +1021,6 @@ body {
   font-size: 14px;
   padding: 22px 24px;
 }
-.mic {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  flex: none;
-  border: none;
-  background: hsl(var(--surface-sunken));
-  color: hsl(var(--text-muted));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.3s var(--ease);
-}
-.mic.listening {
-  background: hsl(var(--accent) / 0.2);
-  color: hsl(var(--accent));
-  animation: pulse 1.4s var(--ease) infinite;
-}
-@keyframes pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 hsl(var(--accent) / 0.4);
-  }
-  50% {
-    box-shadow: 0 0 0 10px hsl(var(--accent) / 0);
-  }
-}
-
 /* ===========================================================================
    NOTE VIEW — full screen for reading & writing
    =========================================================================== */
@@ -1306,16 +1277,6 @@ body {
   align-items: center;
   gap: 6px;
   flex: none;
-}
-.note-toolbar .tb.mic {
-  width: 40px;
-  padding: 0;
-}
-.note-toolbar .tb.mic.listening {
-  color: hsl(var(--accent));
-  border-color: hsl(var(--accent) / 0.5);
-  background: hsl(var(--accent) / 0.14);
-  animation: pulse 1.4s var(--ease) infinite;
 }
 .note-toolbar .tb.done {
   border: none;
