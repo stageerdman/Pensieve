@@ -911,12 +911,26 @@ body {
   justify-content: flex-end;
   transition: opacity 0.22s var(--ease), background 0.26s var(--ease), backdrop-filter 0.26s var(--ease);
 }
-.app-root.searching .search-sheet {
+.app-root.searching .search-sheet,
+.app-root.filtering .search-sheet {
   opacity: 1;
   pointer-events: auto;
   background: hsl(222 30% 6% / 0.66);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+}
+/* A query is in (typed or held): the timeline is gone, not just dimmed — the list is the
+   answer (design/search-results.md). The reel comes back when the search is cleared. */
+.app-root.filtering .reel,
+.app-root.filtering .glass {
+  visibility: hidden;
+}
+.app-root.filtering .search-sheet {
+  background: hsl(222 30% 6% / 0.9);
+}
+/* Held query (keyboard down): the list sits above the dock's Accio bar, not the summon bar. */
+.app-root.filtering:not(.searching) .search-results {
+  margin-bottom: calc(var(--dock-h) + 26px + env(safe-area-inset-bottom));
 }
 .search-results {
   display: flex;
@@ -999,12 +1013,18 @@ body {
   text-overflow: ellipsis;
   margin-top: 1px;
 }
+/* the quiet third line: "Type · date" */
 .sr .when {
-  flex: none;
   font-size: 11px;
   color: hsl(var(--text-muted));
-  align-self: flex-start;
   margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sr:focus-visible {
+  outline: 2px solid hsl(var(--accio));
+  outline-offset: 2px;
 }
 .sr:last-child {
   background: hsl(var(--surface-raised) / 0.96);

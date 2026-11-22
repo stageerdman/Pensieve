@@ -50,8 +50,17 @@ last. The date rail asks them to think about *when*, while they're asking *what*
 | Search open, nothing typed | Timeline (the bar is part of Home) | Sheet shows recent searches only, with the reel dimmed behind |
 | Results | Flat list, centred column (max 680px) | Flat list above the bar/dock, best match nearest the thumb (bottom) |
 | Body index still building | Title/tag matches show at once; body matches appear in place when the index is ready | n/a (phone filters in memory) |
+| Holding a query | List stays (focus can leave the bar) | List stays above the dock's Accio bar; the reel is hidden, not dimmed |
 | No results | Empty flask + "No thoughts answer that summons" + "Try fewer words, or press Esc to see everything." | "Nothing answered the summons." in the sheet |
 | Many results | First 50 rendered, then 50 more each time you near the end (no button) | First 30, as before (scroll) |
+
+## Build map
+- Mac: `src/features/gallery/SearchResults.tsx` (list + paging) → `SearchResultRow.tsx`
+  (row, `resultMeta`), keys from `cardKeys.ts`, marks via `components/Highlighted.tsx`;
+  wired in `Gallery.tsx` (`searchActive` → list instead of the date rail).
+- Phone: `phone/src/components/accio/SearchSheet.tsx` (mounted while searching OR holding
+  a query) → `SearchResultRow.tsx` (`resultSnippet`, `resultWhen`); CSS in `styles/wand.css`.
+- Shared: `src/lib/search/snippet.ts` (`makeSnippet`, `markTerms`).
 | Remote (older) memory on phone | n/a | Title only, the flask pulses while it's fetched (unchanged) |
 
 ## Interaction + accessibility

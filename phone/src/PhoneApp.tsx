@@ -392,7 +392,9 @@ export function PhoneApp() {
   const [fetchingId, setFetchingId] = useState<string | null>(null);
   const fetchInFlight = useRef<string | null>(null);
   const searchingNow = useRef(false);
-  searchingNow.current = accio.searching; // read after the await — the closure's copy is stale
+  // read after the await — the closure's copy is stale. A held query (keyboard down) still
+  // shows the result list, so an open from it is still wanted.
+  searchingNow.current = accio.searching || accio.filtering;
   async function openFromSearch(d: Note) {
     if (!d.remote) return openNote(d);
     if (fetchInFlight.current) return;
@@ -1193,12 +1195,22 @@ export function PhoneApp() {
       {/* SYNC cast animation (the gold spell) */}
       <SyncSpell show={spell.show} castId={spell.castId} />
 
-      {/* ACCIO searching sheet + the summon bar — mounted ONLY while searching (openAccio
-          flushSyncs `searching` true so the input exists for its in-gesture focus), so
-          none of it sits in the home DOM at rest. */}
+      {/* ACCIO result list — one flat, best-first list that replaces the reel while a query
+          is typed OR held (keyboard down); it goes only when the search is cleared
+          (design/search-results.md). Nothing typed → no rows, just the recents. */}
+      {accio.searching || accio.filtering ? (
+        <SearchSheet
+          list={accio.filtering ? searchList : []}
+          asked={accio.filtering}
+          queryText={queryText}
+          onOpen={(n) => void openFromSearch(n)}
+          fetchingId={fetchingId}
+        />
+      ) : null}
+      {/* The summon bar — mounted ONLY while searching (openAccio flushSyncs `searching` true
+          so the input exists for its in-gesture focus), so none of it sits in the home DOM at rest. */}
       {accio.searching ? (
         <>
-          <SearchSheet list={searchList} queryText={queryText} onOpen={(n) => void openFromSearch(n)} fetchingId={fetchingId} />
           {!accio.filterQuery.trim() ? <DockSettings recents={recents} onRun={runRecent} /> : null}
           <SummonBar
             inputRef={accioInputRef}
