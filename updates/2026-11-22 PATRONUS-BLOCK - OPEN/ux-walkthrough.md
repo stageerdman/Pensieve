@@ -42,6 +42,27 @@ against 12 owner scenarios (`walkthrough-probes.test.ts.txt`: rename it to `.tes
 - The offline panel says "It'll back up on its own once you're connected". It does not: the
   phone syncs only when tapped.
 
+## Phone fixes (Jony, 2026-11-22)
+- **3 Dictate demo: removed.** It typed a canned sentence into *any* memory, not only near a
+  spell, so I removed it outright rather than hide it when the spell has focus: the toolbar
+  mic key and Write's hold-to-speak are gone (same demo). The iOS keyboard mic sits right
+  above the toolbar and types into whatever has focus.
+- **4 Open memory after a sync: verified in code, then fixed.** It was worse than suspected.
+  After the reload, `currentRef` pointed at an object no longer in the vault, so *every* edit
+  after a sync was lost. Now the open memory follows the vault's object and redraws if a
+  newer copy came down (`phone/src/lib/sync/openNote.ts`). Words typed while the sync ran
+  stay on screen and save onto the new copy. The open memory is also saved before a sync
+  starts.
+- **4 Nudge:** after a sync, if any spell still waits for the computer, a toast says
+  "Patronus casts on the computer. Sync again in a minute to see it." Auto-syncing when the
+  app comes back to the foreground would beat a toast, but it changes the manual-sync model,
+  so it is left as an idea for the orchestrator.
+- **7 Re-arm on edit:** changing a fizzled spell's words sets it back to pending in place.
+  The field and the keyboard stay, and Try again goes away. Try again still covers a retry
+  with the same words.
+- **Offline copy:** now reads "Everything's saved on this phone. Back up once you're connected."
+- Not deployed: `npm run deploy:phone` should run once this branch is merged.
+
 ## Works as designed (verified)
 Typed spell → hint → Mac queue → one write with receipt → phone shows Cast + did line.
 Syncing twice does nothing more (one save). A stale `undo` is refused. Bad JSON shows Fizzled
