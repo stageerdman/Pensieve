@@ -304,4 +304,10 @@ Optimistic concurrency, built on the existing `castSpell` pattern:
 Known gaps after Phases 1–6: Phase 0b spike against the real model not run; the run ledger
 lives in Mac localStorage (`pensieve:patronus-runs`) rather than a JSON file; `syncNow` is a
 no-op when a sync is already running (the reload-and-compare still guards the write).
-- [ ] Phase 7 — end-to-end + ship.
+- [ ] Phase 7 — end-to-end + ship. **Shipped for owner testing 2026-11-22** (main @ 70beb0b,
+  incl. both UX walk-through fixes): `npm test` 1632 pass; `npm run deploy:phone` → live
+  pensieve-phone.pages.dev serves `index-YqU80voz.js` (Patronus code present; sw version
+  `855ef0ce2e73`, network-first so the installed PWA updates on next open);
+  `npm run tauri:build` → installed `/Applications/Pensieve.app` (frontend `index-DmGnygnP.js`,
+  Patronus present). Not yet done: launch smoke-check of the `.app` (agent sandbox can't run
+  `open`) and the device round trip — the owner's end-to-end test.
