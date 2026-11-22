@@ -1,0 +1,180 @@
+// walkthrough.spike.test.ts — Columbo's UX walk-through probes (PATRONUS-BLOCK, 2026-11-22).
+// Each test pins what the code does TODAY in one owner scenario, so the report's findings can
+// be re-checked. Not part of the shipped suite (it is moved to the update folder afterwards).
+
+import { describe, expect, it } from "vitest";
+import { findNoteSpell } from "./block";
+import { runNoteSpellJob } from "./job";
+import { listNoteSpellsToRun } from "./queue";
+import { AUDIO, DREAMS, audioFence, fakeVault, note, scripted, spellFence } from "./fixtures";
+import { computerWork, requestUndo, retrySpell, spellView, withPatronusHint } from "../../../../phone/src/lib/patronus/noteSpell";
+import { parseNoteContent, serializeBlocks } from "../../../../phone/src/lib/media/noteMedia";
+import { encodePatronus, findAllPatronus, parsePatronus } from "../../packages/patronus";
+
+const HINT = { patronus: "pending" };
+const BODY = `Morning\n\nWe talked about dreams.\n\n${audioFence(AUDIO)}\n\n${spellFence(DREAMS)}`;
+const DREAMS_REPLIES = [
+  { actions: [{ do: "transcribe", ref: AUDIO, language: "english" }] },
+  {
+    actions: [
+      { do: "add_text", markdown: "- A red boat\n- Flying over Prague", where: "after_block" },
+      { do: "remove_media", ref: AUDIO },
+      { do: "finish", summary: "Listed 2 dreams, moved the recording to Trash" },
+    ],
+  },
+];
+
+/** What the phone does to a body it pulled: parse into blocks, serialize back (no edit). */
+const phoneRoundTrip = (md: string) => serializeBlocks(parseNoteContent(md));
+
+/** The phone's Undo tap on the (first) spell, as patronusSpellDom does it. */
+function phoneTapUndo(md: string): string {
+  const blocks = parseNoteContent(md);
+  const i = blocks.findIndex((b) => b.kind === "patronus" && parsePatronus(b.body).headers?.state === "done");
+  const b = blocks[i] as { kind: "patronus"; body: string };
+  blocks[i] = { kind: "patronus", body: encodePatronus(requestUndo(parsePatronus(b.body))) };
+  return serializeBlocks(blocks);
+}
+
+describe("walk 1 — the happy round trip: phone → Mac → phone → Undo", () => {
+  it("dreams example runs, the phone shows Cast + Undo, Undo brings the recording back", async () => {
+    const v = fakeVault([note(BODY, HINT)]);
+    expect(await listNoteSpellsToRun(v.store)).toHaveLength(1);
+    expect((await runNoteSpellJob("n1", v.deps(scripted(...DREAMS_REPLIES)))).status).toBe("done");
+    const macResult = v.notes.get("n1")!.markdown;
+
+    // phone pulls it, shows it
+    const onPhone = phoneRoundTrip(macResult);
+    // FINDING: the phone re-writes the AI's "- " bullets as "* " when it re-saves the memory
+    expect(onPhone).toBe(macResult.replace(/^- /gm, "* "));
+    const view = spellView(findAllPatronus(onPhone)[0]);
+    expect(view.status.startsWith("Cast")).toBe(true);
+    expect(view.action).toBe("undo");
+
+    // phone taps Undo, syncs (hint = undo)
+    const undoBody = phoneTapUndo(onPhone);
+    expect(withPatronusHint(undefined, undoBody)).toEqual({ patronus: "undo" });
+    v.notes.set("n1", { ...v.notes.get("n1")!, markdown: undoBody, extra: { patronus: "undo" } });
+
+    expect(await listNoteSpellsToRun(v.store)).toHaveLength(1);
+    // BUG: because of the bullet rewrite, the Mac thinks the owner edited it and refuses
+    const undo = await runNoteSpellJob("n1", v.deps(scripted({ actions: [] })));
+    expect(undo).toEqual({ status: "undo-refused", reason: "You edited it since. Undo from Timeline on the computer." });
+  });
+
+  it("the same Undo works when the AI's text has no list (nothing for the phone to re-write)", async () => {
+    const replies = [DREAMS_REPLIES[0], { actions: [{ do: "add_text", markdown: "Dreams: a red boat; flying over Prague.", where: "after_block" }, { do: "remove_media", ref: AUDIO }, { do: "finish", summary: "Listed dreams" }] }];
+    const v = fakeVault([note(BODY, HINT)]);
+    await runNoteSpellJob("n1", v.deps(scripted(...replies)));
+    const undoBody = phoneTapUndo(phoneRoundTrip(v.notes.get("n1")!.markdown));
+    v.notes.set("n1", { ...v.notes.get("n1")!, markdown: undoBody, extra: { patronus: "undo" } });
+    expect((await runNoteSpellJob("n1", v.deps(scripted({ actions: [] })))).status).toBe("undone");
+    const restored = v.notes.get("n1")!.markdown;
+    expect(restored).toContain(AUDIO); // the removed recording is back
+    expect(restored).not.toContain("red boat");
+    expect(findNoteSpell(restored)!.state).toBe("undone");
+  });
+});
+
+describe("walk 2 — a second spell in the same memory", () => {
+  it("BUG: a new pending spell added under a cast one never runs (the Mac only looks at the first)", async () => {
+    const castOne = spellFence("Summarise it", { state: "done", ran: "2026-11-22T08:00:00.000Z", did: "Summarised" });
+    const md = `Morning\n\nSome text.\n\n${castOne}\n\n${spellFence("Now translate it to Czech")}`;
+    // the phone says: the computer has work
+    expect(computerWork(md)).toBe("pending");
+    expect(withPatronusHint(undefined, md)).toEqual(HINT);
+    // the Mac: nothing to run, the hint stays forever
+    const v = fakeVault([note(md, HINT)]);
+    expect(await listNoteSpellsToRun(v.store)).toEqual([]);
+    expect((await runNoteSpellJob("n1", v.deps(scripted({ actions: [{ do: "finish" }] })))).status).toBe("skipped");
+  });
+
+  it("BUG: two pending spells — the first runs; the second is shown to the AI as memory text and any rewrite fails", async () => {
+    const md = `Morning\n\nSome text.\n\n${spellFence("Fix the typos")}\n\n${spellFence("Add a title")}`;
+    const v = fakeVault([note(md, HINT)]);
+    const res = await runNoteSpellJob("n1", v.deps(scripted({ actions: [{ do: "rewrite_text", markdown: "Morning\n\nSome text, fixed." }, { do: "finish", summary: "Fixed" }] })));
+    // the rewrite dropped the second block → app accepts it? or rejects it?
+    const after = v.notes.get("n1")!.markdown;
+    const blocks = findAllPatronus(after);
+    // record what happens:
+    expect({ status: res.status, blocks: blocks.length }).toEqual({ status: "done", blocks: 1 });
+  });
+});
+
+describe("walk 3 — phone 'keep mine' after a conflict, with new words added", () => {
+  it("the new text is NOT processed; the owner gets an 'Already ran' receipt instead", async () => {
+    const v = fakeVault([note(BODY, HINT)]);
+    await runNoteSpellJob("n1", v.deps(scripted(...DREAMS_REPLIES)));
+    // the phone kept its pending copy and added a dream
+    const mine = BODY.replace("We talked about dreams.", "We talked about dreams. Also: a dream about a whale.");
+    v.notes.set("n1", { ...v.notes.get("n1")!, markdown: mine, extra: HINT });
+    const res = await runNoteSpellJob("n1", v.deps(scripted(...DREAMS_REPLIES)));
+    expect(res.status).toBe("already-ran");
+    const spell = findNoteSpell(v.notes.get("n1")!.markdown)!;
+    expect(spell.block.headers?.did).toMatch(/^Already ran/);
+    expect(v.notes.get("n1")!.markdown).not.toContain("A red boat"); // no list on the phone at all now
+    // and the phone offers Undo on it, which the Mac will refuse
+    expect(spellView(spell.block).action).toBe("undo");
+  });
+});
+
+describe("walk 4 — odd and unclear commands", () => {
+  it("a command Patronus can't do (e.g. 'tag this as dream') still ends as Cast + Undo, if it just finishes", async () => {
+    const md = `Morning\n\nText.\n\n${spellFence("Tag this as dream and move it to my Journal")}`;
+    const v = fakeVault([note(md, HINT)]);
+    const res = await runNoteSpellJob("n1", v.deps(scripted({ actions: [{ do: "finish", summary: "I can't add tags or move memories." }] })));
+    expect(res.status).toBe("done");
+    const view = spellView(findNoteSpell(v.notes.get("n1")!.markdown)!.block);
+    expect(view.status.startsWith("Cast")).toBe(true);
+    expect(view.action).toBe("undo"); // an Undo for nothing
+  });
+
+  it("the AI answers in prose instead of JSON → Fizzled with a reason", async () => {
+    const md = `Morning\n\nText.\n\n${spellFence("hmm do the thing")}`;
+    const v = fakeVault([note(md, HINT)]);
+    const res = await runNoteSpellJob("n1", v.deps(scripted("Sure! What would you like me to do?")));
+    expect(res).toEqual({ status: "failed", reason: "Patronus didn't say what to do" });
+  });
+
+  it("an instruction whose first line starts with a header word ('error: …', lower case) loses that line", () => {
+    const p = parsePatronus(encodePatronus({ spell: "sync", instruction: "error: fix every spelling mistake", headers: { state: "pending" } }));
+    expect(p.instruction).toBe("");
+    expect(p.headers?.error).toBe("fix every spelling mistake");
+  });
+
+  it("a blank spell says 'Waits for the computer' but the computer is never asked", () => {
+    const md = `Morning\n\n${spellFence("")}`;
+    expect(withPatronusHint(undefined, md)).toBeUndefined();
+    expect(spellView(findAllPatronus(md)[0]).status).toBe("Waits for the computer");
+  });
+
+  it("fixing the words of a fizzled spell does nothing until Try again is tapped", () => {
+    const failed = spellFence("translate to klingon", { state: "failed", error: "Patronus didn't say what to do" });
+    const edited = failed.replace("translate to klingon", "translate to English");
+    expect(withPatronusHint(undefined, `Morning\n\n${edited}`)).toBeUndefined();
+    const retried = retrySpell(findAllPatronus(edited)[0]);
+    expect(retried.headers?.state).toBe("pending");
+  });
+});
+
+describe("walk 5 — sync twice / run twice", () => {
+  it("a second Mac pass over the same done memory does nothing", async () => {
+    const v = fakeVault([note(BODY, HINT)]);
+    await runNoteSpellJob("n1", v.deps(scripted(...DREAMS_REPLIES)));
+    expect(await listNoteSpellsToRun(v.store)).toEqual([]);
+    expect((await runNoteSpellJob("n1", v.deps(scripted(...DREAMS_REPLIES)))).status).toBe("skipped");
+    expect(v.saves).toHaveLength(1);
+  });
+
+  it("undo requested twice (phone re-sends 'undo' after it was undone): refused, nothing restored twice", async () => {
+    const v = fakeVault([note(BODY, HINT)]);
+    await runNoteSpellJob("n1", v.deps(scripted(...DREAMS_REPLIES)));
+    const undoBody = phoneTapUndo(v.notes.get("n1")!.markdown);
+    v.notes.set("n1", { ...v.notes.get("n1")!, markdown: undoBody, extra: { patronus: "undo" } });
+    await runNoteSpellJob("n1", v.deps(scripted({ actions: [] })));
+    // a stale phone copy that still says undo comes back
+    v.notes.set("n1", { ...v.notes.get("n1")!, markdown: undoBody, extra: { patronus: "undo" } });
+    const again = await runNoteSpellJob("n1", v.deps(scripted({ actions: [] })));
+    expect(again.status).toBe("undo-refused");
+  });
+});
