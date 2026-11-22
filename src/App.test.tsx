@@ -46,7 +46,7 @@ describe("App", () => {
       },
       { timeout: 10000 },
     );
-  });
+  }, 15_000); // the test must outlive its waitFor, or the 5s default cuts the generous wait short
 
   it("⌘-clicks a gallery flask into a background tab and closes it with X", async () => {
     seed("a", "Alpha note");

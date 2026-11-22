@@ -31,9 +31,8 @@ function typeQuery(notes: NoteMeta[], index: MemoryIndex, phrase: string, tries 
   return best;
 }
 
-// Retried because this machine is shared: a busy neighbour can slow every run 3-4x for a few
-// seconds. A real regression fails every attempt; a noisy moment doesn't.
-describe("search latency on a 10k-note vault", { retry: 2 }, () => {
+// Not part of `npm test` (parallel runs skew wall-clock timings): run it alone with `npm run bench`.
+describe("search latency on a 10k-note vault", () => {
   const { notes, docs } = syntheticVault();
   const index = new MemoryIndex();
 

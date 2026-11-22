@@ -26,10 +26,6 @@ export class Vocabulary {
     }
   }
 
-  get size(): number {
-    return this.sorted.length;
-  }
-
   private lowerBound(token: string): number {
     let lo = 0;
     let hi = this.sorted.length;

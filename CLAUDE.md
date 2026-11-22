@@ -20,6 +20,8 @@ Planned layout — created as the project grows, kept flat until it needs folder
 - Run (native app): `npm run tauri dev`
 - Run (phone PWA, fast iterate): `npm run dev:phone` → http://localhost:5174
 - Test: `npm test` (Vitest; `npm run test:watch` to watch)
+- Benchmarks: `npm run bench` — runs only `*.bench.test.ts` (wall-clock latency budgets, e.g.
+  search on a 10k-note vault), alone, on a quiet machine. Kept out of `npm test` on purpose.
 - Typecheck: `npx tsc --noEmit`
 - Build (web bundle): `npm run build` · Build (phone PWA): `npm run build:phone` → `dist-phone/`
   · Build (native `.app`): **`npm run tauri:build`**

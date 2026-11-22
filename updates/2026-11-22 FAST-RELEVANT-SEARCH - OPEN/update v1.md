@@ -65,7 +65,8 @@ match alone; recency only breaks ties; transcript text counts as body.
   event loop, so typing during the build never freezes.
 
 Tests: prefix semantics, update/remove keep the vocabulary right, sliced build equals the
-one-shot build. **Benchmark** (`search.bench.test.ts`): a synthetic 10,000-note vault
+one-shot build. **Benchmark** (`search.bench.test.ts`, run alone with `npm run bench` — not part of
+`npm test`): a synthetic 10,000-note vault
 (~5× the real one); every prefix of several queries; asserts p95 search time per keystroke
 under budget.
 

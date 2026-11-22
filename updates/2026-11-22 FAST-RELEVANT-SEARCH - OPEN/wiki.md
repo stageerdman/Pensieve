@@ -43,11 +43,12 @@ the code-unit id sort and the phrase-miss memo. Budget: p95 < 30 ms.
 - **FlaskCard not memoised**: the windowed grid mounts only one page of cards, so re-rendering them
   is cheap; add a memo only if a profile ever shows cards as the cost.
 - **Phone out of scope**: `phone/` keeps its own `rankNotes`; it can adopt `rank/` later.
-- **Benchmark is best-of-3 per keystroke and retried twice**: this machine is shared and
-  timings swing 3–4× when neighbours are busy; a real regression fails every attempt.
+- **Benchmark runs alone, outside `npm test`**: in the parallel suite wall-clock timings
+  swing 3–5×, so `*.bench.test.ts` is excluded there and run by `npm run bench`
+  (`vite.config.ts`, mode `bench`). Each keystroke is still best-of-3 against brief preemption.
 
 ## Run
 - Ranking: `npx vitest run src/lib/search/rank`
-- Benchmark: `npx vitest run src/lib/search/search.bench.test.ts`
+- Benchmark: `npm run bench`
 - Real vault (read-only): `npx vite-node "updates/2026-11-22 FAST-RELEVANT-SEARCH - OPEN/spike/measure.ts" "<vault>/notes"`
 - Phase timing: `npx vite-node ".../spike/phases.ts"` (vite-node, not tsx — tsx adds overhead)
