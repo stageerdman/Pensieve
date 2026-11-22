@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SPELL, findPatronus, parsePatronus, patronusFence, spellFor, withPatronus, withoutPatronus } from ".";
+import { DEFAULT_SPELL, encodeHeaders, encodePatronus, findPatronus, parseHeaders, parsePatronus, patronusFence, spellFor, withPatronus, withoutPatronus } from ".";
 import { buildStepPrompt, parseStep, type StepContext } from "./protocol";
 import { parseForm } from "../forms";
 import { fillFieldsOf } from "../formFill/prompt";
@@ -31,6 +31,22 @@ describe("Patronus block", () => {
     expect(withoutPatronus(form)).toBe(BODY);
     const pf = parseForm(form);
     expect(pf.charms.map((c) => [c.name, c.prompt])).toEqual([["Compress", "Shrink."]]);
+  });
+  it("header lines (note spells): parsed between spell and instruction, encoded in a fixed order", () => {
+    const body = "spell: sync\nstate: pending\nvoice: media/n1/v.m4a\nList my dreams.\nstate: not a header now";
+    expect(parsePatronus(body)).toEqual({
+      spell: "sync", headers: { state: "pending", voice: "media/n1/v.m4a" }, instruction: "List my dreams.\nstate: not a header now",
+    });
+    expect(encodePatronus(parsePatronus(body))).toBe(body);
+    expect(encodePatronus({ spell: "sync", instruction: "X", headers: { did: "a\nb", state: "done" } })).toBe("spell: sync\nstate: done\ndid: a b\nX");
+    expect(parseHeaders(encodeHeaders({ state: "failed", error: "Oops" }))).toEqual({ state: "failed", error: "Oops" });
+  });
+  it("blocks without headers (every form/package block today) parse + encode byte-identically", () => {
+    for (const body of ["spell: sync\nTranscribe it.\nI speak English.", "spell: compress\nShrink my week.", "spell: sync", "Just do it", "spell: sync\nState: capital is instruction"]) {
+      const p = parsePatronus(body);
+      expect(p.headers).toBeUndefined();
+      if (body.startsWith("spell:")) expect(encodePatronus(p)).toBe(body);
+    }
   });
   it("a form's own instruction overrides the default", () => {
     expect(spellFor("form", "  Only the King question.  ")).toBe("Only the King question.");

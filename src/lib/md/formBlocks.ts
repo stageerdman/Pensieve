@@ -5,7 +5,7 @@
 // read one format. Mirrors lib/md/audio's encode/reconstruct shape.
 
 import { CHARM_LANG, SCALE_LANG, encodeScale, parseCharm, parseScale } from "../forms/fences";
-import { PATRONUS_LANG, SPELLS, encodePatronus, parsePatronus, type SpellTrigger } from "../packages/patronus";
+import { PATRONUS_LANG, SPELLS, encodeHeaders, encodePatronus, parseHeaders, parsePatronus, type SpellTrigger } from "../packages/patronus";
 
 interface Block {
   type?: string;
@@ -53,7 +53,8 @@ export function encodeScaleBlock(b: Block): Block {
 export function encodePatronusBlock(b: Block): Block {
   const raw = String(b.props?.spell ?? "sync");
   const spell: SpellTrigger = SPELLS.some((s) => s.id === raw) ? (raw as SpellTrigger) : "sync";
-  return codeBlock(PATRONUS_LANG, encodePatronus({ spell, instruction: String(b.props?.instruction ?? "") }));
+  const headers = parseHeaders(String(b.props?.headers ?? ""));
+  return codeBlock(PATRONUS_LANG, encodePatronus({ spell, instruction: String(b.props?.instruction ?? ""), ...(headers ? { headers } : {}) }));
 }
 
 export function reconstructFormFence(b: Block): Block | null {
@@ -62,7 +63,8 @@ export function reconstructFormFence(b: Block): Block | null {
   if (lang === CHARM_LANG) return { type: "patronus", props: { spell: "compress", instruction: parseCharm(fenceText(b)).prompt } };
   if (lang === PATRONUS_LANG) {
     const p = parsePatronus(fenceText(b));
-    return { type: "patronus", props: { spell: p.spell, instruction: p.instruction } };
+    // A note spell's header lines (state/did/…) ride along untouched, never in the text box.
+    return { type: "patronus", props: { spell: p.spell, instruction: p.instruction, ...(p.headers ? { headers: encodeHeaders(p.headers) } : {}) } };
   }
   return null;
 }
