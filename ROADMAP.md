@@ -39,6 +39,9 @@ Legend: [ ] not started · [~] in progress · [x] done
   Timeline grouping preserved. Stayed in-memory (inverted index behind a `SearchIndex`
   seam — SQLite deferred until it's actually needed). See
   `updates/2026-10-04 SEARCH - CLOSED/`.
+- [~] **PATRONUS-BLOCK** — a Patronus block in a phone memory holds a written or spoken
+  instruction. The Mac carries it out once on sync (transcribe / rewrite / summarise /
+  unlink media), with a receipt and Undo. See `updates/2026-11-22 PATRONUS-BLOCK - OPEN/`.
 - [ ] **LABELS** — auto-labeling on capture; browse by label / date / source.
 - [ ] **AI COACH** — desktop-only, via Claude Code CLI: reads your thoughts,
   surfaces past lessons, connects entries to your goals. For organizing, planning,
