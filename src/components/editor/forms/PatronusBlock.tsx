@@ -14,6 +14,7 @@ import { SPELLS, type SpellTrigger } from "../../../lib/packages/patronus";
 interface Props {
   spell: SpellTrigger;
   instruction: string;
+  headers?: string;
 }
 interface BlockLike {
   id: string;
@@ -63,7 +64,9 @@ export const PatronusBlock = createReactBlockSpec(
   {
     type: "patronus",
     content: "none",
-    propSchema: { spell: { default: "sync" as SpellTrigger, values: ["sync", "compress"] as SpellTrigger[] }, instruction: { default: "" } },
+    // `headers`: a note spell's header lines (lib/packages/patronus encodeHeaders), carried
+    // verbatim so opening + saving a memory on the Mac never drops its state/receipt.
+    propSchema: { spell: { default: "sync" as SpellTrigger, values: ["sync", "compress"] as SpellTrigger[] }, instruction: { default: "" }, headers: { default: "" } },
   },
   {
     render: (props) => <PatronusView block={props.block as never} editor={props.editor as never} />,

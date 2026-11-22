@@ -63,6 +63,12 @@ describe("the Patronus block through the desktop editor", () => {
     expect(instantiate(FORM)).not.toContain("pensieve:patronus");
     expect(parseForm(instantiate(FORM)).fields.map((f) => f.id)).toEqual(parseForm(DAILY_REVIEW).fields.map((f) => f.id));
   });
+  it("a note spell's header lines survive open + save on the Mac, never in the text box", async () => {
+    const NOTE = "Dreams\n\nI flew again.\n\n```pensieve:patronus\nspell: sync\nstate: done\nran: 2026-11-22\ndid: Added a list of 3 dreams\nList my dreams.\n```";
+    const blocks = (await extendedMdToBlocks(editor, NOTE)) as { type: string; props: Record<string, unknown> }[];
+    expect(blocks.find((b) => b.type === "patronus")?.props).toMatchObject({ instruction: "List my dreams.", headers: "state: done\nran: 2026-11-22\ndid: Added a list of 3 dreams" });
+    expect((await roundTrip(NOTE)).trimEnd()).toBe(NOTE);
+  });
 });
 
 describe("a compressed memory through the desktop editor (FORMS Phase 6)", () => {

@@ -40,20 +40,59 @@ export const spellLabel = (id: SpellTrigger): string => SPELLS.find((s) => s.id 
 const asSpell = (raw: string | undefined): SpellTrigger =>
   (SPELLS.find((s) => s.id === raw?.toLowerCase())?.id ?? "sync");
 
+/** Header lines a note spell (PATRONUS-BLOCK update) carries between `spell:` and the
+ *  instruction, in the order they're written. Only these exact lower-case keys are headers;
+ *  anything else is instruction text, verbatim — so no form/package block written before
+ *  them (none has any) can change meaning. See lib/patronus/noteSpell. */
+export const HEADER_KEYS = ["state", "voice", "run", "ran", "did", "error"] as const;
+export type HeaderKey = (typeof HEADER_KEYS)[number];
+export type PatronusHeaders = Partial<Record<HeaderKey, string>>;
+
 export interface PatronusBlock {
   spell: SpellTrigger;
   instruction: string;
+  /** Absent on every form / package block: they never carry header lines. */
+  headers?: PatronusHeaders;
+}
+
+const HEADER_LINE = new RegExp(`^(${HEADER_KEYS.join("|")}):[ \\t]*(.*?)\\s*$`);
+
+/** Header lines (one `key: value` each) → headers. Stops at the first line that isn't one. */
+function takeHeaders(lines: string[]): { headers: PatronusHeaders; rest: string[] } {
+  const headers: PatronusHeaders = {};
+  let i = 0;
+  for (; i < lines.length; i++) {
+    const m = HEADER_LINE.exec(lines[i]);
+    if (!m || headers[m[1] as HeaderKey] !== undefined) break;
+    headers[m[1] as HeaderKey] = m[2];
+  }
+  return { headers, rest: lines.slice(i) };
 }
 
 export function parsePatronus(body: string): PatronusBlock {
   const lines = body.split("\n");
   const m = /^spell:\s*(\S+)\s*$/i.exec((lines[0] ?? "").trim());
-  const instruction = (m ? lines.slice(1) : lines).join("\n").trim();
-  return { spell: asSpell(m?.[1]), instruction };
+  if (!m) return { spell: "sync", instruction: body.trim() };
+  const { headers, rest } = takeHeaders(lines.slice(1));
+  const instruction = rest.join("\n").trim();
+  return Object.keys(headers).length ? { spell: asSpell(m[1]), instruction, headers } : { spell: asSpell(m[1]), instruction };
+}
+
+/** Headers → their lines, in HEADER_KEYS order (values are one line each). */
+export function encodeHeaders(h: PatronusHeaders | undefined): string {
+  return HEADER_KEYS.filter((k) => h?.[k] !== undefined)
+    .map((k) => `${k}: ${h![k]!.replace(/\s*\n\s*/g, " ").trim()}`)
+    .join("\n");
+}
+
+/** The inverse of encodeHeaders (the desktop editor carries headers as this text). */
+export function parseHeaders(text: string): PatronusHeaders | undefined {
+  const { headers } = takeHeaders(text ? text.split("\n") : []);
+  return Object.keys(headers).length ? headers : undefined;
 }
 
 export function encodePatronus(p: PatronusBlock): string {
-  return p.instruction ? `spell: ${p.spell}\n${p.instruction}` : `spell: ${p.spell}`;
+  return [`spell: ${p.spell}`, encodeHeaders(p.headers), p.instruction].filter(Boolean).join("\n");
 }
 
 export function patronusFence(p: PatronusBlock): string {
