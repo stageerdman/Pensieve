@@ -5,6 +5,7 @@ import type { TranscribePhase } from "../../lib/transcripts/engine";
 import type { AudioQueueItem } from "../../lib/transcripts/queue";
 import type { PackageQueueItem, RawBatchQueueItem } from "../../lib/raw/queue";
 import type { FormQueueItem } from "../../lib/formFill/queue";
+import type { NoteSpellQueueItem } from "../../lib/patronus/noteSpell";
 
 export type QueueMode = "all" | "one";
 
@@ -49,7 +50,16 @@ export interface PackageProcessItem extends BaseProcessItem {
   step?: string;
 }
 
-export type ProcessItem = AudioProcessItem | JournalProcessItem | FormProcessItem | PackageProcessItem;
+/** A casual memory's note spell (PATRONUS-BLOCK): Patronus runs the owner's instruction once.
+ *  ref = `spell:<noteId>`. A failed one does NOT pause the queue (useProcessQueue). */
+export interface NoteSpellProcessItem extends BaseProcessItem {
+  type: "note-spell";
+  noteId: string;
+  title: string;
+  step?: string;
+}
+
+export type ProcessItem = AudioProcessItem | JournalProcessItem | FormProcessItem | PackageProcessItem | NoteSpellProcessItem;
 
 export function isAudioItem(i: ProcessItem): i is AudioProcessItem {
   return i.type === "audio";
@@ -63,7 +73,11 @@ export function isFormItem(i: ProcessItem): i is FormProcessItem {
 export function isPackageItem(i: ProcessItem): i is PackageProcessItem {
   return i.type === "package";
 }
+export function isNoteSpellItem(i: ProcessItem): i is NoteSpellProcessItem {
+  return i.type === "note-spell";
+}
 export const formRef = (noteId: string) => `form:${noteId}`;
+export const noteSpellRef = (noteId: string) => `spell:${noteId}`;
 
 export const byOrder = (a: ProcessItem, b: ProcessItem) => a.order - b.order;
 
@@ -157,25 +171,34 @@ export function mergeNewJournalItems(
   return added.length ? [...prev, ...added] : prev;
 }
 
-/** Append any phone form sessions ready to fill, not already queued. Mirrors
- *  mergeNewJournalItems. */
-export function mergeNewFormItems(
+/** Append memory rows (form fills, note spells) not already queued. A memory waits while any
+ *  of its recordings is still queued to transcribe in its own row. */
+function mergeNewMemoryItems(
   prev: ProcessItem[],
-  found: FormQueueItem[],
+  found: (FormQueueItem | NoteSpellQueueItem)[],
+  type: "form" | "note-spell",
   persisted?: Record<string, { order: number }>,
 ): ProcessItem[] {
   const have = new Set(prev.map((i) => i.ref));
   let order = prev.length;
   const added: ProcessItem[] = [];
   for (const q of found) {
-    const ref = formRef(q.noteId);
+    const ref = type === "form" ? formRef(q.noteId) : noteSpellRef(q.noteId);
     if (have.has(ref)) continue;
     if (q.audioRefs.some((r) => have.has(r))) continue; // its recording is (re)transcribing first
     order += 1;
-    added.push({ ref, type: "form", noteId: q.noteId, title: q.title, order: persisted?.[ref]?.order ?? order, pct: 0, phase: null, error: false });
+    added.push({ ref, type, noteId: q.noteId, title: q.title, order: persisted?.[ref]?.order ?? order, pct: 0, phase: null, error: false });
   }
   return added.length ? [...prev, ...added] : prev;
 }
+
+/** Append any phone form sessions ready to fill, not already queued. */
+export const mergeNewFormItems = (prev: ProcessItem[], found: FormQueueItem[], persisted?: Record<string, { order: number }>) =>
+  mergeNewMemoryItems(prev, found, "form", persisted);
+
+/** Append any memories with a note spell to run, not already queued. */
+export const mergeNewNoteSpellItems = (prev: ProcessItem[], found: NoteSpellQueueItem[], persisted?: Record<string, { order: number }>) =>
+  mergeNewMemoryItems(prev, found, "note-spell", persisted);
 
 /** Clear errors (and reset their %) so a Run retries previously-failed rows. */
 export function clearErrorsForRetry(items: ProcessItem[]): ProcessItem[] {

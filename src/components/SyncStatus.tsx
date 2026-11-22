@@ -297,6 +297,7 @@ export function SyncStatus({
             enabled
             onTranscribed={() => void syncNow()}
             onNotesCreated={onNotesCreated}
+            syncNow={syncNow}
           />
         )}
       </div>

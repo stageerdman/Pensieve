@@ -8,7 +8,7 @@ import type { TranscriptionEngine } from "../../lib/transcripts/engine";
 import { queueItemLabel } from "../../lib/transcripts/queue";
 import { ProcessRow } from "./ProcessRow";
 import { useProcessQueue } from "./useProcessQueue";
-import { isAudioItem, isFormItem, isJournalItem, isPackageItem, type ProcessItem } from "./queueOps";
+import { isAudioItem, isFormItem, isJournalItem, isNoteSpellItem, isPackageItem, type ProcessItem } from "./queueOps";
 
 /** Label/tooltip for either row kind — journal batches never had their own category
  *  (wiki.md "A"), they just need their own label text in the one shared row shell. */
@@ -19,6 +19,9 @@ function rowText(it: ProcessItem): { label: string; tooltip: string; filename: b
   }
   if (isPackageItem(it)) {
     return { label: it.title, tooltip: `${it.title}\nPatronus carries out its sync spell`, filename: false };
+  }
+  if (isNoteSpellItem(it)) {
+    return { label: `Patronus — ${it.title}`, tooltip: `${it.title}\nPatronus carries out the spell in this memory`, filename: false };
   }
   if (isJournalItem(it)) {
     const label = `Journal — ${it.pageCount} page${it.pageCount === 1 ? "" : "s"}`;
@@ -53,14 +56,16 @@ interface Props {
    *  creates, never surfaced by a sync pull, so the feed/search list needs this direct
    *  nudge or new Memories stay invisible until the app restarts. */
   onNotesCreated?: (noteIds: string[]) => void;
+  /** An awaited sync pull — a note spell runs it right before its one write. */
+  syncNow?: () => Promise<void>;
   enabled?: boolean;
 }
 
 export const ProcessQueue = forwardRef<ProcessQueueHandle, Props>(function ProcessQueue(
-  { engine, titleFor, onTranscribed, onNotesCreated, enabled = true },
+  { engine, titleFor, onTranscribed, onNotesCreated, syncNow, enabled = true },
   handleRef,
 ) {
-  const q = useProcessQueue({ engine, titleFor, onTranscribed, onNotesCreated, enabled });
+  const q = useProcessQueue({ engine, titleFor, onTranscribed, onNotesCreated, syncNow, enabled });
   const [previewRef, setPreviewRef] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -128,8 +133,8 @@ export const ProcessQueue = forwardRef<ProcessQueueHandle, Props>(function Proce
                 pct={it.pct}
                 error={it.error}
                 errorMsg={it.errorMsg}
-                errorTitle={isPackageItem(it) ? "Patronus couldn't finish" : undefined}
-                step={isPackageItem(it) ? (it.step ?? "Waiting") : undefined}
+                errorTitle={isPackageItem(it) || isNoteSpellItem(it) ? "Patronus couldn't finish" : undefined}
+                step={isPackageItem(it) || isNoteSpellItem(it) ? (it.step ?? "Waiting") : undefined}
                 model={journal ? undefined : it.model}
                 previewing={previewRef === it.ref}
                 onReorder={(pos) => q.reorder(it.ref, pos)}

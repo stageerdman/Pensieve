@@ -6,11 +6,14 @@
 import type { NoteMeta, Store } from "../../types";
 import { log } from "../../logger";
 import { contentOf, findNoteSpell, hasHint, isRunnableNoteSpell } from "./block";
-import { mediaIn } from "./media";
+import { mediaIn, mediaKind } from "./media";
 
 export interface NoteSpellQueueItem {
   noteId: string;
   title: string;
+  /** Its recordings (content + spoken spell): the queue holds the spell back while any is
+   *  still queued to transcribe in its own row, so nothing is transcribed twice. */
+  audioRefs: string[];
 }
 
 export type NoteSpellQueueStore = Pick<Store, "list" | "load" | "listMedia">;
@@ -25,13 +28,14 @@ export async function listNoteSpellsToRun(store: NoteSpellQueueStore): Promise<N
     if (!note || !isRunnableNoteSpell(note)) continue;
     const spell = findNoteSpell(note.markdown)!;
     const voice = spell.block.headers?.voice?.trim();
-    const needed = [...mediaIn(contentOf(spell)).map((x) => x.ref), ...(voice ? [voice] : [])];
-    const missing = needed.filter((ref) => !have.has(ref)).length;
+    const media = [...mediaIn(contentOf(spell)), ...(voice ? [{ ref: voice, kind: mediaKind(voice) }] : [])];
+    const missing = media.filter((x) => !have.has(x.ref)).length;
     if (missing) {
       log.info("patronus-note", "queue.wait-media", { id: m.id, missing });
       continue;
     }
-    out.push({ noteId: m.id, title: m.title || "Memory" });
+    const audioRefs = media.filter((x) => x.kind !== "image").map((x) => x.ref);
+    out.push({ noteId: m.id, title: m.title || "Memory", audioRefs });
   }
   return out;
 }

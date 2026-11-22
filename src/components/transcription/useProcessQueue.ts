@@ -17,7 +17,10 @@ import { listUntranscribedAudio } from "../../lib/transcripts/queue";
 import { whenIdle } from "../../lib/idle";
 import { listPackagesToResolve, listUnprocessedRawBatches } from "../../lib/raw/queue";
 import { findPatronus, spellFor } from "../../lib/packages";
-import { runPackage } from "../../lib/packages/run";
+import { runPackage, type RunDeps } from "../../lib/packages/run";
+import { listNoteSpellsToRun, runNoteSpellJob, storageLedger } from "../../lib/patronus/noteSpell";
+import { askClaudeVaultTauri } from "../../lib/formSpells/askClaudeVaultTauri";
+import type { Store } from "../../lib/types";
 import { memoryFromPackage, modelForLanguage, packageRestorePoint, transcriptLanguage } from "../../lib/packages/resolve";
 import { transcriptText } from "../../lib/formFill/fillForm";
 import { parseForm } from "../../lib/forms";
@@ -40,7 +43,9 @@ import {
   isAudioItem,
   isFormItem,
   isJournalItem,
+  isNoteSpellItem,
   isPackageItem,
+  mergeNewNoteSpellItems,
   mergeNewPackageItems,
   mergeNewFormItems,
   mergeNewItems,
@@ -67,6 +72,25 @@ export function cleanEngineError(e: unknown): string {
   return (tail || raw).slice(0, 800);
 }
 
+/** Patronus's hands on media, shared by package and note-spell rows: transcribe with the
+ *  local engine (sidecar saved, live % on the row) and read existing transcripts. */
+function patronusMediaDeps(engine: TranscriptionEngine, store: Store, setStep: (s: string) => void): Pick<RunDeps, "transcribe" | "loadTranscript"> {
+  return {
+    transcribe: async (audioRef, language) => {
+      const label = language === "czech" ? "Czech" : "English";
+      const t = await engine.transcribe(audioRef, { model: modelForLanguage(language) }, (p) =>
+        setStep(`Transcribing · ${label} · ${Math.round((p.pct ?? 0) * 100)}%`),
+      );
+      await store.saveTranscript(audioRef, t);
+      return transcriptText(t);
+    },
+    loadTranscript: async (audioRef) => {
+      const t = await store.loadTranscript(audioRef);
+      return t ? { text: transcriptText(t), language: transcriptLanguage(t) } : null;
+    },
+  };
+}
+
 export interface UseProcessQueue {
   items: ProcessItem[]; // sorted by order
   playing: boolean;
@@ -90,9 +114,11 @@ export function useProcessQueue(opts: {
    *  a sync pull (these notes are only ever created locally), so the feed/search list
    *  must refresh from this directly or the new Memories stay invisible until restart. */
   onNotesCreated?: (noteIds: string[]) => void;
+  /** An awaited sync pull: a note spell runs it right before its one write. */
+  syncNow?: () => Promise<void>;
   enabled?: boolean; // desktop only
 }): UseProcessQueue {
-  const { engine, titleFor, onTranscribed, onNotesCreated, enabled = true } = opts;
+  const { engine, titleFor, onTranscribed, onNotesCreated, syncNow, enabled = true } = opts;
   const [items, setItems] = useState<ProcessItem[]>([]);
   const [playing, setPlaying] = useState(false);
   const [mode, setMode] = useState<QueueMode>("all");
@@ -167,22 +193,7 @@ export function useProcessQueue(opts: {
             fallbackInstruction: spellFor("form", template ? findPatronus(template.markdown)?.instruction : null),
             templateFields: template ? parseForm(template.markdown).fields : undefined,
           },
-          {
-            ask: askClaudeTauri,
-            transcribe: async (audioRef, language) => {
-              const label = language === "czech" ? "Czech" : "English";
-              const t = await engine.transcribe(audioRef, { model: modelForLanguage(language) }, (p) =>
-                setStep(`Transcribing · ${label} · ${Math.round((p.pct ?? 0) * 100)}%`),
-              );
-              await store.saveTranscript(audioRef, t);
-              return transcriptText(t);
-            },
-            loadTranscript: async (audioRef) => {
-              const t = await store.loadTranscript(audioRef);
-              return t ? { text: transcriptText(t), language: transcriptLanguage(t) } : null;
-            },
-            status: setStep,
-          },
+          { ask: askClaudeTauri, ...patronusMediaDeps(engine, store, setStep), status: setStep },
         );
         const now = Date.now();
         await store.save(memoryFromPackage(rm, res.markdown, now));
@@ -206,6 +217,46 @@ export function useProcessQueue(opts: {
       }
     },
     [engine, onTranscribed, onNotesCreated],
+  );
+
+  // ── one NOTE SPELL (PATRONUS-BLOCK): Patronus carries out the owner's instruction in a
+  // casual memory once; the job syncs + re-reads right before its single write (lib/patronus/
+  // noteSpell/job). A Mac problem marks the row but does NOT pause the queue: a bad spell
+  // never holds up transcriptions.
+  const runNoteSpellItem = useCallback(
+    async (ref: string, noteId: string) => {
+      log.info("patronus-note", "queue.start", { id: noteId });
+      const store = getStore();
+      const setStep = (step: string) => setItems((prev) => prev.map((i) => (i.ref === ref ? { ...i, step } : i)));
+      try {
+        const res = await runNoteSpellJob(noteId, {
+          load: (id) => store.load(id),
+          save: (n) => store.save(n),
+          loadTimeline: (id) => store.loadTimeline(id),
+          saveTimeline: (id, e) => store.saveTimeline(id, e),
+          ledger: storageLedger(localStorage),
+          refresh: syncNow,
+          ask: askClaudeVaultTauri,
+          ...patronusMediaDeps(engine, store, setStep),
+          status: setStep,
+        });
+        if (res.status !== "skipped" && res.status !== "discarded") {
+          reindex.request(noteId);
+          onNotesCreated?.([noteId]); // reload it if it's the open memory
+          onTranscribed?.(); // sync the result back to the phone
+        }
+        runningRef.current = null;
+        log.info("patronus-note", "queue.done", { id: noteId, status: res.status });
+        setItems((prev) => prev.filter((i) => i.ref !== ref));
+        if (modeRef.current === "one") setPlaying(false);
+      } catch (e) {
+        runningRef.current = null;
+        const msg = cleanEngineError(e);
+        log.error("patronus-note", "queue.error", { id: noteId, error: msg });
+        setItems((prev) => prev.map((i) => (i.ref === ref ? { ...i, error: true, errorMsg: msg, phase: null, step: undefined } : i)));
+      }
+    },
+    [engine, onTranscribed, onNotesCreated, syncNow],
   );
 
   // ── one phone form session: transcript(s) → one Claude call → answers written in as plain
@@ -266,6 +317,10 @@ export function useProcessQueue(opts: {
       void runPackageItem(next.ref);
       return;
     }
+    if (isNoteSpellItem(next)) {
+      void runNoteSpellItem(next.ref, next.noteId);
+      return;
+    }
 
     const { ref, noteId, model } = next;
     log.info("transcribe", "queue.start", { ref, model });
@@ -304,7 +359,7 @@ export function useProcessQueue(opts: {
         setItems((prev) => prev.map((i) => (i.ref === ref ? { ...i, error: true, errorMsg: msg, phase: null } : i)));
         setPlaying(false);
       });
-  }, [items, playing, enabled, engine, onTranscribed, runJournalItem, runFormItem, runPackageItem]);
+  }, [items, playing, enabled, engine, onTranscribed, runJournalItem, runFormItem, runPackageItem, runNoteSpellItem]);
 
   const togglePlay = useCallback(() => {
     setPlaying((p) => {
@@ -335,12 +390,14 @@ export function useProcessQueue(opts: {
     const foundBatches = await listUnprocessedRawBatches(store);
     const foundForms = await listFormsToFill(store);
     const foundPackages = await listPackagesToResolve(store);
+    const foundSpells = await listNoteSpellsToRun(store);
     const persisted = loadQueueState();
     setItems((prev) => {
       const withAudio = mergeNewItems(prev, found, DEFAULT_MODEL, persisted?.rows);
       const withJournal = mergeNewJournalItems(withAudio, foundBatches, persisted?.rows);
       const withForms = mergeNewFormItems(withJournal, foundForms, persisted?.rows);
-      return mergeNewPackageItems(withForms, foundPackages, persisted?.rows);
+      const withPackages = mergeNewPackageItems(withForms, foundPackages, persisted?.rows);
+      return mergeNewNoteSpellItems(withPackages, foundSpells, persisted?.rows);
     });
   }, [enabled, titleFor]);
   const refreshRef = useRef(refresh);

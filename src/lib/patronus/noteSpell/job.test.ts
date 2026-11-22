@@ -29,7 +29,7 @@ describe("listNoteSpellsToRun", () => {
 
   it("lists a hinted runnable spell; ignores a hint without a pending block", async () => {
     const v = fakeVault([note(BODY, HINT), { ...note("No block", HINT), id: "n2" }]);
-    expect(await listNoteSpellsToRun(v.store)).toEqual([{ noteId: "n1", title: "Morning" }]);
+    expect(await listNoteSpellsToRun(v.store)).toEqual([{ noteId: "n1", title: "Morning", audioRefs: [AUDIO] }]);
   });
 
   it("waits (not fails) while its media or spoken spell hasn't arrived", async () => {
