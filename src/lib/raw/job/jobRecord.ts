@@ -37,8 +37,10 @@ export function released(job: JobRecord): JobRecord {
   return { ...job, attempts: 0, setAside: false };
 }
 
+/** A new try starts. Its reason is "interrupted" until it ends otherwise: a real failure
+ *  overwrites it, success removes the record — so a crash at ANY point leaves the truth. */
 export function withAttempt(job: JobRecord): JobRecord {
-  return { ...job, attempts: job.attempts + 1 };
+  return { ...job, attempts: job.attempts + 1, lastError: INTERRUPTED };
 }
 
 export function withPage(job: JobRecord, ref: string, d: PageDescription): JobRecord {

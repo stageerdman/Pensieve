@@ -8,6 +8,7 @@ import { listUnprocessedRawBatches } from "../../queue";
 import { recoverInterrupted } from "../recover";
 import { jobStore } from "../jobRecord";
 import { runJournalJob, type JournalJobDeps } from "../runJournalJob";
+import { JobFailedError, JobSetAsideError } from "../errors";
 import type { VaultFiles } from "../vaultFiles";
 import { vaultStore } from "./vaultStore";
 
@@ -48,12 +49,19 @@ export function jobDeps(files: VaultFiles, describe = describePage): JournalJobD
   };
 }
 
-/** What one app start does: recover, scan, run every offered batch in order. */
+/** What one app start does: recover, scan, run every offered batch in order — except
+ *  set-aside ones, which the queue shows as error rows until the owner presses Run. A
+ *  batch failing (not a kill) doesn't stop the others, just like the real queue. */
 export async function appStart(files: VaultFiles, describe = describePage): Promise<void> {
   const deps = jobDeps(files, describe);
   await recoverInterrupted({ raws: vaultStore(files), files });
   const offered = await listUnprocessedRawBatches(vaultStore(files), jobStore(files));
-  for (const item of offered) await runJournalJob(item.id, deps);
+  for (const item of offered.filter((i) => !i.setAside)) {
+    await runJournalJob(item.id, deps).catch((e: unknown) => {
+      if (e instanceof JobFailedError || e instanceof JobSetAsideError) return;
+      throw e;
+    });
+  }
 }
 
 const VOLATILE = new Set(["updatedAt", "transcribedAt"]);

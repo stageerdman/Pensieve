@@ -14,14 +14,17 @@ async function cleanRun() {
   return { outputs: outputsOf(m.disk), writes: m.writesSoFar() - seeded };
 }
 
-/** Seed, then run app starts, killing the n-th write of each listed start. */
+/** Seed, then run app starts, killing the n-th write of each listed start. A late kill
+ *  point may never be reached (a recovery run near the end has little left to do) — then
+ *  that start simply finished, which is fine; any other error is a failure. */
 async function runWithKills(killPoints: number[]) {
   const disk = new Map<string, string>();
   await seedBatches(memoryFiles(disk).files);
   for (const k of killPoints) {
     const m = memoryFiles(disk); // a fresh process on the same disk
     m.killAtWrite(k);
-    await expect(appStart(m.files)).rejects.toBeInstanceOf(ProcessKilled);
+    const outcome = await appStart(m.files).then(() => "finished", (e: unknown) => e);
+    if (outcome !== "finished") expect(outcome).toBeInstanceOf(ProcessKilled);
   }
   await appStart(memoryFiles(disk).files); // the restart that's allowed to finish
   return disk;

@@ -31,4 +31,12 @@ describe("mergeNewJournalItems", () => {
     const prev: ProcessItem[] = [{ ref: "raw1", type: "journal", pageCount: 3, order: 1, pct: 0, phase: null, error: false }];
     expect(mergeNewJournalItems(prev, [{ id: "raw1", pageCount: 3 }])).toBe(prev);
   });
+
+  it("a set-aside batch arrives as an error row carrying the reason, so it never auto-runs", () => {
+    const [row] = mergeNewJournalItems([], [{ id: "raw1", pageCount: 3, setAside: "Set aside after 3 failed tries — boom" }]);
+    expect(row.error).toBe(true);
+    expect(row.errorMsg).toBe("Set aside after 3 failed tries — boom");
+    const [ok] = mergeNewJournalItems([], [{ id: "raw2", pageCount: 1 }]);
+    expect(ok.error).toBe(false);
+  });
 });
