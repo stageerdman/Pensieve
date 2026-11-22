@@ -102,16 +102,13 @@ function render(el: HTMLElement, ctx: SpellCtx) {
 
   el.append(head, words, status);
 
-  const notes = [...v.did, ...v.removed.map((ref) => `Moved to Trash: ${mediaName(ref)}`), ...(v.undoNote ? [v.undoNote] : [])];
-  if (notes.length) {
-    const list = document.createElement("ul");
-    list.className = "ph-spell-did";
-    for (const n of notes) {
-      const li = document.createElement("li");
-      li.textContent = n;
-      list.appendChild(li);
-    }
-    el.appendChild(list);
+  // What the computer did, then (if it refused an undo) why — shown as they come.
+  for (const [cls, text] of [["ph-spell-did", v.did], ["ph-spell-note", v.undoNote]] as const) {
+    if (!text) continue;
+    const p = document.createElement("p");
+    p.className = cls;
+    p.textContent = text;
+    el.appendChild(p);
   }
 
   if (v.action) {
@@ -123,7 +120,7 @@ function render(el: HTMLElement, ctx: SpellCtx) {
     wireMediaTap(btn, () => {
       const cur = readSpell(el);
       const next = v.action === "undo" ? requestUndo(cur) : retrySpell(cur);
-      log.info("patronus-note", v.action === "undo" ? "undo.requested" : "retry.requested", { from: cur.state, to: next.state });
+      log.info("patronus-note", v.action === "undo" ? "undo.requested" : "retry.requested", { from: cur.headers?.state, to: next.headers?.state });
       haptic(10);
       writeBody(el, next);
       render(el, ctx);
@@ -131,14 +128,6 @@ function render(el: HTMLElement, ctx: SpellCtx) {
     });
     el.appendChild(btn);
   }
-}
-
-/** A friendly name for a removed media ref: "Recording", "Photo", "Video", or the file. */
-export function mediaName(ref: string): string {
-  if (/\.(m4a|mp3|wav|aac|ogg|webm|caf)$/i.test(ref)) return "Recording";
-  if (/\.(jpe?g|png|heic|gif|webp)$/i.test(ref)) return "Photo";
-  if (/\.(mp4|mov|m4v)$/i.test(ref)) return "Video";
-  return ref.split("/").pop() ?? ref;
 }
 
 /** Insert a fresh, armed spell at the caret's block (or at the end) and put the keyboard in

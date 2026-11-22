@@ -34,10 +34,10 @@ describe("registry — conditional (page-recommended) rosters", () => {
     expect(hasConditional("home")).toBe(false);
   });
 
-  it("a note offers Photo + Gallery + Voice + Video + Delete (the last rides the danger hue)", () => {
+  it("a note offers Photo + Gallery + Voice + Video + Patronus + Delete (the last rides the danger hue)", () => {
     const note = conditionalSpells("note");
-    expect(note.map((s) => s.id)).toEqual(["image", "gallery", "record", "clip", "delete"]);
-    expect(note.map((s) => s.name)).toEqual(["Photo", "Gallery", "Voice", "Video", "Delete"]);
+    expect(note.map((s) => s.id)).toEqual(["image", "gallery", "record", "clip", "patronus", "delete"]);
+    expect(note.map((s) => s.name)).toEqual(["Photo", "Gallery", "Voice", "Video", "Patronus", "Delete"]);
     expect(note.find((s) => s.id === "delete")!.hue).toBe("danger");
     expect(isScroll(note.length)).toBe(false); // a clean static ring
     expect(hasConditional("note")).toBe(true);

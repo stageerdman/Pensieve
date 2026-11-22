@@ -42,7 +42,8 @@ and to take it back if they don't like the result.
 | Block state | Orb | Status line | Instruction | Action |
 |---|---|---|---|---|
 | `pending` (armed) | still, dimmed | "Waits for the computer" | editable | — |
-| `done` (cast) | breathing | "Cast · 22 Nov, 14:05" + each `did:` line; "Moved to Trash: …" per `removed:`; the `undo:` note if the Mac refused an undo | read-only | **Undo** (hidden if an undo was refused) |
+| `done` (cast) | breathing | "Cast · 22 Nov, 14:05" + the one `did:` line, shown as it comes (the Mac names removed media in it) | read-only | **Undo** |
+| `done` + `error:` (undo refused) | breathing | "Cast · …" + `did:` + the reason (e.g. "You edited it since. Undo from Timeline on the computer.") | read-only | — |
 | `failed` (fizzled) | danger, still | "Fizzled — <error>" | editable (fix the words) | **Try again** |
 | `undo` | still, dimmed | "Undo waits for the computer" | read-only | — |
 | `undone` | none (muted) | "Undone" | read-only, muted | — |
@@ -50,13 +51,16 @@ and to take it back if they don't like the result.
 
 Transitions written by the phone (Uncle Bob's contract):
 new → `pending` · Try again: `failed` → `pending`, `error` cleared, `run` kept ·
-Undo: `done` → `undo`. The frontmatter hint `patronus: pending` is derived from the body
-on every save: present iff some block is `pending` or `undo`; never added to a memory
-without one, so every other memory's bytes are unchanged.
+Undo: `done` → `undo`. The phone never writes `running`. The Mac answers an undo with
+`undone`, or with `done` + `error:` when it refuses. The frontmatter hint `patronus: pending`
+or `patronus: undo` is derived from the body on every save. It is present only while some
+block is `pending` (with words or a voice line) or `undo`, and is never added to a memory
+without one, so every other memory's bytes are unchanged. Header keys are exactly `state`,
+`voice`, `run`, `ran`, `did` and `error` (the shared codec in `src/lib/packages/patronus.ts`).
 
 ## Details
-- Empty instruction: placeholder "Tell Patronus what to do. Write or dictate." An empty
-  pending block is never runnable, so a stray tap costs nothing.
+- Empty instruction: placeholder "Tell Patronus what to do. Write or dictate." A blank
+  pending block sets no hint, so a stray tap costs nothing.
 - The field grows with its text (no inner scroll). Tap targets ≥ 44px for the buttons.
 - The block is `contentEditable=false` like every block; the field is a real `<textarea>`
   so the iOS keyboard, dictation, autocorrect and VoiceOver all work natively.

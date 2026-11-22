@@ -287,7 +287,12 @@ Optimistic concurrency, built on the existing `castSpell` pattern:
 - [ ] Phase 1 — shared block format.
 - [ ] Phase 2 — Mac note-spell engine.
 - [ ] Phase 3 — queue, run-once, conflict-safe write.
-- [ ] Phase 4 — phone authoring (typed).
-- [ ] Phase 5 — spoken commands.
-- [ ] Phase 6 — undo.
+- [x] Phase 4 — phone authoring (typed), 2026-11-22, built, not deployed. Spell Menu →
+  Patronus in a memory; states pending / done / failed / undo / undone; Try again; Undo.
+  Design + cuts: `phone-block-spec.md`. Deploy (`npm run deploy:phone`) waits for the
+  merge to `main`.
+- [ ] Phase 5 — spoken commands. Phone: done by design via keyboard dictation in the
+  spell's field (no separate recorder, see spec). `voice:` is carried verbatim. Mac part open.
+- [ ] Phase 6 — undo. Phone side done (`done` → `undo`, shows `undone` and a refused
+  undo's reason). Mac part open.
 - [ ] Phase 7 — end-to-end + ship.

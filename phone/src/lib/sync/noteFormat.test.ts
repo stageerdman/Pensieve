@@ -152,6 +152,25 @@ describe("Note <-> remote content", () => {
     expect(parseFrontmatter(pushed).fields.extra).toEqual({ form: "true", fromForm: "t-1" });
   });
 
+  it("a note spell waiting for the computer adds `patronus: pending`; once cast it goes, other keys stay", () => {
+    const fm = (extra: Record<string, string>) => ({ categories: [], tags: [], links: [], pinned: false, iconColor: "blue", extra });
+    const spell = (state: string) => "```pensieve:patronus\nspell: sync\nstate: " + state + "\nSummarise\n```";
+    const armed = noteToRemoteContent({ ...BASE, c: `Walk.\n\n${spell("pending")}`, foreign: fm({ mood: "ok" }) });
+    expect(parseFrontmatter(armed).fields.extra).toEqual({ mood: "ok", patronus: "pending" });
+    const cast = noteToRemoteContent({ ...BASE, c: `Walk.\n\n${spell("done")}`, foreign: fm({ mood: "ok", patronus: "pending" }) });
+    expect(parseFrontmatter(cast).fields.extra).toEqual({ mood: "ok" });
+  });
+
+  it("a note without a spell (or with a form's Patronus block) saves exactly as before — no hint", () => {
+    const form: Note = {
+      ...BASE,
+      c: "Q?\n\n```pensieve:patronus\nspell: sync\nFill it in.\n```",
+      foreign: { categories: [], tags: [], links: [], pinned: false, iconColor: "blue", extra: { form: "true" } },
+    };
+    expect(noteToRemoteContent(form)).not.toContain("patronus:");
+    expect(noteToRemoteContent(BASE)).not.toContain("patronus:");
+  });
+
   it("every phone note carries its flask icon in frontmatter (the Wand has no 'no icon' state)", () => {
     const content = noteToRemoteContent(BASE);
     expect(content).toContain("icon: vial/blue");

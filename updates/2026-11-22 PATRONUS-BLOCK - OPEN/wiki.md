@@ -17,6 +17,17 @@
 - **"Remove media" = unlink.** Media bytes are never deleted anywhere today (sync never
   deletes them, and `removeMedia` is explicit-only). Undo is a Timeline restore
   (`before-patronus`). Real byte deletion is out of scope.
+- **Phone ↔ Mac contract (agreed 2026-11-22).** Header keys are exactly `state voice run
+  ran did error`. The phone writes `pending` (new spell, or Try again: `error` dropped,
+  `run` kept) and `undo` (from `done`), and never writes `running`. The Mac answers an
+  undo with `undone`, or with `done` + `error:` when it refuses. `did:` is one line and
+  the phone shows it verbatim. Hint: `patronus: pending|undo`, derived from the body on
+  every phone save; a blank pending spell sets none.
+- **Phone spoken spells = keyboard dictation** in the spell's `<textarea>`, not a hidden
+  recording. The owner can read and fix the words before the spell is cast.
+- **The phone code never parses fence text itself.** It goes through `src/lib/packages/
+  patronus.ts`, and it imports only *types* from `src/lib/patronus/noteSpell/block.ts`
+  (that module pulls in desktop code).
 
 ## Gotchas found while researching
 - `parsePatronus` treats everything after the `spell:` line as the instruction. Without

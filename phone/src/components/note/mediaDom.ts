@@ -43,7 +43,7 @@ import { _debugRegistrySize, discardController, fmtTime, getController } from ".
 import { repairStoredAudio } from "../../lib/media/audioRepair";
 import { log } from "../../lib/logger";
 import { phoneTranscriptReader } from "../../lib/media/transcriptReaderController";
-import { blurActive, wireMediaTap } from "./tapDom";
+import { wireMediaTap } from "./tapDom";
 import { buildNoteSpellEl } from "./patronusSpellDom";
 import { isNoteSpell } from "../../lib/patronus/noteSpell";
 
