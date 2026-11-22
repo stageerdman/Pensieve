@@ -172,15 +172,14 @@ describe("Gallery — working set", () => {
     expect(within(strip).getByText("Alpha")).toBeInTheDocument();
   });
 
-  it("during Accio hides the strip and merges the working-set memory into the grid", () => {
+  it("during Accio hides the strip and lists the working-set memory among the results", () => {
     renderGallery([note({ id: "a", title: "Alpha", createdAt: NOW })], {
       state: { ...DEFAULT_GALLERY_STATE, workingSet: ["a"] },
       searchActive: true,
     });
-    // No strip while summoning; the bottle now lives in the normal grid instead.
     expect(screen.queryByRole("list", { name: /working set/i })).not.toBeInTheDocument();
-    const grid = screen.getAllByRole("region")[1]; // a date section, not the strip
-    expect(within(grid).getByText("Alpha")).toBeInTheDocument();
+    const results = screen.getByRole("list", { name: "Search results, 1" });
+    expect(within(results).getByText("Alpha")).toBeInTheDocument();
   });
 
   it("reorders the strip when a card is dragged past another", () => {
@@ -220,6 +219,55 @@ describe("Gallery — working set", () => {
   });
 });
 
+describe("Gallery — search results", () => {
+  const notes = [
+    note({ id: "best", title: "Garden plan", createdAt: NOW - 400 * DAY, categories: ["Idea"] }),
+    note({ id: "next", title: "Today", createdAt: NOW, excerpt: "the garden gate" }),
+  ];
+  const match = new Map([
+    ["best", { id: "best", where: "title" as const, snippet: null, rank: 0 }],
+    ["next", { id: "next", where: "text" as const, snippet: { text: "the garden gate", marks: [[4, 10]] as [number, number][] }, rank: 0 }],
+  ]);
+
+  it("drops the date rail and keeps the search's order (best first, never re-sorted by date)", () => {
+    renderGallery(notes, { searchActive: true, match, queryText: "garden" });
+    expect(screen.getAllByRole("region")).toHaveLength(1); // only the gallery — no date sections
+    const results = screen.getByRole("list", { name: "Search results, 2" });
+    const rows = within(results).getAllByRole("listitem");
+    expect(rows[0]).toHaveTextContent("Garden plan");
+    expect(rows[1]).toHaveTextContent("Today");
+  });
+
+  it("lights the matched words in the title and the snippet, with a quiet type · date line", () => {
+    renderGallery(notes, { searchActive: true, match, queryText: "garden" });
+    const marks = document.querySelectorAll("mark");
+    expect([...marks].map((m) => m.textContent)).toEqual(["Garden", "garden"]);
+    expect(screen.getByText(/^Idea · /)).toBeInTheDocument();
+  });
+
+  it("Enter opens a result, 'w' adds it to the working set (same keys as a card)", () => {
+    const { props } = renderGallery(notes, { searchActive: true, match, queryText: "garden" });
+    const row = screen.getByRole("button", { name: /Garden plan/ });
+    fireEvent.keyDown(row, { key: "Enter" });
+    expect(props.onOpen).toHaveBeenCalledWith("best", false);
+    fireEvent.keyDown(row, { key: "w" });
+    expect(props.onToggleWorkingSet).toHaveBeenCalledWith("best");
+  });
+
+  it("no results: the summons empty state", () => {
+    renderGallery([], { searchActive: true, match: new Map(), queryText: "zzz" });
+    expect(screen.getByText("No thoughts answer that summons")).toBeInTheDocument();
+    expect(screen.getByText(/press Esc to see everything/)).toBeInTheDocument();
+  });
+
+  it("clearing the search brings the timeline back", () => {
+    const { rerender, props } = renderGallery(notes, { searchActive: true, match, queryText: "garden" });
+    rerender(<Gallery {...props} searchActive={false} match={undefined} queryText="" />);
+    expect(screen.queryByRole("list", { name: /search results/i })).toBeNull();
+    expect(screen.getAllByRole("region").slice(1)[0].getAttribute("aria-label")).toBe("Today");
+  });
+});
+
 describe("Gallery — starred", () => {
   it("a starred memory glows (gold halo) and says so to screen readers; others don't", () => {
     renderGallery([
@@ -255,20 +303,10 @@ describe("Gallery — starred", () => {
     expect(unstar).toHaveAttribute("aria-checked", "true");
   });
 
-  it("during a text search, starred matches lead in a 'Starred' section above the date buckets", () => {
-    const notes = [
-      note({ id: "fresh", title: "Focus today", createdAt: NOW, updatedAt: NOW }),
-      note({ id: "old", title: "Focus long ago", createdAt: NOW - 400 * DAY, updatedAt: NOW - 400 * DAY, starred: true }),
-    ];
-    const match = new Map([
-      ["fresh", { id: "fresh", where: "title" as const, snippet: null, rank: 0 }],
-      ["old", { id: "old", where: "title" as const, snippet: null, rank: 0 }],
-    ]);
-    renderGallery(notes, { searchActive: true, match });
-    const sections = screen.getAllByRole("region").slice(1);
-    expect(sections[0].getAttribute("aria-label")).toBe("Starred");
-    expect(within(sections[0]).getByText("Focus long ago")).toBeInTheDocument();
-    expect(sections[1].getAttribute("aria-label")).toBe("Today");
+  it("a starred search result keeps its halo and says so", () => {
+    renderGallery([note({ id: "s", title: "Bright", createdAt: NOW, starred: true })], { searchActive: true });
+    const row = screen.getByRole("button", { name: /Bright, starred/ });
+    expect(within(row).getByTestId("star-halo")).toBeInTheDocument();
   });
 
   it("at rest (no search) a starred memory stays in its date group — no Starred section", () => {

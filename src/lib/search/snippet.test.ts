@@ -1,5 +1,26 @@
 import { describe, it, expect } from "vitest";
-import { makeSnippet } from "./snippet";
+import { makeSnippet, markTerms } from "./snippet";
+
+describe("markTerms", () => {
+  it("marks every matched term in a title, case-insensitively", () => {
+    expect(markTerms("Garden plan for the garden", "garden")).toEqual({
+      text: "Garden plan for the garden",
+      marks: [
+        [0, 6],
+        [20, 26],
+      ],
+    });
+  });
+
+  it("merges overlapping terms into one mark", () => {
+    expect(markTerms("Summon spell", "sum summon").marks).toEqual([[0, 6]]);
+  });
+
+  it("no query or no match → no marks", () => {
+    expect(markTerms("Garden", "").marks).toEqual([]);
+    expect(markTerms("Garden", "kitchen").marks).toEqual([]);
+  });
+});
 
 const body =
   "The pensieve metaphor is the whole product: pour it out so your head is clear, " +

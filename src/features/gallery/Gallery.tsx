@@ -4,14 +4,13 @@ import type { SearchResult } from "../../lib/search/search";
 import type { CategoryDef } from "../../lib/categories/defs";
 import type { GalleryState } from "../../lib/gallery/view";
 import { bucketize } from "../../lib/gallery/buckets";
-import { searchSections, STARRED_SECTION_KEY } from "../../lib/gallery/searchSections";
-import { log } from "../../lib/logger";
 import { FlaskFor } from "../../components/Flask";
 import { FlaskCard, type MenuAnchor, type PeekTarget } from "./FlaskCard";
 import { WorkingSetStrip } from "./WorkingSetStrip";
 import { PreviewPortal } from "./PreviewPortal";
 import { CardContextMenu, type CardMenuTarget } from "./CardContextMenu";
 import { TranscriptJumpLines } from "./TranscriptJumpLines";
+import { SearchResults } from "./SearchResults";
 import type { TranscriptJump } from "../../hooks/useTranscriptHits";
 import { resolveMediaUrl } from "../../lib/media/url";
 import { transcriptPane } from "../../components/audio/transcriptController";
@@ -19,8 +18,6 @@ import { useGalleryWindow } from "../../hooks/useGalleryWindow";
 
 // Stable module-level helpers for the window hook (its memos key off their identity).
 const byCreated = (n: NoteMeta) => n.createdAt;
-const byUpdated = (n: NoteMeta) => n.updatedAt;
-const isStarredLead = (key: string) => key === STARRED_SECTION_KEY;
 
 // Home: the memories as large flasks grouped by creation date (Apple-Photos style, newest
 // on top). Only the recent past is mounted at rest — the last week, at least a screenful —
@@ -39,8 +36,11 @@ interface GalleryProps {
   match?: Map<string, SearchResult>;
   /** Per-note spoken-word matches (Accio transcript-hit jump-lines) when a query is active. */
   transcriptJumps?: Map<string, TranscriptJump[]>;
-  /** True when a summon query is narrowing the gallery — changes the empty state. */
+  /** True when a summon query is narrowing the gallery: the timeline gives way to a flat,
+   *  best-first result list (design/search-results.md). */
   searchActive?: boolean;
+  /** The live free text, for lighting matched terms in result titles. */
+  queryText?: string;
   theme: "light" | "dark";
   onOpen: (id: string, background: boolean) => void;
   onToggleWorkingSet: (id: string) => void;
@@ -58,6 +58,7 @@ export function Gallery({
   match,
   transcriptJumps,
   searchActive,
+  queryText = "",
   theme,
   onOpen,
   onToggleWorkingSet,
@@ -77,34 +78,25 @@ export function Gallery({
     if (!url) return;
     transcriptPane.open({ src: url, playerKey: jump.ref, transcript: jump.transcript, seekTo: jump.time });
   };
-  // While an Accio query is active we hide the working-set strip and let ALL matching
-  // bottles share one normal grid — ordered by "when I last worked with them" (updatedAt),
-  // most recent on top. At rest (no query) the strip rides above and its memories are
-  // hidden from the grid below (it's their only home while pinned), grouped by creation.
-  // Starred memories that answer the free text lead the search in their own "Starred"
-  // section (lib/gallery/searchSections.ts); the rest keep their date buckets.
+  // While an Accio query is active the timeline steps aside: no working-set strip, no date
+  // rail — one flat list in the order the search returned (best first; <SearchResults>).
+  // At rest the strip rides above and its memories are hidden from the date-grouped grid
+  // below (it's their only home while pinned).
   const hideWorkingSet = !!searchActive;
   const sections = useMemo(
-    () =>
-      hideWorkingSet
-        ? searchSections(notes, match, now)
-        : bucketize(notes.filter((n) => !wsSet.has(n.id)), now, "created"),
-    [notes, match, wsSet, now, hideWorkingSet],
+    () => (hideWorkingSet ? [] : bucketize(notes.filter((n) => !wsSet.has(n.id)), now, "created")),
+    [notes, wsSet, now, hideWorkingSet],
   );
-  const lifted = sections[0]?.key === STARRED_SECTION_KEY ? sections[0].notes.length : 0;
-  useEffect(() => {
-    if (hideWorkingSet) log.debug("gallery", "search.starredLift", { lifted, results: notes.length });
-  }, [hideWorkingSet, lifted, notes.length]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const win = useGalleryWindow({
     sections,
-    tsOf: hideWorkingSet ? byUpdated : byCreated,
-    keepWhole: isStarredLead,
-    // A new search (or leaving one) starts over from the recent week.
-    resetKey: hideWorkingSet ? match : "home",
+    tsOf: byCreated,
+    // Coming back from a search starts Home over from the recent week.
+    resetKey: hideWorkingSet ? "search" : "home",
     now,
     rootRef: scrollRef,
   });
+  const empty = hideWorkingSet ? notes.length === 0 : sections.length === 0;
 
   const [altHeld, setAltHeld] = useState(false);
   const [hovered, setHovered] = useState<PeekTarget | null>(null);
@@ -223,13 +215,31 @@ export function Gallery({
           />
         )}
 
-        {sections.length === 0 ? (
+        {empty ? (
           <Empty searchActive={searchActive} />
+        ) : hideWorkingSet ? (
+          // Keyed by mode so the view gently fades when a summon is cast or cleared; within
+          // a search, keystrokes update the list in place (same key → no fade, no jump).
+          <div key="accio" className="accio-answer-in">
+            <SearchResults
+              notes={notes}
+              match={match}
+              transcriptJumps={transcriptJumps}
+              queryText={queryText}
+              now={now}
+              rootRef={scrollRef}
+              onOpen={onOpen}
+              onJump={(id, j) => void openJump(id, j)}
+              onContextMenu={openContextMenu}
+              onHoverChange={setHovered}
+              onPeekToggle={onPeekToggle}
+              onToggleWorkingSet={onToggleWorkingSet}
+              onToggleStar={onToggleStar}
+            />
+          </div>
         ) : (
-          // Keyed by mode so the grid gently fades when a summon is cast or cleared —
-          // the strip→grid merge reads as the view settling, not a flicker.
           <div
-            key={hideWorkingSet ? "accio" : "home"}
+            key="home"
             className="accio-answer-in grid grid-cols-[80px_minmax(0,1fr)] gap-y-10"
           >
             {win.sections.map((s) => {
@@ -265,7 +275,6 @@ export function Gallery({
                                 categoryDefs={categoryDefs}
                                 now={now}
                                 inWorkingSet={wsSet.has(n.id)}
-                                searchMatch={match?.get(n.id)}
                                 onOpen={onOpen}
                                 onContextMenu={openContextMenu}
                                 onHoverChange={setHovered}
@@ -325,7 +334,7 @@ function Empty({ searchActive }: { searchActive?: boolean }) {
         {searchActive ? "No thoughts answer that summons" : "No memories yet"}
       </p>
       <p className="text-sm text-text-muted">
-        {searchActive ? "Try fewer filters, or press Esc to recall them all." : "Capture your first thought."}
+        {searchActive ? "Try fewer words, or press Esc to see everything." : "Capture your first thought."}
       </p>
     </div>
   );

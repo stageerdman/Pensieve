@@ -497,6 +497,7 @@ export default function App() {
                 match={summon.match}
                 transcriptJumps={transcriptJumps}
                 searchActive={summon.active}
+                queryText={summon.liveText}
                 theme={theme}
                 onOpen={openNote}
                 onToggleWorkingSet={gallery.toggleWorkingSet}
