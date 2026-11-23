@@ -206,12 +206,16 @@ describe("parseQuery — flags & free text", () => {
     expect(r.suggestions.filter((s) => s.filter.kind === "date" || s.filter.kind === "tag")).toHaveLength(0);
   });
 
-  it("'fo' / 'form' / 'Forms' offer the Form type filter", () => {
-    for (const q of ["fo", "form", "Forms"]) {
+  it("'form' / 'Forms' offer the Form type filter", () => {
+    for (const q of ["form", "Forms", "FORM"]) {
       const s = parse(q).suggestions.find((x) => x.filter.kind === "form");
       expect(s, q).toMatchObject({ label: "Form", hint: "type", query: "form", source: [0, q.length] });
     }
     expect(kinds("formula")).not.toContain("form");
+  });
+
+  it("'fo' / 'for' / 'food' never offer Form ('plan for' + Enter must stay a word search)", () => {
+    for (const q of ["fo", "for", "plan for", "food", "focus"]) expect(kinds(q), q).not.toContain("form");
   });
 
   it("the Form suggestion never eats the text: 'form' still ranks as a word until picked", () => {

@@ -19,6 +19,14 @@ export function isFormTemplate(extra: Extra): boolean {
   return extra?.[FORM_KEY] === "true";
 }
 
+/** Does a typed search word ask for the Form filter? Only "form"/"forms" (any case) — not
+ *  "fo"/"for", which would turn "plan for" + Enter into a Form search and make the chip
+ *  flicker while typing "food" or "focus". One rule for the desktop grammar and the phone. */
+export function isFormWord(word: string): boolean {
+  const w = word.toLowerCase();
+  return w === "form" || w === "forms";
+}
+
 export function fromFormId(extra: Extra): string | undefined {
   const v = extra?.[FROM_FORM_KEY]?.trim();
   return v ? v : undefined;

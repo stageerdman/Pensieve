@@ -59,15 +59,15 @@ describe("passesForm", () => {
 });
 
 describe("formSuggestion", () => {
-  it("offers the filter for fo/form/forms as the last word", () => {
-    expect(formSuggestion("fo")).toBe("form: ");
+  it("offers the filter for form/forms as the last word", () => {
     expect(formSuggestion("Form")).toBe("form: ");
     expect(formSuggestion("forms")).toBe("form: ");
-    expect(formSuggestion("daily for")).toBe("form: daily ");
+    expect(formSuggestion("daily form")).toBe("form: daily ");
   });
   it("stays quiet otherwise", () => {
     expect(formSuggestion("")).toBeNull();
     expect(formSuggestion("f")).toBeNull();
+    for (const q of ["fo", "for", "plan for", "food", "focus"]) expect(formSuggestion(q), q).toBeNull();
     expect(formSuggestion("format")).toBeNull();
     expect(formSuggestion("form ")).toBeNull(); // moved on to the next word
     expect(formSuggestion("form: fo")).toBeNull(); // already filtering

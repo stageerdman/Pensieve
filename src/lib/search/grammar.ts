@@ -10,6 +10,7 @@
 import { FLAG_KINDS, type Filter } from "./types";
 import { resolveDatePhrase, DATE_PHRASES } from "./dates";
 import { normTag } from "./evaluate";
+import { isFormWord } from "../forms/meta";
 
 /** Context the parser needs: the vocabulary in use (for tag + category matching). */
 export interface ParseContext {
@@ -311,10 +312,9 @@ function fieldLead(sub: string): { field: "created" | "updated"; rest: string; l
   return { field: name, rest, labelPrefix: `${name} ` };
 }
 
-/** "fo", "form", "forms" → the Form type filter. Offered for the whole word too, because it is
- *  never a claim: "form" stays in the live text (it is an ordinary word the ranker searches)
- *  until the owner picks the suggestion, which splices just that word out. */
-const FORM_WORD = "forms";
+/** "form", "forms" (isFormWord) → the Form type filter. Never a claim: "form" stays in the live
+ *  text (it is an ordinary word the ranker searches) until the owner picks the suggestion,
+ *  which splices just that word out. */
 const FORM_SUGGESTION: Suggestion = { key: "type:form", filter: { kind: "form" }, label: "Form", query: "form", hint: "type" };
 
 /** Completions for a single normalized fragment. */
@@ -323,7 +323,7 @@ function completionsFor(sub: string, now: number): Suggestion[] {
   for (const flag of FLAG_KINDS)
     if (flag.startsWith(sub) && flag !== sub)
       out.push({ key: `comp:${flag}`, filter: { kind: "flag", flag }, label: flag, hint: "flag" });
-  if (FORM_WORD.startsWith(sub)) out.push(FORM_SUGGESTION);
+  if (isFormWord(sub)) out.push(FORM_SUGGESTION);
 
   const lead = fieldLead(sub);
   if (lead) out.push(...datePhraseCompletions(lead.rest, lead.field, lead.labelPrefix, now));

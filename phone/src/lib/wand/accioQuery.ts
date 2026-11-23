@@ -5,7 +5,7 @@
 // own or alongside text ("lighthouse yesterday") — the date words are stripped from
 // the text before matching so they never fight the word search (or the highlight).
 
-import { isFormTemplate } from "../../../../src/lib/forms/meta";
+import { isFormTemplate, isFormWord } from "../../../../src/lib/forms/meta";
 
 /** Minimal shape a note needs for date filtering: a stable `created` date label
  *  (falls back to the live `.d` label) and an id (for "recent" = recently opened). */
@@ -79,16 +79,15 @@ export function passesForm(d: FormFilterable, form: boolean): boolean {
   return !form || isFormTemplate(d.foreign?.extra);
 }
 
-/** The "Form" suggestion while typing: when the last word (2+ letters) starts the word
- *  "forms" and no form filter is on yet, returns the query to switch to — that word
+/** The "Form" suggestion while typing: when the last word is "form"/"forms" (isFormWord)
+ *  and no form filter is on yet, returns the query to switch to — that word
  *  replaced by the "form:" filter at the front. Otherwise null (no suggestion). */
 export function formSuggestion(query: string): string | null {
   const q = query || "";
   if (parseQuery(q).form) return null;
   const m = /(^|\s)(\S+)$/.exec(q);
   if (!m) return null;
-  const word = m[2].toLowerCase();
-  if (word.length < 2 || !"forms".startsWith(word)) return null;
+  if (!isFormWord(m[2])) return null;
   const rest = q.slice(0, q.length - m[2].length).trim();
   return rest ? `form: ${rest} ` : "form: ";
 }
