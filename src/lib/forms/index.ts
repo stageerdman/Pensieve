@@ -5,3 +5,5 @@ export * from "./fences";
 export * from "./parse";
 export * from "./answers";
 export * from "./start";
+export * from "./inherit";
+export * from "./look";

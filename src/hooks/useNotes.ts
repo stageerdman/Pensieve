@@ -4,7 +4,7 @@ import { getStore } from "../lib/store";
 import { wordCount } from "../lib/text";
 import { makeEntry, truncateAfter, IDLE_MS } from "../lib/timeline";
 import { log } from "../lib/logger";
-import { FROM_FORM_KEY, memoryFromForm, withExtra } from "../lib/forms";
+import { FROM_FORM_KEY, inheritLabels, memoryFromForm, withExtra } from "../lib/forms";
 import { metaFromNote, newestNote, upsertMeta } from "../lib/store/noteMeta";
 
 export type SaveStatus = "idle" | "saving" | "saved";
@@ -269,8 +269,8 @@ export function useNotes() {
   );
 
   // Start the open (empty) memory from a form: write the form's questions in (blank, dated
-  // title, charms left out) and remember which form it came from (`fromForm`, so its charm
-  // buttons can find their prompts later). Same out-of-band body swap as a Restore: cancel
+  // title, charms left out), add the form's categories + tags, and remember which form it came
+  // from (`fromForm`, so its charm buttons can find their prompts later). Same out-of-band body swap as a Restore: cancel
   // queued saves, remount the Editor via loadEpoch, persist, baseline a fresh session.
   const startFromForm = useCallback(
     async (templateId: string) => {
@@ -281,11 +281,14 @@ export function useNotes() {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       if (idleTimer.current) clearTimeout(idleTimer.current);
       session.current = null;
-      const next: Note = {
-        ...note,
-        markdown: memoryFromForm(template.markdown, new Date()),
-        extra: withExtra(note.extra, FROM_FORM_KEY, templateId),
-      };
+      const next: Note = inheritLabels(
+        {
+          ...note,
+          markdown: memoryFromForm(template.markdown, new Date()),
+          extra: withExtra(note.extra, FROM_FORM_KEY, templateId),
+        },
+        template,
+      );
       setCurrent(next);
       currentRef.current = next;
       setLoadEpoch((n) => n + 1);

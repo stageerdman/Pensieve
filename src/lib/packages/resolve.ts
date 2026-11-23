@@ -1,15 +1,25 @@
 // resolve.ts — what a resolved form package BECOMES: a normal memory with the SAME id (its
 // media/<id>/ files are already in place), the resolved body, its original capture time,
-// and `fromForm` so its charms + "Redo with AI…" keep working. Pure.
+// `fromForm` so its charms + "Redo with AI…" keep working, and the form's categories + tags.
+// Pure.
 
-import { FROM_FORM_KEY } from "../forms";
+import { FROM_FORM_KEY, inheritLabels, type Labels } from "../forms";
 import type { Note, RawMemory, TimelineEntry } from "../types";
 import type { Transcript } from "../transcripts/types";
 import type { TranscriptionModel } from "../transcripts/models";
 import type { Language } from "./protocol";
 import { withoutPatronus } from "./patronus";
 
-export function memoryFromPackage(rm: RawMemory, resolvedMarkdown: string, now = Date.now()): Note {
+export function memoryFromPackage(
+  rm: RawMemory,
+  resolvedMarkdown: string,
+  now = Date.now(),
+  template?: Partial<Labels> | null,
+): Note {
+  return inheritLabels(bareMemory(rm, resolvedMarkdown, now), template ?? {});
+}
+
+function bareMemory(rm: RawMemory, resolvedMarkdown: string, now: number): Note {
   return {
     id: rm.id,
     title: "",

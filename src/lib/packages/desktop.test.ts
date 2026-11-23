@@ -43,6 +43,12 @@ describe("packages on the desktop", () => {
     expect(packageRestorePoint(pkg, 999)).toEqual({ ts: 998, wordDelta: 0, markdown: BODY, label: "before-ai" });
   });
 
+  it("the resolved memory carries its form's categories and tags (and none when the form is gone)", () => {
+    const m = memoryFromPackage(pkg, BODY, 999, { categories: ["Journal"], tags: ["daily"] });
+    expect(m).toMatchObject({ categories: ["Journal"], tags: ["daily"], extra: { fromForm: "f1" } });
+    expect(memoryFromPackage(pkg, BODY, 999, null)).toMatchObject({ categories: [], tags: [] });
+  });
+
   it("sync downloads pages AND package media; transcript language is read from its model", () => {
     expect(recordMediaRefs(pkg)).toEqual(["media/p1/a.wav"]);
     expect(recordMediaRefs(journal)).toEqual(["media/j1/p.jpg"]);

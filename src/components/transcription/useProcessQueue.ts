@@ -195,7 +195,7 @@ export function useProcessQueue(opts: {
           { ask: askClaudeTauri, ...patronusMediaDeps(engine, store, setStep), status: setStep },
         );
         const now = Date.now();
-        await store.save(memoryFromPackage(rm, res.markdown, now));
+        await store.save(memoryFromPackage(rm, res.markdown, now, template));
         await store.saveTimeline(ref, [packageRestorePoint(rm, now)]);
         await store.removeRawMemory(ref); // the memory now owns media/<id>/ — kept
         reindex.request(ref);
