@@ -55,9 +55,26 @@ suggestion never consumes the typed text, so the word "form" still ranks as free
 only forms; start a memory from a categorised form and see the categories). Rebuild the Mac
 app (`npm run tauri:build`); `deploy:phone` only if `phone/` changed.
 
+## Adjustable form look (added by the owner mid-update)
+A form should look like a flask / have its own colour, adjustable per form. **No new data is
+needed:** every memory already stores a flask icon (frontmatter `icon`: shape + colour +
+vibrancy + shine) and the FlaskPicker edits it. `lib/forms/look.ts` → `formLook(note)` returns
+`{ isForm, icon }`, where a form with no chosen icon gets `FORM_DEFAULT_ICON` (round-bottom,
+purple) instead of the gray vial. Jony builds the glow/look on top (P3).
+
+## API for the UI (P3)
+- `formLook(note)` / `FORM_DEFAULT_ICON` / `isFormTemplate(extra)` — from `lib/forms`.
+- Summon: suggestions with `filter.kind === "form"` (`hint: "type"`, label "Form") appear in
+  `useSummon().suggestions` for "fo"/"form"/"forms"; `confirm(s)` stacks the chip;
+  `addFilter({ kind: "form" })` adds it directly; `filterLabel` gives "Form".
+- `FilterEditPopover` has no body for the form chip yet (one line, like the flag chip).
+
 ## Live status
 - [x] Roadmap
-- [ ] P1 labels inherited
-- [ ] P2 Form filter in search
+- [x] P1 labels inherited (`inherit.test.ts`, `desktop.test.ts`)
+- [x] P2 Form filter in search (`grammar.test.ts`, `search.test.ts`; ranking suite green).
+  Note: `npm run bench` misses its 30 ms budget on random queries on this (busy) machine —
+  the untouched base commit misses it too; the no-chip search path is unchanged. Four sync
+  media / phone Reel tests time out on the base commit as well (pre-existing).
 - [ ] P3 UI (Jony)
 - [ ] P4 verify + ship
