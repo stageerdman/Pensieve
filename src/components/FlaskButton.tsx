@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { SHAPE_LABELS, type NoteIcon } from "../lib/flasks/icon";
 import { useDismiss } from "../hooks/useDismiss";
 import { colorLabel } from "../lib/categories/palette";
-import { FORM_SHAPE_LABEL, resolveIcon } from "../lib/forms/look";
+import { drawShape, resolveIcon } from "../lib/forms/look";
 import { FlaskFor } from "./Flask";
 import { FlaskPicker } from "./FlaskPicker";
 import { StarHalo } from "./StarHalo";
@@ -18,7 +18,7 @@ interface FlaskButtonProps {
   chars?: number; // the open note's content length — drives the flask's fill level
   seed?: string; // the note's id — seeds the memory thread
   starred?: boolean; // a "bright memory" — the flask sits in the gold StarHalo
-  form?: boolean; // a form template — drawn as the form flask; only its colour is picked
+  form?: boolean; // a form template — its picker also offers the form flask
   onChange: (icon: NoteIcon) => void;
 }
 
@@ -34,7 +34,7 @@ export function FlaskButton({ icon, chars, seed, starred, form, onChange }: Flas
     },
   });
   const shown = resolveIcon(icon, form);
-  const shapeLabel = form ? FORM_SHAPE_LABEL : SHAPE_LABELS[shown.shape];
+  const shapeLabel = SHAPE_LABELS[drawShape(icon, form)];
 
   return (
     <div ref={ref} className="relative">

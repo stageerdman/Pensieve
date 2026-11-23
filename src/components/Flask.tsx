@@ -12,7 +12,7 @@ import {
 } from "../lib/flasks/icon";
 import { colorChannels, type FlaskColor } from "../lib/categories/palette";
 import { memoryThread } from "../lib/flasks/thread";
-import { resolveIcon } from "../lib/forms/look";
+import { drawShape, resolveIcon } from "../lib/forms/look";
 
 // A magical "memory flask": a glass vessel with coloured liquid, a soft glow and a
 // glass highlight. The note's icon (see lib/flasks/icon). Six distinct silhouettes
@@ -37,12 +37,9 @@ interface ShapeDef {
   ticks?: string;
 }
 
-/** What a flask can be drawn as: the six memory shapes, plus the form flask — a measuring
- *  flask reserved for form templates (never offered in the picker, never stored; see
- *  design/form-look.md). */
-export type RenderShape = FlaskShape | "form";
-
-const SHAPES: Record<RenderShape, ShapeDef> = {
+// The form flask (a measuring flask) is offered on form templates only — see
+// lib/forms/look.ts and design/form-look.md.
+const SHAPES: Record<FlaskShape, ShapeDef> = {
   form: {
     d: "M10.5 3 L10.5 9 C10.5 11.5 4 15 4 21.5 C4 26 6 27.5 8.5 27.5 L15.5 27.5 C18 27.5 20 26 20 21.5 C20 15 13.5 11.5 13.5 9 L13.5 3 Z",
     mouth: [10.5, 13.5],
@@ -109,7 +106,7 @@ const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 const NORMAL_Y = 12; // liquid surface at the normal fill (today's look)
 
 interface FlaskProps {
-  shape?: RenderShape;
+  shape?: FlaskShape;
   color?: FlaskColor;
   /** Liquid fraction 0..1. 0 = empty & colourless. Default = the normal look. */
   fill?: number;
@@ -345,7 +342,7 @@ export const Flask = memo(FlaskBase);
  *  header, mentions and relationships all show the same default flask. Pass `chars`
  *  (the note's content length) to drive the fill level; omit it for a normal-fill
  *  style preview (e.g. the picker). `form` (a form template — `isFormTemplate(extra)`)
- *  draws the form flask in the icon's colour, purple when none is chosen. */
+ *  draws the form's chosen shape, the purple form flask when none is chosen (drawShape). */
 export function FlaskFor({
   icon,
   chars,
@@ -355,7 +352,7 @@ export function FlaskFor({
   const resolved = resolveIcon(icon, form);
   return (
     <Flask
-      shape={form ? "form" : resolved.shape}
+      shape={drawShape(icon, form)}
       color={resolved.color}
       vibrancy={iconVibrancy(resolved)}
       shine={iconShine(resolved)}

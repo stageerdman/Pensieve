@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { FlaskPicker } from "./FlaskPicker";
 import { FlaskButton } from "./FlaskButton";
-import { FLASK_SHAPES } from "../lib/flasks/icon";
+import { FLASK_SHAPES, SHAPE_LABELS } from "../lib/flasks/icon";
 
 describe("FlaskPicker", () => {
   it("offers shape, vibrancy and shine radiogroups plus a colour spectrum", () => {
@@ -51,14 +51,25 @@ describe("FlaskPicker", () => {
     expect(onChange).toHaveBeenCalledWith({ shape: "erlenmeyer", color: 100 });
   });
 
-  it("a form keeps colour, vibrancy and shine but drops the Shape row", () => {
+  // Regression: a form's picker had no Shape row, so the owner couldn't pick a flask shape
+  // for a form (2026-11-23).
+  it("a form offers the form flask plus every memory shape, and saves the one picked", () => {
     const onChange = vi.fn();
     render(<FlaskPicker form onChange={onChange} />);
-    expect(screen.queryByRole("radiogroup", { name: "Shape" })).toBeNull();
-    expect(screen.getByRole("slider", { name: "Colour" })).toHaveAttribute("aria-valuenow", "270"); // purple default
-    fireEvent.click(screen.getByRole("radio", { name: "Vibrancy 5 of 5" }));
-    // The chosen look is stored as the form's ordinary icon.
-    expect(onChange).toHaveBeenCalledWith({ shape: "round-bottom", color: "purple", vibrancy: 1 });
+    const shapes = within(screen.getByRole("radiogroup", { name: "Shape" })).getAllByRole("radio");
+    expect(shapes.map((r) => r.getAttribute("aria-label"))).toEqual(["Form flask", ...FLASK_SHAPES.map((s) => SHAPE_LABELS[s])]);
+    expect(screen.getByRole("radio", { name: "Form flask" })).toBeChecked(); // no icon yet → the purple form flask
+    expect(screen.getByRole("slider", { name: "Colour" })).toHaveAttribute("aria-valuenow", "270");
+    fireEvent.click(screen.getByRole("radio", { name: "Round-bottom flask" }));
+    expect(onChange).toHaveBeenCalledWith({ shape: "round-bottom", color: "purple" });
+  });
+
+  it("a form shows its chosen shape as checked; a memory never offers the form flask", () => {
+    const { unmount } = render(<FlaskPicker form icon={{ shape: "teardrop", color: 137 }} onChange={() => {}} />);
+    expect(screen.getByRole("radio", { name: "Teardrop vial" })).toBeChecked();
+    unmount();
+    render(<FlaskPicker icon={{ shape: "vial", color: 137 }} onChange={() => {}} />);
+    expect(screen.queryByRole("radio", { name: "Form flask" })).toBeNull();
   });
 
   it("the header button names shape and colour with a comma and space", () => {

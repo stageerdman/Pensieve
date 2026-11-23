@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { FORM_DEFAULT_ICON, resolveIcon, inheritLabels } from "./index";
-import { DEFAULT_ICON } from "../flasks/icon";
+import { FORM_DEFAULT_ICON, drawShape, resolveIcon, inheritLabels } from "./index";
+import { DEFAULT_ICON, encodeIcon, parseIcon } from "../flasks/icon";
 
 const note = (categories: string[], tags: string[]) => ({ id: "n", categories, tags });
 
@@ -27,5 +27,22 @@ describe("resolveIcon", () => {
     expect(resolveIcon(undefined, true)).toBe(FORM_DEFAULT_ICON);
     expect(resolveIcon(undefined, false)).toBe(DEFAULT_ICON);
     expect(resolveIcon(undefined)).toBe(DEFAULT_ICON);
+  });
+});
+
+describe("drawShape", () => {
+  it("a form draws its chosen shape, the form flask when none is chosen", () => {
+    expect(drawShape({ shape: "round-bottom", color: 310 }, true)).toBe("round-bottom");
+    expect(drawShape({ shape: "form", color: 310 }, true)).toBe("form");
+    expect(drawShape(undefined, true)).toBe("form");
+  });
+
+  it("a memory never draws the form flask", () => {
+    expect(drawShape({ shape: "form", color: 310 }, false)).toBe(DEFAULT_ICON.shape);
+    expect(drawShape({ shape: "beaker", color: 310 })).toBe("beaker");
+  });
+
+  it("the form flask round-trips through frontmatter", () => {
+    expect(parseIcon(encodeIcon({ shape: "form", color: 310 }))).toEqual({ shape: "form", color: 310 });
   });
 });

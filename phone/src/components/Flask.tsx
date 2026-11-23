@@ -5,10 +5,10 @@
 // `<div class="flask">` (source ~699, 1376). `cat` is a `--cat-*` token key resolved
 // through flaskSvg's CAT_HUE (so the palette is the one shared set).
 //
-// `form` (a form template) swaps the silhouette for the reserved form flask — a
-// measuring flask no memory can have — keeping the form's own colour. Render-time only.
+// `form` (a form template) may wear the form flask — a measuring flask no memory can
+// have — or any memory shape the owner picked for it on the computer (drawShape).
 
-import { CAT_HUE, FORM_SHAPE, flaskSVG, type FlaskShape } from "../lib/wand/flaskSvg";
+import { CAT_HUE, drawShape, flaskSVG, type NoteShape } from "../lib/wand/flaskSvg";
 
 const FALLBACK_HUE = CAT_HUE["--cat-blue"];
 
@@ -19,18 +19,13 @@ export function Flask({
   form = false,
   className = "flask",
 }: {
-  shape: FlaskShape;
+  shape: NoteShape;
   cat: string;
   fill: number;
   form?: boolean;
   className?: string;
 }) {
   const hue = CAT_HUE[cat] ?? FALLBACK_HUE;
-  return (
-    <div
-      className={className}
-      data-shape={form ? FORM_SHAPE : shape}
-      dangerouslySetInnerHTML={{ __html: flaskSVG(form ? FORM_SHAPE : shape, hue, fill) }}
-    />
-  );
+  const drawn = drawShape(shape, form);
+  return <div className={className} data-shape={drawn} dangerouslySetInnerHTML={{ __html: flaskSVG(drawn, hue, fill) }} />;
 }

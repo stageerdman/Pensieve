@@ -42,12 +42,17 @@ describe("FlaskFor form", () => {
     expect(liquidColorToken(container)).toContain("--cat-purple-fg");
   });
 
-  it("keeps the form's own colour but never its stored shape", () => {
+  // Regression (2026-11-23): a form ignored its stored shape, so a picked shape never showed.
+  it("draws the form's chosen shape and colour", () => {
     const asForm = render(<FlaskFor form icon={{ shape: "beaker", color: "green" }} />);
     const beaker = render(<Flask shape="beaker" color="green" />);
-    const bare = render(<FlaskFor form />);
     expect(liquidColorToken(asForm.container)).toContain("--cat-green-fg");
-    expect(bodyPath(asForm.container)).not.toBe(bodyPath(beaker.container));
-    expect(bodyPath(asForm.container)).toBe(bodyPath(bare.container));
+    expect(bodyPath(asForm.container)).toBe(bodyPath(beaker.container));
+  });
+
+  it("a memory with a stored form-flask shape draws the default memory shape", () => {
+    const memory = render(<FlaskFor icon={{ shape: "form", color: "green" }} />);
+    const vial = render(<Flask shape="vial" color="green" />);
+    expect(bodyPath(memory.container)).toBe(bodyPath(vial.container));
   });
 });

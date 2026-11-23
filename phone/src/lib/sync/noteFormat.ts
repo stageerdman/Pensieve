@@ -15,7 +15,7 @@
 
 import type { ForeignMeta, Note } from "../../types";
 import { stripForeignColorRuns } from "../../../../src/lib/md/colorRuns";
-import { CAT_HUE, type FlaskShape } from "../wand/flaskSvg";
+import { CAT_HUE, FORM_SHAPE, type NoteShape } from "../wand/flaskSvg";
 import { withPatronusHint } from "../patronus/noteSpell";
 import { isFormTemplate } from "../../../../src/lib/forms/meta";
 import { FORM_DEFAULT_ICON } from "../../../../src/lib/forms/look";
@@ -216,27 +216,29 @@ export function phoneCatToDesktopColor(cat: string): string | number {
   return name;
 }
 
-const DESKTOP_TO_PHONE_SHAPE: Record<string, FlaskShape> = {
+const DESKTOP_TO_PHONE_SHAPE: Record<string, NoteShape> = {
   "round-bottom": "round",
   "potion-bottle": "potion",
   erlenmeyer: "erlenmeyer",
   vial: "vial",
   teardrop: "teardrop",
   beaker: "beaker",
+  form: FORM_SHAPE,
 };
-const PHONE_TO_DESKTOP_SHAPE: Record<FlaskShape, string> = {
+const PHONE_TO_DESKTOP_SHAPE: Record<NoteShape, string> = {
   round: "round-bottom",
   potion: "potion-bottle",
   erlenmeyer: "erlenmeyer",
   vial: "vial",
   teardrop: "teardrop",
   beaker: "beaker",
+  form: "form",
 };
 
-export function desktopShapeToPhone(shape: string): FlaskShape {
+export function desktopShapeToPhone(shape: string): NoteShape {
   return DESKTOP_TO_PHONE_SHAPE[shape] ?? "vial";
 }
-export function phoneShapeToDesktop(shape: FlaskShape): string {
+export function phoneShapeToDesktop(shape: NoteShape): string {
   return PHONE_TO_DESKTOP_SHAPE[shape] ?? "vial";
 }
 
@@ -309,12 +311,12 @@ export function noteFromRemoteContent(id: string, content: string, times: Remote
   const createdAt = fmCreated ?? times.createdAt ?? existing?.createdAt ?? Date.now();
   const updatedAt = times.updatedAt ?? Date.now();
   const icon = fields.icon;
-  // A form that never chose a colour wears the form default (purple), as on desktop.
-  const fallbackCat = isFormTemplate(fields.extra)
-    ? nearestPhoneCat(desktopColorHue(FORM_DEFAULT_ICON.color))
-    : (existing?.cat ?? "--cat-blue");
+  // A form that never chose a look wears the form default (the purple form flask), as on desktop.
+  const isForm = isFormTemplate(fields.extra);
+  const fallbackCat = isForm ? nearestPhoneCat(desktopColorHue(FORM_DEFAULT_ICON.color)) : (existing?.cat ?? "--cat-blue");
+  const fallbackShape = isForm ? desktopShapeToPhone(FORM_DEFAULT_ICON.shape) : (existing?.shape ?? "vial");
   const cat = icon ? nearestPhoneCat(desktopColorHue(icon.color)) : fallbackCat;
-  const shape = icon ? desktopShapeToPhone(icon.shape) : (existing?.shape ?? "vial");
+  const shape = icon ? desktopShapeToPhone(icon.shape) : fallbackShape;
   const foreign: ForeignMeta = {
     categories: fields.categories,
     tags: fields.tags,

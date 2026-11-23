@@ -66,9 +66,9 @@ const SHAPE_SPECS: Record<string, ShapeSpec> = {
     bottom: 52,
     clip: "M17 18h14v30a4 4 0 0 1-4 4H21a4 4 0 0 1-4-4z",
   },
-  // The form flask: a measuring flask with graduation ticks. Reserved for form
-  // templates (never in SHAPES, so no memory is ever drawn with it). Mirrors the
-  // desktop "form" render shape — see design/form-look.md.
+  // The form flask: a measuring flask with graduation ticks. For form templates only
+  // (never in SHAPES, so no memory is ever drawn with it). Mirrors the desktop "form"
+  // shape — see design/form-look.md.
   form: {
     body: "M21 8v12c0 4-12 9-12 22c0 9 4 14 9 14h12c5 0 9-5 9-14c0-13-12-18-12-22V8z M20 8h8 M21 14h6 M31 34h3 M30 40h4 M31 46h3",
     top: 26,
@@ -77,8 +77,17 @@ const SHAPE_SPECS: Record<string, ShapeSpec> = {
   },
 };
 
-/** The form flask's shape name — a render-time look, not one of SHAPES. */
+/** The form flask's shape name — a form's own choice (or its default), never one of the
+ *  random SHAPES a new memory gets. */
 export const FORM_SHAPE = "form";
+/** Any shape a note can store: the memory shapes, or the form flask (forms only). */
+export type NoteShape = FlaskShape | typeof FORM_SHAPE;
+
+/** The silhouette to draw — mirrors the desktop's lib/forms/look.ts drawShape: a form
+ *  draws its stored shape; a memory never draws the form flask (it falls back to a vial). */
+export function drawShape(shape: NoteShape, form: boolean): NoteShape {
+  return shape === FORM_SHAPE && !form ? "vial" : shape;
+}
 
 /** Build the flask's inline SVG markup. `shape` is one of SHAPES (falls back to
  *  "round"), `hue` is a CAT_HUE-style `h s% l%` string, `fill` is 0..1 (clamped to

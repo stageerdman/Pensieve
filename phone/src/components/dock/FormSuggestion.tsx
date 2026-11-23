@@ -16,7 +16,7 @@ export function FormSuggestion({ next, onApply }: { next: string; onApply: (q: s
         onPointerDown={(e) => e.preventDefault()}
         onClick={() => onApply(next)}
       >
-        <Flask shape="vial" cat="--cat-purple" fill={0.6} form className="dock-chip-flask" />
+        <Flask shape="form" cat="--cat-purple" fill={0.6} form className="dock-chip-flask" />
         <span>Form</span>
         <span className="dock-chip-hint">type</span>
       </button>

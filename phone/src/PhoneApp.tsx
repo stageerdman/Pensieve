@@ -23,7 +23,7 @@ import { rankNotes } from "./lib/wand/accioRank";
 import { remoteStubs } from "./lib/sync/remoteStubs";
 import { recordOpen } from "./lib/sync/opens";
 import { sortNewestFirst } from "./lib/wand/feedWindow";
-import { CAT_HUE, SHAPES } from "./lib/wand/flaskSvg";
+import { CAT_HUE, SHAPES, drawShape } from "./lib/wand/flaskSvg";
 import type { SyncStatus } from "./lib/wand/syncMachine";
 
 import { useKeyboardInset } from "./hooks/useKeyboardInset";
@@ -858,7 +858,7 @@ export function PhoneApp() {
       t: "",
       c: "",
       cat: form.cat,
-      shape: form.shape,
+      shape: drawShape(form.shape, false), // a memory never wears the form flask
       fill: 0.18,
       d: "Just now",
       created: "Just now",

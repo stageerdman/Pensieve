@@ -14,8 +14,11 @@ export type FlaskShape =
   | "vial" // slim test-tube — tall, parallel sides
   | "potion-bottle" // shouldered apothecary bottle — stout, round shoulders
   | "teardrop" // orb / pendant vial — pointed top, round bottom, no neck
-  | "beaker"; // wide, straight-sided, open-top with a pour lip
+  | "beaker" // wide, straight-sided, open-top with a pour lip
+  | "form"; // measuring flask with graduation ticks — offered on form templates only
 
+/** The memory shapes (every note's picker). The form flask is not one of them: it is only
+ *  offered on a form (see lib/forms/look.ts). */
 export const FLASK_SHAPES: FlaskShape[] = [
   "round-bottom",
   "erlenmeyer",
@@ -33,6 +36,7 @@ export const SHAPE_LABELS: Record<FlaskShape, string> = {
   "potion-bottle": "Potion bottle",
   teardrop: "Teardrop vial",
   beaker: "Beaker",
+  form: "Form flask",
 };
 
 export interface NoteIcon {
@@ -72,7 +76,7 @@ export function fillForChars(chars: number): number {
  *  fallback only, so an un-iconned note reads as "unset" until the owner chooses. */
 export const DEFAULT_ICON: NoteIcon = { shape: "vial", color: "gray" };
 
-const SHAPES = new Set<string>(FLASK_SHAPES);
+const SHAPES = new Set<string>([...FLASK_SHAPES, "form"]);
 const COLORS = new Set<string>(CATEGORY_COLORS);
 
 export function isFlaskShape(v: string): v is FlaskShape {

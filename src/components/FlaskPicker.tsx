@@ -7,7 +7,7 @@ import {
   type FlaskShape,
   type NoteIcon,
 } from "../lib/flasks/icon";
-import { FORM_SHAPE_LABEL, resolveIcon } from "../lib/forms/look";
+import { FORM_SHAPES, drawShape, resolveIcon } from "../lib/forms/look";
 import { colorFg, colorLabel, hueOfColor } from "../lib/categories/palette";
 import { Flask } from "./Flask";
 import { HueSpectrum } from "./HueSpectrum";
@@ -23,7 +23,7 @@ const stepIndex = (value: number) => {
 };
 
 // The popover body of the flask picker: one calm panel with a live preview, a grid
-// of six shape silhouettes, and the nine palette colours. Shape and colour are set
+// of shape silhouettes (six, plus the form flask on a form), and the colour spectrum. Shape and colour are set
 // independently (either can change first); each change commits via onChange so the
 // result forms live. Both grids are roving-tabindex radiogroups — arrows move focus,
 // Enter/Space/click commit (so arrowing never thrashes the disk). Esc / outside-click
@@ -32,8 +32,7 @@ const stepIndex = (value: number) => {
 interface FlaskPickerProps {
   icon?: NoteIcon;
   seed?: string; // the note's id — seeds the memory thread in the preview
-  /** A form template: it always draws as the form flask, so the Shape row is gone and
-   *  only its colour, vibrancy and shine are chosen (design/form-look.md). */
+  /** A form template: its Shape row also offers the form flask (design/form-look.md). */
   form?: boolean;
   onChange: (icon: NoteIcon) => void;
 }
@@ -57,7 +56,9 @@ function step(
 
 export function FlaskPicker({ icon, seed, form, onChange }: FlaskPickerProps) {
   const current = resolveIcon(icon, form);
-  const shapeLabel = form ? FORM_SHAPE_LABEL : SHAPE_LABELS[current.shape];
+  const shown = drawShape(icon, form);
+  const shapes = form ? FORM_SHAPES : FLASK_SHAPES;
+  const shapeLabel = SHAPE_LABELS[shown];
   const curVib = iconVibrancy(current);
   const curShine = iconShine(current);
   const shapeRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -65,16 +66,14 @@ export function FlaskPicker({ icon, seed, form, onChange }: FlaskPickerProps) {
   const shineRefs = useRef<(HTMLButtonElement | null)[]>([]);
   // Roving focus index per group (independent of the committed value).
   const [shapeFocus, setShapeFocus] = useState(() =>
-    Math.max(0, FLASK_SHAPES.indexOf(current.shape)),
+    Math.max(0, shapes.indexOf(shown)),
   );
   const [vibFocus, setVibFocus] = useState(() => stepIndex(curVib));
   const [shineFocus, setShineFocus] = useState(() => stepIndex(curShine));
 
-  // Open with focus on the selected shape (standard dialog behaviour); a form has no
-  // shape row, so focus lands on its vibrancy step instead.
+  // Open with focus on the selected shape (standard dialog behaviour).
   useEffect(() => {
-    if (form) vibRefs.current[vibFocus]?.focus();
-    else shapeRefs.current[shapeFocus]?.focus();
+    shapeRefs.current[shapeFocus]?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -92,7 +91,7 @@ export function FlaskPicker({ icon, seed, form, onChange }: FlaskPickerProps) {
         aria-label={`Flask: ${shapeLabel}, ${colorLabel(current.color)}, vibrancy ${vibFocus + 1} of 5, shine ${shineFocus + 1} of 5`}
       >
         <Flask
-          shape={form ? "form" : current.shape}
+          shape={shown}
           color={current.color}
           vibrancy={curVib}
           shine={curShine}
@@ -102,53 +101,49 @@ export function FlaskPicker({ icon, seed, form, onChange }: FlaskPickerProps) {
         />
       </div>
 
-      {/* Shape — not for a form: its shape IS the form flask */}
-      {!form && (
-        <>
-          <p className="px-0.5 pb-1 text-2xs font-medium uppercase tracking-wide text-text-muted/70">
-            Shape
-          </p>
-          <div role="radiogroup" aria-label="Shape" className="grid grid-cols-6 gap-1">
-            {FLASK_SHAPES.map((shape, i) => {
-              const selected = shape === current.shape;
-              return (
-                <button
-                  key={shape}
-                  ref={(el) => (shapeRefs.current[i] = el)}
-                  role="radio"
-                  aria-checked={selected}
-                  aria-label={SHAPE_LABELS[shape]}
-                  title={SHAPE_LABELS[shape]}
-                  tabIndex={i === shapeFocus ? 0 : -1}
-                  onClick={() => pickShape(shape)}
-                  onFocus={() => setShapeFocus(i)}
-                  onKeyDown={(e) => {
-                    if (e.key === " " || e.key === "Enter") {
-                      e.preventDefault();
-                      pickShape(shape);
-                    } else {
-                      const to = step(shapeRefs.current, i, e.key, FLASK_SHAPES.length);
-                      if (to !== i) {
-                        e.preventDefault();
-                        setShapeFocus(to);
-                      }
-                    }
-                  }}
-                  className={
-                    "flex h-9 w-9 items-center justify-center rounded-md hover:bg-surface " +
-                    (selected ? "bg-surface text-text ring-2 ring-accent" : "text-text-muted")
+      {/* Shape — a form also offers the form flask, first */}
+      <p className="px-0.5 pb-1 text-2xs font-medium uppercase tracking-wide text-text-muted/70">
+        Shape
+      </p>
+      <div role="radiogroup" aria-label="Shape" className={`grid ${form ? "grid-cols-7" : "grid-cols-6"} gap-1`}>
+        {shapes.map((shape, i) => {
+          const selected = shape === shown;
+          return (
+            <button
+              key={shape}
+              ref={(el) => (shapeRefs.current[i] = el)}
+              role="radio"
+              aria-checked={selected}
+              aria-label={SHAPE_LABELS[shape]}
+              title={SHAPE_LABELS[shape]}
+              tabIndex={i === shapeFocus ? 0 : -1}
+              onClick={() => pickShape(shape)}
+              onFocus={() => setShapeFocus(i)}
+              onKeyDown={(e) => {
+                if (e.key === " " || e.key === "Enter") {
+                  e.preventDefault();
+                  pickShape(shape);
+                } else {
+                  const to = step(shapeRefs.current, i, e.key, shapes.length);
+                  if (to !== i) {
+                    e.preventDefault();
+                    setShapeFocus(to);
                   }
-                >
-                  <Flask shape={shape} color={selected ? current.color : "gray"} size={22} />
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
+                }
+              }}
+              className={
+                "flex h-9 w-full items-center justify-center rounded-md hover:bg-surface " +
+                (selected ? "bg-surface text-text ring-2 ring-accent" : "text-text-muted")
+              }
+            >
+              <Flask shape={shape} color={selected ? current.color : "gray"} size={22} />
+            </button>
+          );
+        })}
+      </div>
 
       {/* Colour — a draggable spectrum (any hue), not a fixed set of swatches */}
-      <p className={`px-0.5 pb-1.5 ${form ? "" : "pt-2"} text-2xs font-medium uppercase tracking-wide text-text-muted/70`}>
+      <p className="px-0.5 pb-1.5 pt-2 text-2xs font-medium uppercase tracking-wide text-text-muted/70">
         Colour
       </p>
       <div className="px-0.5">

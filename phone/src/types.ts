@@ -10,7 +10,7 @@
 // are real epoch ms, added for the same reason (sync conflict detection needs a real
 // clock, not just the `d`/`created` display labels, which stay exactly as before).
 
-import type { FlaskShape } from "./lib/wand/flaskSvg";
+import type { NoteShape } from "./lib/wand/flaskSvg";
 
 /** Metadata the desktop app owns that the Wand UI doesn't expose an editor for
  *  (categories/tags/links/pinned, and the icon's exact color/vibrancy/shine). A note
@@ -43,7 +43,7 @@ export interface Note {
   /** Category key — a `--cat-*` token name (also keys flaskSvg's CAT_HUE). */
   cat: string;
   /** Flask silhouette. */
-  shape: FlaskShape;
+  shape: NoteShape;
   /** Liquid fill level, 0..1. */
   fill: number;
   /** Live/recency display label ("2m ago", "Today", "Just now"). */
