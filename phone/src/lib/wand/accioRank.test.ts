@@ -21,7 +21,7 @@ describe("rankNotes", () => {
   });
 
   it("form: keeps only forms — alone or with text", () => {
-    const notes = [
+    const notes: { id: number; t: string; c: string; foreign: { extra: Record<string, string> } }[] = [
       { id: 1, t: "Daily review", c: "", foreign: { extra: { form: "true" } } },
       { id: 2, t: "Daily review — Mon", c: "", foreign: { extra: { fromForm: "1" } } },
       { id: 3, t: "Trip log", c: "", foreign: { extra: { form: "true" } } },
