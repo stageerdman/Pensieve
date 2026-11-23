@@ -30,6 +30,13 @@ organising, planning and deep reflection, not for daily logging.
 - On the phone they often drop the keyboard to read; the ranked list must stay until they
   clear the search.
 
+## What they actually do (forms)
+- They keep only a few forms (2 in the real vault, 2026-11-23), and those forms
+  shared flask shapes with 20+ memories, so a form couldn't be told apart in the feed.
+  Forms now draw as a reserved measuring flask (design/form-look.md).
+- They look for forms by name and type, e.g. "form". Typing it offers a Form filter
+  on both Mac and phone.
+
 ## What they actually do (Patronus)
 - Research chats run many turns, so a tool switched on should stay on for that chat.
 - They ask first and remember the tool later, so they need a one-tap recovery on the reply.
@@ -60,5 +67,9 @@ organising, planning and deep reflection, not for daily logging.
   won't feel empty. *Check:* ask whether they open Accio just to browse.
 - A memory's first category is a good enough "type" on a result. *Check:* whether they
   ever can't tell a voice note from a journal page in the list.
+- The measuring-flask silhouette alone (no "Form" badge) is enough to spot a form,
+  even at tab size. *Check:* ask the owner to point out the forms in the feed.
+- Setting a form's colour on the Mac only (the phone has no picker) is fine. *Check:*
+  whether they ever try to recolour a form on the phone.
 - A hover-revealed "Search the web" on the latest reply is found when it's needed.
   *Check:* see whether the owner uses it, or always goes to the picker.

@@ -76,5 +76,12 @@ purple) instead of the gray vial. Jony builds the glow/look on top (P3).
   Note: `npm run bench` misses its 30 ms budget on random queries on this (busy) machine —
   the untouched base commit misses it too; the no-chip search path is unchanged. Four sync
   media / phone Reel tests time out on the base commit as well (pre-existing).
-- [ ] P3 UI (Jony)
+- [x] P3 UI (Jony). Spec: `design/form-look.md`. Forms draw as a reserved measuring flask
+  (with graduation ticks) in their own colour, purple by default, on Mac (gallery card,
+  search row, header, tabs, working set, links, @-mention menu) and phone (reel card, Accio
+  row). On a form, the flask picker drops Shape and keeps Colour, Vibrancy and Shine. No
+  extra glow ring, because gold already means starred. Summon's Form row shows the form
+  flask, and the chip popover reads "Only forms". Phone: typing fo/form/forms shows a
+  **Form** chip that turns the word into a `form:` filter (`accioQuery.formSuggestion`,
+  `passesForm`). Tests: Flask, FlaskPicker, Summon, phone flaskSvg/accioQuery/accioRank.
 - [ ] P4 verify + ship

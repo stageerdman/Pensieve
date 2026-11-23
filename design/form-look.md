@@ -35,7 +35,7 @@ shape no memory can have.
 - **Phone (Accio).** The phone has no chip system; its query is plain text (dates like
   "today" are already words it understands). Typing a word that starts `fo…form(s)` shows one
   **Form** chip above the summon bar. Tapping it turns that word into `form:` at the
-  front of the query (e.g. `morning fo` → `form: morning`), which shows only forms. `form:`
+  front of the query (e.g. `morning fo` → `form: morning `), which shows only forms. `form:`
   can also be typed by hand, and it survives holds and recents for free because it's just
   text.
 
@@ -54,5 +54,8 @@ shape no memory can have.
 ## Accessibility
 - The picker preview label reads "Form flask, <colour>…". The header button reads
   "Flask — Form flask, <colour>".
-- The phone Form chip is a real button (28px tall inside a 44px tall row hit area
-  via padding). It keeps the keyboard up (pointerdown preventDefault).
+- The phone Form chip is a real button labelled "Show only forms": 36px tall, with its
+  hit area grown to 44px by an invisible inset. It keeps the keyboard up (pointerdown
+  preventDefault), and the result list lifts clear of it (`.app-root.suggesting`).
+- Phone colour: the phone has no flask picker; a form's colour is set on the Mac and
+  syncs over. A form with no chosen colour renders purple on the phone too.
