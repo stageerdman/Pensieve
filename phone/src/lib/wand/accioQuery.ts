@@ -5,6 +5,8 @@
 // own or alongside text ("lighthouse yesterday") — the date words are stripped from
 // the text before matching so they never fight the word search (or the highlight).
 
+import { isFormTemplate } from "../../../../src/lib/forms/meta";
+
 /** Minimal shape a note needs for date filtering: a stable `created` date label
  *  (falls back to the live `.d` label) and an id (for "recent" = recently opened). */
 export interface DateFilterable {
@@ -41,12 +43,21 @@ const DATE_TOKENS: { re: RegExp; kind: DateToken }[] = [
 export interface ParsedQuery {
   text: string;
   dates: DateToken[];
+  /** "form:" was in the query — keep only form templates. */
+  form: boolean;
 }
 
-/** Strip date tokens out of the raw query, returning the remaining text + which
- *  date buckets were requested. Source ~678-682. */
+/** The Form type filter token: "form:" (or "forms:") as its own word. The colon makes
+ *  it a filter, never a word — "form" alone stays an ordinary search word. */
+const FORM_TOKEN = /(^|\s)forms?:(?=\s|$)/g;
+
+/** Strip date tokens (and the "form:" filter) out of the raw query, returning the
+ *  remaining text + which filters were requested. Source ~678-682. */
 export function parseQuery(raw: string | undefined): ParsedQuery {
   let text = (raw || "").toLowerCase();
+  const form = FORM_TOKEN.test(text);
+  FORM_TOKEN.lastIndex = 0;
+  if (form) text = text.replace(FORM_TOKEN, " ");
   const dates: DateToken[] = [];
   for (const t of DATE_TOKENS) {
     if (t.re.test(text)) {
@@ -54,7 +65,32 @@ export function parseQuery(raw: string | undefined): ParsedQuery {
       text = text.replace(t.re, " ");
     }
   }
-  return { text: text.replace(/\s+/g, " ").trim(), dates };
+  return { text: text.replace(/\s+/g, " ").trim(), dates, form };
+}
+
+/** Minimal shape a note needs for the form filter (the phone keeps desktop's
+ *  frontmatter extras in `foreign.extra`). */
+export interface FormFilterable {
+  foreign?: { extra?: Record<string, string> };
+}
+
+/** Does note `d` pass the form filter? Off → everything passes. */
+export function passesForm(d: FormFilterable, form: boolean): boolean {
+  return !form || isFormTemplate(d.foreign?.extra);
+}
+
+/** The "Form" suggestion while typing: when the last word (2+ letters) starts the word
+ *  "forms" and no form filter is on yet, returns the query to switch to — that word
+ *  replaced by the "form:" filter at the front. Otherwise null (no suggestion). */
+export function formSuggestion(query: string): string | null {
+  const q = query || "";
+  if (parseQuery(q).form) return null;
+  const m = /(^|\s)(\S+)$/.exec(q);
+  if (!m) return null;
+  const word = m[2].toLowerCase();
+  if (word.length < 2 || !"forms".startsWith(word)) return null;
+  const rest = q.slice(0, q.length - m[2].length).trim();
+  return rest ? `form: ${rest} ` : "form: ";
 }
 
 /** Does note `d` pass the requested date buckets? `openedOrder` is the list of note

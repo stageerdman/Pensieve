@@ -18,7 +18,7 @@ import { flushSync } from "react-dom";
 import type { Note } from "./types";
 import { loadVault, newId, persistVault } from "./vaultStore";
 import { haptic, prefersReducedMotion } from "./util";
-import { parseQuery, passesDate, passesText } from "./lib/wand/accioQuery";
+import { formSuggestion, parseQuery, passesDate, passesForm, passesText } from "./lib/wand/accioQuery";
 import { rankNotes } from "./lib/wand/accioRank";
 import { remoteStubs } from "./lib/sync/remoteStubs";
 import { recordOpen } from "./lib/sync/opens";
@@ -42,6 +42,7 @@ import { Reel } from "./components/reel/Reel";
 import { Glass } from "./components/reel/Glass";
 import { Dock } from "./components/dock/Dock";
 import { DockSettings } from "./components/dock/DockSettings";
+import { FormSuggestion } from "./components/dock/FormSuggestion";
 import { SpellMenu } from "./components/spellmenu/SpellMenu";
 import { SummonBar } from "./components/accio/SummonBar";
 import { SearchSheet } from "./components/accio/SearchSheet";
@@ -91,9 +92,11 @@ function rankSearch(data: Note[], query: string, openedOrder: string[]): Note[] 
 }
 
 function computeView(data: Note[], query: string, openedOrder: string[]): Note[] {
-  const { text, dates } = parseQuery(query);
-  if (!text && !dates.length) return sortNewestFirst(data);
-  return sortNewestFirst(data.filter((d) => passesText(d, text) && passesDate(d, dates, openedOrder)));
+  const { text, dates, form } = parseQuery(query);
+  if (!text && !dates.length && !form) return sortNewestFirst(data);
+  return sortNewestFirst(
+    data.filter((d) => passesForm(d, form) && passesText(d, text) && passesDate(d, dates, openedOrder)),
+  );
 }
 
 /** The header count copy. Source ~706-707. */
@@ -1146,6 +1149,9 @@ export function PhoneApp() {
   if (accio.filtering) rootClass.push("filtering");
   if (kbOpen) rootClass.push("kb-open");
   if (editingNote) rootClass.push("editing-note");
+  // Typing "fo…/form" offers the Form type filter as one chip above the summon bar.
+  const formNext = accio.searching ? formSuggestion(accio.filterQuery) : null;
+  if (formNext !== null) rootClass.push("suggesting");
 
   const emptyMsg = accio.filterQuery.trim() ? "Nothing answered that call." : "Nothing here yet.";
   const scount = accio.filterQuery.trim() ? String(searchList.length) : "";
@@ -1211,7 +1217,11 @@ export function PhoneApp() {
           so the input exists for its in-gesture focus), so none of it sits in the home DOM at rest. */}
       {accio.searching ? (
         <>
-          {!accio.filterQuery.trim() ? <DockSettings recents={recents} onRun={runRecent} /> : null}
+          {!accio.filterQuery.trim() ? (
+            <DockSettings recents={recents} onRun={runRecent} />
+          ) : formNext !== null ? (
+            <FormSuggestion next={formNext} onApply={accio.handleInput} />
+          ) : null}
           <SummonBar
             inputRef={accioInputRef}
             value={accio.filterQuery}

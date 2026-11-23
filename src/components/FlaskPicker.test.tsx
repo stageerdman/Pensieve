@@ -50,6 +50,16 @@ describe("FlaskPicker", () => {
     expect(onChange).toHaveBeenCalledWith({ shape: "erlenmeyer", color: 100 });
   });
 
+  it("a form keeps colour, vibrancy and shine but drops the Shape row", () => {
+    const onChange = vi.fn();
+    render(<FlaskPicker form onChange={onChange} />);
+    expect(screen.queryByRole("radiogroup", { name: "Shape" })).toBeNull();
+    expect(screen.getByRole("slider", { name: "Colour" })).toHaveAttribute("aria-valuenow", "270"); // purple default
+    fireEvent.click(screen.getByRole("radio", { name: "Vibrancy 5 of 5" }));
+    // The chosen look is stored as the form's ordinary icon.
+    expect(onChange).toHaveBeenCalledWith({ shape: "round-bottom", color: "purple", vibrancy: 1 });
+  });
+
   it("falls back to the default icon when none is set", () => {
     render(<FlaskPicker onChange={() => {}} />);
     // DEFAULT_ICON = vial / gray

@@ -5,9 +5,17 @@
 // the item's original index; a bare "recent" query (no text) instead sorts by
 // most-recently-opened.
 
-import { parseQuery, passesDate, passesText, type DateFilterable, type TextFilterable } from "./accioQuery";
+import {
+  parseQuery,
+  passesDate,
+  passesForm,
+  passesText,
+  type DateFilterable,
+  type FormFilterable,
+  type TextFilterable,
+} from "./accioQuery";
 
-export type RankableNote = DateFilterable & TextFilterable;
+export type RankableNote = DateFilterable & TextFilterable & FormFilterable;
 
 /** Rank `notes` against `query` the way the Accio sheet does. Empty query (no text,
  *  no date tokens) returns everything in its original (recency) order. `openedOrder`
@@ -18,12 +26,12 @@ export function rankNotes<T extends RankableNote>(
   query: string,
   openedOrder: Array<string | number> = [],
 ): T[] {
-  const { text, dates } = parseQuery(query);
-  if (!text && !dates.length) return notes.slice();
+  const { text, dates, form } = parseQuery(query);
+  if (!text && !dates.length && !form) return notes.slice();
 
   let list: { d: T; i: number; s?: number }[] = notes
     .map((d, i) => ({ d, i }))
-    .filter((x) => passesText(x.d, text) && passesDate(x.d, dates, openedOrder));
+    .filter((x) => passesForm(x.d, form) && passesText(x.d, text) && passesDate(x.d, dates, openedOrder));
 
   if (text) {
     list = list

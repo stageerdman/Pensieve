@@ -8,13 +8,14 @@
 import type { Note } from "../../types";
 import { highlight } from "../../highlight";
 import { Flask } from "../Flask";
+import { isFormTemplate } from "../../../../src/lib/forms/meta";
 import { stripMediaForPreview } from "../../lib/media/noteMedia";
 
 export function ReelCard({ note, queryText, onOpen }: { note: Note; queryText: string; onOpen: (n: Note) => void }) {
   return (
     <div className="slot" data-id={note.id}>
       <div className="card" onClick={() => onOpen(note)}>
-        <Flask shape={note.shape} cat={note.cat} fill={note.fill} />
+        <Flask shape={note.shape} cat={note.cat} fill={note.fill} form={isFormTemplate(note.foreign?.extra)} />
         {/* title + meta + snippet are ONE column, vertically centred in the row (the card
             is align-items:center) so the focal card's text stays centred in the glass no
             matter how many snippet lines wrap. The snippet collapses to 0 height off-focus

@@ -270,6 +270,37 @@
   white-space: nowrap;
   cursor: pointer;
 }
+/* The Form type suggestion: one roomier chip (36px, hit area grown to 44px). */
+.dock-chip--form {
+  position: relative;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px 0 10px;
+  color: hsl(var(--text));
+  font-size: 13px;
+}
+.dock-chip--form::after {
+  content: "";
+  position: absolute;
+  inset: -4px -2px;
+}
+.dock-chip-flask {
+  width: 14px;
+  height: 20px;
+  flex: none;
+}
+.dock-chip-hint {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: hsl(var(--text-muted) / 0.7);
+}
+/* The suggestion row needs room above the summon bar: lift the result list clear of it. */
+.app-root.suggesting .search-results {
+  margin-bottom: calc(var(--kb) + 126px + env(safe-area-inset-bottom));
+}
 @keyframes dock-settings-in {
   from {
     opacity: 0;

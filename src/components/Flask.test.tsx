@@ -33,3 +33,21 @@ describe("Flask / FlaskFor defaults", () => {
     expect(liquidColorToken(container)).toContain("--cat-red-fg");
   });
 });
+
+describe("FlaskFor form", () => {
+  it("draws the form flask, purple when no colour is chosen", () => {
+    const { container } = render(<FlaskFor form />);
+    const plain = render(<FlaskFor />);
+    expect(bodyPath(container)).not.toBe(bodyPath(plain.container));
+    expect(liquidColorToken(container)).toContain("--cat-purple-fg");
+  });
+
+  it("keeps the form's own colour but never its stored shape", () => {
+    const asForm = render(<FlaskFor form icon={{ shape: "beaker", color: "green" }} />);
+    const beaker = render(<Flask shape="beaker" color="green" />);
+    const bare = render(<FlaskFor form />);
+    expect(liquidColorToken(asForm.container)).toContain("--cat-green-fg");
+    expect(bodyPath(asForm.container)).not.toBe(bodyPath(beaker.container));
+    expect(bodyPath(asForm.container)).toBe(bodyPath(bare.container));
+  });
+});

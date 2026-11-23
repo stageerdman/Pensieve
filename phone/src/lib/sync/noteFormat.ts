@@ -17,6 +17,8 @@ import type { ForeignMeta, Note } from "../../types";
 import { stripForeignColorRuns } from "../../../../src/lib/md/colorRuns";
 import { CAT_HUE, type FlaskShape } from "../wand/flaskSvg";
 import { withPatronusHint } from "../patronus/noteSpell";
+import { isFormTemplate } from "../../../../src/lib/forms/meta";
+import { FORM_DEFAULT_ICON } from "../../../../src/lib/forms/look";
 
 // ---- frontmatter (mirrors src/lib/md/frontmatter.ts) ----
 
@@ -307,7 +309,11 @@ export function noteFromRemoteContent(id: string, content: string, times: Remote
   const createdAt = fmCreated ?? times.createdAt ?? existing?.createdAt ?? Date.now();
   const updatedAt = times.updatedAt ?? Date.now();
   const icon = fields.icon;
-  const cat = icon ? nearestPhoneCat(desktopColorHue(icon.color)) : (existing?.cat ?? "--cat-blue");
+  // A form that never chose a colour wears the form default (purple), as on desktop.
+  const fallbackCat = isFormTemplate(fields.extra)
+    ? nearestPhoneCat(desktopColorHue(FORM_DEFAULT_ICON.color))
+    : (existing?.cat ?? "--cat-blue");
+  const cat = icon ? nearestPhoneCat(desktopColorHue(icon.color)) : fallbackCat;
   const shape = icon ? desktopShapeToPhone(icon.shape) : (existing?.shape ?? "vial");
   const foreign: ForeignMeta = {
     categories: fields.categories,

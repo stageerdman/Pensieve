@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { flaskSVG, SHAPES, CAT_HUE } from "./flaskSvg";
+import { flaskSVG, SHAPES, CAT_HUE, FORM_SHAPE } from "./flaskSvg";
 
 describe("CAT_HUE", () => {
   it("maps every seed category to an h s% l% triple", () => {
@@ -37,6 +37,14 @@ describe("flaskSVG", () => {
     // Both still well-formed.
     expect(empty).toContain("<svg");
     expect(full).toContain("<svg");
+  });
+
+  it("draws the reserved form flask (with ticks) for 'form', never handed out at random", () => {
+    expect(SHAPES).not.toContain(FORM_SHAPE as never);
+    const svg = flaskSVG(FORM_SHAPE, "270 55% 74%", 0.5);
+    expect(svg).toContain("M31 34h3"); // a graduation tick
+    expect(svg).not.toContain('d="M24 20a14 14 0 1 0 0.001 0Z"'); // not the round fallback
+    expect(svg).toContain("hsl(270 55% 74%)"); // keeps the form's own colour
   });
 
   it("derives the deep (gradient-bottom) colour from the same hue, darker", () => {

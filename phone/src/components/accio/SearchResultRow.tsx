@@ -8,6 +8,7 @@
 import type { ReactNode } from "react";
 import type { Note } from "../../types";
 import { Flask } from "../Flask";
+import { isFormTemplate } from "../../../../src/lib/forms/meta";
 import { stripMediaForPreview } from "../../lib/media/noteMedia";
 import { makeSnippet, markTerms, type Snippet } from "../../../../src/lib/search/snippet";
 import { planQuery } from "../../../../src/lib/search/rank/queryPlan";
@@ -69,7 +70,7 @@ export function SearchResultRow({
         }
       }}
     >
-      <Flask shape={note.shape} cat={note.cat} fill={fetching ? 1 : note.fill} />
+      <Flask shape={note.shape} cat={note.cat} fill={fetching ? 1 : note.fill} form={isFormTemplate(note.foreign?.extra)} />
       <div className="body">
         <div className="title">
           <Lit s={markTerms(title, queryText)} />

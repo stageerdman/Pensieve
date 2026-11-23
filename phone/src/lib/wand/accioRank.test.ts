@@ -20,6 +20,16 @@ describe("rankNotes", () => {
     expect(out.map((d) => d.id)).toEqual([3, 1, 2]);
   });
 
+  it("form: keeps only forms — alone or with text", () => {
+    const notes = [
+      { id: 1, t: "Daily review", c: "", foreign: { extra: { form: "true" } } },
+      { id: 2, t: "Daily review — Mon", c: "", foreign: { extra: { fromForm: "1" } } },
+      { id: 3, t: "Trip log", c: "", foreign: { extra: { form: "true" } } },
+    ];
+    expect(rankNotes(notes, "form: ").map((d) => d.id)).toEqual([1, 3]);
+    expect(rankNotes(notes, "form: daily").map((d) => d.id)).toEqual([1]);
+  });
+
   it("ties within the same relevance tier break on original index", () => {
     const notes = [
       { id: 1, t: "Lighthouse A", c: "" },

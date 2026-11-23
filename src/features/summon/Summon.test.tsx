@@ -41,6 +41,19 @@ describe("Summon surface", () => {
     expect(chips.some((c) => c.textContent?.includes("last month"))).toBe(true);
   });
 
+  it("typing 'form' offers the Form type row (with the form flask) and picking it stacks a chip", async () => {
+    render(<Harness />);
+    const input = type("form");
+    const label = await screen.findByText("Form");
+    const row = label.closest("[role=option]") as HTMLElement;
+    expect(within(row).getByText("type")).toBeInTheDocument();
+    expect(row.querySelector("svg")).not.toBeNull(); // the form flask glyph
+    fireEvent.mouseDown(row);
+    await waitFor(() => expect(input.value).toBe(""));
+    const chips = screen.getAllByTitle(/click to edit/i);
+    expect(chips.some((c) => c.textContent?.includes("Form"))).toBe(true);
+  });
+
   it("remembers a confirmed search and suggests it first by prefix fit", async () => {
     render(<Harness />);
     // Run a date search → it's remembered as "last 7 days" (the canonical phrase).
