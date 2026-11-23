@@ -22,7 +22,7 @@ export interface Suggestion {
   key: string; // stable within a parse (for React keys / de-dupe)
   filter: Filter;
   label: string; // chip/display label
-  hint: string; // "date" | "tag" | "tags" | "category" | "flag"
+  hint: string; // "date" | "tag" | "tags" | "category" | "flag" | "type"
   // Canonical re-runnable text for this suggestion — what to drop back into the bar to
   // reproduce it (recorded as a recent search). Falls back to `label` when omitted; set it
   // explicitly wherever `label` carries display decoration (e.g. "Created · last 7 days").
@@ -311,12 +311,19 @@ function fieldLead(sub: string): { field: "created" | "updated"; rest: string; l
   return { field: name, rest, labelPrefix: `${name} ` };
 }
 
+/** "fo", "form", "forms" → the Form type filter. Offered for the whole word too, because it is
+ *  never a claim: "form" stays in the live text (it is an ordinary word the ranker searches)
+ *  until the owner picks the suggestion, which splices just that word out. */
+const FORM_WORD = "forms";
+const FORM_SUGGESTION: Suggestion = { key: "type:form", filter: { kind: "form" }, label: "Form", query: "form", hint: "type" };
+
 /** Completions for a single normalized fragment. */
 function completionsFor(sub: string, now: number): Suggestion[] {
   const out: Suggestion[] = [];
   for (const flag of FLAG_KINDS)
     if (flag.startsWith(sub) && flag !== sub)
       out.push({ key: `comp:${flag}`, filter: { kind: "flag", flag }, label: flag, hint: "flag" });
+  if (FORM_WORD.startsWith(sub)) out.push(FORM_SUGGESTION);
 
   const lead = fieldLead(sub);
   if (lead) out.push(...datePhraseCompletions(lead.rest, lead.field, lead.labelPrefix, now));

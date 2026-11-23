@@ -17,6 +17,8 @@ export function filterLabel(filter: Filter): string {
       return `${filter.field === "updated" ? "Updated" : "Created"} · ${filter.phrase}`;
     case "flag":
       return filter.flag === "pinned" ? "Pinned" : "Starred";
+    case "form":
+      return "Form";
     case "title":
       return `title: ${filter.text}`;
     case "text":

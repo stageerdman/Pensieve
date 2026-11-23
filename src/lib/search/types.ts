@@ -31,6 +31,7 @@ export type Filter =
   | { kind: "category"; categories: string[] }
   | { kind: "date"; field: DateField; range: DateRange; phrase: string }
   | { kind: "flag"; flag: FlagKind }
+  | { kind: "form" } // only form templates (frontmatter `form: true`)
   | { kind: "title"; text: string }
   | { kind: "text"; text: string };
 

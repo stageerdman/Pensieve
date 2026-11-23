@@ -16,6 +16,7 @@ export interface SearchableNote {
   updatedAt: number;
   pinned: boolean;
   starred: boolean;
+  form: boolean; // a form template
   body?: string;
 }
 
@@ -48,6 +49,8 @@ export function matchFilter(filter: Filter, note: SearchableNote): boolean {
     }
     case "flag":
       return filter.flag === "pinned" ? note.pinned : note.starred;
+    case "form":
+      return note.form;
     case "title":
       return note.title.toLowerCase().includes(filter.text.toLowerCase());
     case "text": {

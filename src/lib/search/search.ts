@@ -9,6 +9,7 @@
 
 import type { NoteMeta } from "../types";
 import type { FilterQuery } from "./types";
+import { isFormTemplate } from "../forms/meta";
 import { matchTree, normTag, type SearchableNote } from "./evaluate";
 import { makeSnippet, type Snippet } from "./snippet";
 import type { SearchIndex, TermHits } from "./indexer";
@@ -40,6 +41,7 @@ function toSearchable(n: NoteMeta): SearchableNote {
     updatedAt: n.updatedAt,
     pinned: n.pinned ?? false,
     starred: n.starred ?? false,
+    form: isFormTemplate(n.extra),
   };
 }
 

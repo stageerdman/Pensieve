@@ -14,6 +14,7 @@ const note = (over: Partial<SearchableNote> = {}): SearchableNote => ({
   updatedAt: NOW,
   pinned: false,
   starred: false,
+  form: false,
   body: "Shipped the summon bar. Felt calm after the morning walk.",
   ...over,
 });

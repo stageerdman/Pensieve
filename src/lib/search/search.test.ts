@@ -74,6 +74,19 @@ describe("runSearch — structural filters", () => {
     const r = runSearch(notes, q({ items: [leaf({ kind: "date", field: "created", range: jan, phrase: "last month" })] }), index);
     expect(r.notes.map((n) => n.id)).toEqual(["a"]);
   });
+
+  it("the Form chip keeps only form templates — alone, and composed with ranked text", () => {
+    const withForms: NoteMeta[] = [
+      ...notes,
+      { id: "f", title: "Morning check-in", createdAt: NOW, updatedAt: NOW, extra: { form: "true" } },
+      { id: "m", title: "Morning check-in — Wed 18 Feb", createdAt: NOW, updatedAt: NOW, extra: { fromForm: "f" } },
+    ];
+    const form = leaf({ kind: "form" });
+    expect(runSearch(withForms, q({ items: [form] }), index).notes.map((n) => n.id)).toEqual(["f"]);
+    expect(runSearch(withForms, q({ text: "morning", items: [form] }), index).notes.map((n) => n.id)).toEqual(["f"]);
+    // without the chip, the same text finds the form, the memory made from it, and the rest
+    expect(runSearch(withForms, q({ text: "morning" }), index).notes).toHaveLength(3);
+  });
 });
 
 describe("runSearch — full text + ranking", () => {
