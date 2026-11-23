@@ -1,5 +1,6 @@
 import { Fragment } from "react";
 import type { Suggestion } from "../../lib/search/grammar";
+import { Flask } from "../../components/Flask";
 
 // The dropdown under the summon bar: either tag-whispers (while typing a "#…" token) or
 // the structured filter suggestions parsed from the text, plus a hint for the live
@@ -16,6 +17,7 @@ const HINT_LABEL: Record<string, string> = {
   tags: "tags",
   category: "category",
   flag: "flag",
+  type: "type",
 };
 
 export function isCategoryRow(row: Row): boolean {
@@ -85,6 +87,9 @@ export function SuggestionList({ rows, highlight, liveText, whispering, onActiva
                 </>
               ) : (
                 <>
+                  {row.s.filter.kind === "form" && (
+                    <Flask shape="form" size={13} className="shrink-0 text-text-muted" />
+                  )}
                   <span className="text-text">{row.s.label}</span>
                   <span className="ml-auto flex items-center gap-2">
                     {isCat && (

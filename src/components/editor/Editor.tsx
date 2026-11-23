@@ -33,6 +33,7 @@ import { makeSlashMenu } from "./SlashMenu";
 import { useBlockMarquee } from "./useBlockMarquee";
 import { useBlockDrag } from "./useBlockDrag";
 import { FlaskFor } from "../Flask";
+import { isFormTemplate } from "../../lib/forms/meta";
 import { findScrollParent } from "./dragScroll";
 import type { EditorPosition } from "./editorPosition";
 import type { NoteMeta } from "../../lib/types";
@@ -482,7 +483,7 @@ export function Editor({
               .slice(0, 8)
               .map((n) => ({
                 title: n.title || "Untitled",
-                icon: <FlaskFor icon={n.icon} chars={n.chars} size={16} />,
+                icon: <FlaskFor icon={n.icon} chars={n.chars} form={isFormTemplate(n.extra)} size={16} />,
                 onItemClick: () => {
                   editor.insertInlineContent([
                     { type: "noteLink", props: { noteId: n.id, title: n.title || "Untitled" } },

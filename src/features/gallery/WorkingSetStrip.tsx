@@ -5,6 +5,7 @@ import type { CategoryDef } from "../../lib/categories/defs";
 import type { GalleryFields } from "../../lib/gallery/view";
 import { FlaskCard, type MenuAnchor, type PeekTarget } from "./FlaskCard";
 import { FlaskFor } from "../../components/Flask";
+import { isFormTemplate } from "../../lib/forms/meta";
 import { X } from "../../components/icons";
 
 // The working set: a shelf of the memories the owner is actively working with, pinned
@@ -237,6 +238,7 @@ export function WorkingSetStrip({
               <FlaskFor
                 icon={dragItem.icon}
                 chars={dragItem.chars}
+                form={isFormTemplate(dragItem.extra)}
                 seed={dragItem.id}
                 size={56}
                 label={dragItem.title || "Untitled"}

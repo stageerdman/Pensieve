@@ -49,6 +49,7 @@ export function FilterEditPopover({ filter, ctx, onReplace, onClose }: Props) {
         <TextEdit value={filter.text} onChange={(text) => onReplace({ ...filter, text } as Filter)} />
       )}
       {filter.kind === "flag" && <p className="px-1 py-1 text-xs text-text-muted">Only {filter.flag} thoughts. Right-click the chip to remove it.</p>}
+      {filter.kind === "form" && <p className="px-1 py-1 text-xs text-text-muted">Only forms. Right-click the chip to remove it.</p>}
     </div>
   );
 }

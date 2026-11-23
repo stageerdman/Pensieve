@@ -1,5 +1,6 @@
 import type { MouseEvent, ReactNode } from "react";
 import type { NoteMeta } from "../lib/types";
+import { isFormTemplate } from "../lib/forms/meta";
 import { FlaskFor } from "./Flask";
 import { Logo } from "./Logo";
 import { X } from "./icons";
@@ -128,6 +129,7 @@ export function TabBar({
               <FlaskFor
                 icon={n.icon}
                 chars={n.chars}
+                form={isFormTemplate(n.extra)}
                 size={13}
                 className="shrink-0"
               />

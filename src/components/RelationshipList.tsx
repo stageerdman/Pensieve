@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { NoteMeta } from "../lib/types";
+import { isFormTemplate } from "../lib/forms/meta";
 import { FlaskFor } from "./Flask";
 import { Plus, X } from "./icons";
 
@@ -43,7 +44,7 @@ export function RelationshipList({ noteId, links, notes, onOpen, onChange }: Rel
             onClick={() => onOpen(n.id)}
             className="flex min-w-0 items-center gap-1.5 text-left text-sm text-text hover:text-accent"
           >
-            <FlaskFor icon={n.icon} chars={n.chars} size={14} className="shrink-0 text-text-muted" />
+            <FlaskFor icon={n.icon} chars={n.chars} form={isFormTemplate(n.extra)} size={14} className="shrink-0 text-text-muted" />
             <span className="truncate">{n.title || "Untitled"}</span>
           </button>
           <button
@@ -85,7 +86,7 @@ export function RelationshipList({ noteId, links, notes, onOpen, onChange }: Rel
                 onClick={() => link(n.id)}
                 className="flex w-full items-center gap-1.5 rounded px-1 py-1 text-left text-sm text-text-muted hover:bg-surface-raised hover:text-text"
               >
-                <FlaskFor icon={n.icon} chars={n.chars} size={14} className="shrink-0" />
+                <FlaskFor icon={n.icon} chars={n.chars} form={isFormTemplate(n.extra)} size={14} className="shrink-0" />
                 <span className="truncate">{n.title || "Untitled"}</span>
               </button>
             ))}
