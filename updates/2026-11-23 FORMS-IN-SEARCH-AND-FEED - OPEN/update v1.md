@@ -36,10 +36,10 @@ suggestion never consumes the typed text, so the word "form" still ranks as free
 ## P2 — Form filter in search (backend)
 - `Filter` gains `{ kind: "form" }`; `SearchableNote.form` from `isFormTemplate(extra)`;
   `matchFilter`, `filterLabel` ("Form") handle it.
-- `grammar.completionsFor`: a prefix of "form"/"forms" (≥ 2 chars, exact word included) offers
-  a `hint: "type"` suggestion labelled "Form", with a source span (confirm splices just that
-  word out), never a claim.
-- Tests: "fo", "form", "Forms", "daily form" offer it; it does not change `parse.text`;
+- `grammar.completionsFor`: the word "form"/"forms" (`isFormWord`, any case — not a shorter
+  prefix, see P4) offers a `hint: "type"` suggestion labelled "Form", with a source span
+  (confirm splices just that word out), never a claim.
+- Tests: "form", "Forms", "daily form" offer it; "fo", "for", "food" do not; it does not change `parse.text`;
   `runSearch` with the chip keeps only templates; chip + text still ranks; the ranking suite
   and benchmark stay green.
 
@@ -65,7 +65,7 @@ its shape is never drawn, since forms always draw as the form flask) instead of 
 ## API for the UI (P3)
 - `resolveIcon(icon, form)` (replaced `formLook` in P3) / `FORM_DEFAULT_ICON` / `isFormTemplate(extra)` — from `lib/forms`.
 - Summon: suggestions with `filter.kind === "form"` (`hint: "type"`, label "Form") appear in
-  `useSummon().suggestions` for "fo"/"form"/"forms"; `confirm(s)` stacks the chip;
+  `useSummon().suggestions` for "form"/"forms"; `confirm(s)` stacks the chip;
   `addFilter({ kind: "form" })` adds it directly; `filterLabel` gives "Form".
 - `FilterEditPopover` has no body for the form chip yet (one line, like the flag chip).
 
@@ -81,7 +81,15 @@ its shape is never drawn, since forms always draw as the form flask) instead of 
   search row, header, tabs, working set, links, @-mention menu) and phone (reel card, Accio
   row). On a form, the flask picker drops Shape and keeps Colour, Vibrancy and Shine. No
   extra glow ring, because gold already means starred. Summon's Form row shows the form
-  flask, and the chip popover reads "Only forms". Phone: typing fo/form/forms shows a
+  flask, and the chip popover reads "Only forms". Phone: typing form/forms shows a
   **Form** chip that turns the word into a `form:` filter (`accioQuery.formSuggestion`,
   `passesForm`). Tests: Flask, FlaskPicker, Summon, phone flaskSvg/accioQuery/accioRank.
-- [ ] P4 verify + ship
+- [x] Real-user walk-through (Columbo, `user-test.md`). Fixed from it:
+  - The phone's 14-day window never forgets a form (`window.planForget` skips `form`;
+    `vaultStore.listNoteMeta` marks it). Tests: `window.test.ts`, `vaultStore.test.ts`.
+  - The Form chip is offered only for "form"/"forms", never "fo"/"for" — one shared rule,
+    `isFormWord` in `lib/forms/meta`, used by the desktop grammar and the phone.
+  - Not done: backfilling labels on the 3 old CANI entries (16–18 Nov) — waits for the
+    owner's OK. "Start from" buttons still show the generic icon (small note, open).
+- [x] P4 verify + ship — 1,700 tests and both typechecks pass; Mac rebuilt and installed,
+  phone deployed, checked on the real vault (`deploy.md`).
