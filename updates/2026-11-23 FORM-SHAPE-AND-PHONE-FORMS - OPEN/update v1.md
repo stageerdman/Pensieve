@@ -31,5 +31,9 @@
 ## Status
 - [x] P1 (8f90028) · [x] P2 (75859d9) · [x] P3: 1701 tests + tsc (desktop + phone) pass;
   phone deployed (pensieve-phone.pages.dev), Mac app rebuilt and installed to /Applications.
+- Re-ship from main @ 02bee7a: 1708 tests + tsc pass; `npm run tauri:build` installed
+  /Applications/Pensieve.app; `npm run deploy:phone` → live https://pensieve-phone.pages.dev
+  serves `index-D8FvPvDU.js` (same bundle as the first deploy — Cloudflare already had all
+  8 files). Not yet checked by hand in the running apps.
 - Note: a form the phone doesn't hold arrives after the new Mac app has published
   notes-index.json once (its next sync), then the phone's next sync brings it in.
