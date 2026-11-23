@@ -34,6 +34,8 @@ export interface NotesIndexEntry {
   o?: number;
   /** first category */
   k?: string;
+  /** 1 = a Form template (always kept on the phone). */
+  f?: 1;
 }
 
 /** Parse the published index; null when it isn't a version we understand (→ no window). */
@@ -67,6 +69,12 @@ export function inWindow(id: string, ctx: WindowCtx, localCreatedAt?: number): b
   return lastTouched(id, ctx, localCreatedAt) >= ctx.now - WINDOW_MS;
 }
 
+/** Whether the phone should hold this memory: inside the window, or a Form template — a
+ *  form is used for months after it was last opened, so every form is always on the phone. */
+export function belongsOnPhone(id: string, ctx: WindowCtx, localCreatedAt?: number): boolean {
+  return !!ctx.index.get(id)?.f || inWindow(id, ctx, localCreatedAt);
+}
+
 export interface LocalNoteForWindow {
   id: string;
   updatedAt: number;
@@ -91,13 +99,13 @@ export function planForget(
     const rec = records[n.id];
     if (!rec || rec.remoteOnly) continue; // never synced (or already forgotten) — keep
     if (n.updatedAt > rec.localUpdatedAt) continue; // unsynced phone edit — keep
-    if (inWindow(n.id, ctx, n.createdAt)) continue;
+    if (belongsOnPhone(n.id, ctx, n.createdAt)) continue;
     out.push(n.id);
   }
   return out;
 }
 
-/** Index memories that belong in the window but aren't on the phone: the ones to bring in.
+/** Index memories that belong on the phone (window or form) but aren't there: the ones to bring in.
  *  A note with a live (non-remoteOnly) record that's missing locally is a pending phone-side
  *  DELETE — never resurrect it. */
 export function planBringIn(
@@ -110,7 +118,7 @@ export function planBringIn(
     if (localIds.has(id)) continue;
     const rec = records[id];
     if (rec && !rec.remoteOnly) continue;
-    if (inWindow(id, ctx)) out.push(id);
+    if (belongsOnPhone(id, ctx)) out.push(id);
   }
   return out;
 }

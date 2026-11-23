@@ -8,7 +8,7 @@ const RECENT = NOW - 1000;
 const rec = (id: string, localUpdatedAt = 10, extra: Partial<NoteSyncRecord> = {}): NoteSyncRecord => ({
   id, remoteId: "r" + id, cTag: "c", localUpdatedAt, syncedAt: 1, ...extra,
 });
-const ctx = (index: Array<{ id: string; c: number; o?: number }>, opens: Record<string, number> = {}): WindowCtx => ({
+const ctx = (index: Array<{ id: string; c: number; o?: number; f?: 1 }>, opens: Record<string, number> = {}): WindowCtx => ({
   now: NOW,
   index: new Map(index.map((e) => [e.id, { t: "", u: 0, ...e }])),
   opens,
@@ -52,6 +52,14 @@ describe("window", () => {
     const c = ctx([{ id: "gone", c: RECENT }, { id: "deleted", c: RECENT }, { id: "here", c: RECENT }, { id: "old", c: OLD }]);
     const records = { gone: rec("gone", 0, { remoteOnly: true }), deleted: rec("deleted"), here: rec("here") };
     expect(planBringIn(new Set(["here"]), records, c)).toEqual(["gone"]);
+  });
+
+  it("brings in every form from the index, however old, and keeps it once here", () => {
+    const c = ctx([{ id: "oldForm", c: OLD, f: 1 }, { id: "unseen", c: OLD, f: 1 }, { id: "old", c: OLD }]);
+    const records = { oldForm: rec("oldForm", 0, { remoteOnly: true }), old: rec("old", 0, { remoteOnly: true }) };
+    expect(planBringIn(new Set(), records, c)).toEqual(["oldForm", "unseen"]);
+    // Even before its frontmatter is parsed locally, the index flag alone keeps it.
+    expect(planForget([{ id: "oldForm", updatedAt: 10 }], { oldForm: rec("oldForm") }, c)).toEqual([]);
   });
 
   it("frees media only when no kept memory uses it and it's backed up", () => {

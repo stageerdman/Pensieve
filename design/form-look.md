@@ -13,14 +13,17 @@ shape no memory can have.
 ## The design
 - **The form flask.** A volumetric (measuring) flask: a slim neck with one fill mark, a pear
   body and a flat base, with three graduation ticks down its right side. Those ticks are
-  the form's fields, the lines you fill in. Only forms have this shape; it is not one
+  the form's fields, the lines you fill in. Only forms can have this shape; it is not one
   of the six memory shapes and can't be picked for a memory.
-- **Automatic.** "Use as form" switches the silhouette and "Stop using as form" switches it
-  back. Nothing is stored: the shape comes from `form: true` when the flask is drawn, so the
-  memory keeps its old shape underneath.
-- **Adjustable per form.** The flask picker on a form shows the form flask as its preview and
-  drops the Shape row. Colour, Vibrancy and Shine stay, and they're saved in the form's own
-  `icon` like any memory's. A form with no chosen icon is purple (`FORM_DEFAULT_ICON`).
+- **Default, not forced** (FORM-SHAPE-AND-PHONE-FORMS). A form with no chosen icon draws the
+  purple form flask (`FORM_DEFAULT_ICON = {shape:"form", color:"purple"}`). A form whose
+  icon has a shape draws that shape: the owner may give a form any flask.
+- **Adjustable per form.** The flask picker on a form shows a Shape row of seven: the form
+  flask first, then the six memory shapes (`FORM_SHAPES`). Colour, Vibrancy and Shine stay.
+  Everything is saved in the form's own `icon` like any memory's.
+- **One rule, Mac and phone.** `lib/forms/look.ts` `drawShape(icon, form)` picks the
+  silhouette everywhere. A memory never draws the form flask: after "Stop using as form", a
+  stored `shape: form` falls back to the default memory shape.
 - **Glow.** Kept as it is: every flask already glows in its liquid's colour, and a form's
   glow takes the form's colour. No extra halo, because the gold halo already means
   *starred* and a second ring would blur both meanings.
@@ -41,7 +44,6 @@ shape no memory can have.
 
 ## Removed / not added
 - No new "Form" badge or label on cards. The silhouette says it.
-- No shape choice for forms. One form shape is what makes forms recognisable.
 - No extra glow ring (see above).
 
 ## States
@@ -49,7 +51,8 @@ shape no memory can have.
   silhouette still read as a form.
 - Small sizes (< 20px: tabs, lists): the silhouette alone. Ticks are drawn only at detailed
   sizes.
-- Stop using as form → the flask goes back to the memory's own shape at once.
+- Stop using as form → a form flask becomes the default memory shape; any other chosen
+  shape stays.
 
 ## Accessibility
 - The picker preview label reads "Form flask, <colour>…". The header button reads
@@ -58,4 +61,11 @@ shape no memory can have.
   hit area grown to 44px by an invisible inset. It keeps the keyboard up (pointerdown
   preventDefault), and the result list lifts clear of it (`.app-root.suggesting`).
 - Phone colour: the phone has no flask picker; a form's colour is set on the Mac and
-  syncs over. A form with no chosen colour renders purple on the phone too.
+  syncs over. A form with no chosen colour renders purple on the phone too, and the phone
+  draws the form's chosen shape.
+
+## Forms on the phone
+The phone keeps only a 14-day window of memories, but every form is always kept. The desktop
+marks forms with `f: 1` in `notes-index.json`, and the phone's window
+(`phone/src/lib/sync/window.ts` `belongsOnPhone`) keeps and brings in every flagged form,
+whatever its age.

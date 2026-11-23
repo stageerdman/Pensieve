@@ -32,7 +32,7 @@ import {
   downloadNotesIndex,
 } from "./adapter";
 import { ConflictError, RemoteRootMissingError } from "./errors";
-import { inWindow, parseNotesIndex, planBringIn, planForget, planForgetMedia, type WindowCtx } from "./window";
+import { belongsOnPhone, parseNotesIndex, planBringIn, planForget, planForgetMedia, type WindowCtx } from "./window";
 import { EMPTY_SYNC_STATE, type MediaSyncRecord, type RemoteItem, type SyncAccount, type SyncProgress, type SyncQuota, type SyncResult, type SyncState } from "./types";
 import { getAccessToken, clearTokenCache } from "./tokens";
 import { parseNoteContent } from "../media/noteMedia";
@@ -345,7 +345,7 @@ export async function sync(graph: GraphClient, vault: LocalVault, onProgress?: (
       // PHONE-WINDOW: a memory not on the phone and outside the window is only noted as
       // existing remotely — never downloaded. (A live record missing locally is a pending
       // phone-side delete, handled as before.)
-      if (win && !localBefore.has(id) && (!rec || rec.remoteOnly) && !inWindow(id, win)) {
+      if (win && !localBefore.has(id) && (!rec || rec.remoteOnly) && !belongsOnPhone(id, win)) {
         state.notes[id] = { id, remoteId: item.id, cTag: rec?.cTag ?? "", localUpdatedAt: 0, syncedAt: rec?.syncedAt ?? 0, remoteOnly: true };
         continue;
       }
@@ -716,7 +716,7 @@ export async function restoreFromCloud(graph: GraphClient, vault: LocalVault, on
   const wanted = remote.filter((item) => {
     const id = noteIdFromName(item.name);
     if (!id) return false;
-    if (!win || inWindow(id, win)) return true;
+    if (!win || belongsOnPhone(id, win)) return true;
     state.notes[id] = { id, remoteId: item.id, cTag: "", localUpdatedAt: 0, syncedAt: 0, remoteOnly: true };
     return false;
   });

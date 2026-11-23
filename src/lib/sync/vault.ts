@@ -11,6 +11,7 @@ import { titleFromMarkdown } from "../text";
 import { MEDIA_DIR, base64ToBytes, bytesToBase64 } from "../media";
 import { downloadMediaChunked, mediaSize as nativeMediaSize, uploadMediaChunked } from "./native";
 import { indexEntryFromMeta, type NotesIndexEntry } from "./notesIndex";
+import { getStore } from "../store";
 
 export interface LocalNoteInfo {
   id: string;
@@ -104,8 +105,10 @@ export function tauriVault(): LocalVault {
     readNote: (id) => readText(notePath(id)),
 
     async listIndexEntries() {
-      const recs = await invoke<{ id: string; meta: Meta | null }[]>("list_notes_bulk", { withBodies: false });
-      return recs.map((r) => indexEntryFromMeta(r.id, r.meta));
+      // The store's (cache-backed) listing, not the bare sidecars: the form flag lives in
+      // the frontmatter extras, which only the listing derives.
+      const notes = await getStore().list();
+      return notes.map((n) => indexEntryFromMeta(n.id, n));
     },
 
     async writeNote(id, content, times) {

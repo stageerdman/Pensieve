@@ -6,6 +6,8 @@
 // Format is a contract with phone/src/lib/sync/window.ts — change both together.
 // Short keys on purpose: ~2,000 entries, re-uploaded whenever it changes.
 
+import { isFormTemplate } from "../forms/meta";
+
 export const NOTES_INDEX_NAME = "notes-index.json";
 export const NOTES_INDEX_VERSION = 1;
 
@@ -22,6 +24,9 @@ export interface NotesIndexEntry {
   o?: number;
   /** First category, for the phone's flask colour. */
   k?: string;
+  /** 1 = a Form template. The phone keeps every form (whatever its age) so any form
+   *  can always be started there. */
+  f?: 1;
 }
 
 export interface NotesIndex {
@@ -46,13 +51,21 @@ export function hashText(s: string): string {
   return (h >>> 0).toString(36) + ":" + s.length;
 }
 
-/** One sidecar meta → an index entry (pure; the vault supplies the metas). */
-export function indexEntryFromMeta(
-  id: string,
-  meta: { title?: string; createdAt?: number; updatedAt?: number; lastOpenedAt?: number; categories?: string[] } | null,
-): NotesIndexEntry {
+export interface IndexableMeta {
+  title?: string;
+  createdAt?: number;
+  updatedAt?: number;
+  lastOpenedAt?: number;
+  categories?: string[];
+  /** Unmodelled frontmatter keys — where the form flag lives. */
+  extra?: Record<string, string>;
+}
+
+/** One note's listing meta → an index entry (pure; the vault supplies the metas). */
+export function indexEntryFromMeta(id: string, meta: IndexableMeta | null): NotesIndexEntry {
   const e: NotesIndexEntry = { id, t: meta?.title ?? "", c: meta?.createdAt ?? 0, u: meta?.updatedAt ?? 0 };
   if (meta?.lastOpenedAt) e.o = meta.lastOpenedAt;
   if (meta?.categories?.[0]) e.k = meta.categories[0];
+  if (isFormTemplate(meta?.extra)) e.f = 1;
   return e;
 }
