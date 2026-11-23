@@ -21,6 +21,8 @@ export interface LocalNoteInfo {
   updatedAt: number;
   /** PHONE-WINDOW: the note's creation time, for the rolling window. */
   createdAt?: number;
+  /** PHONE-WINDOW: a form template — never forgotten. */
+  form?: boolean;
 }
 
 export interface WriteTimes {
@@ -70,7 +72,7 @@ export function phoneVault(): LocalVault {
       // Per-note ops (FAST-LOAD): no whole-vault parse per call — a 2,000-note pull is O(n).
       return listNoteMeta()
         .filter((n) => !n.draft)
-        .map((n) => ({ id: n.id, updatedAt: n.updatedAt, createdAt: n.createdAt }));
+        .map((n) => ({ id: n.id, updatedAt: n.updatedAt, createdAt: n.createdAt, form: n.form }));
     },
 
     async readNote(id) {

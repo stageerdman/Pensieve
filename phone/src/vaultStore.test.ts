@@ -208,6 +208,15 @@ describe("phone vault — FAST-LOAD per-note layout", () => {
     expect(getNote("m")!.c).toBe("orig");
   });
 
+  it("a pulled form is listed as a form, so the 14-day window never forgets it", async () => {
+    await hydrateVault();
+    const vault = phoneVault();
+    await vault.writeNote("f", "---\nform: true\n---\n\n# CANI\n", { updatedAt: 1 });
+    await vault.writeNote("m", "# Monday\n", { updatedAt: 1 });
+    const byId = Object.fromEntries((await vault.listNotes()).map((n) => [n.id, n.form]));
+    expect(byId).toEqual({ f: true, m: undefined });
+  });
+
   it("a 2,500-note sync pull is linear (was O(n²) — ~47 s for 2,000 in the bench)", async () => {
     await hydrateVault();
     const vault = phoneVault();

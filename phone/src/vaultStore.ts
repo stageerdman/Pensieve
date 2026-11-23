@@ -45,6 +45,7 @@
 
 import type { Note } from "./types";
 import { log } from "./lib/logger";
+import { isFormTemplate } from "../../src/lib/forms/meta";
 
 export function newId(): string {
   return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
@@ -393,16 +394,19 @@ export interface NoteMeta {
   updatedAt: number;
   createdAt?: number;
   draft?: string;
+  /** A form template (the PHONE-WINDOW never forgets one). */
+  form?: boolean;
 }
 
-/** id + updatedAt (+ draft) of every note — no copying of bodies. */
+/** id + updatedAt (+ draft, form) of every note — no copying of bodies. */
 export function listNoteMeta(): NoteMeta[] {
   const list = recs ? sorted().map((r) => r.n) : lsLoad();
-  return list.map((n) =>
-    n.draft
-      ? { id: n.id, updatedAt: n.updatedAt, createdAt: n.createdAt, draft: n.draft }
-      : { id: n.id, updatedAt: n.updatedAt, createdAt: n.createdAt },
-  );
+  return list.map((n) => {
+    const meta: NoteMeta = { id: n.id, updatedAt: n.updatedAt, createdAt: n.createdAt };
+    if (n.draft) meta.draft = n.draft;
+    if (isFormTemplate(n.foreign?.extra)) meta.form = true;
+    return meta;
+  });
 }
 
 /** One note as a fresh copy, or undefined. */

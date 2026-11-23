@@ -39,6 +39,15 @@ describe("window", () => {
     expect(planForget(local, records, c, new Set(["shown"]))).toEqual(["clean"]);
   });
 
+  it("never forgets a form, however long since it was opened", () => {
+    const c = ctx([{ id: "form", c: OLD }, { id: "plain", c: OLD }]);
+    const local = [
+      { id: "form", updatedAt: 10, form: true },
+      { id: "plain", updatedAt: 10 },
+    ];
+    expect(planForget(local, { form: rec("form"), plain: rec("plain") }, c)).toEqual(["plain"]);
+  });
+
   it("brings in window memories that aren't here, but never resurrects a pending phone delete", () => {
     const c = ctx([{ id: "gone", c: RECENT }, { id: "deleted", c: RECENT }, { id: "here", c: RECENT }, { id: "old", c: OLD }]);
     const records = { gone: rec("gone", 0, { remoteOnly: true }), deleted: rec("deleted"), here: rec("here") };

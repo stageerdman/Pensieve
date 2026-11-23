@@ -72,9 +72,13 @@ export interface LocalNoteForWindow {
   updatedAt: number;
   createdAt?: number;
   draft?: string;
+  /** A form template: always kept — the phone's Form filter and "fill a form" list read
+   *  forms from local notes, and a form is used for months after it was last opened. */
+  form?: boolean;
 }
 
-/** Local notes safe to forget now: clean, synced, not a draft, not protected, outside the window. */
+/** Local notes safe to forget now: clean, synced, not a draft, not a form, not protected,
+ *  outside the window. */
 export function planForget(
   local: LocalNoteForWindow[],
   records: Record<string, NoteSyncRecord>,
@@ -83,7 +87,7 @@ export function planForget(
 ): string[] {
   const out: string[] = [];
   for (const n of local) {
-    if (n.draft || protect.has(n.id)) continue;
+    if (n.draft || n.form || protect.has(n.id)) continue;
     const rec = records[n.id];
     if (!rec || rec.remoteOnly) continue; // never synced (or already forgotten) — keep
     if (n.updatedAt > rec.localUpdatedAt) continue; // unsynced phone edit — keep
