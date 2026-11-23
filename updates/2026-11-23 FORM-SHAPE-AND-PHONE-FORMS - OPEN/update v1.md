@@ -29,4 +29,7 @@
 - **P3 Ship.** Tests + typecheck, rebuild the Mac app, deploy the phone.
 
 ## Status
-- [x] P1 · [x] P2 · [ ] P3
+- [x] P1 (8f90028) · [x] P2 (75859d9) · [x] P3: 1701 tests + tsc (desktop + phone) pass;
+  phone deployed (pensieve-phone.pages.dev), Mac app rebuilt and installed to /Applications.
+- Note: a form the phone doesn't hold arrives after the new Mac app has published
+  notes-index.json once (its next sync), then the phone's next sync brings it in.
