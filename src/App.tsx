@@ -523,6 +523,7 @@ export default function App() {
                             chars={contentCharCount(current.markdown)}
                             seed={current.id}
                             starred={current.starred}
+                            form={isFormTemplate(current.extra)}
                             onChange={(icon) => updateMeta({ icon })}
                           />
                           <NoteCategoryControl

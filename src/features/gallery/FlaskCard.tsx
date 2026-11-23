@@ -6,6 +6,7 @@ import { catFg } from "../../lib/categories/palette";
 import { relativeTime, absoluteDate } from "../../lib/format";
 import type { GalleryFields, SnippetLines } from "../../lib/gallery/view";
 import { FlaskFor } from "../../components/Flask";
+import { isFormTemplate } from "../../lib/forms/meta";
 import { Bookmark } from "../../components/icons";
 import { StarHalo } from "../../components/StarHalo";
 import { onCardKeyDown } from "./cardKeys";
@@ -122,6 +123,7 @@ export function FlaskCard({
           icon={note.icon}
           chars={note.chars}
           seed={note.id}
+          form={isFormTemplate(note.extra)}
           size={64}
           label={note.title || "Untitled"}
           className="relative"

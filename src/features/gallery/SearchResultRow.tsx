@@ -4,6 +4,7 @@ import type { SearchResult } from "../../lib/search/search";
 import { markTerms } from "../../lib/search/snippet";
 import { absoluteDate } from "../../lib/format";
 import { FlaskFor } from "../../components/Flask";
+import { isFormTemplate } from "../../lib/forms/meta";
 import { StarHalo } from "../../components/StarHalo";
 import { Highlighted } from "../../components/Highlighted";
 import { onCardKeyDown, type CardKeyActions } from "./cardKeys";
@@ -74,7 +75,7 @@ export function SearchResultRow({
     >
       <span className="relative mt-0.5 flex h-9 w-8 shrink-0 items-center justify-center">
         {note.starred && <StarHalo className="h-11 w-11" />}
-        <FlaskFor icon={note.icon} chars={note.chars} seed={note.id} size={28} className="relative" />
+        <FlaskFor icon={note.icon} chars={note.chars} seed={note.id} form={isFormTemplate(note.extra)} size={28} className="relative" />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-sm font-medium text-text">

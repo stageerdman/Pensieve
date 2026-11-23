@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { DEFAULT_ICON, SHAPE_LABELS, type NoteIcon } from "../lib/flasks/icon";
 import { useDismiss } from "../hooks/useDismiss";
 import { colorLabel } from "../lib/categories/palette";
+import { FORM_DEFAULT_ICON, FORM_SHAPE_LABEL } from "../lib/forms/look";
 import { FlaskFor } from "./Flask";
 import { FlaskPicker } from "./FlaskPicker";
 import { StarHalo } from "./StarHalo";
@@ -17,10 +18,11 @@ interface FlaskButtonProps {
   chars?: number; // the open note's content length — drives the flask's fill level
   seed?: string; // the note's id — seeds the memory thread
   starred?: boolean; // a "bright memory" — the flask sits in the gold StarHalo
+  form?: boolean; // a form template — drawn as the form flask; only its colour is picked
   onChange: (icon: NoteIcon) => void;
 }
 
-export function FlaskButton({ icon, chars, seed, starred, onChange }: FlaskButtonProps) {
+export function FlaskButton({ icon, chars, seed, starred, form, onChange }: FlaskButtonProps) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const ref = useDismiss<HTMLDivElement>(() => setOpen(false), {
@@ -31,7 +33,8 @@ export function FlaskButton({ icon, chars, seed, starred, onChange }: FlaskButto
       btnRef.current?.focus();
     },
   });
-  const shown = icon ?? DEFAULT_ICON;
+  const shown = icon ?? (form ? FORM_DEFAULT_ICON : DEFAULT_ICON);
+  const shapeLabel = form ? FORM_SHAPE_LABEL : SHAPE_LABELS[shown.shape];
 
   return (
     <div ref={ref} className="relative">
@@ -40,17 +43,17 @@ export function FlaskButton({ icon, chars, seed, starred, onChange }: FlaskButto
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`Flask — ${SHAPE_LABELS[shown.shape]}, ${colorLabel(shown.color)}${starred ? ", starred" : ""}. Click to change`}
+        aria-label={`Flask — ${shapeLabel},${colorLabel(shown.color)}${starred ? ", starred" : ""}. Click to change`}
         title="Change flask"
         className="relative -ml-1 flex h-10 w-10 items-center justify-center rounded-lg text-text transition-colors hover:bg-surface-raised"
       >
         {starred && <StarHalo className="h-11 w-11" />}
-        <FlaskFor icon={icon} chars={chars} seed={seed} size={28} className="relative" />
+        <FlaskFor icon={icon} chars={chars} seed={seed} form={form} size={28} className="relative" />
       </button>
 
       {open && (
         <div className="absolute left-0 top-full z-20 mt-1 rounded-lg border border-border bg-surface-raised shadow-lg">
-          <FlaskPicker icon={icon} seed={seed} onChange={onChange} />
+          <FlaskPicker icon={icon} seed={seed} form={form} onChange={onChange} />
         </div>
       )}
     </div>

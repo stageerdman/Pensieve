@@ -10,6 +10,9 @@ import { isFormTemplate, type Extra } from "./meta";
 
 export const FORM_DEFAULT_ICON: NoteIcon = { shape: "round-bottom", color: "purple" };
 
+/** A form always draws as the form flask (its stored shape is kept but not shown). */
+export const FORM_SHAPE_LABEL = "Form flask";
+
 export interface FormLook {
   isForm: boolean;
   /** The icon to render: the chosen one, else the form default (forms) / undefined (others). */

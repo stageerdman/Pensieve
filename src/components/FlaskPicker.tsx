@@ -8,6 +8,7 @@ import {
   type FlaskShape,
   type NoteIcon,
 } from "../lib/flasks/icon";
+import { FORM_DEFAULT_ICON, FORM_SHAPE_LABEL } from "../lib/forms/look";
 import { colorFg, colorLabel, hueOfColor } from "../lib/categories/palette";
 import { Flask } from "./Flask";
 import { HueSpectrum } from "./HueSpectrum";
@@ -32,6 +33,9 @@ const stepIndex = (value: number) => {
 interface FlaskPickerProps {
   icon?: NoteIcon;
   seed?: string; // the note's id — seeds the memory thread in the preview
+  /** A form template: it always draws as the form flask, so the Shape row is gone and
+   *  only its colour, vibrancy and shine are chosen (design/form-look.md). */
+  form?: boolean;
   onChange: (icon: NoteIcon) => void;
 }
 
@@ -52,8 +56,9 @@ function step(
   return to;
 }
 
-export function FlaskPicker({ icon, seed, onChange }: FlaskPickerProps) {
-  const current = icon ?? DEFAULT_ICON;
+export function FlaskPicker({ icon, seed, form, onChange }: FlaskPickerProps) {
+  const current = icon ?? (form ? FORM_DEFAULT_ICON : DEFAULT_ICON);
+  const shapeLabel = form ? FORM_SHAPE_LABEL : SHAPE_LABELS[current.shape];
   const curVib = iconVibrancy(current);
   const curShine = iconShine(current);
   const shapeRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -66,9 +71,11 @@ export function FlaskPicker({ icon, seed, onChange }: FlaskPickerProps) {
   const [vibFocus, setVibFocus] = useState(() => stepIndex(curVib));
   const [shineFocus, setShineFocus] = useState(() => stepIndex(curShine));
 
-  // Open with focus on the selected shape (standard dialog behaviour).
+  // Open with focus on the selected shape (standard dialog behaviour); a form has no
+  // shape row, so focus lands on its vibrancy step instead.
   useEffect(() => {
-    shapeRefs.current[shapeFocus]?.focus();
+    if (form) vibRefs.current[vibFocus]?.focus();
+    else shapeRefs.current[shapeFocus]?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -83,10 +90,10 @@ export function FlaskPicker({ icon, seed, onChange }: FlaskPickerProps) {
       <div
         className="mb-2 flex items-center justify-center rounded-md bg-surface py-3"
         aria-live="polite"
-        aria-label={`Flask: ${SHAPE_LABELS[current.shape]}, ${colorLabel(current.color)}, vibrancy ${vibFocus + 1} of 5, shine ${shineFocus + 1} of 5`}
+        aria-label={`Flask: ${shapeLabel}, ${colorLabel(current.color)}, vibrancy ${vibFocus + 1} of 5, shine ${shineFocus + 1} of 5`}
       >
         <Flask
-          shape={current.shape}
+          shape={form ? "form" : current.shape}
           color={current.color}
           vibrancy={curVib}
           shine={curShine}
@@ -96,7 +103,9 @@ export function FlaskPicker({ icon, seed, onChange }: FlaskPickerProps) {
         />
       </div>
 
-      {/* Shape */}
+      {/* Shape — not for a form: its shape IS the form flask */}
+      {!form && (
+      <>
       <p className="px-0.5 pb-1 text-2xs font-medium uppercase tracking-wide text-text-muted/70">
         Shape
       </p>
@@ -136,9 +145,11 @@ export function FlaskPicker({ icon, seed, onChange }: FlaskPickerProps) {
           );
         })}
       </div>
+      </>
+      )}
 
       {/* Colour — a draggable spectrum (any hue), not a fixed set of swatches */}
-      <p className="px-0.5 pb-1.5 pt-2 text-2xs font-medium uppercase tracking-wide text-text-muted/70">
+      <p className={`px-0.5 pb-1.5 ${form ? "" : "pt-2"} text-2xs font-medium uppercase tracking-wide text-text-muted/70`}>
         Colour
       </p>
       <div className="px-0.5">

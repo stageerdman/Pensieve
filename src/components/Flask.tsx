@@ -12,6 +12,7 @@ import {
 } from "../lib/flasks/icon";
 import { colorChannels, type FlaskColor } from "../lib/categories/palette";
 import { memoryThread } from "../lib/flasks/thread";
+import { FORM_DEFAULT_ICON } from "../lib/forms/look";
 
 // A magical "memory flask": a glass vessel with coloured liquid, a soft glow and a
 // glass highlight. The note's icon (see lib/flasks/icon). Six distinct silhouettes
@@ -32,9 +33,25 @@ interface ShapeDef {
   neckRx: number; // meniscus half-width once the liquid reaches the neck
   noCork?: boolean;
   lip?: string;
+  /** Graduation ticks on the glass (the form flask's "fields"), drawn at detailed sizes. */
+  ticks?: string;
 }
 
-const SHAPES: Record<FlaskShape, ShapeDef> = {
+/** What a flask can be drawn as: the six memory shapes, plus the form flask — a measuring
+ *  flask reserved for form templates (never offered in the picker, never stored; see
+ *  design/form-look.md). */
+export type RenderShape = FlaskShape | "form";
+
+const SHAPES: Record<RenderShape, ShapeDef> = {
+  form: {
+    d: "M10.5 3 L10.5 9 C10.5 11.5 4 15 4 21.5 C4 26 6 27.5 8.5 27.5 L15.5 27.5 C18 27.5 20 26 20 21.5 C20 15 13.5 11.5 13.5 9 L13.5 3 Z",
+    mouth: [10.5, 13.5],
+    meniscusRx: 4.6,
+    yFloor: 25.5,
+    yBrim: 6,
+    neckRx: 1.5,
+    ticks: "M10.5 7 L13.5 7 M15 16.5 L17 16.5 M15 19.5 L18 19.5 M15 22.5 L17 22.5",
+  },
   "round-bottom": {
     d: "M10 3 C10 10 10 11 8.5 12.5 C4.5 16 3 20 5 24 C7 27.5 9.5 28 12 28 C14.5 28 17 27.5 19 24 C21 20 19.5 16 15.5 12.5 C14 11 14 10 14 3 Z",
     mouth: [10, 14],
@@ -92,7 +109,7 @@ const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 const NORMAL_Y = 12; // liquid surface at the normal fill (today's look)
 
 interface FlaskProps {
-  shape?: FlaskShape;
+  shape?: RenderShape;
   color?: FlaskColor;
   /** Liquid fraction 0..1. 0 = empty & colourless. Default = the normal look. */
   fill?: number;
@@ -241,6 +258,18 @@ function FlaskBase({
           vectorEffect="non-scaling-stroke"
         />
       )}
+      {s.ticks && detailed && (
+        <path
+          d={s.ticks}
+          data-ticks=""
+          fill="none"
+          stroke="currentColor"
+          strokeOpacity={0.5}
+          strokeWidth={1}
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      )}
 
       {/* 7 · the memory thread — a white strand whose shape is the note's DNA (seeded by
           its id), clipped to the glass and rising with the liquid. Shine governs both the
@@ -315,16 +344,18 @@ export const Flask = memo(FlaskBase);
 /** Render a note's icon, falling back to DEFAULT_ICON when none is set — so the row,
  *  header, mentions and relationships all show the same default flask. Pass `chars`
  *  (the note's content length) to drive the fill level; omit it for a normal-fill
- *  style preview (e.g. the picker). */
+ *  style preview (e.g. the picker). `form` (a form template — `isFormTemplate(extra)`)
+ *  draws the form flask in the icon's colour, purple when none is chosen. */
 export function FlaskFor({
   icon,
   chars,
+  form,
   ...rest
-}: { icon?: NoteIcon; chars?: number } & Omit<FlaskProps, "shape" | "color" | "vibrancy" | "shine" | "fill">) {
-  const resolved = icon ?? DEFAULT_ICON;
+}: { icon?: NoteIcon; chars?: number; form?: boolean } & Omit<FlaskProps, "shape" | "color" | "vibrancy" | "shine" | "fill">) {
+  const resolved = icon ?? (form ? FORM_DEFAULT_ICON : DEFAULT_ICON);
   return (
     <Flask
-      shape={resolved.shape}
+      shape={form ? "form" : resolved.shape}
       color={resolved.color}
       vibrancy={iconVibrancy(resolved)}
       shine={iconShine(resolved)}
