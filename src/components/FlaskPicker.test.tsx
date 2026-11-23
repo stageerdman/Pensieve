@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { FlaskPicker } from "./FlaskPicker";
+import { FlaskButton } from "./FlaskButton";
 import { FLASK_SHAPES } from "../lib/flasks/icon";
 
 describe("FlaskPicker", () => {
@@ -58,6 +59,11 @@ describe("FlaskPicker", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Vibrancy 5 of 5" }));
     // The chosen look is stored as the form's ordinary icon.
     expect(onChange).toHaveBeenCalledWith({ shape: "round-bottom", color: "purple", vibrancy: 1 });
+  });
+
+  it("the header button names shape and colour with a comma and space", () => {
+    render(<FlaskButton icon={{ shape: "vial", color: "gray" }} onChange={() => {}} />);
+    expect(screen.getByRole("button", { name: /^Flask — Vial, / })).toBeInTheDocument();
   });
 
   it("falls back to the default icon when none is set", () => {

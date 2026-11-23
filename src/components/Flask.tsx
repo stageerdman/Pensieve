@@ -12,7 +12,7 @@ import {
 } from "../lib/flasks/icon";
 import { colorChannels, type FlaskColor } from "../lib/categories/palette";
 import { memoryThread } from "../lib/flasks/thread";
-import { FORM_DEFAULT_ICON } from "../lib/forms/look";
+import { resolveIcon } from "../lib/forms/look";
 
 // A magical "memory flask": a glass vessel with coloured liquid, a soft glow and a
 // glass highlight. The note's icon (see lib/flasks/icon). Six distinct silhouettes
@@ -352,7 +352,7 @@ export function FlaskFor({
   form,
   ...rest
 }: { icon?: NoteIcon; chars?: number; form?: boolean } & Omit<FlaskProps, "shape" | "color" | "vibrancy" | "shine" | "fill">) {
-  const resolved = icon ?? (form ? FORM_DEFAULT_ICON : DEFAULT_ICON);
+  const resolved = resolveIcon(icon, form);
   return (
     <Flask
       shape={form ? "form" : resolved.shape}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { FORM_DEFAULT_ICON, formLook, inheritLabels } from "./index";
+import { FORM_DEFAULT_ICON, resolveIcon, inheritLabels } from "./index";
+import { DEFAULT_ICON } from "../flasks/icon";
 
 const note = (categories: string[], tags: string[]) => ({ id: "n", categories, tags });
 
@@ -19,11 +20,12 @@ describe("inheritLabels", () => {
   });
 });
 
-describe("formLook", () => {
-  it("a form uses its chosen flask, else the form default; other memories are untouched", () => {
+describe("resolveIcon", () => {
+  it("uses the chosen flask, else the form default for a form, else the plain default", () => {
     const chosen = { shape: "vial" as const, color: 120 };
-    expect(formLook({ extra: { form: "true" }, icon: chosen })).toEqual({ isForm: true, icon: chosen });
-    expect(formLook({ extra: { form: "true" } })).toEqual({ isForm: true, icon: FORM_DEFAULT_ICON });
-    expect(formLook({ extra: { fromForm: "f" } })).toEqual({ isForm: false, icon: undefined });
+    expect(resolveIcon(chosen, true)).toBe(chosen);
+    expect(resolveIcon(undefined, true)).toBe(FORM_DEFAULT_ICON);
+    expect(resolveIcon(undefined, false)).toBe(DEFAULT_ICON);
+    expect(resolveIcon(undefined)).toBe(DEFAULT_ICON);
   });
 });

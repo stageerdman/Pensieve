@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
-import { DEFAULT_ICON, SHAPE_LABELS, type NoteIcon } from "../lib/flasks/icon";
+import { SHAPE_LABELS, type NoteIcon } from "../lib/flasks/icon";
 import { useDismiss } from "../hooks/useDismiss";
 import { colorLabel } from "../lib/categories/palette";
-import { FORM_DEFAULT_ICON, FORM_SHAPE_LABEL } from "../lib/forms/look";
+import { FORM_SHAPE_LABEL, resolveIcon } from "../lib/forms/look";
 import { FlaskFor } from "./Flask";
 import { FlaskPicker } from "./FlaskPicker";
 import { StarHalo } from "./StarHalo";
@@ -33,7 +33,7 @@ export function FlaskButton({ icon, chars, seed, starred, form, onChange }: Flas
       btnRef.current?.focus();
     },
   });
-  const shown = icon ?? (form ? FORM_DEFAULT_ICON : DEFAULT_ICON);
+  const shown = resolveIcon(icon, form);
   const shapeLabel = form ? FORM_SHAPE_LABEL : SHAPE_LABELS[shown.shape];
 
   return (
@@ -43,7 +43,7 @@ export function FlaskButton({ icon, chars, seed, starred, form, onChange }: Flas
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`Flask — ${shapeLabel},${colorLabel(shown.color)}${starred ? ", starred" : ""}. Click to change`}
+        aria-label={`Flask — ${shapeLabel}, ${colorLabel(shown.color)}${starred ? ", starred" : ""}. Click to change`}
         title="Change flask"
         className="relative -ml-1 flex h-10 w-10 items-center justify-center rounded-lg text-text transition-colors hover:bg-surface-raised"
       >
