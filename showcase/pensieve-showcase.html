@@ -1,0 +1,1237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pensieve — catch a thought in any shape</title>
+<!--
+  Pensieve showcase · one standalone file, opens from disk. No network, no storage, no AI.
+  Every memory, line and answer below is made up (see DATA). Script: updates/2026-11-24 WOW-SHOWCASE - OPEN/script.md
+  Real look: prototype/real-design-reference.md (colours, Dock, Spell ring, recorder card, Journal camera, orb).
+  Sections: 1 tokens · 2 stage · 3 guide · 4 phone · 5 mode screens · 6 shelf · 7 mac · 8 chat
+-->
+<style>
+/* ── 1 · tokens (the app's own palette) ─────────────────────────────── */
+:root{
+  --bg:222 24% 11%; --raised:222 18% 17%; --sunk:222 26% 8%;
+  --text:216 18% 84%; --muted:218 12% 60%; --line:220 16% 26%;
+  --gold:43 92% 55%; --gold-glow:45 100% 72%; --gold-mid:40 92% 52%; --gold-deep:32 90% 38%;
+  --blue:215 85% 74%; --violet:266 72% 74%; --red:0 68% 65%; --green:150 28% 55%;
+  --font:-apple-system,"SF Pro Text",system-ui,"Segoe UI",sans-serif;
+  --hand:"Bradley Hand","Noteworthy","Segoe Print","Comic Sans MS",cursive;
+  --ease:cubic-bezier(.2,.8,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:hsl(var(--sunk));color:hsl(var(--text));font-family:var(--font);-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,[tabindex]:focus-visible{outline:2px solid hsl(var(--blue));outline-offset:3px;border-radius:10px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ── 2 · stage: a fixed 1440×900 canvas scaled to the window ────────── */
+#stage{position:absolute;left:0;top:0;width:1440px;height:900px;transform-origin:0 0;
+  background:radial-gradient(1100px 700px at 62% 40%,hsl(224 30% 15%),hsl(var(--bg)) 60%,hsl(var(--sunk)));overflow:hidden}
+#stage::after{content:"";position:absolute;inset:0;pointer-events:none;background:hsl(var(--sunk)/.0);transition:background 1.2s}
+#stage.rest::after{background:hsl(var(--sunk)/.28)}
+.top{position:absolute;left:36px;right:36px;top:18px;height:32px;display:flex;align-items:center;gap:10px;z-index:30}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;letter-spacing:.02em}
+.brand .flask{width:16px;height:22px}
+.top .sp{flex:1}
+.tbtn{font-size:12px;color:hsl(var(--muted));padding:7px 12px;border-radius:99px;border:1px solid hsl(var(--line));display:flex;gap:6px;align-items:center;transition:color .2s,border-color .2s}
+.tbtn:hover{color:hsl(var(--text));border-color:hsl(var(--muted))}
+.tbtn[aria-pressed=true]{color:hsl(var(--gold));border-color:hsl(var(--gold)/.5)}
+.headline{position:absolute;left:0;right:0;top:62px;text-align:center;z-index:5;pointer-events:none}
+.headline h1{font-size:28px;font-weight:600;letter-spacing:-.01em;color:hsl(216 30% 94%);transition:opacity .6s}
+.headline p{font-size:15px;color:hsl(var(--muted));margin-top:6px;opacity:0;transition:opacity 1s .9s}
+.headline.in p{opacity:1}
+.tourpill{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);font-size:12px;color:hsl(var(--muted));
+  padding:6px 12px;border-radius:99px;background:hsl(var(--raised)/.8);border:1px solid hsl(var(--line));opacity:0;transition:opacity .4s;z-index:40;pointer-events:none}
+.tourpill.on{opacity:1}
+
+/* ── 3 · guide panel ───────────────────────────────────────────────── */
+.guide{position:absolute;left:36px;top:196px;width:320px;z-index:6;transition:opacity .5s,transform .6s var(--ease)}
+.mac-on .guide{opacity:0;transform:translateX(-30px);pointer-events:none}
+.g-kicker{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:hsl(var(--muted));display:flex;gap:8px;align-items:center;height:20px}
+.g-kicker svg{color:hsl(var(--gold))}
+.g-moment{font-size:21px;line-height:1.35;font-weight:500;color:hsl(216 30% 94%);margin:12px 0 22px;min-height:58px}
+.g-steps{list-style:none;display:grid;gap:12px;counter-reset:s}
+.g-steps li{counter-increment:s;display:grid;grid-template-columns:26px 1fr;gap:10px;align-items:start;font-size:14px;line-height:1.45;color:hsl(var(--muted));transition:color .3s}
+.g-steps li::before{content:counter(s);width:24px;height:24px;border-radius:50%;border:1px solid hsl(var(--line));display:grid;place-items:center;font-size:12px;transition:all .3s}
+.g-steps li.on{color:hsl(216 30% 94%)}
+.g-steps li.on::before{border-color:hsl(var(--blue));color:hsl(var(--blue));box-shadow:0 0 0 4px hsl(var(--blue)/.12)}
+.g-steps li.past::before{content:"✓";color:hsl(var(--muted))}
+.g-note{font-size:12px;color:hsl(var(--muted));margin-top:16px;line-height:1.5;min-height:18px}
+.g-done{font-size:14px;color:hsl(var(--green));margin-top:18px;height:20px;opacity:0;transform:translateY(4px);transition:all .4s}
+.g-done.on{opacity:1;transform:none}
+.g-actions{display:flex;gap:10px;margin-top:18px;align-items:center}
+.btn{height:40px;padding:0 18px;border-radius:12px;font-size:14px;font-weight:600;transition:transform .15s,background .2s,opacity .2s}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:hsl(var(--blue));color:hsl(222 40% 12%)}
+.btn.primary:hover{background:hsl(215 90% 80%)}
+.btn.link{padding:0 6px;color:hsl(var(--muted));font-weight:500}
+.btn.link:hover{color:hsl(var(--text))}
+.btn[hidden]{display:none}
+
+/* mode strip: wayfinding, a dot fills when caught */
+.strip{position:absolute;left:36px;top:846px;width:820px;display:flex;gap:4px;justify-content:center;z-index:6;transition:opacity .5s}
+.mac-on .strip{opacity:0;pointer-events:none}
+.chip{display:flex;flex-direction:column;align-items:center;gap:4px;width:74px;padding:6px 0 4px;border-radius:12px;font-size:11px;color:hsl(var(--muted));transition:color .2s,background .2s;position:relative}
+.chip svg{width:18px;height:18px}
+.chip:hover{color:hsl(var(--text));background:hsl(var(--raised)/.6)}
+.chip.cur{color:hsl(216 30% 94%);background:hsl(var(--raised))}
+.chip i{position:absolute;top:6px;right:18px;width:6px;height:6px;border-radius:50%;border:1px solid hsl(var(--line))}
+.chip.got i{background:hsl(var(--gold));border-color:hsl(var(--gold));box-shadow:0 0 6px hsl(var(--gold)/.7)}
+.chip.mac{color:hsl(var(--gold))}
+
+/* ── 4 · phone ─────────────────────────────────────────────────────── */
+.rig{position:absolute;left:420px;top:136px;width:370px;z-index:8;transform-origin:0 0;transition:transform .9s var(--ease)}
+.mac-on .rig{transform:translate(-382px,96px) scale(.6)}
+.frame{position:relative;margin:0 auto;width:330px;height:640px;border-radius:52px;padding:12px;
+  background:linear-gradient(145deg,hsl(222 10% 30%),hsl(222 12% 12%) 40%,hsl(222 10% 22%));
+  box-shadow:0 0 0 1px hsl(220 10% 40%/.6),0 40px 80px -20px #000a,0 0 120px -40px hsl(var(--gold)/.25);
+  transition:width .45s var(--ease),border-radius .45s var(--ease),transform .45s var(--ease)}
+.frame.ipad{width:500px;border-radius:30px;margin-left:-65px}
+.screen{position:relative;width:100%;height:100%;border-radius:40px;overflow:hidden;background:hsl(var(--bg));transition:border-radius .45s}
+.frame.ipad .screen{border-radius:18px}
+.notch{position:absolute;left:50%;top:10px;transform:translateX(-50%);width:96px;height:28px;border-radius:20px;background:#000;z-index:50;transition:opacity .3s}
+.frame.ipad .notch{opacity:0}
+.status{position:absolute;left:0;right:0;top:0;height:46px;display:flex;justify-content:space-between;align-items:center;padding:4px 26px 0 32px;font-size:13px;font-weight:600;z-index:49;pointer-events:none}
+.status .ic{display:flex;gap:5px;align-items:center}
+.status .ic b{display:block;width:22px;height:11px;border:1.4px solid currentColor;border-radius:3px;position:relative}
+.status .ic b::after{content:"";position:absolute;inset:1.5px;right:4px;background:currentColor;border-radius:1px}
+.home{position:absolute;inset:0;padding:58px 16px 100px;display:flex;flex-direction:column;gap:10px;z-index:1}
+.home h2{font-size:26px;font-weight:700;color:hsl(216 30% 94%);margin:4px 4px 6px}
+.empty{margin:auto;text-align:center;font-size:14px;color:hsl(var(--muted));line-height:1.6;padding-bottom:40px}
+.empty .flask{width:34px;height:48px;margin:0 auto 10px;opacity:.7}
+.card{display:flex;gap:12px;align-items:center;padding:12px;border-radius:16px;background:hsl(var(--raised));animation:cardin .5s var(--ease) both}
+.card .flask{width:26px;height:36px;flex:none}
+.card b{display:block;font-size:14px;font-weight:600;color:hsl(216 30% 92%)}
+.card small{font-size:12px;color:hsl(var(--muted))}
+.card .gl{margin-left:auto;color:hsl(var(--muted))}
+.card.hit{box-shadow:0 0 0 1.5px hsl(var(--violet)/.7)}
+@keyframes cardin{from{opacity:0;transform:translateY(-8px)}}
+.layers{position:absolute;inset:0;z-index:2}
+.layer{position:absolute;inset:0;background:hsl(var(--bg));animation:layerin .45s var(--ease) both}
+.layer.full{z-index:4}
+@keyframes layerin{from{opacity:0;transform:translateY(24px)}}
+.layer.out{animation:layerout .35s ease both}
+@keyframes layerout{to{opacity:0;transform:scale(.96)}}
+
+/* the Dock: 4-cell see-through grid pinned to the bottom */
+.dock{position:absolute;left:0;right:0;bottom:0;padding:10px 14px 22px;display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:64px;gap:10px;align-items:center;z-index:3;
+  background:linear-gradient(to top,hsl(var(--bg)) 60%,hsl(var(--bg)/0));transition:opacity .3s}
+.dock.hide{opacity:0;pointer-events:none}
+.pill{grid-column:1/4;height:56px;border-radius:28px;background:hsl(var(--raised)/.85);border:1px solid hsl(var(--violet)/.25);display:flex;align-items:center;gap:10px;padding:0 18px;color:hsl(var(--muted));font-size:15px;text-align:left}
+.pill svg{color:hsl(var(--violet));flex:none}
+.pill.live{border-color:hsl(var(--violet)/.7);color:hsl(216 30% 94%)}
+.pill .caret{display:inline-block;width:2px;height:18px;background:hsl(var(--violet));margin-left:1px;animation:blink 1s steps(1) infinite;vertical-align:middle}
+@keyframes blink{50%{opacity:0}}
+.dbtn{height:56px;border-radius:28px;background:hsl(var(--raised)/.85);display:grid;place-items:center;color:hsl(var(--text))}
+.dbtn.wide{grid-column:1/4;font-weight:600;background:hsl(var(--gold));color:hsl(222 40% 12%)}
+.dbtn.rec.live{color:hsl(var(--red));animation:recpulse 1.4s ease-in-out infinite}
+@keyframes recpulse{50%{box-shadow:0 0 0 6px hsl(var(--red)/.18)}}
+.fab{grid-column:4;justify-self:center;width:56px;height:56px;border-radius:50%;display:grid;place-items:center;position:relative}
+.fab::before{content:"";position:absolute;inset:4px;border-radius:50%;background:radial-gradient(circle,hsl(var(--gold)/.38),hsl(var(--gold)/0) 70%);animation:breathe 4s ease-in-out infinite}
+.fab svg{position:relative;animation:ember 4.4s ease-in-out infinite;filter:drop-shadow(0 0 4px hsl(var(--gold)/.8))}
+.fab.cond svg .orb{fill:hsl(var(--blue))}
+@keyframes breathe{50%{transform:scale(1.25);opacity:.55}}
+@keyframes ember{0%,100%{opacity:1}22%{opacity:.82}24%{opacity:1}61%{opacity:.9}63%{opacity:.98}}
+
+/* the Spell ring */
+.ring{position:absolute;inset:0;z-index:6;pointer-events:none}
+.ring .veil{position:absolute;inset:0;background:hsl(var(--sunk)/.55);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);opacity:0;transition:opacity .35s}
+.ring.open{pointer-events:auto}
+.ring.open .veil{opacity:1}
+.ring .hub{position:absolute;left:50%;top:60%;width:0;height:0}
+.ring .ctr{position:absolute;left:50%;top:60%;transform:translate(-50%,-50%);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:hsl(var(--muted));opacity:0;transition:opacity .3s .2s;white-space:nowrap}
+.ring.open .ctr{opacity:1}
+.spell{position:absolute;left:0;top:0;width:64px;height:84px;margin:-32px 0 0 -32px;display:flex;flex-direction:column;align-items:center;gap:6px;
+  transform:translate(0,0) scale(.2);opacity:0;transition:transform .5s var(--ease),opacity .3s;--h:var(--gold)}
+.ring.open .spell{transform:translate(var(--x),var(--y)) scale(var(--s,1));opacity:1}
+.disc{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;background:hsl(222 24% 12%);color:hsl(var(--h));
+  box-shadow:inset 0 0 0 1.5px hsl(var(--h)/.85),0 0 16px -2px hsl(var(--h)/.45);transition:box-shadow .2s,transform .2s}
+.spell:hover .disc,.spell.hot .disc{transform:scale(1.08);box-shadow:inset 0 0 0 2.5px hsl(var(--h)),0 0 26px 2px hsl(var(--h)/.6)}
+.spell.focus{--s:1.12}
+.spell.focus .disc{box-shadow:inset 0 0 0 2.5px hsl(var(--h)),0 0 22px 0 hsl(var(--h)/.6)}
+.spell span{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:hsl(var(--text)/.85)}
+.spell.violet{--h:var(--violet)} .spell.blue{--h:var(--blue)} .spell.red{--h:var(--red)}
+.spark{position:absolute;width:6px;height:6px;border-radius:50%;background:hsl(var(--gold-glow));box-shadow:0 0 8px 2px hsl(var(--gold));pointer-events:none;z-index:60;animation:spark .7s ease-out forwards}
+@keyframes spark{to{transform:translate(var(--dx),var(--dy)) scale(.2);opacity:0}}
+
+/* ghost finger */
+.finger{position:absolute;left:0;top:0;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;z-index:80;pointer-events:none;
+  background:radial-gradient(circle,hsl(0 0% 100%/.55),hsl(0 0% 100%/.18) 60%,transparent 70%);border:1.5px solid hsl(0 0% 100%/.55);
+  opacity:0;transition:transform .55s var(--ease),opacity .25s}
+.finger.on{opacity:1}
+.finger.tap{animation:tap .28s ease}
+.finger.hold::after{content:"";position:absolute;inset:-10px;border-radius:50%;border:1.5px solid hsl(0 0% 100%/.4);animation:holdring .7s ease-out}
+@keyframes tap{50%{scale:.78}}
+@keyframes holdring{from{transform:scale(.5);opacity:1}to{transform:scale(1.4);opacity:0}}
+
+/* caption: what the made-up voice is saying (always shown, sound or not) */
+.caption{position:absolute;left:16px;right:16px;z-index:9;font-size:14px;line-height:1.45;color:hsl(216 30% 96%);background:hsl(222 30% 6%/.78);
+  border-radius:14px;padding:10px 12px 10px 34px;opacity:0;transform:translateY(6px);transition:all .35s;pointer-events:none}
+.caption.on{opacity:1;transform:none}
+.caption svg{position:absolute;left:10px;top:11px;color:hsl(var(--muted))}
+
+/* ── 5 · mode screens ──────────────────────────────────────────────── */
+.memo{padding:64px 22px 0}
+.memo .t{font-size:24px;font-weight:700;color:hsl(216 30% 95%);min-height:32px}
+.memo .b{font-size:15px;line-height:1.55;color:hsl(var(--text));margin-top:10px;min-height:24px;white-space:pre-wrap}
+.memo .b em{color:hsl(var(--muted));font-style:normal}
+.cursor::after{content:"";display:inline-block;width:2px;height:1.05em;background:hsl(var(--blue));margin-left:1px;vertical-align:-2px;animation:blink 1s steps(1) infinite}
+.kbd{position:absolute;left:0;right:0;bottom:0;padding:8px 4px 30px;background:hsl(222 10% 18%);z-index:5;display:grid;gap:9px;animation:kbdin .4s var(--ease) both}
+@keyframes kbdin{from{transform:translateY(100%)}}
+.kbd .row{display:flex;justify-content:center;gap:5px}
+.kbd .k{width:25px;height:38px;border-radius:5px;background:hsl(222 6% 34%);display:grid;place-items:center;font-size:15px;color:#fff;transition:background .08s,transform .08s}
+.kbd .k.w{width:150px}
+.kbd .k.on{background:hsl(222 6% 58%);transform:translateY(-3px) scale(1.12)}
+.audiobar{margin-top:16px;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:hsl(var(--raised))}
+.audiobar .pl{width:30px;height:30px;border-radius:50%;background:hsl(var(--gold));color:hsl(222 40% 12%);display:grid;place-items:center;font-size:11px}
+.audiobar .tr{flex:1;height:3px;border-radius:2px;background:hsl(var(--line));position:relative}
+.audiobar .tr::after{content:"";position:absolute;left:0;top:0;bottom:0;width:22%;background:hsl(var(--gold));border-radius:2px}
+.audiobar small{font-size:12px;color:hsl(var(--muted));font-variant-numeric:tabular-nums}
+/* recorder card */
+.recveil{position:absolute;inset:0;z-index:7;background:hsl(var(--sunk)/.45);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);animation:fadein .3s both}
+@keyframes fadein{from{opacity:0}}
+.rec{position:absolute;left:12px;right:12px;bottom:24px;border-radius:24px;background:hsl(var(--raised));box-shadow:0 30px 60px -10px #000c;padding:18px 18px 16px;text-align:center;animation:layerin .4s var(--ease) both}
+.rec .st{font-size:13px;color:hsl(var(--muted));display:flex;gap:8px;justify-content:center;align-items:center}
+.rec .dot{width:8px;height:8px;border-radius:50%;background:hsl(var(--red));animation:dotp 1.4s ease-in-out infinite}
+@keyframes dotp{50%{opacity:.35}}
+.rec .tm{font-size:34px;font-weight:600;font-variant-numeric:tabular-nums;margin:6px 0 10px;color:hsl(216 30% 95%)}
+.bars{display:flex;gap:6px;justify-content:center;align-items:center;height:44px}
+.bars i{width:6px;height:8px;border-radius:3px;background:hsl(var(--gold));transition:height .12s}
+.rec .bt{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.rec .bt span{height:46px;border-radius:14px;display:grid;place-items:center;font-size:15px;font-weight:600;background:hsl(222 12% 26%)}
+.rec .bt span.done{background:hsl(var(--gold));color:hsl(222 40% 12%)}
+/* iOS camera hand-off (Snap / Film) */
+.cam{background:#000;color:#fff}
+.cam .vf{position:absolute;left:0;right:0;top:86px;bottom:150px;overflow:hidden;background:radial-gradient(circle at 50% 45%,hsl(30 14% 30%),hsl(30 10% 10%))}
+.cam .topbar{position:absolute;top:50px;left:0;right:0;display:flex;justify-content:center}
+.cam .tpill{font-size:13px;font-variant-numeric:tabular-nums;padding:3px 8px;border-radius:6px;background:transparent;transition:background .3s}
+.cam .tpill.rec{background:hsl(0 80% 52%)}
+.cam .modes{position:absolute;bottom:118px;left:0;right:0;display:flex;justify-content:center;gap:18px;font-size:12px;letter-spacing:.06em;color:#fffa}
+.cam .modes b{color:hsl(48 100% 60%);font-weight:600}
+.cam .sh{position:absolute;bottom:34px;left:50%;margin-left:-35px;width:70px;height:70px;border-radius:50%;border:4px solid #fff;display:grid;place-items:center}
+.cam .sh i{width:56px;height:56px;border-radius:50%;background:#fff;transition:all .25s}
+.cam .sh.video i{background:hsl(0 80% 55%)}
+.cam .sh.video.on i{width:26px;height:26px;border-radius:6px}
+.cam .review{position:absolute;bottom:40px;left:22px;right:22px;display:flex;justify-content:space-between;font-size:16px;opacity:0;transition:opacity .3s}
+.cam .review.on{opacity:1}
+.cam .tag{position:absolute;top:14px;left:50%;transform:translateX(-50%);font-size:10px;letter-spacing:.1em;color:#fff9;text-transform:uppercase;z-index:3;top:66px}
+.blink{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;z-index:10}
+.blink.go{animation:blinkk .25s ease}
+@keyframes blinkk{40%{opacity:1}}
+.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:10}
+.flash.go{animation:flashh .22s ease}
+@keyframes flashh{20%{opacity:.9}}
+.sticky{position:absolute;left:50%;top:50%;width:170px;height:160px;margin:-80px 0 0 -85px;background:linear-gradient(160deg,hsl(52 96% 72%),hsl(48 90% 62%));transform:rotate(-4deg);
+  box-shadow:0 14px 24px -8px #0009;padding:16px 14px;font-family:var(--hand);color:hsl(220 40% 20%);font-size:17px;line-height:1.35}
+.wheel{position:absolute;left:50%;top:56%;transform:translate(-50%,-50%)}
+.wheel .spin{transform-origin:100px 70px;animation:wob 1.6s ease-in-out infinite}
+@keyframes wob{25%{transform:skewX(3deg) translateX(-2px)}75%{transform:skewX(-3deg) translateX(2px)}}
+.photo{margin-top:16px;border-radius:14px;overflow:hidden;height:170px;position:relative;background:radial-gradient(circle at 50% 45%,hsl(30 14% 30%),hsl(30 10% 12%))}
+.photo .sticky{transform:rotate(-4deg) scale(.82)}
+.clip{margin-top:16px;border-radius:14px;overflow:hidden;aspect-ratio:16/9;position:relative;background:radial-gradient(circle at 50% 45%,hsl(30 14% 30%),hsl(30 10% 10%))}
+.clip .play{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px;border-radius:50%;background:#fff3;backdrop-filter:blur(6px);display:grid;place-items:center;font-size:14px}
+.sheet{position:absolute;left:8px;right:8px;bottom:8px;z-index:8;border-radius:18px;background:hsl(222 10% 20%);padding:14px;box-shadow:0 -10px 40px #0008;animation:kbdin .4s var(--ease) both}
+.sheet .apps{display:flex;gap:14px;padding:4px 4px 14px;border-bottom:1px solid hsl(0 0% 100%/.08)}
+.sheet .apps i{width:46px;height:46px;border-radius:12px;background:hsl(222 10% 32%)}
+.sheet .row{padding:13px 6px;font-size:15px;display:flex;justify-content:space-between;border-bottom:1px solid hsl(0 0% 100%/.06)}
+.sheet .row.hot{background:hsl(0 0% 100%/.08);border-radius:10px}
+/* Journal camera (in-app, stays open) */
+.jcam{background:#000;color:#fff}
+.jcam .jtop{position:absolute;top:50px;left:18px;right:18px;display:flex;justify-content:space-between;font-size:13px;color:#fffd}
+.jcam .jtop b{color:hsl(var(--gold));font-weight:700;opacity:.35;transition:opacity .3s}
+.jcam .jtop b.ok{opacity:1}
+.jcam .vf{position:absolute;left:0;right:0;top:80px;bottom:196px;overflow:hidden;background:linear-gradient(170deg,hsl(25 30% 22%),hsl(25 30% 12%))}
+.page{position:absolute;left:50%;top:50%;width:180px;height:240px;margin:-120px 0 0 -90px;background:hsl(42 40% 90%);border-radius:3px;box-shadow:0 18px 30px -10px #000a;
+  padding:16px 14px;font-family:var(--hand);color:hsl(220 40% 22%);font-size:15px;line-height:1.55;transition:transform .6s var(--ease)}
+.page h4{font-size:16px;margin-bottom:6px}
+.page.gone{transform:translateX(-260px) rotate(-8deg)}
+.page.coming{transform:translateX(260px) rotate(6deg)}
+.jcam .shut{position:absolute;bottom:108px;left:50%;margin-left:-35px;width:70px;height:70px;border-radius:50%;border:3.5px solid #fff;background:#ffffff1a;transition:transform .12s}
+.jcam .shut.on{transform:scale(.9)}
+.jcam .strip2{position:absolute;bottom:26px;left:14px;right:14px;height:66px;display:flex;gap:8px;align-items:center;font-size:12px;color:#fff8;justify-content:center}
+.jcam .tile{width:44px;height:58px;border-radius:5px;background:hsl(42 40% 88%);position:relative;animation:pop .35s var(--ease) both}
+.jcam .tile::after{content:"×";position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:#333;color:#fff;font-size:11px;display:grid;place-items:center;line-height:1}
+@keyframes pop{from{transform:scale(.3);opacity:0}}
+/* iPad + Pencil */
+.ipadpage{padding:40px 34px}
+.ipadpage .t{font-size:26px;font-weight:700;color:hsl(216 30% 95%)}
+.ipadpage .sub{font-size:13px;color:hsl(var(--muted));margin-top:4px}
+.canvas{position:relative;margin-top:24px;height:250px;border-radius:16px;background:hsl(222 20% 14%);border:1px solid hsl(var(--line))}
+.canvas svg.bowl path{stroke:hsl(216 30% 90%);stroke-width:2;fill:none;stroke-linecap:round;stroke-dasharray:400;stroke-dashoffset:400;transition:stroke-dashoffset 1.2s ease}
+.canvas.drawn svg.bowl path{stroke-dashoffset:0}
+.handw{position:absolute;left:190px;top:70px;font-family:var(--hand);font-size:28px;color:hsl(216 30% 92%);white-space:nowrap;clip-path:inset(0 100% 0 0);transition:clip-path 1.6s linear,opacity .5s}
+.handw.go{clip-path:inset(0 0 0 0)}
+.handw.melt{opacity:0;filter:blur(3px)}
+.typed{position:absolute;left:190px;top:76px;font-size:20px;color:hsl(216 30% 95%);opacity:0;transform:translateY(4px);transition:all .5s}
+.typed.on{opacity:1;transform:none}
+.pencil{position:absolute;left:180px;top:30px;width:16px;height:150px;transform-origin:50% 100%;transform:rotate(28deg);transition:left 1.6s linear,opacity .3s;opacity:0;pointer-events:none}
+.pencil.on{opacity:1}
+.ipnote{font-size:12px;color:hsl(var(--muted));margin-top:14px}
+/* Form */
+.form .info{position:absolute;top:52px;left:20px;right:20px;font-size:12px;color:hsl(var(--muted));display:flex;align-items:center;gap:8px}
+.form .info .rd{display:none;align-items:center;gap:6px;color:hsl(var(--red));font-variant-numeric:tabular-nums}
+.form.live .info .rd{display:flex}
+.form .wbars{display:flex;gap:2px;align-items:center;height:16px;margin-left:auto}
+.form .wbars i{width:2px;height:3px;background:hsl(var(--red)/.8);border-radius:1px;transition:height .12s}
+.qs{position:absolute;left:0;right:0;top:84px;bottom:96px;overflow:hidden}
+.qtrack{transition:transform .6s var(--ease)}
+.q{height:436px;padding:30px 22px 0;position:relative}
+.q h3{font-size:26px;font-weight:700;line-height:1.2;color:hsl(216 30% 95%)}
+.q p{font-size:13px;color:hsl(var(--muted));margin-top:8px}
+.q .box{margin-top:22px;height:110px;border-radius:14px;border:1px solid hsl(var(--line));padding:12px;font-size:14px;color:hsl(var(--muted))}
+.q .peek{position:absolute;bottom:14px;left:22px;right:22px;font-size:13px;color:hsl(var(--muted))}
+.q .peek b{color:hsl(var(--text));font-weight:500}
+.q.end h3{font-size:30px}
+/* Patronus block (on the phone: armed, dimmed) */
+.pblock{margin-top:18px;border-radius:16px;border:1px solid hsl(var(--blue)/.35);background:hsl(215 40% 18%/.5);padding:14px;animation:cardin .5s var(--ease) both}
+.pblock .cap{font-size:10px;letter-spacing:.14em;color:hsl(var(--blue));display:flex;align-items:center;gap:8px}
+.pblock .in{margin-top:10px;font-size:15px;min-height:22px;color:hsl(216 30% 94%)}
+.pblock .ws{margin-top:10px;font-size:12px;color:hsl(var(--muted))}
+.orb{position:relative;width:18px;height:18px;flex:none}
+.orb::before{content:"";position:absolute;inset:3px;border-radius:50%;background:radial-gradient(circle,#fff,hsl(var(--blue)) 60%,transparent 75%);filter:blur(.5px)}
+.orb.dim{opacity:.35;filter:grayscale(.6)}
+/* Accio */
+.acc{position:absolute;left:12px;right:12px;bottom:102px;display:flex;flex-direction:column;gap:8px}
+.arow{display:flex;gap:12px;align-items:center;padding:12px;border-radius:14px;background:hsl(var(--raised));animation:cardin .4s var(--ease) both}
+.arow svg{color:hsl(var(--violet));flex:none}
+.arow b{display:block;font-size:14px;color:hsl(216 30% 94%);font-weight:600}
+.arow small{font-size:12px;color:hsl(var(--muted))}
+mark{background:hsl(var(--violet)/.25);color:hsl(266 90% 88%);border-radius:3px;padding:0 2px}
+.acchead{position:absolute;top:58px;left:20px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:hsl(var(--violet))}
+
+/* ── 6 · the shelf ─────────────────────────────────────────────────── */
+.shelf{position:relative;margin:14px auto 0;width:400px;height:74px;display:flex;justify-content:center;align-items:flex-end;gap:10px;padding:0 10px 6px}
+.shelf::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;border-radius:2px;background:linear-gradient(90deg,transparent,hsl(var(--text)/.22),transparent);box-shadow:0 6px 18px hsl(var(--gold)/.08)}
+.shelf .hint{position:absolute;bottom:14px;font-size:12px;color:hsl(var(--muted)/.7)}
+.bottle{position:relative;width:38px;height:54px;flex:none;transition:filter .3s,transform .3s}
+.bottle .flask{width:100%;height:100%}
+.bottle.empty .flask{animation:faint 3s ease-in-out infinite}
+@keyframes faint{50%{filter:drop-shadow(0 0 8px hsl(var(--gold)/.55))}}
+.bottle.lit{filter:drop-shadow(0 0 14px hsl(var(--violet)));transform:translateY(-4px)}
+.bottle .bg{position:absolute;right:-6px;bottom:-2px;width:20px;height:20px;border-radius:50%;background:hsl(var(--raised));border:1px solid hsl(var(--line));display:grid;place-items:center;color:hsl(var(--text))}
+.bottle .n{position:absolute;left:-4px;top:4px;font-size:10px;font-weight:700;background:hsl(var(--gold));color:hsl(222 40% 12%);border-radius:8px;padding:0 5px;line-height:15px}
+.bottle .orb{position:absolute;left:10px;top:-10px}
+.bottle.hidden{visibility:hidden}
+.flyer{position:absolute;left:0;top:0;width:38px;height:54px;z-index:90;pointer-events:none}
+.flyer .flask{width:100%;height:100%}
+
+/* ── 7 · the MacBook (real 3D lid) ─────────────────────────────────── */
+.macwrap{position:absolute;left:0;top:0;width:900px;height:880px;transform-origin:0 0;transform:translate(870px,200px) scale(.52);transition:transform 1s var(--ease);perspective:2400px;perspective-origin:50% -30%;z-index:7}
+.mac-on .macwrap{transform:translate(500px,86px) scale(.98)}
+.mac3d{position:absolute;left:0;top:0;width:900px;height:880px;transform-style:preserve-3d}
+.lid,.deck{position:absolute;left:0;width:900px;transform-style:preserve-3d;transition:transform 1.1s var(--ease)}
+.lid{top:0;height:566px;transform-origin:50% 100%;transform:rotateX(-128deg)}
+.deck{top:566px;height:320px;transform-origin:50% 0;transform:rotateX(52deg);border-radius:0 0 26px 26px;
+  background:linear-gradient(180deg,hsl(220 6% 46%),hsl(220 6% 32%));box-shadow:inset 0 0 0 1px hsl(220 10% 60%/.4)}
+.open .lid{transform:rotateX(6deg)}
+.open .deck{transform:rotateX(78deg)}
+.deck .keys{position:absolute;left:110px;right:110px;top:26px;height:150px;border-radius:8px;background:repeating-linear-gradient(90deg,hsl(220 8% 14%) 0 44px,hsl(220 6% 28%) 44px 48px);opacity:.9}
+.deck .pad{position:absolute;left:310px;width:280px;top:196px;height:100px;border-radius:10px;background:hsl(220 6% 40%);box-shadow:inset 0 0 0 1px hsl(220 10% 60%/.4)}
+.face,.back{position:absolute;inset:0;border-radius:24px;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.face{background:#0b0d11;padding:16px;box-shadow:0 0 0 1px hsl(220 8% 40%/.7)}
+.back{transform:rotateY(180deg) rotateZ(180deg);background:linear-gradient(160deg,hsl(220 6% 52%),hsl(220 6% 34%));display:grid;place-items:center;box-shadow:inset 0 0 0 1px hsl(220 10% 70%/.5)}
+.back .rune{width:120px;height:120px;color:hsl(var(--gold));filter:drop-shadow(0 0 16px hsl(var(--gold)/.6));transition:filter .6s}
+.back .rune path{stroke-width:1.4}
+.invite .back .rune{animation:invite 2.2s ease-in-out infinite}
+@keyframes invite{50%{filter:drop-shadow(0 0 34px hsl(var(--gold)))}}
+.macbtn{position:absolute;inset:-40px;z-index:5;border-radius:40px}
+.open .macbtn{display:none}
+.maclabel{position:absolute;left:870px;width:468px;top:640px;text-align:center;z-index:7;transition:opacity .4s}
+.maclabel b{display:block;font-size:15px;color:hsl(216 30% 94%);font-weight:600}
+.maclabel small{display:block;font-size:13px;color:hsl(var(--muted));margin-top:4px}
+.maclabel .btn{margin-top:14px;background:hsl(var(--gold)/.12);color:hsl(var(--gold));box-shadow:inset 0 0 0 1px hsl(var(--gold)/.4)}
+.maclabel .btn:hover{background:hsl(var(--gold)/.2)}
+.mac-on .maclabel{opacity:0;pointer-events:none}
+.display{position:relative;width:100%;height:100%;border-radius:8px;overflow:hidden;background:hsl(var(--bg));opacity:.08;transition:opacity .8s .5s}
+.open .display{opacity:1}
+.menubar{height:24px;display:flex;align-items:center;gap:14px;padding:0 14px;font-size:12px;color:hsl(var(--text)/.8);background:hsl(222 26% 9%)}
+.menubar b{font-weight:700}
+.apphead{height:46px;display:flex;align-items:center;gap:12px;padding:0 18px;border-bottom:1px solid hsl(var(--line)/.6)}
+.apphead .sbox{flex:1;max-width:340px;height:28px;border-radius:8px;background:hsl(var(--raised));font-size:12px;color:hsl(var(--muted));display:flex;align-items:center;gap:8px;padding:0 10px}
+.apphead .sp{flex:1}
+.mrune{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:hsl(var(--muted));transition:color .3s}
+.mrune.flow{color:hsl(var(--gold))}
+.mrune.flow path{stroke-dasharray:.25 .08;animation:flow 1s linear infinite}
+.mrune.ok{color:hsl(var(--green))}
+@keyframes flow{to{stroke-dashoffset:-.33}}
+.gallery{position:absolute;left:0;right:0;top:70px;bottom:34px;padding:16px 18px;overflow:hidden;transition:padding .6s var(--ease)}
+.chat-on .gallery{padding-left:384px}
+.gsec{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:hsl(var(--muted));margin:2px 2px 10px;animation:fadein .5s both}
+.ggrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.chat-on .ggrid{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}
+.mcard{position:relative;display:flex;gap:12px;padding:12px;border-radius:14px;background:hsl(var(--raised));min-height:96px;transition:box-shadow .25s,transform .25s,min-height .5s;text-align:left;width:100%}
+.chat-on .mcard{min-height:0;padding:8px 10px}
+.mcard .flask{width:30px;height:44px;flex:none}
+.chat-on .mcard .flask{width:20px;height:30px}
+.mcard .tx{min-width:0;flex:1}
+.mcard b{display:flex;gap:6px;align-items:center;font-size:13px;font-weight:600;color:hsl(216 30% 94%);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcard b svg{color:hsl(var(--muted));flex:none}
+.mcard p{font-size:12px;line-height:1.45;color:hsl(var(--muted));margin-top:4px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.chat-on .mcard p{display:none}
+.mcard.ghost{opacity:.0}
+.mcard.land{animation:land .5s var(--ease)}
+@keyframes land{from{transform:scale(.92);box-shadow:0 0 0 2px hsl(var(--gold)/.6),0 0 30px hsl(var(--gold)/.4)}}
+.mcard.lit{box-shadow:0 0 0 1.5px hsl(var(--blue)),0 0 24px hsl(var(--blue)/.35);transform:translateY(-2px)}
+.mcard .scan{position:absolute;left:0;right:0;height:2px;top:0;background:hsl(var(--blue));box-shadow:0 0 10px hsl(var(--blue));animation:scan .9s ease-in-out}
+@keyframes scan{to{top:100%;opacity:.2}}
+.mcard .porb{position:absolute;right:10px;top:10px}
+.mstatus{position:absolute;left:0;right:0;bottom:0;height:34px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;color:hsl(var(--muted));border-top:1px solid hsl(var(--line)/.5);opacity:0;transition:opacity .5s}
+.mstatus.on{opacity:1}
+.mstatus i{width:7px;height:7px;border-radius:50%;background:hsl(var(--green))}
+/* big transcription moment */
+.tbig{position:absolute;left:50%;top:50%;width:560px;transform:translate(-50%,-50%);z-index:20;border-radius:18px;background:hsl(var(--raised));box-shadow:0 40px 80px -10px #000c,0 0 0 1px hsl(var(--line));padding:22px 24px;animation:pop .4s var(--ease) both}
+.tbig.out{animation:layerout .35s ease both}
+.tbig h3{display:flex;gap:10px;align-items:center;font-size:17px;color:hsl(216 30% 95%)}
+.tbig h3 .flask{width:24px;height:34px}
+.tbig .wave{display:flex;gap:3px;align-items:center;height:40px;margin:14px 0 8px}
+.tbig .wave i{flex:1;border-radius:2px;background:hsl(var(--line));height:30%}
+.tbig .wave i.p{background:hsl(var(--gold))}
+.tline{display:grid;grid-template-columns:52px 1fr;gap:8px;font-size:15px;line-height:1.55;margin-top:6px}
+.tline small{font-size:12px;color:hsl(var(--muted));font-variant-numeric:tabular-nums;padding-top:3px}
+.tline .w{opacity:0;transition:opacity .2s}
+.tline .w.on{opacity:1}
+.tline.lit span{background:hsl(var(--blue)/.18);box-shadow:0 0 0 4px hsl(var(--blue)/.18);border-radius:4px}
+.tbig .proc{font-size:12px;color:hsl(var(--muted));margin-top:14px;display:flex;gap:8px;align-items:center}
+.tbig .proc .ln{flex:1;height:2px;background:hsl(var(--line));position:relative;overflow:hidden;border-radius:1px}
+.tbig .proc .ln i{position:absolute;left:0;top:0;bottom:0;width:0;background:hsl(var(--blue));transition:width 3s linear}
+.steps3{margin-top:12px;padding:12px;border-radius:12px;border:1px solid hsl(var(--blue)/.35);background:hsl(215 40% 18%/.4);font-size:14px;line-height:1.6}
+.steps3 .cap{font-size:10px;letter-spacing:.14em;color:hsl(var(--blue));display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.steps3 .undo{font-size:12px;color:hsl(var(--muted));margin-top:6px}
+.xbtn{position:absolute;right:14px;top:14px;width:28px;height:28px;border-radius:8px;color:hsl(var(--muted));font-size:16px}
+.xbtn:hover{background:hsl(var(--line)/.5);color:hsl(var(--text))}
+
+/* ── 8 · Patronus chat ─────────────────────────────────────────────── */
+.porbbtn{position:absolute;left:14px;bottom:44px;width:44px;height:44px;z-index:15;display:grid;place-items:center;opacity:0;transition:opacity .5s}
+.porbbtn.on{opacity:1}
+.porb{position:relative;width:40px;height:40px}
+.porb .core{position:absolute;inset:10px;border-radius:50%;background:radial-gradient(circle,#fff,hsl(var(--blue)) 55%,hsl(var(--blue)/0) 75%);filter:blur(1.5px);animation:breathe 3.4s ease-in-out infinite}
+.porb .rg{position:absolute;inset:8px;border-radius:50%;border:1px solid hsl(var(--blue)/.7);animation:rings 3.6s ease-out infinite}
+.porb .rg:nth-child(3){animation-delay:1.2s}.porb .rg:nth-child(4){animation-delay:2.4s}
+@keyframes rings{from{transform:scale(.6);opacity:.9}to{transform:scale(1.7);opacity:0}}
+.porb.sm{width:22px;height:22px}.porb.sm .core{inset:5px}.porb.sm .rg{inset:4px}
+.porb.dim{opacity:.35;filter:grayscale(.7)}.porb.dim .rg{animation:none;opacity:.4}
+.chat{position:absolute;left:14px;bottom:44px;width:360px;height:440px;z-index:16;border-radius:16px;background:hsl(222 22% 13%);border:1px solid hsl(var(--line));box-shadow:0 30px 60px -10px #000c;
+  display:flex;flex-direction:column;transform-origin:0 100%;transform:scale(.1);opacity:0;pointer-events:none;transition:transform .5s var(--ease),opacity .3s}
+.chat.on{transform:none;opacity:1;pointer-events:auto}
+.chat header{height:44px;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid hsl(var(--line)/.6);font-size:13px;font-weight:600}
+.chat header small{font-weight:400;color:hsl(var(--muted))}
+.msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth}
+.msg{max-width:88%;font-size:14px;line-height:1.5;padding:9px 12px;border-radius:14px}
+.msg.me{align-self:flex-end;background:hsl(215 70% 52%);color:#fff;border-bottom-right-radius:4px}
+.msg.pa{align-self:flex-start;background:hsl(var(--raised));border-bottom-left-radius:4px}
+.msg.pa.typing::after{content:"…";color:hsl(var(--muted))}
+.cite{display:inline-flex;align-items:center;gap:4px;font-size:12px;line-height:1;padding:3px 7px 3px 5px;margin:0 1px;border-radius:99px;background:hsl(var(--blue)/.14);color:hsl(var(--blue));vertical-align:1px;transition:background .2s;animation:fadein .3s both}
+.cite:hover,.cite:focus-visible{background:hsl(var(--blue)/.3)}
+.cite svg{width:12px;height:12px}
+.sugg{display:flex;flex-direction:column;gap:6px;padding:0 12px 10px}
+.sugg button{text-align:left;font-size:13px;padding:8px 11px;border-radius:12px;border:1px solid hsl(var(--blue)/.35);color:hsl(var(--blue));transition:background .2s}
+.sugg button:hover{background:hsl(var(--blue)/.1)}
+.sugg button.used{opacity:.45}
+.composer{margin:0 12px 12px;height:38px;border-radius:12px;background:hsl(var(--raised));display:flex;align-items:center;padding:0 6px 0 12px;gap:8px}
+.composer input{flex:1;background:none;border:0;outline:0;color:hsl(var(--text));font:inherit;font-size:13px}
+.composer input::placeholder{color:hsl(var(--muted))}
+.composer button{width:28px;height:28px;border-radius:8px;background:hsl(215 70% 52%);color:#fff;font-size:14px}
+.memview{position:absolute;right:18px;top:86px;width:430px;z-index:18;border-radius:16px;background:hsl(var(--raised));box-shadow:0 30px 60px -10px #000c,0 0 0 1px hsl(var(--line));padding:20px 22px;animation:pop .35s var(--ease) both}
+.memview h3{display:flex;gap:10px;align-items:center;font-size:16px;color:hsl(216 30% 95%);padding-right:30px}
+.memview .meta{font-size:12px;color:hsl(var(--muted));margin:6px 0 8px}
+.memview .playing{font-size:12px;color:hsl(var(--gold));margin-top:10px;display:flex;gap:6px;align-items:center}
+.restline{position:absolute;left:500px;width:882px;top:744px;text-align:center;z-index:9;opacity:0;transition:opacity 1.2s;pointer-events:none}
+.restline.on{opacity:1;pointer-events:auto}
+.restline b{font-size:20px;font-weight:600;color:hsl(216 30% 95%)}
+.restline button{display:block;margin:8px auto 0;font-size:13px;color:hsl(var(--muted));text-decoration:underline;text-underline-offset:3px}
+.thread{position:absolute;inset:0;z-index:85;pointer-events:none;overflow:visible}
+.thread path{fill:none;stroke:hsl(var(--gold));stroke-width:2;filter:drop-shadow(0 0 6px hsl(var(--gold)));stroke-dasharray:1;stroke-dashoffset:1;transition:stroke-dashoffset .9s ease,opacity .8s}
+.thread.on path{stroke-dashoffset:0}
+.thread.off path{opacity:0}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;transition-delay:0s!important}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <radialGradient id="ember" cx="40%" cy="34%" r="66%"><stop offset="0%" stop-color="hsl(45 100% 95%)"/><stop offset="34%" stop-color="hsl(45 100% 72%)"/><stop offset="72%" stop-color="hsl(40 92% 52%)"/><stop offset="100%" stop-color="hsl(32 90% 38%)"/></radialGradient>
+</defs></svg>
+
+<div id="stage" role="application" aria-label="Pensieve showcase">
+  <div class="top">
+    <div class="brand" id="brand"></div><div class="sp"></div>
+    <button class="tbtn" id="sound" aria-pressed="false">Sound off</button>
+    <button class="tbtn" id="restart" aria-label="Start again">⟲ Start again</button>
+  </div>
+  <div class="headline" id="headline"><h1>Catch a thought in any shape.</h1><p>Then ask it something, on your Mac.</p></div>
+
+  <aside class="guide" id="guide" aria-live="polite" aria-label="Guide">
+    <div class="g-kicker" id="gk"></div>
+    <p class="g-moment" id="gm"></p>
+    <ol class="g-steps" id="gs"></ol>
+    <p class="g-note" id="gn"></p>
+    <div class="g-done" id="gd"></div>
+    <div class="g-actions"><button class="btn primary" id="gp">Begin</button><button class="btn link" id="gl" hidden>Show me again</button></div>
+  </aside>
+
+  <div class="rig" id="rig">
+    <div class="frame" id="frame">
+      <div class="screen" id="screen" role="region" aria-label="Phone">
+        <div class="notch"></div>
+        <div class="status"><span>9:41</span><span class="ic"><span>●●●</span><b></b></span></div>
+        <div class="home" id="home"><h2>Today</h2><div id="reel" style="display:flex;flex-direction:column;gap:10px"></div></div>
+        <div class="layers" id="layers"></div>
+        <div class="dock" id="dock"></div>
+        <div class="ring" id="ring"><div class="veil"></div><div class="ctr" id="ringctr"></div><div class="hub" id="hub"></div></div>
+      </div>
+    </div>
+    <div class="shelf" id="shelf" aria-label="Shelf of caught memories"><span class="hint" id="shelfhint">Caught thoughts land here</span></div>
+  </div>
+
+  <nav class="strip" id="strip" aria-label="Capture modes"></nav>
+
+  <div class="macwrap" id="macwrap">
+    <div class="mac3d" id="mac3d">
+      <div class="lid">
+        <div class="face"><div class="display" id="display" role="region" aria-label="MacBook">
+          <div class="menubar"><b>Pensieve</b><span>File</span><span>Edit</span><span>View</span><span>Window</span></div>
+          <div class="apphead"><div class="brand" id="brand2"></div><div class="sbox" id="sbox"></div><div class="sp"></div><div class="mrune" id="mrune" title="Sync"></div></div>
+          <div class="gallery" id="gallery"></div>
+          <div class="mstatus" id="mstatus"><i></i><span id="mstext"></span></div>
+          <button class="porbbtn" id="porbbtn" aria-label="Open Patronus"><div class="porb"><div class="core"></div><div class="rg"></div><div class="rg"></div><div class="rg"></div></div></button>
+          <section class="chat" id="chat" aria-label="Patronus chat">
+            <header><div class="porb sm"><div class="core"></div><div class="rg"></div><div class="rg"></div><div class="rg"></div></div>Patronus <small>▾</small><span style="flex:1"></span><button class="xbtn" id="chatx" style="position:static" aria-label="Close chat">×</button></header>
+            <div class="msgs" id="msgs" aria-live="polite"></div>
+            <div class="sugg" id="sugg"></div>
+            <form class="composer" id="composer"><input id="ask" placeholder="Ask anything · / for commands" aria-label="Ask Patronus"><button aria-label="Send">↑</button></form>
+          </section>
+        </div></div>
+        <div class="back"><svg class="rune" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path pathLength="1" d="M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z" style="stroke-dasharray:.86 .14"/></svg></div>
+      </div>
+      <div class="deck"><div class="keys"></div><div class="pad"></div></div>
+      <button class="macbtn" id="macbtn" aria-label="Open your Mac"></button>
+    </div>
+  </div>
+  <div class="maclabel" id="maclabel"><b>Your Mac</b><small>Open it when you're ready.</small><button class="btn" id="macgo">Open your Mac</button></div>
+  <div class="restline" id="restline"><b>Catch it anywhere. Understand it on your Mac.</b><button id="again">Start again</button></div>
+
+  <svg class="thread" id="thread" width="1440" height="900"><path id="threadp" pathLength="1"/></svg>
+  <div class="finger" id="finger" aria-hidden="true"></div>
+  <div class="tourpill" id="tourpill">Playing the tour · tap anywhere to take over</div>
+</div>
+
+<script>
+"use strict";
+/* ═══ DATA — every made-up word lives here ═══════════════════════════ */
+const DATA = {
+  memories: {
+    write:  { title:"Small rule for this week", glyph:"write", shape:"vial", hue:"45 80% 66%", when:"Mon · typed",
+              lines:[{t:"Start before I feel ready. Ready is a feeling that shows up after."}] },
+    walk:   { title:"Walk — two steps ahead", glyph:"mic", shape:"round", hue:"212 70% 68%", when:"Tue · 0:14 voice",
+              lines:[{at:"00:00",t:"Okay. Note to self."},{at:"00:04",t:"I keep waiting to be good enough to teach."},{at:"00:08",t:"But the people who taught me weren't masters."},{at:"00:11",t:"They were two steps ahead, and kind."}] },
+    film:   { title:"Third try", glyph:"video", shape:"potion", hue:"330 60% 74%", when:"Wed · 0:08 video",
+              lines:[{at:"00:02",t:"Third try."},{at:"00:05",t:"Still wobbly. Still mine."}] },
+    photo:  { title:"Sticky note — class plan", glyph:"camera", shape:"beaker", hue:"24 85% 68%", when:"Wed · photo, words read",
+              lines:[{t:"Class idea: 4 Saturdays · 6 people · bring nothing"}] },
+    mon:    { title:"Mon 18 — Fear list", glyph:"book", shape:"erlenmeyer", hue:"145 50% 62%", when:"Journal page 1",
+              lines:[{t:"Fear list: 1. nobody signs up. 2. someone signs up."}] },
+    tue:    { title:"Tue 19 — The back room", glyph:"book", shape:"erlenmeyer", hue:"145 50% 62%", when:"Journal page 2",
+              lines:[{t:"Asked the café about the back room. A yes before I'd finished asking."}] },
+    ipad:   { title:"Bowl notes", glyph:"write", shape:"teardrop", hue:"270 55% 74%", when:"Thu · iPad, Pencil",
+              lines:[{t:"lip thinner, foot wider"}] },
+    form:   { title:"Daily Review", glyph:"form", shape:"form", hue:"43 92% 55%", when:"Thu · one recording, 3 answers",
+              lines:[{q:"What went well?",t:"The bowl held."},{q:"What scared you?",t:"Saying 'class' out loud."},{q:"One step for tomorrow?",t:"Price it. Just a number."}] },
+  },
+  patronusAsk: "Turn this into three next steps.",
+  patronusSteps: ["Write the price.","Ask the café for a Saturday.","Tell two friends."],
+  // which memories each caught mode turns into on the Mac (journal: one batch → two days)
+  pours: { write:["write"], record:["walk"], film:["film"], snap:["photo"], journal:["mon","tue"], ipad:["ipad"], form:["form"] },
+  chat: {
+    hello: "I've read this week. Ask me anything about it.",
+    none: "In this demo I only know this one made-up week. Try one of these.",
+    qs: [
+      { q:"What keeps stopping me from teaching?", keys:["stop","fear","afraid","scare","block","hold","why","teach"],
+        a:["Mostly one fear: that you're not good enough ", {i:"yet"}, ". You said it on your walk ", {m:"walk",l:1,c:"Walk · 00:04"},
+           ", and your paper list names the other fear too, that someone ", {i:"will"}, " sign up ", {m:"mon",l:0,c:"Mon 18"},
+           ". In your review you called saying “class” out loud the scary part ", {m:"form",l:1,c:"Daily review"}, "."] },
+      { q:"What have I already done toward it?", keys:["done","already","progress","so far","achiev","toward"],
+        a:["More than it feels like. The café said yes to the back room ", {m:"tue",l:0,c:"Tue 19"},
+           ". The plan exists, 4 Saturdays for 6 people ", {m:"photo",l:0,c:"Sticky note"},
+           ". And you've kept going at the wheel ", {m:"film",l:1,c:"Third try"}, "."] },
+      { q:"Give me one step for this weekend.", keys:["step","weekend","next","should","start","do now","plan"], closing:true,
+        a:["Put a number on it. Your own next step from last night was “price it” ", {m:"form",l:2,c:"Daily review"},
+           ". The plan is already on your sticky note ", {m:"photo",l:0,c:"Sticky note"}, ", and the café is ready ", {m:"tue",l:0,c:"Tue 19"},
+           ". Then ask for one Saturday. You already know you don't need to be a master, just two steps ahead ", {m:"walk",l:3,c:"Walk · 00:11"},
+           ". You wrote the rule yourself: start before you feel ready ", {m:"write",l:0,c:"Small rule"}, "."] },
+    ],
+  },
+};
+
+/* the guide words for every scene (script.md §4–5) */
+const MODES = [
+  { id:"wand", name:"The Wand", glyph:"menu", kicker:"The Wand", moment:"Everything starts with one button. Hold it.",
+    steps:["Hold the wand button","The spells bloom around your thumb","Let go on the one you want"], done:"That's the whole gesture. Now catch something." },
+  { id:"write", name:"Write", glyph:"write", moment:"Waiting for the kettle, a thought you want to keep.",
+    steps:["Hold the wand, cast Write","Type. There's no save button","Tap back. It's kept"] },
+  { id:"record", name:"Record", glyph:"mic", moment:"Walking. An idea you'd lose by the next corner.",
+    steps:["Cast Record","Just talk, as long as you like","Tap Done. Your Mac will write it down"], note:"No words appear on the phone. Your Mac writes them, after it syncs." },
+  { id:"film", name:"Film", glyph:"video", moment:"Your hands are busy. Film it and talk over it.",
+    steps:["Cast Film","Your phone's own camera opens","Record. It comes back as a memory"], note:"Want a copy in Photos too? One tap on Save Video." },
+  { id:"snap", name:"Snap", glyph:"camera", moment:"The plan is on a sticky note. Don't retype it, take a photo.",
+    steps:["Cast Snap","Take the photo","It's a memory. Your Mac reads the words in it"] },
+  { id:"journal", name:"Pages", glyph:"book", kicker:"Journal", moment:"You still write on paper. Bring a whole week in at once.",
+    steps:["Cast Journal","Turn the pages. The camera stays open","Done. Your Mac sorts them into days"] },
+  { id:"ipad", name:"iPad", glyph:"write", kicker:"iPad + Pencil", moment:"On the iPad? Write with the Pencil. It becomes type.",
+    steps:["The same Wand, on iPad","Cast Write, then write with Apple Pencil","Your handwriting turns into text as you go"], note:"Handwriting to text is iPad's own Scribble." },
+  { id:"form", name:"Form", glyph:"form", moment:"End of the day. Three questions, answered out loud.",
+    steps:["Cast Form, then pick Daily Review","One question per screen. Talk through it","Swipe on. It's one recording"] },
+  { id:"patronus", name:"Patronus", glyph:"patronus", kicker:"Patronus spell", moment:"Leave a job for later, then walk away.",
+    steps:["Open a memory, then cast Patronus","Say or type what you want done","It waits. Your Mac casts it on the next sync"], note:"The phone never runs AI. It leaves the job for your Mac.", done:"Armed. Your Mac casts it on the next sync." },
+  { id:"accio", name:"Accio", glyph:"accio", moment:"Find it in a second, whatever shape it was.",
+    steps:["Tap Accio","Type a word","Every shape that matches comes up"], done:"Found. Every shape answers to one search." },
+];
+const BOTTLE = { write:"write", record:"walk", film:"film", snap:"photo", journal:"mon", ipad:"ipad", form:"form" };
+const RING_GENERAL = [
+  {id:"write",g:"write",l:"Write"},{id:"accio",g:"accio",l:"Accio",c:"violet"},{id:"sync",g:"sync",l:"Sync"},{id:"snap",g:"camera",l:"Snap"},
+  {id:"record",g:"mic",l:"Record"},{id:"film",g:"video",l:"Film"},{id:"journal",g:"book",l:"Journal"},{id:"form",g:"form",l:"Form"}];
+const RING_COND = [
+  {id:"photo",g:"image",l:"Photo",c:"blue"},{id:"gallery",g:"gallery",l:"Gallery",c:"blue"},{id:"voice",g:"mic",l:"Voice",c:"blue"},
+  {id:"video",g:"video",l:"Video",c:"blue"},{id:"patronus",g:"patronus",l:"Patronus",c:"blue"},{id:"delete",g:"trash",l:"Delete",c:"red"}];
+
+/* ═══ helpers ═══════════════════════════════════════════════════════ */
+const $ = (s) => document.querySelector(s);
+const INSTANT = !!window.__instant;
+const RM = INSTANT || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+function el(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+const GP = {
+  camera:'<path d="M9 6.2 9.9 4.6a1.4 1.4 0 0 1 1.2-.7h1.8a1.4 1.4 0 0 1 1.2.7l.9 1.6H19a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8.2a2 2 0 0 1 2-2Z"/><circle cx="12" cy="12.4" r="3.4"/>',
+  mic:'<path d="M9 5.5a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0Z"/><path d="M6 11a6 6 0 0 0 12 0"/><path d="M12 17v3M9 20h6"/>',
+  trash:'<path d="M5 7h14"/><path d="M9 7V5.6c0-.9.7-1.6 1.6-1.6h2.8c.9 0 1.6.7 1.6 1.6V7"/><path d="M7 7l.9 12.2a1.8 1.8 0 0 0 1.8 1.6h4.6a1.8 1.8 0 0 0 1.8-1.6L17 7"/><path d="M10 10.5v6M14 10.5v6"/>',
+  write:'<path d="M4 20l1.3-4L15 6.3a1.8 1.8 0 0 1 2.5 2.5L8.3 18.5 4 20Z"/><path d="M13.5 7.8l2.7 2.7"/><path d="M19 3.4v3M17.5 4.9h3"/>',
+  accio:'<g transform="translate(1,1)"><circle cx="10.5" cy="10.5" r="5.3"/><path d="M14.6 14.6 19.5 19.5"/><path d="M8.4 8.4v2.2M7.3 9.5h2.2"/></g>',
+  image:'<rect x="3.2" y="5.2" width="17.6" height="13.6" rx="2.4"/><circle cx="8.4" cy="9.8" r="1.5"/><path d="M4 16.5l4.6-4.3a1.6 1.6 0 0 1 2.2 0L16 17M14 14.2l1.8-1.7a1.6 1.6 0 0 1 2.2 0l2 1.9"/>',
+  gallery:'<rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/>',
+  back:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11"/>',
+  video:'<rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10.3 20.3 7.6a1 1 0 0 1 1.5.85v7.1a1 1 0 0 1-1.5.85L16 13.7"/>',
+  form:'<rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M9 8.5h6M9 12.5h6"/><path d="m8.6 16.4 1.3 1.3 2.4-2.6"/>',
+  patronus:'<path d="M4 20l6.2-6.2"/><circle cx="15" cy="9" r="3.4"/><path d="M20.6 6.4a6.2 6.2 0 0 1-3 8.3"/><path d="M8.5 4.5v2.4M7.3 5.7h2.4"/>',
+  book:'<path d="M12 7.2c-2.4-1.3-5.1-1.7-8-1.1v12.4c2.9-.6 5.6-.2 8 1.1Z"/><path d="M12 7.2c2.4-1.3 5.1-1.7 8-1.1v12.4c-2.9-.6-5.6-.2-8 1.1Z"/><path d="M12 7.2v12.4"/>',
+};
+const LEM = "M12 12 C16 9.5 16 4.5 12 4 C8 4.5 8 9.5 12 12 C16 14.5 16 19.5 12 20 C8 19.5 8 14.5 12 12 Z";
+function glyph(n, size = 22) {
+  if (n === "sync") return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path pathLength="1" d="${LEM}" style="stroke-dasharray:.86 .14"/></svg>`;
+  if (n === "menu") {
+    const pts = [[16,5],[25.53,10.5],[25.53,21.5],[16,27],[6.47,21.5],[6.47,10.5]];
+    return `<svg viewBox="0 0 32 32" width="${size}" height="${size}" aria-hidden="true" style="overflow:visible">${pts.map(([x,y])=>`<circle class="orb" cx="${x}" cy="${y}" r="3.1" fill="url(#ember)"/>`).join("")}</svg>`;
+  }
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${GP[n]}</svg>`;
+}
+/* the real Flask (ported from phone/src/lib/wand/flaskSvg.ts), with a live fill level */
+const SHAPES = {
+  round:{body:"M24 10v10a14 14 0 1 1-0.001 0Z M18 10h12",top:20,bottom:58,clip:"M24 20a14 14 0 1 0 0.001 0Z"},
+  erlenmeyer:{body:"M20 8h8v14l9 30a3 3 0 0 1-3 4H14a3 3 0 0 1-3-4l9-30z M19 8h10",top:22,bottom:54,clip:"M20 22 12 52a3 3 0 0 0 3 4h18a3 3 0 0 0 3-4L28 22z"},
+  vial:{body:"M18 8h12v40a6 6 0 0 1-12 0z M17 8h14",top:18,bottom:52,clip:"M18 18h12v30a6 6 0 0 1-12 0z"},
+  potion:{body:"M21 8h6v6c5 2 9 7 9 14a15 15 0 0 1-30 0c0-7 4-12 9-14z M20 8h8",top:22,bottom:58,clip:"M24 22a13 13 0 1 0 0.001 0Z"},
+  teardrop:{body:"M24 8c6 10 11 17 11 26a11 11 0 0 1-22 0c0-9 5-16 11-26z",top:24,bottom:56,clip:"M24 24c4 6 9 11 9 18a9 9 0 0 1-18 0c0-7 5-12 9-18z"},
+  beaker:{body:"M15 10h18l-2 4v34a4 4 0 0 1-4 4H21a4 4 0 0 1-4-4V14z M14 10h20 M31 20h4",top:18,bottom:52,clip:"M17 18h14v30a4 4 0 0 1-4 4H21a4 4 0 0 1-4-4z"},
+  form:{body:"M21 8v12c0 4-12 9-12 22c0 9 4 14 9 14h12c5 0 9-5 9-14c0-13-12-18-12-22V8z M20 8h8 M21 14h6 M31 34h3 M30 40h4 M31 46h3",top:26,bottom:55,clip:"M21 8v12c0 4-12 9-12 22c0 9 4 14 9 14h12c5 0 9-5 9-14c0-13-12-18-12-22V8z"},
+};
+let fid = 0;
+function flask(shape, hue, fill) {
+  const id = "f" + (++fid), s = SHAPES[shape] || SHAPES.round, [h, sat] = hue.split(" ");
+  const box = el("div", "flask");
+  box.innerHTML = `<svg viewBox="0 0 48 68" width="100%" height="100%" aria-hidden="true" style="overflow:visible"><defs>
+    <radialGradient id="${id}g" cx="50%" cy="60%" r="60%"><stop offset="0%" stop-color="hsl(${hue})" stop-opacity=".55"/><stop offset="100%" stop-color="hsl(${hue})" stop-opacity="0"/></radialGradient>
+    <linearGradient id="${id}l" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="hsl(${hue})" stop-opacity=".9"/><stop offset="100%" stop-color="hsl(${h} ${sat} 46%)" stop-opacity=".95"/></linearGradient>
+    <clipPath id="${id}c"><path d="${s.clip}"/></clipPath></defs>
+    <ellipse class="gl" cx="24" cy="46" rx="22" ry="22" fill="url(#${id}g)"/>
+    <g clip-path="url(#${id}c)"><rect class="lq" x="0" width="48" fill="url(#${id}l)"/><rect class="sf" x="0" width="48" height="2" fill="#fff" opacity=".25"/></g>
+    <path d="${s.body}" fill="hsl(216 20% 92% / .05)" stroke="hsl(216 30% 88% / .55)" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/>
+    <rect x="19" y="${s.top + 2}" width="2.4" height="${Math.max(8, (s.bottom - s.top) * .5)}" rx="1.2" fill="#fff" opacity=".35" clip-path="url(#${id}c)"/></svg>`;
+  const lq = box.querySelector(".lq"), sf = box.querySelector(".sf"), gl = box.querySelector(".gl");
+  box.setFill = (f) => {
+    const fh = s.bottom - s.top, top = s.bottom - Math.max(3, fh * Math.max(.06, Math.min(1, f)));
+    lq.setAttribute("y", top); lq.setAttribute("height", s.bottom - top + 2); sf.setAttribute("y", top);
+    lq.setAttribute("opacity", f < .2 ? .35 : 1); gl.setAttribute("opacity", .3 + f * .7); box.fill = f;
+  };
+  box.setFill(fill); return box;
+}
+
+/* ═══ the run clock: every animation waits here, so any click can skip it to its end ═══ */
+const CANCEL = { cancel: true };
+let RUN = { pending: new Set(), fast: INSTANT };
+const SLOW = RM && !INSTANT ? .35 : 1;
+function wait(ms) {
+  const r = RUN;
+  if (r.fast) return r === RUN ? Promise.resolve() : Promise.reject(CANCEL);
+  return new Promise((res, rej) => {
+    const t = {}; t.fire = () => { r.pending.delete(t); r === RUN ? res() : rej(CANCEL); };
+    t.kill = () => { clearTimeout(t.timer); r.pending.delete(t); rej(CANCEL); };
+    t.timer = setTimeout(t.fire, ms * SLOW); r.pending.add(t);
+  });
+}
+const tick = () => new Promise((r) => setTimeout(r, 0));
+function skip() { RUN.fast = true; finger.hide(); for (const t of [...RUN.pending]) { clearTimeout(t.timer); t.fire(); } }
+function cancelRun() { const old = RUN; RUN = { pending: new Set(), fast: INSTANT }; for (const t of [...old.pending]) t.kill(); }
+async function takeover() { if (S.busy) { skip(); for (let i = 0; i < 40 && S.busy; i++) await tick(); } cancelRun(); }
+const fast = () => RUN.fast || RM;
+async function typeInto(node, text, ms = 42, onChar) {
+  for (let i = 0; i < text.length; i++) {
+    if (RUN.fast) { node.textContent += text.slice(i); break; }
+    node.textContent += text[i]; if (onChar) onChar(text[i]);
+    await wait(text[i] === " " ? ms * 1.6 : text[i] === "." ? ms * 5 : ms * (.6 + Math.random() * .8));
+  }
+}
+
+/* ═══ stage fit + coordinates ═══════════════════════════════════════ */
+const stage = $("#stage"); let SCALE = 1;
+function fit() {
+  SCALE = Math.min(innerWidth / 1440, innerHeight / 900) || 1;
+  stage.style.transform = `translate(${(innerWidth - 1440 * SCALE) / 2}px,${(innerHeight - 900 * SCALE) / 2}px) scale(${SCALE})`;
+}
+addEventListener("resize", fit); fit();
+function rectOf(node) {
+  const r = node.getBoundingClientRect(), s = stage.getBoundingClientRect();
+  return { x: (r.left - s.left) / SCALE, y: (r.top - s.top) / SCALE, w: r.width / SCALE, h: r.height / SCALE };
+}
+const center = (node) => { const r = rectOf(node); return { x: r.x + r.w / 2, y: r.y + r.h / 2 }; };
+
+/* ═══ sound (off by default; every sound has a visual twin) ═════════ */
+let AC = null;
+function ac() { if (!AC) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; AC = new C(); } return AC; }
+function tink(i) {
+  if (!S.sound || RUN.fast) return; const c = ac(); if (!c) return;
+  const scale = [0, 2, 4, 7, 9, 12, 14, 16, 19], f = 784 * Math.pow(2, scale[i % scale.length] / 12), t = c.currentTime;
+  [1, 2.76].forEach((m, k) => { const o = c.createOscillator(), g = c.createGain(); o.frequency.value = f * m;
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(k ? .03 : .14, t + .008); g.gain.exponentialRampToValueAtTime(.0001, t + (k ? .4 : 1.4));
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t + 1.5); });
+}
+function pourSound() {
+  if (!S.sound) return; const c = ac(); if (!c) return; const t = c.currentTime, n = c.sampleRate * .9, b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * i / n);
+  const src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain(); src.buffer = b; f.type = "bandpass"; f.frequency.setValueAtTime(500, t); f.frequency.exponentialRampToValueAtTime(1800, t + .9); f.Q.value = 2; g.gain.value = .25;
+  src.connect(f).connect(g).connect(c.destination); src.start(t);
+}
+function say(text) { if (!S.sound || RUN.fast || !window.speechSynthesis) return; const u = new SpeechSynthesisUtterance(text); u.rate = 1; u.pitch = 1.05; speechSynthesis.cancel(); speechSynthesis.speak(u); }
+
+/* ═══ state ═════════════════════════════════════════════════════════ */
+const S = { scene: "arrive", done: new Set(), caught: [], busy: false, mac: false, poured: false, sound: false, auto: false, asked: new Set(), rest: false };
+
+/* ═══ ghost finger ══════════════════════════════════════════════════ */
+const finger = {
+  node: $("#finger"),
+  hide() { this.node.classList.remove("on"); },
+  async to(target, opts = {}) {
+    if (fast()) return;
+    const p = target.x != null ? target : center(target);
+    const n = this.node; const was = n.classList.contains("on");
+    if (!was) { n.style.transition = "none"; n.style.transform = `translate(${p.x + 30}px,${p.y + 60}px)`; n.offsetWidth; n.style.transition = ""; n.classList.add("on"); await wait(60); }
+    n.style.transform = `translate(${p.x}px,${p.y}px)`; await wait(opts.quick ? 380 : 560);
+  },
+  async tap(target, opts = {}) {
+    await this.to(target, opts); if (fast()) return;
+    const n = this.node; n.classList.remove("tap", "hold"); n.offsetWidth; n.classList.add(opts.hold ? "hold" : "tap"); await wait(opts.hold ? 520 : 240);
+  },
+};
+
+/* ═══ 3 · guide ═════════════════════════════════════════════════════ */
+const G = { k: $("#gk"), m: $("#gm"), s: $("#gs"), n: $("#gn"), d: $("#gd"), p: $("#gp"), l: $("#gl") };
+const modeById = (id) => MODES.find((m) => m.id === id);
+function nextMode(after) {
+  const i = MODES.findIndex((m) => m.id === after);
+  for (let k = i + 1; k < MODES.length; k++) if (!S.done.has(MODES[k].id)) return MODES[k];
+  return MODES.find((m) => !S.done.has(m.id)) || null;
+}
+function guideShow(id, state = "idle") {
+  const m = modeById(id); if (!m) return;
+  G.k.innerHTML = `${m.glyph === "menu" ? glyph("menu", 16) : glyph(m.glyph, 16)}<span>${m.kicker || m.name}</span>`;
+  G.m.textContent = m.moment;
+  G.s.innerHTML = m.steps.map((s) => `<li>${s}</li>`).join("");
+  G.n.textContent = m.note || "";
+  const done = state === "done";
+  G.d.textContent = done ? (m.done || "Caught. Saved on this phone.") : ""; G.d.classList.toggle("on", done);
+  G.p.hidden = false; G.l.hidden = true;
+  if (state === "idle") { G.p.textContent = "Show me"; G.p.onclick = () => playMode(id); }
+  if (state === "playing") { G.p.textContent = "Skip to the end"; G.p.onclick = () => skip(); }
+  if (done) {
+    [...G.s.children].forEach((li) => li.className = "past");
+    const nx = nextMode(id);
+    if (nx && S.done.size < MODES.length) { G.p.textContent = `Next: ${nx.name} →`; G.p.onclick = () => playMode(nx.id); }
+    else { G.p.textContent = "Open your Mac →"; G.p.onclick = () => openMac(); }
+    G.l.hidden = false; G.l.onclick = () => playMode(id);
+  }
+}
+function step(i) { [...G.s.children].forEach((li, k) => li.className = k < i ? "past" : k === i ? "on" : ""); }
+function guideArrive() {
+  G.k.innerHTML = "<span>A week in someone's life</span>"; G.m.textContent = "This is a week in someone's life. Try catching it.";
+  G.s.innerHTML = ""; G.n.textContent = "Nine shapes, one week of made-up thoughts. Skip anything, open the Mac any time.";
+  G.d.classList.remove("on"); G.p.hidden = false; G.p.textContent = "Begin"; G.p.onclick = () => playMode("wand"); G.l.hidden = true;
+}
+/* hover previews the guide; leaving restores it */
+let hoverBack = null;
+function preview(id) { if (S.busy || S.mac) return; hoverBack = hoverBack || S.scene; guideShow(id, S.done.has(id) ? "done" : "idle"); }
+function unpreview() { if (!hoverBack || S.busy) { hoverBack = null; return; } const b = hoverBack; hoverBack = null; if (b === "arrive") guideArrive(); else guideShow(b, S.done.has(b) ? "done" : "idle"); }
+
+/* mode strip */
+const strip = $("#strip");
+MODES.forEach((m) => {
+  const b = el("button", "chip", `<i></i>${glyph(m.glyph, 18)}<span>${m.name}</span>`); b.dataset.id = m.id; b.setAttribute("aria-label", `${m.kicker || m.name}`);
+  b.onclick = () => playMode(m.id); b.onmouseenter = () => preview(m.id); b.onmouseleave = unpreview; b.onfocus = () => preview(m.id); b.onblur = unpreview;
+  strip.appendChild(b);
+});
+const macchip = el("button", "chip mac", `${glyph("sync", 18)}<span>Your Mac</span>`); macchip.onclick = () => openMac(); strip.appendChild(macchip);
+function stripSync() { strip.querySelectorAll(".chip[data-id]").forEach((c) => { c.classList.toggle("got", S.done.has(c.dataset.id)); c.classList.toggle("cur", c.dataset.id === S.scene); }); }
+
+/* ═══ 4 · phone ═════════════════════════════════════════════════════ */
+const screen = $("#screen"), layers = $("#layers"), dock = $("#dock"), ring = $("#ring"), hub = $("#hub"), frame = $("#frame");
+let fab = null;
+function setDock(kind) {
+  dock.className = "dock"; dock.innerHTML = "";
+  if (kind === "hide") { dock.classList.add("hide"); return; }
+  if (kind === "home") { const p = el("button", "pill", `${glyph("accio", 20)}<span class="pt">Accio…</span>`); p.id = "pill"; p.setAttribute("aria-label", "Accio, search"); p.onclick = () => playMode("accio"); dock.appendChild(p); }
+  if (kind === "memo") { dock.appendChild(el("div")); dock.appendChild(el("div")); const b = el("button", "dbtn", glyph("back", 22)); b.id = "backbtn"; b.setAttribute("aria-label", "Back"); dock.appendChild(b); }
+  if (kind === "form") { dock.appendChild(el("div")); const b = el("button", "dbtn", glyph("back", 22)); b.id = "backbtn"; dock.appendChild(b); const r = el("button", "dbtn rec", glyph("mic", 22)); r.id = "recbtn"; dock.appendChild(r); }
+  if (kind === "done") { const d = el("button", "dbtn wide", "Done"); d.id = "donebtn"; dock.appendChild(d); }
+  fab = el("button", "fab", glyph("menu", 30)); fab.id = "fab"; fab.setAttribute("aria-label", "Spell menu. Press to open the spells");
+  fab.onclick = () => userRing(); dock.appendChild(fab);
+}
+function buildRing(list, kind) {
+  hub.innerHTML = ""; $("#ringctr").textContent = kind === "cond" ? "see general" : "";
+  const n = list.length;
+  list.forEach((sp, i) => {
+    const a = (-90 + i * 360 / n) * Math.PI / 180, b = el("button", `spell ${sp.c || ""} ${i === 0 ? "focus" : ""}`, `<div class="disc">${glyph(sp.g, 26)}</div><span>${sp.l}</span>`);
+    b.style.setProperty("--x", `${Math.cos(a) * 118}px`); b.style.setProperty("--y", `${Math.sin(a) * 118 + 10}px`); b.style.transitionDelay = `${i * 28}ms`;
+    b.dataset.id = sp.id; b.setAttribute("aria-label", sp.l);
+    b.onclick = (e) => { e.stopPropagation(); ringPick(sp.id, kind); };
+    b.onmouseenter = () => { const m = modeById(sp.id === "sync" ? "" : sp.id); if (m) preview(m.id); };
+    b.onmouseleave = unpreview;
+    hub.appendChild(b);
+  });
+}
+function openRing(kind = "general") { buildRing(kind === "cond" ? RING_COND : RING_GENERAL, kind); ring.offsetWidth; ring.classList.add("open"); sparkle(fab, 6); }
+function closeRing() { ring.classList.remove("open"); }
+function ringSpell(id) { return hub.querySelector(`.spell[data-id="${id}"]`); }
+ring.querySelector(".veil").onclick = () => { if (!S.busy) closeRing(); };
+function userRing() { if (S.busy || S.mac) return; if (ring.classList.contains("open")) return closeRing(); openRing(layers.children.length ? "cond" : "general"); if (!S.done.has("wand")) { S.scene = "wand"; markDone("wand"); guideShow("wand", "done"); } }
+function ringPick(id, kind) {
+  if (S.busy) return;
+  if (id === "sync") { closeRing(); return openMac(); }
+  if (kind === "cond") { if (id === "patronus") { closeRing(); return playMode("patronus", { fromRing: true }); } return; }
+  if (modeById(id)) { closeRing(); playMode(id, { fromRing: true }); }
+}
+function sparkle(target, n = 8) {
+  if (fast() || !target) return; const c = center(target);
+  for (let i = 0; i < n; i++) { const s = el("div", "spark"); const a = Math.random() * Math.PI * 2, r = 18 + Math.random() * 26;
+    s.style.left = c.x + "px"; s.style.top = c.y + "px"; s.style.setProperty("--dx", Math.cos(a) * r + "px"); s.style.setProperty("--dy", Math.sin(a) * r + "px"); stage.appendChild(s); setTimeout(() => s.remove(), 800); }
+}
+/* cast a spell the way a person does: press the wand, the ring blooms, tap the spell */
+async function cast(id, kind = "general", fromRing = false) {
+  if (fromRing) return;
+  await finger.tap(fab, { hold: true }); openRing(kind); await wait(fast() ? 0 : 650);
+  const sp = ringSpell(id); if (sp) { sp.classList.add("hot"); await finger.tap(sp); sparkle(sp, 10); }
+  await wait(120); closeRing();
+}
+function layer(cls, html) { const l = el("div", `layer ${cls || ""}`, html); layers.appendChild(l); return l; }
+async function closeLayers() { [...layers.children].forEach((l) => l.classList.add("out")); await wait(300); layers.innerHTML = ""; }
+let cap = null;
+function caption(text, bottom = 260) {
+  if (!cap) { cap = el("div", "caption"); screen.appendChild(cap); }
+  cap.innerHTML = `${glyph("mic", 16)}<span>“${text}”</span>`; cap.style.bottom = bottom + "px"; cap.classList.add("on"); say(text);
+}
+function uncaption() { if (cap) cap.classList.remove("on"); }
+function phoneReset() {
+  layers.innerHTML = ""; closeRing(); uncaption(); frame.classList.remove("ipad"); setDock("home"); finger.hide();
+  document.querySelectorAll(".bottle.lit").forEach((b) => b.classList.remove("lit"));
+  document.querySelectorAll(".card.hit").forEach((b) => b.classList.remove("hit"));
+}
+const reel = $("#reel");
+function reelRender() {
+  reel.innerHTML = "";
+  if (!S.caught.length) { reel.innerHTML = `<div class="empty"></div>`; const e = reel.firstChild; e.appendChild(flask("round", "43 92% 55%", .1)); e.insertAdjacentHTML("beforeend", "Nothing caught yet today.<br>Hold the wand to begin."); reel.style.flex = "1"; return; }
+  reel.style.flex = "";
+  const PHONE_TITLE = { write: ["Small rule for this week", "typed"], record: ["New Recording", "added recording"], film: ["New Video", "added video"], snap: ["New Image", "added image"], journal: ["Journal — 2 pages", "waiting for the next sync"], ipad: ["Bowl notes", "from iPad"], form: ["Daily Review", "one recording"] };
+  [...S.caught].reverse().slice(0, 6).forEach((id) => { const m = DATA.memories[BOTTLE[id]], [t, sub] = PHONE_TITLE[id];
+    const c = el("div", "card", `<span></span><div><b>${t}</b><small>${sub}</small></div><span class="gl">${glyph(m.glyph, 18)}</span>`); c.dataset.id = id; c.firstChild.replaceWith(flask(m.shape, m.hue, .12)); reel.appendChild(c); });
+}
+
+/* ═══ 6 · shelf ═════════════════════════════════════════════════════ */
+const shelf = $("#shelf");
+function bottleFor(id) {
+  const m = DATA.memories[BOTTLE[id]], b = el("div", "bottle empty"); b.dataset.id = id; b.appendChild(flask(m.shape, m.hue, .1));
+  b.appendChild(el("span", "bg", glyph(m.glyph, 12)));
+  if (id === "journal") b.appendChild(el("span", "n", "2"));
+  if (id === "ipad") b.querySelector(".bg").innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 19 17 7l2 2L7 21H5Z"/><path d="M15 5l4 4"/></svg>`;
+  b.setAttribute("aria-label", `${m.title}, caught`); return b;
+}
+async function fly(node, from, to, ms, arc = -80) {
+  const f = el("div", "flyer"); f.appendChild(node); stage.appendChild(f);
+  if (fast() || !f.animate) { f.remove(); return; }
+  const kf = []; for (let i = 0; i <= 16; i++) { const t = i / 16, x = from.x + (to.x - from.x) * t, y = from.y + (to.y - from.y) * t + arc * 4 * t * (1 - t), s = 1.6 - .6 * t;
+    kf.push({ transform: `translate(${x - 19}px,${y - 27}px) scale(${s})`, opacity: t < .05 ? 0 : 1 }); }
+  const a = f.animate(kf, { duration: ms, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" });
+  await Promise.race([a.finished.catch(() => {}), wait(ms + 50).catch(() => {})]); f.remove();
+}
+async function dropBottle(id) {
+  if (shelf.querySelector(`.bottle[data-id="${id}"]`)) return;
+  $("#shelfhint").style.display = "none";
+  const b = bottleFor(id); b.classList.add("hidden"); shelf.appendChild(b);
+  const m = DATA.memories[BOTTLE[id]];
+  const from = center(screen), to = center(b);
+  await fly(flask(m.shape, m.hue, .1), { x: from.x, y: from.y + 40 }, to, 800, -60);
+  b.classList.remove("hidden"); sparkle(b, 6); tink(shelf.querySelectorAll(".bottle").length - 1);
+}
+function markDone(id) { S.done.add(id); stripSync(); if (S.caught.length >= 3) $("#mac3d").classList.add("invite"); }
+
+/* ═══ 5 · the mode screens ══════════════════════════════════════════ */
+const PLAY = {
+  async wand() {
+    step(0); await finger.tap(fab, { hold: true }); step(1); openRing("general"); await wait(1400);
+    step(2); const sp = ringSpell("write"); if (sp) await finger.to(sp); await wait(400); closeRing(); await wait(300);
+  },
+  async write(o) {
+    step(0); await cast("write", "general", o.fromRing);
+    const l = layer("", `<div class="memo"><div class="t cursor"></div><div class="b"></div></div>`); setDock("memo");
+    const kb = el("div", "kbd"); ["qwertyuiop", "asdfghjkl", "zxcvbnm"].forEach((r) => { const row = el("div", "row"); [...r].forEach((ch) => { const k = el("span", "k", ch); k.dataset.k = ch; row.appendChild(k); }); kb.appendChild(row); });
+    const sr = el("div", "row"); sr.appendChild(el("span", "k w", "space")); sr.firstChild.dataset.k = " "; kb.appendChild(sr); l.appendChild(kb);
+    const press = (ch) => { const k = kb.querySelector(`[data-k="${ch.toLowerCase()}"]`); if (k) { k.classList.add("on"); setTimeout(() => k.classList.remove("on"), 110); } };
+    await wait(500); step(1);
+    const t = l.querySelector(".t"), b = l.querySelector(".b");
+    await typeInto(t, DATA.memories.write.title, 55, press); t.classList.remove("cursor"); b.classList.add("cursor");
+    await typeInto(b, DATA.memories.write.lines[0].t, 38, press); await wait(500);
+    kb.style.transition = "transform .3s"; kb.style.transform = "translateY(100%)"; b.classList.remove("cursor");
+    step(2); await finger.tap($("#backbtn")); await closeLayers();
+  },
+  async record(o) {
+    step(0); await cast("record", "general", o.fromRing);
+    const l = layer("", `<div class="memo"><div class="t">New Recording</div><div class="b"><em>added recording</em></div></div>`); setDock("memo");
+    await wait(460);
+    const veil = el("div", "recveil", `<div class="rec"><div class="st"><span class="dot"></span><span class="sx">Starting…</span></div><div class="tm">0:00</div><div class="bars">${"<i></i>".repeat(7)}</div><div class="bt"><span>Pause</span><span class="done">Done</span></div></div>`);
+    l.appendChild(veil); setDock("hide"); await wait(500); veil.querySelector(".sx").textContent = "Recording"; step(1);
+    const bars = [...veil.querySelectorAll(".bars i")], tm = veil.querySelector(".tm");
+    let sec = 0, live = true; const iv = setInterval(() => { if (!live) return; bars.forEach((bb, i) => bb.style.height = (8 + Math.abs(Math.sin(Date.now() / 140 + i * 1.3)) * (14 + Math.random() * 22)) + "px"); }, 110);
+    const clock = setInterval(() => { sec++; tm.textContent = `0:${String(Math.min(sec, 59)).padStart(2, "0")}`; }, 1000);
+    try {
+      const words = DATA.memories.walk.lines.slice(1);
+      for (const w of words) { caption(w.t, 300); await wait(1500 + w.t.length * 18); }
+      if (RUN.fast) tm.textContent = "0:14";
+    } finally { live = false; clearInterval(iv); clearInterval(clock); }
+    uncaption(); step(2); await finger.tap(veil.querySelector(".done"));
+    veil.style.transition = "opacity .3s"; veil.style.opacity = 0; await wait(300); veil.remove(); setDock("memo");
+    l.querySelector(".memo").insertAdjacentHTML("beforeend", `<div class="audiobar"><span class="pl">▶</span><span class="tr"></span><small>0:14</small></div>`);
+    await wait(700); await finger.tap($("#backbtn")); await closeLayers();
+  },
+  async film(o) {
+    step(0); await cast("film", "general", o.fromRing);
+    step(1); setDock("hide");
+    const l = layer("full cam", `<div class="tag">iPhone camera</div><div class="topbar"><span class="tpill">00:00:00</span></div><div class="vf">${wheelSVG()}</div><div class="modes"><span>SLO-MO</span><b>VIDEO</b><span>PHOTO</span></div><div class="sh video"><i></i></div><div class="review"><span>Retake</span><span class="use">Use Video</span></div>`);
+    await wait(700); const sh = l.querySelector(".sh"), tp = l.querySelector(".tpill");
+    step(2); await finger.tap(sh); sh.classList.add("on"); tp.classList.add("rec");
+    let s = 0; const iv = setInterval(() => { s++; tp.textContent = `00:00:${String(s).padStart(2, "0")}`; }, 1000);
+    try { caption("Third try.", 170); await wait(1500); caption("Still wobbly. Still mine.", 170); await wait(2000); } finally { clearInterval(iv); }
+    if (RUN.fast) tp.textContent = "00:00:08";
+    uncaption(); await finger.tap(sh); sh.classList.remove("on"); tp.classList.remove("rec"); sh.style.opacity = 0; l.querySelector(".review").classList.add("on");
+    await wait(300); await finger.tap(l.querySelector(".use"));
+    l.remove();
+    const m = layer("", `<div class="memo"><div class="t">New Video</div><div class="b"><em>added video</em></div><div class="clip">${wheelSVG()}<span class="play">▶</span></div></div>`); setDock("memo");
+    await wait(600);
+    const sheet = el("div", "sheet", `<div class="apps"><i></i><i></i><i></i><i></i></div><div class="row sv"><span>Save Video</span><span>⤓</span></div><div class="row"><span>Copy</span><span>⧉</span></div>`); m.appendChild(sheet);
+    await wait(500); const sv = sheet.querySelector(".sv"); await finger.tap(sv); sv.classList.add("hot"); await wait(300); sheet.remove();
+    await wait(300); await finger.tap($("#backbtn")); await closeLayers();
+  },
+  async snap(o) {
+    step(0); await cast("snap", "general", o.fromRing);
+    setDock("hide"); step(1);
+    const l = layer("full cam", `<div class="tag">iPhone camera</div><div class="vf"><div class="sticky">Class idea:<br>4 Saturdays<br>6 people<br>bring nothing</div></div><div class="modes"><span>VIDEO</span><b>PHOTO</b><span>PORTRAIT</span></div><div class="sh"><i></i></div><div class="review"><span>Retake</span><span class="use">Use Photo</span></div><div class="blink"></div>`);
+    await wait(800); const sh = l.querySelector(".sh"); await finger.tap(sh);
+    l.querySelector(".blink").classList.add("go"); await wait(350); sh.style.opacity = 0; l.querySelector(".review").classList.add("on");
+    await wait(300); await finger.tap(l.querySelector(".use")); l.remove();
+    step(2); layer("", `<div class="memo"><div class="t">New Image</div><div class="b"><em>added image</em></div><div class="photo"><div class="sticky">Class idea:<br>4 Saturdays<br>6 people<br>bring nothing</div></div></div>`); setDock("memo");
+    await wait(1100); await finger.tap($("#backbtn")); await closeLayers();
+  },
+  async journal(o) {
+    step(0); await cast("journal", "general", o.fromRing); setDock("hide");
+    const P = [["Mon 18", "Fear list:<br>1. nobody signs up.<br>2. someone signs up."], ["Tue 19", "Asked the café about the back room. A yes before I'd finished asking."]];
+    const l = layer("full jcam", `<div class="jtop"><span class="cnt">0 pages</span><b class="dn">Done</b></div><div class="vf"><div class="page"><h4>${P[0][0]}</h4>${P[0][1]}</div></div><div class="shut"></div><div class="strip2"><span class="hint">Shot pages appear here, live</span></div><div class="flash"></div>`);
+    step(1); await wait(700);
+    const sh = l.querySelector(".shut"), st = l.querySelector(".strip2"), cnt = l.querySelector(".cnt"), fl = l.querySelector(".flash"), vf = l.querySelector(".vf");
+    for (let i = 0; i < 2; i++) {
+      await finger.tap(sh); sh.classList.add("on"); fl.classList.remove("go"); fl.offsetWidth; fl.classList.add("go"); setTimeout(() => sh.classList.remove("on"), 140);
+      const h = st.querySelector(".hint"); if (h) h.remove(); st.appendChild(el("div", "tile")); cnt.textContent = `${i + 1} page${i ? "s" : ""}`; l.querySelector(".dn").classList.add("ok");
+      await wait(500);
+      if (i === 0) { const pg = vf.querySelector(".page"); pg.classList.add("gone"); const n = el("div", "page coming", `<h4>${P[1][0]}</h4>${P[1][1]}`); vf.appendChild(n); n.offsetWidth; await wait(30); n.classList.remove("coming"); await wait(800); pg.remove(); }
+    }
+    step(2); await finger.tap(l.querySelector(".dn")); await closeLayers();
+  },
+  async ipad() {
+    step(0); frame.classList.add("ipad"); await wait(650);
+    step(1); await cast("write");
+    const l = layer("", `<div class="ipadpage"><div class="t">Bowl notes</div><div class="sub">Write anywhere with Apple Pencil</div>
+      <div class="canvas"><svg class="bowl" width="170" height="200" viewBox="0 0 170 200" style="position:absolute;left:14px;top:26px"><path d="M20 70 C 24 150, 146 150, 150 70"/><path d="M20 70 C 50 58, 120 58, 150 70"/><path d="M62 132 L 60 150 L 110 150 L 108 132"/></svg>
+      <div class="handw">lip thinner, foot wider</div><div class="typed">lip thinner, foot wider</div>
+      <svg class="pencil" viewBox="0 0 16 150"><rect x="3" y="0" width="10" height="128" rx="3" fill="#f2f2f2"/><path d="M3 128 L8 148 L13 128Z" fill="#cfcfcf"/><path d="M6.6 142 L8 148 L9.4 142Z" fill="#555"/></svg></div>
+      <div class="ipnote">Scribble turns handwriting into text, in any text field.</div></div>`);
+    setDock("memo"); await wait(400);
+    const cv = l.querySelector(".canvas"), hw = l.querySelector(".handw"), pc = l.querySelector(".pencil"), ty = l.querySelector(".typed");
+    pc.classList.add("on"); cv.classList.add("drawn"); await wait(1200);
+    pc.style.left = "190px"; await wait(60); hw.classList.add("go"); pc.style.left = "440px"; await wait(1700); pc.classList.remove("on");
+    step(2); await wait(400); hw.classList.add("melt"); ty.classList.add("on"); await wait(1300);
+    await finger.tap($("#backbtn")); await closeLayers(); frame.classList.remove("ipad"); await wait(500);
+  },
+  async form(o) {
+    step(0); await cast("form", "general", o.fromRing);
+    const A = DATA.memories.form.lines;
+    const l = layer("form", `<div class="info"><span class="pos">1 of 3 · Daily Review</span><span class="rd"><span class="dot" style="width:7px;height:7px;border-radius:50%;background:currentColor"></span><span class="tt">0:00</span></span><span class="wbars">${"<i></i>".repeat(28)}</span></div>
+      <div class="qs"><div class="qtrack">${A.map((a, i) => `<div class="q"><h3>${a.q}</h3><p>${i === 1 ? "Name it. That's enough." : "A sentence is plenty."}</p><div class="box">Type — or just say it</div><div class="peek">${i < 2 ? `Next <b>${A[i + 1].q}</b> ↑` : "Next <b>All done</b> ↑"}</div></div>`).join("")}
+      <div class="q end"><h3>All done</h3><p>Your recording — play it back. Want to add more? Swipe up and tap Record.</p><div class="audiobar"><span class="pl">▶</span><span class="tr"></span><small>0:21</small></div><p style="margin-top:20px">The desktop fills in your answers from the recording once it syncs.</p></div></div></div>`);
+    setDock("form"); await wait(600);
+    step(1); const rb = $("#recbtn"); await finger.tap(rb); rb.classList.add("live"); l.classList.add("live");
+    const wb = [...l.querySelectorAll(".wbars i")], tt = l.querySelector(".tt"); let s0 = Date.now();
+    const iv = setInterval(() => { wb.forEach((b, i) => b.style.height = (3 + Math.abs(Math.sin(Date.now() / 120 + i)) * 12 * Math.random()) + "px"); tt.textContent = `0:${String(Math.floor((Date.now() - s0) / 1000)).padStart(2, "0")}`; }, 120);
+    const tr = l.querySelector(".qtrack");
+    try {
+      for (let i = 0; i < 3; i++) {
+        caption(A[i].t, 120); await wait(1700);
+        if (i === 0) step(2);
+        uncaption(); const qs = l.querySelector(".qs"), r = rectOf(qs);
+        await finger.to({ x: r.x + r.w / 2, y: r.y + r.h - 40 }, { quick: true }); finger.node.style.transform = `translate(${r.x + r.w / 2}px,${r.y + 120}px)`;
+        tr.style.transform = `translateY(${-(i + 1) * 436}px)`; l.querySelector(".pos").textContent = i < 2 ? `${i + 2} of 3 · Daily Review` : "Daily Review"; await wait(700);
+      }
+    } finally { clearInterval(iv); }
+    rb.classList.remove("live"); l.classList.remove("live"); setDock("done"); await wait(700);
+    await finger.tap($("#donebtn")); await closeLayers();
+  },
+  async patronus(o) {
+    step(0);
+    const l = layer("", `<div class="memo"><div class="t">New Recording</div><div class="b"><em>${S.done.has("record") ? "added recording" : "a walk, from earlier this week"}</em></div><div class="audiobar"><span class="pl">▶</span><span class="tr"></span><small>0:14</small></div></div>`); setDock("memo");
+    await wait(600);
+    if (!o.fromRing) { await finger.tap(fab, { hold: true }); fab.classList.add("cond"); openRing("cond"); await wait(700); const sp = ringSpell("patronus"); sp.classList.add("hot"); await finger.tap(sp); sparkle(sp, 10); await wait(100); closeRing(); }
+    step(1);
+    const blk = el("div", "pblock", `<div class="cap"><span class="orb dim"></span>WHEN SYNCED · PATRONUS CASTS</div><div class="in cursor"></div><div class="ws"></div>`);
+    l.querySelector(".memo").appendChild(blk); await wait(500);
+    await typeInto(blk.querySelector(".in"), DATA.patronusAsk, 45); blk.querySelector(".in").classList.remove("cursor");
+    step(2); await wait(300); blk.querySelector(".ws").textContent = "Waits for the computer."; await wait(1400);
+    const mb = shelf.querySelector('.bottle[data-id="record"]'); if (mb && !mb.querySelector(".orb")) { mb.appendChild(el("span", "orb dim")); sparkle(mb, 5); }
+    await finger.tap($("#backbtn")); await closeLayers();
+  },
+  async accio() {
+    step(0); const pill = $("#pill"); await finger.tap(pill); pill.classList.add("live");
+    const pt = pill.querySelector(".pt"); pt.textContent = ""; const caret = el("span", "caret"); pill.appendChild(caret);
+    const l = layer("", `<div class="acchead">Accio</div><div class="acc"></div>`); l.style.background = "hsl(222 24% 11% / .96)"; step(1);
+    await typeInto(pt, "class", 120); await wait(300); step(2);
+    const R = [["snap", "camera", "Sticky note", "<mark>Class</mark> idea: 4 Saturdays · 6 people"], ["form", "form", "Daily Review", "Saying '<mark>class</mark>' out loud"], ["record", "mic", "Walk — two steps ahead", "…good enough to teach. A <mark>class</mark>…"]];
+    const acc = l.querySelector(".acc");
+    for (const [id, g, t, s] of R) { acc.appendChild(el("div", "arow", `${glyph(g, 20)}<div><b>${t}</b><small>${s}</small></div>`)); const b = shelf.querySelector(`.bottle[data-id="${id}"]`); if (b) b.classList.add("lit"); await wait(300); }
+    await wait(1600); caret.remove();
+    document.querySelectorAll(".bottle.lit").forEach((b) => b.classList.remove("lit")); await closeLayers();
+  },
+};
+function wheelSVG() {
+  return `<svg class="wheel" width="200" height="150" viewBox="0 0 200 150"><ellipse cx="100" cy="128" rx="92" ry="16" fill="hsl(25 10% 36%)"/><ellipse cx="100" cy="122" rx="74" ry="12" fill="hsl(25 12% 48%)"/>
+    <g class="spin"><path d="M50 116 C 46 80, 60 46, 72 40 L 128 40 C 140 46, 154 80, 150 116 Z" fill="hsl(22 40% 58%)"/><ellipse cx="100" cy="40" rx="28" ry="6" fill="hsl(22 34% 42%)"/>
+    <path d="M60 70 C 90 76, 112 76, 140 70" stroke="hsl(22 40% 70%)" stroke-width="2" fill="none" opacity=".6"/></g>
+    <path d="M150 60 C 166 70, 170 92, 158 108" stroke="hsl(30 30% 74%)" stroke-width="10" stroke-linecap="round" fill="none" opacity=".75"/></svg>`;
+}
+
+/* ═══ scene runner ═════════════════════════════════════════════════ */
+async function playMode(id, o = {}) {
+  if (S.mac) return;
+  await takeover(); hoverBack = null; S.scene = id; S.busy = true; stripSync();
+  phoneReset(); guideShow(id, "playing"); const run = RUN;
+  try {
+    await PLAY[id](o);
+    if (BOTTLE[id] && !S.caught.includes(id)) { S.caught.push(id); reelRender(); await dropBottle(id); }
+    markDone(id); phoneReset(); guideShow(id, "done");
+  } catch (e) { if (e !== CANCEL) throw e; }
+  finally { if (RUN === run) { S.busy = false; finger.hide(); uncaption(); } }
+}
+
+/* ═══ 7 · the Mac: open, pour, fill ════════════════════════════════ */
+const gallery = $("#gallery"), mrune = $("#mrune");
+const cards = {};
+function macCard(key) {
+  const m = DATA.memories[key], c = el("button", "mcard ghost"); c.dataset.key = key;
+  const f = flask(m.shape, m.hue, .1); c.appendChild(f);
+  c.insertAdjacentHTML("beforeend", `<div class="tx"><b>${glyph(m.glyph, 13)}<span>${m.title}</span></b><p></p></div>`);
+  c.setAttribute("aria-label", m.title); c.onclick = () => openMemory(key, null);
+  cards[key] = c; return c;
+}
+async function fillTo(f, to, ms) {
+  const from = f.fill || 0; if (fast()) return f.setFill(to);
+  const t0 = performance.now();
+  await new Promise((res) => { const stepF = (now) => { const k = Math.min(1, (now - t0) / ms); f.setFill(from + (to - from) * (1 - Math.pow(1 - k, 3))); k < 1 ? requestAnimationFrame(stepF) : res(); }; requestAnimationFrame(stepF); });
+}
+const fullText = (key) => DATA.memories[key].lines.map((l) => (l.q ? `${l.q} ${l.t}` : l.t)).join(" ");
+async function openMac() {
+  if (S.mac) return; await takeover(); phoneReset(); S.mac = true; S.busy = true; S.scene = "mac"; stripSync(); const run = RUN;
+  stage.classList.add("mac-on"); $("#headline").querySelector("h1").textContent = "Then ask it something.";
+  $("#headline").querySelector("p").textContent = "Everything you caught pours in, and fills with words.";
+  try { await wait(500); $("#mac3d").classList.add("open"); $("#mac3d").classList.remove("invite"); await wait(1300); await pour(); }
+  catch (e) { if (e !== CANCEL) throw e; }
+  finally { if (RUN === run) S.busy = false; }
+}
+async function pour() {
+  if (S.poured) return; S.poured = true;
+  const caught = S.caught.slice(), skipped = Object.keys(DATA.pours).filter((k) => !caught.includes(k));
+  gallery.innerHTML = ""; mrune.classList.add("flow");
+  let gridNow = null;
+  if (caught.length) { gallery.appendChild(el("div", "gsec", "This week · just caught")); gridNow = el("div", "ggrid"); gallery.appendChild(gridNow); }
+  // 1 · the gold thread from the shelf to the Mac
+  const th = $("#thread"), p = $("#threadp"), a = center(shelf), b = center(gallery);
+  p.setAttribute("d", `M${a.x} ${a.y - 10} C ${a.x + 180} ${a.y - 360}, ${b.x - 300} ${b.y - 300}, ${b.x} ${b.y - 40}`);
+  th.classList.remove("off"); th.offsetWidth; if (!fast()) th.classList.add("on"); pourSound();
+  await wait(700);
+  // 2 · bottles lift off the shelf one by one and land as cards
+  const flights = []; let n = 0;
+  for (const id of caught) {
+    const bottle = shelf.querySelector(`.bottle[data-id="${id}"]`);
+    for (const key of DATA.pours[id]) {
+      const c = macCard(key); gridNow.appendChild(c);
+      if (id === "journal" && key === "tue") { flights.push(Promise.resolve().then(async () => { await wait(1100 + n * 150); c.classList.remove("ghost"); c.classList.add("land"); })); continue; }
+      const from = bottle ? center(bottle) : center(shelf), to = center(c.querySelector(".flask")), m = DATA.memories[key], delay = n * 150, idx = n;
+      flights.push((async () => { await wait(delay); if (bottle) bottle.style.opacity = .15;
+        await fly(flask(m.shape, m.hue, .1), from, to, 900, -120); c.classList.remove("ghost"); c.classList.add("land"); tink(idx); })());
+      n++;
+    }
+  }
+  await Promise.all(flights);
+  th.classList.add("off");
+  // 3 · every card fills as its words arrive; voice gets the one slow moment
+  const order = caught.flatMap((id) => DATA.pours[id]);
+  if (order.includes("walk")) await transcribeBig();
+  for (const key of order) { if (key === "walk") continue; await fillCard(key); }
+  // 4 · skipped shapes arrive as "from earlier this week", already full
+  if (skipped.length) {
+    gallery.appendChild(el("div", "gsec", "From earlier this week")); const g2 = el("div", "ggrid"); gallery.appendChild(g2);
+    for (const id of skipped) for (const key of DATA.pours[id]) { const c = macCard(key); g2.appendChild(c); c.classList.remove("ghost"); c.classList.add("land"); c.querySelector("p").textContent = fullText(key); c.querySelector(".flask").setFill(.9); if (key === "walk") addPatronus(c); }
+    await wait(500);
+  }
+  if (!cards.walk) {} // walk always exists now (caught or earlier)
+  mrune.classList.remove("flow"); mrune.classList.add("ok");
+  const total = Object.keys(cards).length;
+  $("#mstext").textContent = `${total} memories · all words ready · saved on this Mac`; $("#mstatus").classList.add("on");
+  shelf.querySelectorAll(".bottle").forEach((x) => x.style.opacity = .15);
+  await wait(700); $("#porbbtn").classList.add("on"); await wait(300); openChat();
+}
+async function fillCard(key) {
+  const c = cards[key], f = c.querySelector(".flask"), p = c.querySelector("p");
+  if (key === "photo") { c.appendChild(el("span", "scan")); await wait(600); }
+  if (key === "film") { await wait(150); }
+  p.textContent = fullText(key); await fillTo(f, .9, key === "write" || key === "ipad" ? 250 : 500);
+  const sc = c.querySelector(".scan"); if (sc) sc.remove();
+}
+function addPatronus(c) {
+  if (c.querySelector(".porb")) return; const o = el("div", "porb sm porb2", `<div class="core"></div><div class="rg"></div><div class="rg"></div><div class="rg"></div>`); o.style.cssText = "position:absolute;right:8px;top:8px"; c.appendChild(o);
+}
+async function transcribeBig() {
+  const m = DATA.memories.walk, c = cards.walk, box = el("div", "tbig");
+  box.innerHTML = `<h3><span></span>${glyph("mic", 18)} ${m.title}</h3><div class="wave">${Array.from({ length: 48 }, (_, i) => `<i style="height:${20 + Math.abs(Math.sin(i * .7) * Math.cos(i * .23)) * 80}%"></i>`).join("")}</div>
+    <div class="lines"></div><div class="proc"><span>Transcribing on this Mac · whisper</span><span class="ln"><i></i></span></div>`;
+  box.querySelector("h3 span").replaceWith(flask(m.shape, m.hue, .1));
+  $("#display").appendChild(box); const bf = box.querySelector(".flask"); await wait(250);
+  box.querySelector(".ln i").style.width = "100%";
+  const waves = [...box.querySelectorAll(".wave i")], lines = box.querySelector(".lines"), all = m.lines; let wi = 0; const words = all.reduce((s, l) => s + l.t.split(" ").length, 0); let done = 0;
+  for (const ln of all) {
+    const row = el("div", "tline", `<small>${ln.at}</small><span></span>`); lines.appendChild(row); const sp = row.querySelector("span");
+    for (const w of ln.t.split(" ")) { const x = el("span", "w", w + " "); sp.appendChild(x); x.offsetWidth; x.classList.add("on"); done++;
+      while (wi < Math.round(waves.length * done / words)) waves[wi++].classList.add("p"); bf.setFill(.1 + .8 * done / words); c.querySelector(".flask").setFill(.1 + .8 * done / words);
+      await wait(95); }
+    await wait(120);
+  }
+  if (S.done.has("patronus") || !S.caught.includes("record") || true) {
+    const st = el("div", "steps3", `<div class="cap"><div class="porb sm"><div class="core"></div><div class="rg"></div><div class="rg"></div><div class="rg"></div></div>PATRONUS CAST · ${DATA.patronusAsk.replace(/\.$/, "")}</div>${DATA.patronusSteps.map((s, i) => `${i + 1}. ${s}`).join("<br>")}<div class="undo">Undo</div>`);
+    if (S.done.has("patronus")) { await wait(300); box.insertBefore(st, box.querySelector(".proc")); await wait(1100); }
+  }
+  c.querySelector("p").textContent = fullText("walk"); c.querySelector(".flask").setFill(.9); if (S.done.has("patronus")) addPatronus(c);
+  await wait(500); box.classList.add("out"); await wait(320); box.remove();
+}
+
+/* ═══ 8 · Patronus chat ════════════════════════════════════════════ */
+const msgs = $("#msgs"), sugg = $("#sugg"), chat = $("#chat");
+function openChat() {
+  $("#display").classList.add("chat-on"); chat.classList.add("on");
+  if (!msgs.children.length) { msgs.appendChild(el("div", "msg pa", DATA.chat.hello)); renderSugg(); }
+  setTimeout(() => $("#ask").focus({ preventScroll: true }), 400);
+}
+function closeChat() { chat.classList.remove("on"); $("#display").classList.remove("chat-on"); }
+$("#porbbtn").onclick = () => chat.classList.contains("on") ? closeChat() : openChat();
+$("#chatx").onclick = closeChat;
+function renderSugg() { sugg.innerHTML = ""; DATA.chat.qs.forEach((q, i) => { const b = el("button", S.asked.has(i) ? "used" : "", q.q); b.onclick = () => ask(q.q); sugg.appendChild(b); }); }
+function pickAnswer(text) {
+  const t = text.toLowerCase().trim(); const exact = DATA.chat.qs.findIndex((q) => q.q.toLowerCase() === t); if (exact >= 0) return exact;
+  let best = -1, score = 0; DATA.chat.qs.forEach((q, i) => { const s = q.keys.filter((k) => t.includes(k)).length; if (s > score) { score = s; best = i; } }); return best;
+}
+function citeChip(c) {
+  const m = DATA.memories[c.m], b = el("button", "cite", `${glyph(m.glyph, 12)}<span>${c.c}</span>`); b.setAttribute("aria-label", `Open ${m.title}`);
+  b.onmouseenter = b.onfocus = () => { const k = cards[c.m]; if (k) k.classList.add("lit"); };
+  b.onmouseleave = b.onblur = () => { const k = cards[c.m]; if (k) k.classList.remove("lit"); };
+  b.onclick = () => openMemory(c.m, c.l); return b;
+}
+async function ask(text) {
+  if (!text.trim()) return; await takeover(); S.busy = true; const run = RUN;
+  try {
+    msgs.appendChild(el("div", "msg me", text.replace(/</g, "&lt;"))); msgs.scrollTop = msgs.scrollHeight;
+    const i = pickAnswer(text), bub = el("div", "msg pa typing"); msgs.appendChild(bub); await wait(650); bub.classList.remove("typing");
+    if (i < 0) { bub.textContent = DATA.chat.none; renderSugg(); return; }
+    S.asked.add(i); renderSugg();
+    for (const seg of DATA.chat.qs[i].a) {
+      if (typeof seg === "string") { for (let k = 0; k < seg.length; k += 3) { if (RUN.fast) { bub.append(seg.slice(k)); break; } bub.append(seg.slice(k, k + 3)); msgs.scrollTop = msgs.scrollHeight; await wait(16); } }
+      else if (seg.i) bub.appendChild(el("em", "", seg.i));
+      else { bub.appendChild(citeChip(seg)); await wait(120); }
+    }
+    msgs.scrollTop = msgs.scrollHeight;
+    if (DATA.chat.qs[i].closing) rest();
+  } catch (e) { if (e !== CANCEL) throw e; }
+  finally { if (RUN === run) S.busy = false; }
+}
+$("#composer").onsubmit = (e) => { e.preventDefault(); const v = $("#ask").value; $("#ask").value = ""; ask(v); };
+function openMemory(key, line) {
+  const old = $("#display").querySelector(".memview"); if (old) old.remove();
+  const m = DATA.memories[key], v = el("div", "memview"); v.setAttribute("role", "dialog"); v.setAttribute("aria-label", m.title);
+  v.innerHTML = `<button class="xbtn" aria-label="Close">×</button><h3><span></span>${glyph(m.glyph, 16)} ${m.title}</h3><div class="meta">${m.when}</div>
+    ${m.lines.map((l, i) => `<div class="tline ${i === line ? "lit" : ""}"><small>${l.at || (l.q ? "Q" + (i + 1) : "")}</small><span>${l.q ? `<b style="font-weight:600">${l.q}</b> ` : ""}${l.t}</span></div>`).join("")}
+    ${m.lines[line] && m.lines[line].at ? `<div class="playing">▶ Playing from ${m.lines[line].at}</div>` : ""}`;
+  v.querySelector("h3 span").replaceWith(flask(m.shape, m.hue, .9));
+  if (key === "walk" && S.done.has("patronus")) v.insertAdjacentHTML("beforeend", `<div class="steps3"><div class="cap">PATRONUS CAST</div>${DATA.patronusSteps.map((s, i) => `${i + 1}. ${s}`).join("<br>")}<div class="undo">Undo</div></div>`);
+  v.querySelector(".xbtn").onclick = () => v.remove(); $("#display").appendChild(v);
+  if (m.lines[line] && m.lines[line].at) say(m.lines[line].t);
+}
+function rest() { S.rest = true; stage.classList.add("rest"); $("#restline").classList.add("on"); $("#headline").querySelector("h1").textContent = "Catch it anywhere. Understand it on your Mac."; $("#headline").querySelector("p").textContent = ""; }
+
+/* ═══ wiring ═══════════════════════════════════════════════════════ */
+$("#brand").innerHTML = `<span></span>Pensieve`; $("#brand").firstChild.replaceWith(flask("round", "43 92% 55%", .6));
+$("#brand2").innerHTML = `<span></span>Pensieve`; $("#brand2").firstChild.replaceWith(flask("round", "43 92% 55%", .6));
+$("#sbox").innerHTML = `${glyph("accio", 14)} Accio`; mrune.innerHTML = glyph("sync", 20);
+$("#macbtn").onclick = openMac; $("#macgo").onclick = openMac;
+$("#again").onclick = () => restart(); $("#restart").onclick = () => restart();
+$("#sound").onclick = () => { S.sound = !S.sound; $("#sound").setAttribute("aria-pressed", S.sound); $("#sound").textContent = S.sound ? "Sound on" : "Sound off"; if (S.sound) { const c = ac(); if (c && c.resume) c.resume(); tink(0); } else if (window.speechSynthesis) speechSynthesis.cancel(); };
+screen.addEventListener("click", () => { if (S.busy && !S.auto) skip(); });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { if (ring.classList.contains("open")) closeRing(); const mv = $(".memview"); if (mv) mv.remove(); }
+  if (e.key === " " && document.activeElement === fab) { e.preventDefault(); userRing(); }
+});
+function restart() { location.hash = ""; location.reload(); }
+
+/* idle → the stage plays the tour by itself; any touch hands control back */
+let idleT = null;
+function poke() { clearTimeout(idleT); if (!INSTANT) idleT = setTimeout(tour, 20000); }
+["pointerdown", "keydown", "pointermove", "wheel"].forEach((ev) => addEventListener(ev, (e) => {
+  if (S.auto && ev !== "pointermove") { S.auto = false; $("#tourpill").classList.remove("on"); skip(); }
+  poke();
+}, true));
+async function tour() {
+  if (S.auto || S.rest) return; S.auto = true; $("#tourpill").classList.add("on");
+  try {
+    while (S.auto && !S.mac) { const m = MODES.find((x) => !S.done.has(x.id)); if (!m) break; await playMode(m.id); if (!S.auto) return; await wait(1400).catch(() => {}); }
+    if (!S.auto) return; if (!S.mac) await openMac();
+    for (const q of DATA.chat.qs) { if (!S.auto) return; await wait(1600).catch(() => {}); if (!S.auto) return; await ask(q.q); }
+  } finally { S.auto = false; $("#tourpill").classList.remove("on"); }
+}
+
+/* start */
+setDock("home"); reelRender(); guideArrive(); stripSync();
+requestAnimationFrame(() => $("#headline").classList.add("in"));
+poke();
+window.__showcase = { S, DATA, MODES, playMode, openMac, ask, skip, pickAnswer, cards };
+</script>
+</body>
+</html>
