@@ -25,21 +25,37 @@ const SHOTS = [
   { file: "10-accio.png", run: "__showcase.playMode('accio')", settle: 3600 },
   { file: "11-pour.png", run: "(async()=>{for(const m of ['write','record','journal','snap','patronus']){__showcase.playMode(m);await new Promise(r=>setTimeout(r,50));__showcase.skip();await new Promise(r=>setTimeout(r,900));} __showcase.openMac();})()", settle: 9500 },
   { file: "12-transcribe.png", run: "(async()=>{for(const m of ['record','journal']){__showcase.playMode(m);await new Promise(r=>setTimeout(r,50));__showcase.skip();await new Promise(r=>setTimeout(r,900));} __showcase.openMac();})()", settle: 7600 },
-  { file: "13-chat.png", run: "(async()=>{for(const m of ['write','record','film','snap','journal','form','patronus']){__showcase.playMode(m);await new Promise(r=>setTimeout(r,50));__showcase.skip();await new Promise(r=>setTimeout(r,900));} await __showcase.openMac(); await __showcase.ask('What keeps stopping me from teaching?'); await __showcase.ask('Give me one step for this weekend.');})()", settle: 26000 },
+  // the full chat takes ~30s to play; this machine kills Chrome around then, so it runs instantly
+  { file: "13-chat.png", instant: true, run: "(async()=>{for(const m of ['write','record','film','snap','journal','form','patronus']) await __showcase.playMode(m); await __showcase.openMac(); await __showcase.ask('What keeps stopping me from teaching?'); await __showcase.ask('Give me one step for this weekend.');})()", settle: 1500 },
 ];
 
-const browser = await chromium.launch({ channel: "chrome" }).catch(() => chromium.launch());
+// One picture in its own browser. Chrome is sometimes killed mid-run on this machine,
+// so a failed shot is retried a couple of times before giving up.
+async function shoot(s) {
+  const browser = await chromium.launch({ channel: "chrome" }).catch(() => chromium.launch());
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
+    page.on("pageerror", (e) => console.error(`[${s.file}] page error:`, e.message));
+    page.on("console", (m) => m.type() === "error" && console.error(`[${s.file}]`, m.text()));
+    if (s.instant) await page.addInitScript(() => { window.__instant = true; });
+    await page.goto(html);
+    await page.waitForTimeout(300);
+    if (s.run) await page.evaluate(s.run);
+    await page.waitForTimeout(s.settle);
+    await page.screenshot({ path: resolve(out, s.file) });
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
+let failed = 0;
 for (const s of SHOTS) {
   if (only && !s.file.includes(only)) continue;
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
-  page.on("pageerror", (e) => console.error(`[${s.file}] page error:`, e.message));
-  page.on("console", (m) => m.type() === "error" && console.error(`[${s.file}]`, m.text()));
-  await page.goto(html);
-  await page.waitForTimeout(300);
-  if (s.run) await page.evaluate(s.run);
-  await page.waitForTimeout(s.settle);
-  await page.screenshot({ path: resolve(out, s.file) });
-  console.log("saved", s.file);
-  await page.close();
+  for (let attempt = 1; ; attempt++) {
+    try { await shoot(s); console.log("saved", s.file); break; }
+    catch (e) {
+      if (attempt >= 3) { console.error(`[${s.file}] failed:`, e.message.split("\n")[0]); failed++; break; }
+    }
+  }
 }
-await browser.close();
+process.exit(failed ? 1 : 0);

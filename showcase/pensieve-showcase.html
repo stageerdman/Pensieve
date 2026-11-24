@@ -43,7 +43,11 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid hsl(var(--blue))
 .headline h1{font-size:28px;font-weight:600;letter-spacing:-.01em;color:hsl(216 30% 94%);transition:opacity .6s}
 .headline p{font-size:15px;color:hsl(var(--muted));margin-top:6px;opacity:0;transition:opacity 1s .9s}
 .headline.in p{opacity:1}
-.tourpill{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);font-size:12px;color:hsl(var(--muted));
+/* with the Mac open, the words move to the free column above the small phone */
+.mac-on .headline{left:36px;right:auto;width:420px;top:110px;text-align:left}
+.mac-on .headline h1{font-size:24px;line-height:1.25}
+.mac-on .headline p{margin-top:10px;line-height:1.5}
+.tourpill{position:absolute;left:50%;top:20px;transform:translateX(-50%);font-size:12px;color:hsl(var(--muted));
   padding:6px 12px;border-radius:99px;background:hsl(var(--raised)/.8);border:1px solid hsl(var(--line));opacity:0;transition:opacity .4s;z-index:40;pointer-events:none}
 .tourpill.on{opacity:1}
 
@@ -83,8 +87,8 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid hsl(var(--blue))
 .chip.mac{color:hsl(var(--gold))}
 
 /* ── 4 · phone ─────────────────────────────────────────────────────── */
-.rig{position:absolute;left:420px;top:136px;width:370px;z-index:8;transform-origin:0 0;transition:transform .9s var(--ease)}
-.mac-on .rig{transform:translate(-382px,96px) scale(.6)}
+.rig{position:absolute;left:430px;top:128px;width:370px;z-index:8;transform-origin:0 0;transform:scale(.95);transition:transform .9s var(--ease)}
+.mac-on .rig{transform:translate(-392px,104px) scale(.6)}
 .frame{position:relative;margin:0 auto;width:330px;height:640px;border-radius:52px;padding:12px;
   background:linear-gradient(145deg,hsl(222 10% 30%),hsl(222 12% 12%) 40%,hsl(222 10% 22%));
   box-shadow:0 0 0 1px hsl(220 10% 40%/.6),0 40px 80px -20px #000a,0 0 120px -40px hsl(var(--gold)/.25);
@@ -100,8 +104,8 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid hsl(var(--blue))
 .status .ic b::after{content:"";position:absolute;inset:1.5px;right:4px;background:currentColor;border-radius:1px}
 .home{position:absolute;inset:0;padding:58px 16px 100px;display:flex;flex-direction:column;gap:10px;z-index:1}
 .home h2{font-size:26px;font-weight:700;color:hsl(216 30% 94%);margin:4px 4px 6px}
-.empty{margin:auto;text-align:center;font-size:14px;color:hsl(var(--muted));line-height:1.6;padding-bottom:40px}
-.empty .flask{width:34px;height:48px;margin:0 auto 10px;opacity:.7}
+.nothing{margin:auto;text-align:center;font-size:14px;color:hsl(var(--muted));line-height:1.6;padding-bottom:40px}
+.nothing .flask{width:34px;height:48px;margin:0 auto 10px;opacity:.7}
 .card{display:flex;gap:12px;align-items:center;padding:12px;border-radius:16px;background:hsl(var(--raised));animation:cardin .5s var(--ease) both}
 .card .flask{width:26px;height:36px;flex:none}
 .card b{display:block;font-size:14px;font-weight:600;color:hsl(216 30% 92%)}
@@ -319,11 +323,11 @@ mark{background:hsl(var(--violet)/.25);color:hsl(266 90% 88%);border-radius:3px;
 .flyer .flask{width:100%;height:100%}
 
 /* ── 7 · the MacBook (real 3D lid) ─────────────────────────────────── */
-.macwrap{position:absolute;left:0;top:0;width:900px;height:880px;transform-origin:0 0;transform:translate(870px,200px) scale(.52);transition:transform 1s var(--ease);perspective:2400px;perspective-origin:50% -30%;z-index:7}
+.macwrap{position:absolute;left:0;top:0;width:900px;height:880px;transform-origin:0 0;transform:translate(870px,96px) scale(.52);transition:transform 1s var(--ease);perspective:2400px;perspective-origin:50% -30%;z-index:7}
 .mac-on .macwrap{transform:translate(500px,86px) scale(.98)}
 .mac3d{position:absolute;left:0;top:0;width:900px;height:880px;transform-style:preserve-3d}
 .lid,.deck{position:absolute;left:0;width:900px;transform-style:preserve-3d;transition:transform 1.1s var(--ease)}
-.lid{top:0;height:566px;transform-origin:50% 100%;transform:rotateX(-128deg)}
+.lid{top:0;height:566px;transform-origin:50% 100%;transform:rotateX(-126deg)}/* a hair above the deck, or the deck paints over it */
 .deck{top:566px;height:320px;transform-origin:50% 0;transform:rotateX(52deg);border-radius:0 0 26px 26px;
   background:linear-gradient(180deg,hsl(220 6% 46%),hsl(220 6% 32%));box-shadow:inset 0 0 0 1px hsl(220 10% 60%/.4)}
 .open .lid{transform:rotateX(6deg)}
@@ -339,7 +343,7 @@ mark{background:hsl(var(--violet)/.25);color:hsl(266 90% 88%);border-radius:3px;
 @keyframes invite{50%{filter:drop-shadow(0 0 34px hsl(var(--gold)))}}
 .macbtn{position:absolute;inset:-40px;z-index:5;border-radius:40px}
 .open .macbtn{display:none}
-.maclabel{position:absolute;left:870px;width:468px;top:640px;text-align:center;z-index:7;transition:opacity .4s}
+.maclabel{position:absolute;left:870px;width:468px;top:700px;text-align:center;z-index:7;transition:opacity .4s}
 .maclabel b{display:block;font-size:15px;color:hsl(216 30% 94%);font-weight:600}
 .maclabel small{display:block;font-size:13px;color:hsl(var(--muted));margin-top:4px}
 .maclabel .btn{margin-top:14px;background:hsl(var(--gold)/.12);color:hsl(var(--gold));box-shadow:inset 0 0 0 1px hsl(var(--gold)/.4)}
@@ -438,10 +442,6 @@ mark{background:hsl(var(--violet)/.25);color:hsl(266 90% 88%);border-radius:3px;
 .memview h3{display:flex;gap:10px;align-items:center;font-size:16px;color:hsl(216 30% 95%);padding-right:30px}
 .memview .meta{font-size:12px;color:hsl(var(--muted));margin:6px 0 8px}
 .memview .playing{font-size:12px;color:hsl(var(--gold));margin-top:10px;display:flex;gap:6px;align-items:center}
-.restline{position:absolute;left:500px;width:882px;top:744px;text-align:center;z-index:9;opacity:0;transition:opacity 1.2s;pointer-events:none}
-.restline.on{opacity:1;pointer-events:auto}
-.restline b{font-size:20px;font-weight:600;color:hsl(216 30% 95%)}
-.restline button{display:block;margin:8px auto 0;font-size:13px;color:hsl(var(--muted));text-decoration:underline;text-underline-offset:3px}
 .thread{position:absolute;inset:0;z-index:85;pointer-events:none;overflow:visible}
 .thread path{fill:none;stroke:hsl(var(--gold));stroke-width:2;filter:drop-shadow(0 0 6px hsl(var(--gold)));stroke-dasharray:1;stroke-dashoffset:1;transition:stroke-dashoffset .9s ease,opacity .8s}
 .thread.on path{stroke-dashoffset:0}
@@ -513,7 +513,6 @@ mark{background:hsl(var(--violet)/.25);color:hsl(266 90% 88%);border-radius:3px;
     </div>
   </div>
   <div class="maclabel" id="maclabel"><b>Your Mac</b><small>Open it when you're ready.</small><button class="btn" id="macgo">Open your Mac</button></div>
-  <div class="restline" id="restline"><b>Catch it anywhere. Understand it on your Mac.</b><button id="again">Start again</button></div>
 
   <svg class="thread" id="thread" width="1440" height="900"><path id="threadp" pathLength="1"/></svg>
   <div class="finger" id="finger" aria-hidden="true"></div>
@@ -847,7 +846,7 @@ function phoneReset() {
 const reel = $("#reel");
 function reelRender() {
   reel.innerHTML = "";
-  if (!S.caught.length) { reel.innerHTML = `<div class="empty"></div>`; const e = reel.firstChild; e.appendChild(flask("round", "43 92% 55%", .1)); e.insertAdjacentHTML("beforeend", "Nothing caught yet today.<br>Hold the wand to begin."); reel.style.flex = "1"; return; }
+  if (!S.caught.length) { reel.innerHTML = `<div class="nothing"></div>`; const e = reel.firstChild; e.appendChild(flask("round", "43 92% 55%", .1)); e.insertAdjacentHTML("beforeend", "Nothing caught yet today.<br>Hold the wand to begin."); reel.style.flex = "1"; return; }
   reel.style.flex = "";
   const PHONE_TITLE = { write: ["Small rule for this week", "typed"], record: ["New Recording", "added recording"], film: ["New Video", "added video"], snap: ["New Image", "added image"], journal: ["Journal — 2 pages", "waiting for the next sync"], ipad: ["Bowl notes", "from iPad"], form: ["Daily Review", "one recording"] };
   [...S.caught].reverse().slice(0, 6).forEach((id) => { const m = DATA.memories[BOTTLE[id]], [t, sub] = PHONE_TITLE[id];
@@ -1105,7 +1104,6 @@ async function pour() {
     for (const id of skipped) for (const key of DATA.pours[id]) { const c = macCard(key); g2.appendChild(c); c.classList.remove("ghost"); c.classList.add("land"); c.querySelector("p").textContent = fullText(key); c.querySelector(".flask").setFill(.9); if (key === "walk") addPatronus(c); }
     await wait(500);
   }
-  if (!cards.walk) {} // walk always exists now (caught or earlier)
   mrune.classList.remove("flow"); mrune.classList.add("ok");
   const total = Object.keys(cards).length;
   $("#mstext").textContent = `${total} memories · all words ready · saved on this Mac`; $("#mstatus").classList.add("on");
@@ -1137,9 +1135,10 @@ async function transcribeBig() {
       await wait(95); }
     await wait(120);
   }
-  if (S.done.has("patronus") || !S.caught.includes("record") || true) {
+  // the job left with the Patronus spell on the phone gets cast here, on the Mac
+  if (S.done.has("patronus")) {
     const st = el("div", "steps3", `<div class="cap"><div class="porb sm"><div class="core"></div><div class="rg"></div><div class="rg"></div><div class="rg"></div></div>PATRONUS CAST · ${DATA.patronusAsk.replace(/\.$/, "")}</div>${DATA.patronusSteps.map((s, i) => `${i + 1}. ${s}`).join("<br>")}<div class="undo">Undo</div>`);
-    if (S.done.has("patronus")) { await wait(300); box.insertBefore(st, box.querySelector(".proc")); await wait(1100); }
+    await wait(300); box.insertBefore(st, box.querySelector(".proc")); await wait(1100);
   }
   c.querySelector("p").textContent = fullText("walk"); c.querySelector(".flask").setFill(.9); if (S.done.has("patronus")) addPatronus(c);
   await wait(500); box.classList.add("out"); await wait(320); box.remove();
@@ -1195,14 +1194,14 @@ function openMemory(key, line) {
   v.querySelector(".xbtn").onclick = () => v.remove(); $("#display").appendChild(v);
   if (m.lines[line] && m.lines[line].at) say(m.lines[line].t);
 }
-function rest() { S.rest = true; stage.classList.add("rest"); $("#restline").classList.add("on"); $("#headline").querySelector("h1").textContent = "Catch it anywhere. Understand it on your Mac."; $("#headline").querySelector("p").textContent = ""; }
+function rest() { S.rest = true; stage.classList.add("rest"); $("#headline").querySelector("h1").textContent = "Catch it anywhere. Understand it on your Mac."; $("#headline").querySelector("p").textContent = ""; }
 
 /* ═══ wiring ═══════════════════════════════════════════════════════ */
 $("#brand").innerHTML = `<span></span>Pensieve`; $("#brand").firstChild.replaceWith(flask("round", "43 92% 55%", .6));
 $("#brand2").innerHTML = `<span></span>Pensieve`; $("#brand2").firstChild.replaceWith(flask("round", "43 92% 55%", .6));
 $("#sbox").innerHTML = `${glyph("accio", 14)} Accio`; mrune.innerHTML = glyph("sync", 20);
 $("#macbtn").onclick = openMac; $("#macgo").onclick = openMac;
-$("#again").onclick = () => restart(); $("#restart").onclick = () => restart();
+$("#restart").onclick = () => restart();
 $("#sound").onclick = () => { S.sound = !S.sound; $("#sound").setAttribute("aria-pressed", S.sound); $("#sound").textContent = S.sound ? "Sound on" : "Sound off"; if (S.sound) { const c = ac(); if (c && c.resume) c.resume(); tink(0); } else if (window.speechSynthesis) speechSynthesis.cancel(); };
 screen.addEventListener("click", () => { if (S.busy && !S.auto) skip(); });
 document.addEventListener("keydown", (e) => {
@@ -1219,7 +1218,9 @@ function poke() { clearTimeout(idleT); if (!INSTANT) idleT = setTimeout(tour, 20
   poke();
 }, true));
 async function tour() {
-  if (S.auto || S.rest) return; S.auto = true; $("#tourpill").classList.add("on");
+  if (S.auto || S.rest) return;
+  if (S.busy) return poke(); // something is playing: someone is watching, try again later
+  S.auto = true; $("#tourpill").classList.add("on");
   try {
     while (S.auto && !S.mac) { const m = MODES.find((x) => !S.done.has(x.id)); if (!m) break; await playMode(m.id); if (!S.auto) return; await wait(1400).catch(() => {}); }
     if (!S.auto) return; if (!S.mac) await openMac();
