@@ -15,6 +15,7 @@ const only = process.argv[2];
 const SHOTS = [
   { file: "01-arrive.png", run: "", settle: 1500 },
   { file: "02-ring.png", run: "__showcase.playMode('wand')", settle: 1900 },
+  { file: "02b-countdown.png", run: "__showcase.playMode('wand')", settle: 1200 }, // the Wand has finished; Next is counting down
   { file: "03-write.png", run: "__showcase.playMode('write')", settle: 5200 },
   { file: "04-record.png", run: "__showcase.playMode('record')", settle: 5200 },
   { file: "05-film.png", run: "__showcase.playMode('film')", settle: 4300 },

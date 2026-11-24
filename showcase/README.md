@@ -15,6 +15,7 @@ It follows Merlin's script (`updates/2026-11-24 WOW-SHOWCASE - OPEN/script.md`) 
 
 ## Behaviour
 
+- **One click watches it all.** After each scene, the Next button fills up for 2.6 seconds and then presses itself, all the way to opening the Mac. Clicking anything else, or hovering the strip, stops it, and Next waits for you. The whole story is Begin plus the questions you choose to ask: about 2 minutes.
 - Any click skips the animation that is playing. After 20 idle seconds the stage plays the tour by itself, and any touch takes control back.
 - Sound is off by default. Turning it on adds soft tinks and a pour sound, and reads quotes aloud when you open them.
 - With reduced motion on, the movement is cut down and every step still shows.
@@ -23,6 +24,7 @@ It follows Merlin's script (`updates/2026-11-24 WOW-SHOWCASE - OPEN/script.md`) 
 
 - `pensieve-showcase.html`: the whole showcase. Hand-written HTML, CSS and vanilla JS, with all the words in the `DATA` and `MODES` blocks at the top of the script. The plan suggested a Vite build; one hand-written file was chosen because it has no build to break and opens anywhere.
 - `showcase.test.ts`: checks that the file never touches the network, mic or storage, plays the whole story through instantly, and checks every chat citation (`npx vitest run showcase`).
-- `shoot.mjs`: takes 13 screenshots of the key moments to `screenshots/`, which git ignores (`node showcase/shoot.mjs [filter]`).
+- `walkthrough.mjs`: times each scene and the Mac at real speed, and checks that the story moves on by itself and that a click stops it (`node showcase/walkthrough.mjs [filter]`).
+- `shoot.mjs`: takes 14 screenshots of the key moments to `screenshots/`, which git ignores (`node showcase/shoot.mjs [filter]`).
 
 For tests, setting `window.__instant = true` before load makes everything instant. `window.__showcase` exposes the state and the scene functions.

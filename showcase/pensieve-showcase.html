@@ -74,6 +74,13 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid hsl(var(--blue))
 .btn.link{padding:0 6px;color:hsl(var(--muted));font-weight:500}
 .btn.link:hover{color:hsl(var(--text))}
 .btn[hidden]{display:none}
+/* auto-advance: the Next button fills up, then moves on by itself (click it to go now, click anything else to stay) */
+.btn.count{position:relative;overflow:hidden}
+.btn.count::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:100%;background:hsl(222 40% 12%/.45);transform-origin:0 0;
+  animation:countdown 2.6s linear both!important;animation-duration:2.6s!important}
+.g-auto{font-size:12px;color:hsl(var(--muted));margin-top:10px;height:16px;opacity:0;transition:opacity .3s}
+.g-auto.on{opacity:1}
+@keyframes countdown{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 
 /* mode strip: wayfinding, a dot fills when caught */
 .strip{position:absolute;left:36px;top:846px;width:820px;display:flex;gap:4px;justify-content:center;z-index:6;transition:opacity .5s}
@@ -237,11 +244,6 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid hsl(var(--blue))
 .photo .sticky{transform:rotate(-4deg) scale(.82)}
 .clip{margin-top:16px;border-radius:14px;overflow:hidden;aspect-ratio:16/9;position:relative;background:radial-gradient(circle at 50% 45%,hsl(30 14% 30%),hsl(30 10% 10%))}
 .clip .play{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px;border-radius:50%;background:#fff3;backdrop-filter:blur(6px);display:grid;place-items:center;font-size:14px}
-.sheet{position:absolute;left:8px;right:8px;bottom:8px;z-index:8;border-radius:18px;background:hsl(222 10% 20%);padding:14px;box-shadow:0 -10px 40px #0008;animation:kbdin .4s var(--ease) both}
-.sheet .apps{display:flex;gap:14px;padding:4px 4px 14px;border-bottom:1px solid hsl(0 0% 100%/.08)}
-.sheet .apps i{width:46px;height:46px;border-radius:12px;background:hsl(222 10% 32%)}
-.sheet .row{padding:13px 6px;font-size:15px;display:flex;justify-content:space-between;border-bottom:1px solid hsl(0 0% 100%/.06)}
-.sheet .row.hot{background:hsl(0 0% 100%/.08);border-radius:10px}
 /* Journal camera (in-app, stays open) */
 .jcam{background:#000;color:#fff}
 .jcam .jtop{position:absolute;top:50px;left:18px;right:18px;display:flex;justify-content:space-between;font-size:13px;color:#fffd}
@@ -472,6 +474,7 @@ mark{background:hsl(var(--violet)/.25);color:hsl(266 90% 88%);border-radius:3px;
     <p class="g-note" id="gn"></p>
     <div class="g-done" id="gd"></div>
     <div class="g-actions"><button class="btn primary" id="gp">Begin</button><button class="btn link" id="gl" hidden>Show me again</button></div>
+    <p class="g-auto" id="gauto">Moving on by itself · click anywhere to stay</p>
   </aside>
 
   <div class="rig" id="rig">
@@ -760,15 +763,24 @@ function guideShow(id, state = "idle") {
     G.l.hidden = false; G.l.onclick = () => playMode(id);
   }
 }
+/* after a scene, the Next button counts down and presses itself: watching the whole story takes one click (Begin).
+   Clicking anything else (or hovering the strip to look around) stops it, and the button waits as before. */
+let advT = null;
+function autoNext() {
+  cancelAuto(); if (INSTANT || S.auto || S.mac) return;
+  G.p.classList.add("count"); $("#gauto").classList.add("on");
+  advT = setTimeout(() => { advT = null; cancelAuto(); if (!S.auto && !S.busy && !S.mac) G.p.onclick(); }, 2600);
+}
+function cancelAuto() { clearTimeout(advT); advT = null; G.p.classList.remove("count"); $("#gauto").classList.remove("on"); }
 function step(i) { [...G.s.children].forEach((li, k) => li.className = k < i ? "past" : k === i ? "on" : ""); }
 function guideArrive() {
   G.k.innerHTML = "<span>A week in someone's life</span>"; G.m.textContent = "This is a week in someone's life. Try catching it.";
-  G.s.innerHTML = ""; G.n.textContent = "Nine shapes, one week of made-up thoughts. Skip anything, open the Mac any time.";
+  G.s.innerHTML = ""; G.n.textContent = "Nine shapes, one week of made-up thoughts, about two minutes. It moves on by itself. Jump to any shape below, or open the Mac any time.";
   G.d.classList.remove("on"); G.p.hidden = false; G.p.textContent = "Begin"; G.p.onclick = () => playMode("wand"); G.l.hidden = true;
 }
 /* hover previews the guide; leaving restores it */
 let hoverBack = null;
-function preview(id) { if (S.busy || S.mac) return; hoverBack = hoverBack || S.scene; guideShow(id, S.done.has(id) ? "done" : "idle"); }
+function preview(id) { if (S.busy || S.mac) return; cancelAuto(); hoverBack = hoverBack || S.scene; guideShow(id, S.done.has(id) ? "done" : "idle"); }
 function unpreview() { if (!hoverBack || S.busy) { hoverBack = null; return; } const b = hoverBack; hoverBack = null; if (b === "arrive") guideArrive(); else guideShow(b, S.done.has(b) ? "done" : "idle"); }
 
 /* mode strip */
@@ -895,8 +907,8 @@ const PLAY = {
     const press = (ch) => { const k = kb.querySelector(`[data-k="${ch.toLowerCase()}"]`); if (k) { k.classList.add("on"); setTimeout(() => k.classList.remove("on"), 110); } };
     await wait(500); step(1);
     const t = l.querySelector(".t"), b = l.querySelector(".b");
-    await typeInto(t, DATA.memories.write.title, 55, press); t.classList.remove("cursor"); b.classList.add("cursor");
-    await typeInto(b, DATA.memories.write.lines[0].t, 38, press); await wait(500);
+    await typeInto(t, DATA.memories.write.title, 42, press); t.classList.remove("cursor"); b.classList.add("cursor");
+    await typeInto(b, DATA.memories.write.lines[0].t, 28, press); await wait(500);
     kb.style.transition = "transform .3s"; kb.style.transform = "translateY(100%)"; b.classList.remove("cursor");
     step(2); await finger.tap($("#backbtn")); await closeLayers();
   },
@@ -911,7 +923,7 @@ const PLAY = {
     const clock = setInterval(() => { sec++; tm.textContent = `0:${String(Math.min(sec, 59)).padStart(2, "0")}`; }, 1000);
     try {
       const words = DATA.memories.walk.lines.slice(1);
-      for (const w of words) { caption(w.t, 300); await wait(1500 + w.t.length * 18); }
+      for (const w of words) { caption(w.t, 300); await wait(1100 + w.t.length * 16); }
       if (RUN.fast) tm.textContent = "0:14";
     } finally { live = false; clearInterval(iv); clearInterval(clock); }
     uncaption(); step(2); await finger.tap(veil.querySelector(".done"));
@@ -932,10 +944,8 @@ const PLAY = {
     await wait(300); await finger.tap(l.querySelector(".use"));
     l.remove();
     const m = layer("", `<div class="memo"><div class="t">New Video</div><div class="b"><em>added video</em></div><div class="clip">${wheelSVG()}<span class="play">▶</span></div></div>`); setDock("memo");
-    await wait(600);
-    const sheet = el("div", "sheet", `<div class="apps"><i></i><i></i><i></i><i></i></div><div class="row sv"><span>Save Video</span><span>⤓</span></div><div class="row"><span>Copy</span><span>⧉</span></div>`); m.appendChild(sheet);
-    await wait(500); const sv = sheet.querySelector(".sv"); await finger.tap(sv); sv.classList.add("hot"); await wait(300); sheet.remove();
-    await wait(300); await finger.tap($("#backbtn")); await closeLayers();
+    // the optional Save Video share sheet is left to the guide's note: acting it out made an extra look required
+    await wait(900); await finger.tap($("#backbtn")); await closeLayers();
   },
   async snap(o) {
     step(0); await cast("snap", "general", o.fromRing);
@@ -989,7 +999,7 @@ const PLAY = {
     const tr = l.querySelector(".qtrack");
     try {
       for (let i = 0; i < 3; i++) {
-        caption(A[i].t, 120); await wait(1700);
+        caption(A[i].t, 120); await wait(1400);
         if (i === 0) step(2);
         uncaption(); const qs = l.querySelector(".qs"), r = rectOf(qs);
         await finger.to({ x: r.x + r.w / 2, y: r.y + r.h - 40 }, { quick: true }); finger.node.style.transform = `translate(${r.x + r.w / 2}px,${r.y + 120}px)`;
@@ -1034,12 +1044,12 @@ function wheelSVG() {
 /* ═══ scene runner ═════════════════════════════════════════════════ */
 async function playMode(id, o = {}) {
   if (S.mac) return;
-  await takeover(); hoverBack = null; S.scene = id; S.busy = true; stripSync();
+  cancelAuto(); await takeover(); hoverBack = null; S.scene = id; S.busy = true; stripSync();
   phoneReset(); guideShow(id, "playing"); const run = RUN;
   try {
     await PLAY[id](o);
     if (BOTTLE[id] && !S.caught.includes(id)) { S.caught.push(id); reelRender(); await dropBottle(id); }
-    markDone(id); phoneReset(); guideShow(id, "done");
+    markDone(id); phoneReset(); guideShow(id, "done"); if (RUN === run) autoNext();
   } catch (e) { if (e !== CANCEL) throw e; }
   finally { if (RUN === run) { S.busy = false; finger.hide(); uncaption(); } }
 }
@@ -1061,7 +1071,7 @@ async function fillTo(f, to, ms) {
 }
 const fullText = (key) => DATA.memories[key].lines.map((l) => (l.q ? `${l.q} ${l.t}` : l.t)).join(" ");
 async function openMac() {
-  if (S.mac) return; await takeover(); phoneReset(); S.mac = true; S.busy = true; S.scene = "mac"; stripSync(); const run = RUN;
+  if (S.mac) return; cancelAuto(); await takeover(); phoneReset(); S.mac = true; S.busy = true; S.scene = "mac"; stripSync(); const run = RUN;
   stage.classList.add("mac-on"); $("#headline").querySelector("h1").textContent = "Then ask it something.";
   $("#headline").querySelector("p").textContent = "Everything you caught pours in, and fills with words.";
   try { await wait(500); $("#mac3d").classList.add("open"); $("#mac3d").classList.remove("invite"); await wait(1300); await pour(); }
@@ -1097,7 +1107,8 @@ async function pour() {
   // 3 · every card fills as its words arrive; voice gets the one slow moment
   const order = caught.flatMap((id) => DATA.pours[id]);
   if (order.includes("walk")) await transcribeBig();
-  for (const key of order) { if (key === "walk") continue; await fillCard(key); }
+  // the rest fill together, a beat apart (one at a time was a slow wait before the chat)
+  await Promise.all(order.filter((k) => k !== "walk").map((key, i) => wait(i * 160).then(() => fillCard(key))));
   // 4 · skipped shapes arrive as "from earlier this week", already full
   if (skipped.length) {
     gallery.appendChild(el("div", "gsec", "From earlier this week")); const g2 = el("div", "ggrid"); gallery.appendChild(g2);
@@ -1108,7 +1119,7 @@ async function pour() {
   const total = Object.keys(cards).length;
   $("#mstext").textContent = `${total} memories · all words ready · saved on this Mac`; $("#mstatus").classList.add("on");
   shelf.querySelectorAll(".bottle").forEach((x) => x.style.opacity = .15);
-  await wait(700); $("#porbbtn").classList.add("on"); await wait(300); openChat();
+  await wait(300); $("#porbbtn").classList.add("on"); await wait(200); openChat();
 }
 async function fillCard(key) {
   const c = cards[key], f = c.querySelector(".flask"), p = c.querySelector("p");
@@ -1215,11 +1226,12 @@ let idleT = null;
 function poke() { clearTimeout(idleT); if (!INSTANT) idleT = setTimeout(tour, 20000); }
 ["pointerdown", "keydown", "pointermove", "wheel"].forEach((ev) => addEventListener(ev, (e) => {
   if (S.auto && ev !== "pointermove") { S.auto = false; $("#tourpill").classList.remove("on"); skip(); }
+  if (advT && (ev === "pointerdown" || ev === "keydown") && !G.p.contains(e.target)) cancelAuto();
   poke();
 }, true));
 async function tour() {
   if (S.auto || S.rest) return;
-  if (S.busy) return poke(); // something is playing: someone is watching, try again later
+  if (S.busy || advT) return poke(); // something is playing (or about to move on): someone is watching, try again later
   S.auto = true; $("#tourpill").classList.add("on");
   try {
     while (S.auto && !S.mac) { const m = MODES.find((x) => !S.done.has(x.id)); if (!m) break; await playMode(m.id); if (!S.auto) return; await wait(1400).catch(() => {}); }
